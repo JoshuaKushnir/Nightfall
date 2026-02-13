@@ -105,6 +105,9 @@ function NetworkProvider:Init()
 			if not networkFolder then
 				error("[NetworkProvider] Failed to find network folder from server")
 			end
+			
+			-- Small delay to allow server to finish creating all RemoteEvents
+			task.wait(0.1)
 		end
 		
 		-- Cache all RemoteEvents
