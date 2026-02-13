@@ -49,6 +49,8 @@
      - **Create Standalone:** Use standard `gh issue create` with labels
      - **Create Linked:** Use `gh sub-issue create --parent <epic-number>` to auto-link to epic
      - **Link Existing:** Use `gh sub-issue add <parent> <child>` to link existing issue to epic
+     - **Add Dependencies:** Use `gh issue-ext blocking add <blocked-id> <blocking-id>` to mark dependencies
+     - **Check Blockers:** Use `gh issue-ext blocking list <issue-id>` before starting work
      - **Update:** During development → Add comments with progress checkpoint
      - **Review:** Before completion → Verify all acceptance criteria met
      - **Close:** When fully implemented and tested → GitHub auto-updates parent epic progress
@@ -68,7 +70,7 @@
 2. **ALWAYS READ `docs/session-log.md`** - Understand what was done previously, active types, and technical debt
 3. **VERIFY GITHUB ISSUE EXISTS** - Check [GitHub Issues](https://github.com/JoshuaKushnir/Nightfall/issues) for the task at hand
 4. **IF ISSUE MISSING:** Create it using `gh issue create` with labels (`phase-X`, `priority`, `type`)
-5. **CHECK DEPENDENCIES** - Review issue dependencies and ensure prerequisites are complete
+5. **CHECK DEPENDENCIES** - Review issue dependencies using `gh issue-ext blocking list <issue-id>` and ensure prerequisites are complete
 6. **REFERENCE ISSUE IN ALL WORK** - Use issue number in code comments, commit messages, session log
 
 ### ⚠️ DURING EVERY TASK:
@@ -217,6 +219,80 @@
   - **Context Preservation:** New team members can understand project by reading epics
   - **Work Organization:** Never lose track of what needs to be done in a phase
   - **Native GitHub Feature:** Uses official GitHub sub-issue relationships (not labels)
+
+### 🔗 ISSUE DEPENDENCIES & BLOCKING RELATIONSHIPS:
+**Structure:** Track which issues block other issues using GitHub CLI extensions.
+
+GitHub CLI supports managing dependency/blocking relationships between issues using the `gh issue-ext` extension. This helps visualize which work must be completed before other work can begin.
+
+- **Managing Issue Dependencies:**
+  
+  **Add a blocking relationship (Issue A blocks Issue B):**
+  ```bash
+  gh issue-ext blocking add <blocked_issue_id> <blocking_issue_id>
+  ```
+  *Example: If #28 (Hitbox) must be done before #30 (Parry), mark #28 as blocking #30:*
+  ```bash
+  gh issue-ext blocking add 30 28
+  ```
+  
+  **List all issues blocking a specific issue:**
+  ```bash
+  gh issue-ext blocking list <issue_id>
+  ```
+  *Example: See what's blocking #43 (Combat UI):*
+  ```bash
+  gh issue-ext blocking list 43
+  ```
+  
+  **Remove a blocking relationship:**
+  ```bash
+  gh issue-ext blocking remove <blocked_issue_id> <blocking_issue_id>
+  ```
+  *Example: Unblock #30 from #28:*
+  ```bash
+  gh issue-ext blocking remove 30 28
+  ```
+
+- **Best Practices:**
+  1. **Document dependencies in issue descriptions** - Always write dependencies in issue body for visibility
+  2. **Use blocking relationships for hard dependencies** - Only mark as blocking if work CANNOT start without it
+  3. **Keep dependency chains short** - Long chains indicate work should be broken down
+  4. **Check blockers before starting work** - Run `gh issue-ext blocking list <issue>` before beginning
+  5. **Unblock issues promptly** - When completing work, check if any issues were blocked by it
+
+- **When to Use Blocking Relationships:**
+  - ✅ **Backend system must exist before frontend can use it** (e.g., #26 NetworkProvider blocks #42 Client Binding)
+  - ✅ **Core functionality required for advanced feature** (e.g., #28 Hitbox blocks #30 Parry mechanics)
+  - ✅ **Data structure must be defined before consumer** (e.g., PlayerData types block DataService)
+  - ❌ **Nice-to-have improvements** (don't use blocking for optional enhancements)
+  - ❌ **Soft preferences** (only use for technical requirements, not preferences)
+
+- **Example Dependency Graph:**
+  ```
+  Phase 1 (#48)
+  ├── #24: ProfileService [✓ Complete]
+  │   └── blocks → #35: Progression System (needs data persistence)
+  ├── #26: Network Provider [✓ Complete]
+  │   ├── blocks → #42: Client Binding
+  │   ├── blocks → #44: Mantra Casting UI
+  │   └── blocks → #34: Dialogue System
+  └── #25: State Machine [✓ Complete]
+      └── blocks → #29: Action Controller (needs state management)
+  
+  Phase 2 (#49)
+  ├── #28: Hitbox System [Pending]
+  │   └── blocks → #30: Parry Mechanics (needs hit detection)
+  └── #29: Action Controller [Pending]
+      └── blocks → #43: Combat Feedback UI (needs animations)
+  ```
+
+- **Workflow Integration:**
+  - When creating a new issue, document dependencies in the body
+  - Before starting work, check: `gh issue-ext blocking list <issue-number>`
+  - When completing an issue, search for issues it was blocking
+  - Update blocked issues with comments: "Unblocked by completion of #XX"
+  - Add to session log when resolving blocking relationships
 
 ---
 
