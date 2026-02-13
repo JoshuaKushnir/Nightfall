@@ -39,11 +39,17 @@
      - Close issue only when fully tested
 
 4. **ISSUE LIFECYCLE MANAGEMENT:**
-   - **Create:** Issue doesn't exist → Create with labels and description
-   - **Update:** During development → Add comments with progress checkpoint every major step
-   - **Review:** Before completion → Verify all acceptance criteria met
-   - **Close:** Only when ALL acceptance criteria complete and tested → Close with completion summary
-   - **Track:** Update session-log.md with issue progress and link
+   - **Epic Issues (Phase-Level):**
+     - **Create:** One per phase with task list of all sub-issues
+     - **Update:** When phase scope changes or new sub-issues added
+     - **Monitor:** Progress tracked automatically via sub-issue checkmarks
+     - **Close:** Only when ALL sub-issues complete AND phase fully delivered
+   - **Sub-Issues (Feature-Level):**
+     - **Create:** Feature doesn't exist → Create with labels, link to epic
+     - **Update:** During development → Add comments with progress checkpoint
+     - **Review:** Before completion → Verify all acceptance criteria met
+     - **Close:** When fully implemented and tested → Close with completion summary
+     - **Track:** Update session-log.md with issue progress and link to epic
 
 5. **WHEN CONFUSED OR AMBIGUOUS:**
    - Default to **GitHub issue discussion thread** - ask clarifying questions in issue comments
@@ -130,12 +136,74 @@
   - `⏳ Pending` - Not started, awaiting dependencies
   - `🔄 In Progress` - Currently being worked on
   - `✅ Complete` - Fully implemented and tested
-  - `🔥 Blocked` - Waiting on external factor or decision
+  - `🚫 Blocked` - Waiting on external factor or decision
 - **Priority Levels:**
   - `critical` - Blocks other work, must be done first
   - `high` - Important for phase completion
   - `medium` - Enhances functionality, not blocking
   - `low` - Nice to have, cosmetic
+
+### 🏗️ EPIC & SUB-ISSUE HIERARCHY:
+**Structure:** Every phase has ONE epic issue that contains a checklist of sub-issues.
+
+- **Epic Issues (`epic` label):**
+  - One per phase (e.g., #48 Phase 1, #49 Phase 2, #50 Phase 3, #51 Phase 4, #18 Phase 5)
+  - Contains **task list** with references to all sub-issues: `- [ ] #XX Issue Title`
+  - Task list automatically tracks progress (GitHub converts `#XX` to clickable links)
+  - Epic body MUST include:
+    - Phase overview and objectives
+    - Sub-issue checklist (checked = complete, unchecked = pending)
+    - Phase-level dependencies
+    - Definition of done for entire phase
+  - Epic stays OPEN until ALL sub-issues complete
+  - Never close epic manually - only when phase is fully complete
+
+- **Sub-Issues (`sub-issue` label):**
+  - Features, systems, or components that belong to an epic
+  - Each sub-issue MUST reference its parent epic: `**Epic:** #48` in description
+  - Each sub-issue has its own:
+    - Detailed technical specifications
+    - Acceptance criteria
+    - Dependencies on other sub-issues
+    - Priority and type labels
+  - Sub-issues can be closed independently as they complete
+  - Closing a sub-issue automatically checks it off in parent epic's task list
+
+- **Creating Sub-Issues:**
+  1. Check parent epic to see if issue already exists
+  2. If creating new sub-issue, add it to parent epic's task list
+  3. Label with `sub-issue` + relevant type labels (`backend`, `frontend`, `full-stack`)
+  4. Reference epic number in issue body: `**Epic:** #XX`
+  5. Add sub-issue to epic's task list: Edit epic body, add `- [ ] #NewIssue Title`
+
+- **Working on Sub-Issues:**
+  - Always check parent epic first to understand phase context
+  - Update sub-issue status independently (assign, mark in-progress, close)
+  - When closing sub-issue, verify epic's task list auto-updates with checkmark
+  - If epic task list doesn't auto-check, manually edit epic body
+
+- **Example Hierarchy:**
+  ```
+  Epic #48: Phase 1 - Core Framework
+  ├── Sub-issue #24: ProfileService Data Wrapper [✓ Complete]
+  ├── Sub-issue #25: State Machine System [✓ Complete]
+  ├── Sub-issue #26: Network Provider [✓ Complete]
+  ├── Sub-issue #27: Bootstrap Systems [✓ Complete]
+  └── Sub-issue #42: Client Binding Framework [✓ Complete]
+  
+  Epic #49: Phase 2 - Combat & Fluidity
+  ├── Sub-issue #28: Hitbox System [ Pending]
+  ├── Sub-issue #29: Action Controller [ Pending]
+  ├── Sub-issue #30: Parry Mechanics [ Pending]
+  └── Sub-issue #43: Combat Feedback UI [ Pending]
+  ```
+
+- **Why This Matters:**
+  - **Progress Tracking:** Epics show phase completion % automatically
+  - **Scope Management:** Easy to see what's in/out of scope for a phase
+  - **Dependency Clarity:** Sub-issues reference each other AND parent epic
+  - **Context Preservation:** New team members can understand project by reading epics
+  - **Work Organization:** Never lose track of what needs to be done in a phase
 
 ---
 
