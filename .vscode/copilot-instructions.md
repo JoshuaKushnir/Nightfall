@@ -38,7 +38,44 @@
      - Update issue with current progress
      - Close issue only when fully tested
 
-4. **ISSUE LIFECYCLE MANAGEMENT:**
+4. **MANDATORY TESTING BEFORE ISSUE CLOSURE:**
+   **🚨 CRITICAL: NEVER CLOSE AN ISSUE WITHOUT TESTING**
+   
+   **Testing Requirements (ALL must be met before closing):**
+   - ✅ **Unit Tests:** All public methods tested with edge cases
+   - ✅ **Integration Tests:** Service interactions verified
+   - ✅ **Manual Testing:** Roblox Studio testing with no errors/warnings
+   - ✅ **Type Checking:** `--!strict` passes with no type errors
+   - ✅ **Acceptance Criteria:** ALL criteria in issue description verified
+   - ✅ **Performance:** No lag, stuttering, or memory leaks
+   - ✅ **Client-Server Sync:** Network communication working (if applicable)
+   - ✅ **UI Responsiveness:** Interface elements respond correctly (if applicable)
+   - ✅ **Edge Cases:** Nil values, empty data, extreme inputs tested
+   - ✅ **Documentation:** Code comments and module headers complete
+   
+   **Testing Evidence Required:**
+   - Screenshots/videos of functionality working
+   - Console output showing no errors/warnings
+   - Test results documented in issue comments
+   - Performance metrics (if applicable)
+   - Integration verification with dependent systems
+   
+   **If Testing Fails:**
+   - Do NOT close the issue
+   - Document what failed in issue comments
+   - Create follow-up issues for fixes
+   - Mark issue as "blocked" or "needs-review"
+   - Update session log with testing results
+   
+   **Testing Commands:**
+   ```bash
+   # Run in Roblox Studio to verify no errors
+   # Check Output window for warnings/errors
+   # Test all acceptance criteria manually
+   # Verify type checking with --!strict
+   ```
+
+5. **ISSUE LIFECYCLE MANAGEMENT:**
    - **Epic Issues (Phase-Level):**
      - **Create:** One per phase with overview, dependencies, and definition of done
      - **Link Sub-Issues:** Use `gh sub-issue add <epic-number> <sub-issue-number>` to link existing issues
@@ -95,21 +132,45 @@
 
 ### ⚠️ AFTER COMPLETING ANY TASK:
 
-1. **CLOSE GITHUB ISSUE (Only When Fully Complete):**
+1. **MANDATORY TESTING VERIFICATION (REQUIRED BEFORE CLOSURE):**
+   **🚨 DO NOT CLOSE ANY ISSUE WITHOUT COMPLETING THIS CHECKLIST:**
+   
+   - [ ] **Unit Tests Pass:** All public methods tested with edge cases
+   - [ ] **Integration Tests Pass:** Service interactions verified
+   - [ ] **Roblox Studio Testing:** Code runs without errors/warnings in Studio
+   - [ ] **Type Checking:** `--!strict` enabled and passes
+   - [ ] **Acceptance Criteria Met:** ALL criteria in issue description verified
+   - [ ] **Performance Verified:** No lag, stuttering, or memory issues
+   - [ ] **Client-Server Sync:** Network communication working (if applicable)
+   - [ ] **UI Functionality:** Interface elements respond correctly (if applicable)
+   - [ ] **Edge Cases Tested:** Nil values, empty data, extreme inputs handled
+   - [ ] **Documentation Complete:** Code comments and module headers added
+   
+   **Testing Evidence Required:**
+   - Console output showing no errors/warnings
+   - Screenshots/videos of functionality working
+   - Test results documented in issue comments
+   - Performance metrics (if applicable)
+   
+   **If ANY test fails:** Do NOT close issue - document failures and create follow-up issues
+
+2. **CLOSE GITHUB ISSUE (Only When ALL Testing Complete):**
    - Verify ALL acceptance criteria are ✅ complete
+   - Verify ALL testing checklist items are ✅ complete
    - Add final comment summarizing completion:
      ```
-     ## Issue Complete
+     ## Issue Complete ✅
      - [x] All acceptance criteria met
+     - [x] All testing requirements satisfied
      - Files created/modified: [list]
-     - Testing performed: [list]
+     - Testing performed: [detailed list with results]
      - Related issues: [link any]
      - Ready for: [next phase/review]
      ```
    - Use GitHub CLI: `gh issue close <issue-number> --comment "Completion summary..."`
-   - Do NOT close prematurely - only when fully implemented and tested
+   - **NEVER close prematurely** - only when fully implemented AND tested
 
-2. **UPDATE `docs/session-log.md`:**
+3. **UPDATE `docs/session-log.md`:**
    - Mark completed milestones with issue number
    - Add new types to "Active Global Types" section
    - Document any technical debt created (with links to issues created)
@@ -1043,6 +1104,30 @@ Client Input → Client Controller → Network → Server Service → StateServi
 - [ ] Commit messages include issue number (e.g., `feat(#24): Description`)
 - [ ] Ready to close issue: All criteria met, tested, documented
 - [ ] Issue will be closed with completion summary
+
+### 🚨 MANDATORY TESTING CHECKLIST (REQUIRED BEFORE CLOSURE):
+**FAILURE TO COMPLETE THIS CHECKLIST = DO NOT CLOSE ISSUE**
+
+- [ ] **Unit Tests:** All public methods tested with edge cases (nil, empty, extreme values)
+- [ ] **Integration Tests:** Service interactions verified (DataService + StateService, etc.)
+- [ ] **Roblox Studio Testing:** Code runs without ANY errors/warnings in Output window
+- [ ] **Type Checking:** `--!strict` enabled and passes with no type errors
+- [ ] **Acceptance Criteria:** ALL criteria in issue description manually verified
+- [ ] **Performance Testing:** No lag, stuttering, or memory leaks (60 FPS target)
+- [ ] **Client-Server Sync:** Network communication working correctly (if applicable)
+- [ ] **UI Responsiveness:** Interface elements respond correctly (if applicable)
+- [ ] **Edge Cases:** Nil values, empty data, extreme inputs handled gracefully
+- [ ] **Error Handling:** Proper error messages and recovery for failure cases
+- [ ] **Documentation:** Code comments, module headers, and API docs complete
+
+**Testing Evidence Required in Issue Comments:**
+- Screenshots/videos of functionality working
+- Console output showing no errors/warnings
+- Test results with specific scenarios tested
+- Performance metrics (if applicable)
+- Integration verification results
+
+**If ANY test fails:** STOP, document failure, create follow-up issue, DO NOT CLOSE
 
 ### Pre-Commit Checklist:
 - [ ] `docs/session-log.md` updated with current session progress and issue numbers
