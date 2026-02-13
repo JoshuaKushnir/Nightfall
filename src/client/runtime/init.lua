@@ -79,9 +79,15 @@ print("")
 print("[Client] [3/4] Initializing controllers...")
 local initSuccess = true
 
+-- Build dependencies table for dependency injection
+local dependencies = {
+	NetworkController = controllers.NetworkController,
+	StateSyncController = controllers.StateSyncController,
+}
+
 for name, controller in controllers do
 	if type(controller) == "table" and controller.Init then
-		local success, err = pcall(controller.Init, controller)
+		local success, err = pcall(controller.Init, dependencies)
 		
 		if not success then
 			warn(`[Client] ❌ Failed to initialize {name}: {err}`)

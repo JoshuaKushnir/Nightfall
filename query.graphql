@@ -1,0 +1,33 @@
+query {
+  repository(owner: "JoshuaKushnir", name: "Nightfall") {
+    issue42: issueOrPullRequest(number: 42) {
+      __typename
+      ... on Issue {
+        id
+        number
+        title
+      }
+    }
+    issue24: issueOrPullRequest(number: 24) {
+      ... on Issue {
+        id
+        number
+        title
+      }
+    }
+    issue25: issueOrPullRequest(number: 25) {
+      ... on Issue {
+        id
+        number
+        title
+      }
+    }
+    issue26: issueOrPullRequest(number: 26) {
+      ... on Issue {
+        id
+        number
+        title
+      }
+    }
+  }
+}

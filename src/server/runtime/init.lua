@@ -51,9 +51,16 @@ print("")
 print("[Server] [2/3] Initializing services...")
 local initSuccess = true
 
+-- Build dependencies table for dependency injection
+local dependencies = {
+	NetworkService = services.NetworkService,
+	DataService = services.DataService,
+	StateSyncService = services.StateSyncService,
+}
+
 for name, service in services do
 	if type(service) == "table" and service.Init then
-		local success, err = pcall(service.Init, service)
+		local success, err = pcall(service.Init, dependencies)
 		
 		if not success then
 			warn(`[Server] ❌ Failed to initialize {name}: {err}`)

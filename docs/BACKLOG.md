@@ -34,6 +34,22 @@ All development work is tracked through **GitHub Issues** with a structured labe
 
 ---
 
+## 📊 Milestone Refactoring: Backend + Frontend Balance
+
+To ensure features are actuated immediately as backend systems are built, each milestone now includes paired frontend and backend work:
+
+| Phase | Before | After | Goal |
+|-------|--------|-------|------|
+| Phase 1 | 4 Backend | 4 Backend + 1 Frontend | Infrastructure + UI binding |
+| Phase 2 | 2 Backend + 1 Frontend | 2 Backend + 2 Frontend | Hitboxes + Animations + Feedback |
+| Phase 3 | 3 Backend | 3 Backend + 2 Frontend | Mantras + Casting UI + VFX |
+| Phase 4 | 2 Backend + 1 Frontend | 2 Backend + 3 Frontend | RPG systems + Full UI suite |
+| Phase 5 | 3 Backend + 2 Frontend | 3 Backend + 1 Frontend + 2 Full-Stack | Polish + Deployment |
+
+**New Issues Added:** #41-#46 (Client-facing features that actuate backend systems)
+
+---
+
 ## 📊 Progress Tracking
 
 ### ✅ Phase 0: Genesis (COMPLETE)
@@ -59,76 +75,90 @@ All development work is tracked through **GitHub Issues** with a structured labe
 
 ---
 
-### 🔄 Phase 1: Core Framework (Infrastructure)
+### ✅ Phase 1: Core Framework (Infrastructure)
 **Goal:** Establish the foundational systems required for all gameplay features.  
-**Status:** In Planning  
+**Status:** ✅ COMPLETE (February 12, 2026)  
 **Issues:** [Filter by phase-1](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-1)
 
-| Issue | Title | Labels | Status |
-|-------|-------|--------|--------|
-| [#24](https://github.com/JoshuaKushnir/Nightfall/issues/24) | ProfileService Data Wrapper | `critical`, `infrastructure`, `data` | ⏳ Pending |
-| [#25](https://github.com/JoshuaKushnir/Nightfall/issues/25) | Enhanced State Machine System | `high`, `infrastructure`, `state-machine` | ⏳ Pending |
-| [#26](https://github.com/JoshuaKushnir/Nightfall/issues/26) | Network Provider (Centralized RemoteEvent Handling) | `critical`, `infrastructure`, `networking` | ⏳ Pending |
-| [#27](https://github.com/JoshuaKushnir/Nightfall/issues/27) | Server & Client Bootstrap Systems | `high`, `infrastructure`, `initialization` | ⏳ Pending |
+| Issue | Title | Type | Labels | Status |
+|-------|-------|------|--------|--------|
+| [#24](https://github.com/JoshuaKushnir/Nightfall/issues/24) | ProfileService Data Wrapper | `backend` | `critical`, `infrastructure`, `data`, `backend` | ✅ Complete |
+| [#25](https://github.com/JoshuaKushnir/Nightfall/issues/25) | Enhanced State Machine System | `backend` | `high`, `infrastructure`, `state-machine`, `backend` | ✅ Complete |
+| [#26](https://github.com/JoshuaKushnir/Nightfall/issues/26) | Network Provider (Centralized RemoteEvent Handling) | `backend` | `critical`, `infrastructure`, `networking`, `backend` | ✅ Complete |
+| [#27](https://github.com/JoshuaKushnir/Nightfall/issues/27) | Server & Client Bootstrap Systems | `backend` | `high`, `infrastructure`, `initialization`, `backend` | ✅ Complete |
+| [#42](https://github.com/JoshuaKushnir/Nightfall/issues/42) | Client-Side Binding Framework & State Sync UI | `frontend` | `high`, `infrastructure`, `ui`, `client`, `frontend` | ✅ Complete |
 
-**Key Dependencies:**
-- #24 (DataService) is foundational for all data persistence
-- #26 (NetworkProvider) is required for client-server communication
-- #27 (Bootstrap) depends on other services being ready
+**Completed Features:**
+- **Backend Foundation:** DataService (ProfileService wrapper) → NetworkService (rate limiting, validation) → StateService (state machine with validation)
+- **Bootstrap Systems:** Server and client runtime initialization with dependency injection
+- **Frontend Framework:** StateSyncController + UIBinding reactive system + PlayerHUD demo
+- **Full Stack:** Client-server state synchronization with network event system
+
+**Sessions:** NF-006, NF-007, NF-008
 
 ---
 
-### ⏳ Phase 2: Combat & Fluidity (The Feel)
-**Goal:** Create responsive, satisfying combat with hitboxes, animations, and timing-based mechanics.  
+### 🔄 Phase 2: Combat & Fluidity (The Feel)
+**Goal:** Create responsive, satisfying combat with hitboxes, animations, and timing-based mechanics paired with visual feedback.  
+**Status:** Ready to Start  
 **Status:** Pending  
 **Issues:** [Filter by phase-2](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
 
-| Issue | Title | Labels | Status |
-|-------|-------|--------|--------|
-| [#28](https://github.com/JoshuaKushnir/Nightfall/issues/28) | Modular Hitbox System | `critical`, `combat`, `hitbox` | ⏳ Pending |
-| [#29](https://github.com/JoshuaKushnir/Nightfall/issues/29) | Action Controller (Animation & Feel) | `high`, `combat`, `animation` | ⏳ Pending |
-| [#30](https://github.com/JoshuaKushnir/Nightfall/issues/30) | Parrying & Block Mechanics | `high`, `combat`, `mechanics` | ⏳ Pending |
+| Issue | Title | Type | Labels | Status |
+|-------|-------|------|--------|--------|
+| [#28](https://github.com/JoshuaKushnir/Nightfall/issues/28) | Modular Hitbox System | `backend` | `critical`, `combat`, `hitbox`, `backend` | ⏳ Pending |
+| [#29](https://github.com/JoshuaKushnir/Nightfall/issues/29) | Action Controller (Animation & Feel) | `frontend` | `high`, `combat`, `animation`, `client`, `frontend` | ⏳ Pending |
+| [#30](https://github.com/JoshuaKushnir/Nightfall/issues/30) | Parrying & Block Mechanics | `backend` | `high`, `combat`, `mechanics`, `backend` | ⏳ Pending |
+| [#43](https://github.com/JoshuaKushnir/Nightfall/issues/43) | Combat Feedback UI (Health Bar, Damage Numbers, VFX) | `frontend` | `high`, `combat`, `ui`, `visual-feedback`, `frontend` | ⏳ Pending |
 
 **Key Dependencies:**
-- Phase 2 requires Phase 1 completion (#26 NetworkProvider, StateService)
-- #29 depends on #28 (HitboxService)
-- #30 depends on #28, #29
+- **Parallel:** #28 (Hitbox Backend) ↔ #29 (Animation Frontend) - Build together for feel
+- **Backend Flow:** #28 → #30 (Parry mechanics depend on hitbox detection)
+- **Frontend Flow:** #29 → #43 (Feedback animates combat results)
+- **Integration:** #43 displays results from #30 and #28
 
 ---
 
 ### ⏳ Phase 3: The Mantra System (Magic)
-**Goal:** Implement the modular magic system with elements, classes, and resource management.  
+**Goal:** Implement the modular magic system with elements, classes, and resource management paired with casting UI and visual feedback.  
 **Status:** Pending  
 **Issues:** [Filter by phase-3](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
 
-| Issue | Title | Labels | Status |
-|-------|-------|--------|--------|
-| [#31](https://github.com/JoshuaKushnir/Nightfall/issues/31) | Dynamic Mantra Loader | `critical`, `mantras`, `magic` | ⏳ Pending |
-| [#32](https://github.com/JoshuaKushnir/Nightfall/issues/32) | Multi-Element/Class Logic & Requirements | `high`, `mantras`, `progression` | ⏳ Pending |
-| [#33](https://github.com/JoshuaKushnir/Nightfall/issues/33) | Global Cooldown & Mana (Posture) Management | `high`, `mantras`, `resources` | ⏳ Pending |
+| Issue | Title | Type | Labels | Status |
+|-------|-------|------|--------|--------|
+| [#31](https://github.com/JoshuaKushnir/Nightfall/issues/31) | Dynamic Mantra Loader | `backend` | `critical`, `mantras`, `magic`, `backend` | ⏳ Pending |
+| [#32](https://github.com/JoshuaKushnir/Nightfall/issues/32) | Multi-Element/Class Logic & Requirements | `backend` | `high`, `mantras`, `progression`, `backend` | ⏳ Pending |
+| [#33](https://github.com/JoshuaKushnir/Nightfall/issues/33) | Global Cooldown & Mana (Posture) Management | `backend` | `high`, `mantras`, `resources`, `backend` | ⏳ Pending |
+| [#44](https://github.com/JoshuaKushnir/Nightfall/issues/44) | Mantra Casting UI & Keybind System | `frontend` | `high`, `mantras`, `ui`, `client`, `frontend` | ⏳ Pending |
+| [#45](https://github.com/JoshuaKushnir/Nightfall/issues/45) | Mantra VFX & Animation System | `frontend` | `high`, `mantras`, `visual-feedback`, `animation`, `frontend` | ⏳ Pending |
 
 **Key Dependencies:**
-- #31 (MantraLoader) is foundational for magic system
-- #32 depends on #31, #24 (DataService)
-- #33 depends on #31, StateService, #26 (NetworkProvider)
+- **Backend Foundation:** #31 (MantraLoader) → #32 (Class Logic) + #33 (Resources)
+- **Frontend Parallel:** #44 (Casting UI) waits on #31 ready, #45 (VFX) depends on #31 for spell data
+- **Integration:** #44 triggers #33 (mana cost), #45 displays spell effects from #31
+- Both #44 and #45 depend on Phase 1 completion (#26 NetworkProvider)
 
 ---
 
 ### ⏳ Phase 4: World & Narrative (The RPG)
-**Goal:** Add progression, dialogue, and RPG systems that give the game depth and replayability.  
+**Goal:** Add progression, dialogue, and RPG systems that give the game depth and replayability, with full UI integration.  
 **Status:** Pending  
 **Issues:** [Filter by phase-4](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-4)
 
-| Issue | Title | Labels | Status |
-|-------|-------|--------|--------|
-| [#34](https://github.com/JoshuaKushnir/Nightfall/issues/34) | Branching Dialogue System | `high`, `narrative`, `dialogue` | ⏳ Pending |
-| [#35](https://github.com/JoshuaKushnir/Nightfall/issues/35) | Progression & Leveling System | `critical`, `progression`, `rpg` | ⏳ Pending |
-| [#36](https://github.com/JoshuaKushnir/Nightfall/issues/36) | Armor/Class Component System | `high`, `equipment`, `systems` | ⏳ Pending |
+| Issue | Title | Type | Labels | Status |
+|-------|-------|------|--------|--------|
+| [#34](https://github.com/JoshuaKushnir/Nightfall/issues/34) | Branching Dialogue System | `frontend` | `high`, `narrative`, `dialogue`, `ui`, `frontend` | ⏳ Pending |
+| [#35](https://github.com/JoshuaKushnir/Nightfall/issues/35) | Progression & Leveling System | `backend` | `critical`, `progression`, `rpg`, `backend` | ⏳ Pending |
+| [#36](https://github.com/JoshuaKushnir/Nightfall/issues/36) | Armor/Class Component System | `backend` | `high`, `equipment`, `systems`, `backend` | ⏳ Pending |
+| [#46](https://github.com/JoshuaKushnir/Nightfall/issues/46) | Character Sheet & Stat Display UI | `frontend` | `high`, `ui`, `progression`, `client`, `frontend` | ⏳ Pending |
+| [#47](https://github.com/JoshuaKushnir/Nightfall/issues/47) | Equipment Inventory & Loadout UI | `frontend` | `high`, `ui`, `equipment`, `client`, `frontend` | ⏳ Pending |
 
 **Key Dependencies:**
-- #34 depends on #24 (DataService), #26 (NetworkProvider)
+- **Backend Path:** #35 (Progression) → #36 (Equipment), both feed #46+#47
+- **Frontend Path:** #34 (Dialogue) is independent; #46 displays #35 data; #47 displays #36 data
 - #35 depends on #24 (DataService), StateService, #32 (ClassService)
 - #36 depends on #24, #35, #32
+- All frontend issues (#34, #46, #47) depend on #26 (NetworkProvider) for sync
 
 ---
 
@@ -137,34 +167,41 @@ All development work is tracked through **GitHub Issues** with a structured labe
 **Status:** Pending  
 **Issues:** [Filter by phase-5](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-5)
 
-| Issue | Title | Labels | Status |
-|-------|-------|--------|--------|
-| [#37](https://github.com/JoshuaKushnir/Nightfall/issues/37) | DataStore Fail-Safes & Analytics | `critical`, `data`, `analytics` | ⏳ Pending |
-| [#38](https://github.com/JoshuaKushnir/Nightfall/issues/38) | Performance Optimization & Memory Management | `critical`, `optimization`, `performance` | ⏳ Pending |
-| [#39](https://github.com/JoshuaKushnir/Nightfall/issues/39) | UI/UX Responsive Framework | `high`, `ui`, `ux` | ⏳ Pending |
-| [#18](https://github.com/JoshuaKushnir/Nightfall/issues/18) | Testing Framework & QA Procedures | `medium`, `testing`, `qa` | ⏳ Pending |
-| [#40](https://github.com/JoshuaKushnir/Nightfall/issues/40) | Launch Preparation & Deployment | `critical`, `deployment`, `launch` | ⏳ Pending |
+| Issue | Title | Type | Labels | Status |
+|-------|-------|------|--------|--------|
+| [#37](https://github.com/JoshuaKushnir/Nightfall/issues/37) | DataStore Fail-Safes & Analytics | `backend` | `critical`, `data`, `analytics`, `backend` | ⏳ Pending |
+| [#38](https://github.com/JoshuaKushnir/Nightfall/issues/38) | Performance Optimization & Memory Management | `full-stack` | `critical`, `optimization`, `performance`, `full-stack` | ⏳ Pending |
+| [#39](https://github.com/JoshuaKushnir/Nightfall/issues/39) | UI/UX Responsive Framework | `frontend` | `high`, `ui`, `ux`, `client`, `frontend` | ⏳ Pending |
+| [#18](https://github.com/JoshuaKushnir/Nightfall/issues/18) | Testing Framework & QA Procedures | `backend` | `medium`, `testing`, `qa`, `backend` | ⏳ Pending |
+| [#40](https://github.com/JoshuaKushnir/Nightfall/issues/40) | Launch Preparation & Deployment | `full-stack` | `critical`, `deployment`, `launch`, `full-stack` | ⏳ Pending |
 
 **Key Dependencies:**
-- #37 enhances #24 (DataService)
-- #38 requires all systems for optimization
-- #39 depends on #26 (NetworkProvider) and all gameplay systems
-- #18 depends on all systems for testing
-- #40 depends on ALL previous issues (launch-ready)
+- **Backend:** #37 enhances #24 (DataService), #18 creates test harness
+- **Full-Stack:** #38 requires all systems for optimization, #40 requires ALL previous issues (launch-ready)
+- **Frontend:** #39 polishes all UI created in Phases 1-4
+- All Phase 5 issues depend on Phases 1-4 being complete or substantially complete
 
 ---
 
 ## 🎯 MVP Definition
 **Minimum Viable Product includes:**
+
+**Backend Systems:**
 - ✅ Player data persistence (ProfileService) - [Issue #24](https://github.com/JoshuaKushnir/Nightfall/issues/24)
-- ✅ Basic combat (hitboxes, animations, parrying) - [Issues #28-30](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
-- ✅ 5-10 starter mantras (magic spells) - [Issue #31](https://github.com/JoshuaKushnir/Nightfall/issues/31)
+- ✅ State management & reactivity - [Issues #25, #26, #27](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-1)
+- ✅ Basic combat logic (hitboxes, parrying) - [Issues #28, #30](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
+- ✅ 5-10 starter mantras with cooldown/mana - [Issues #31-33](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
 - ✅ Character progression (leveling, stat allocation) - [Issue #35](https://github.com/JoshuaKushnir/Nightfall/issues/35)
-- ✅ Simple equipment system (3-5 armor sets) - [Issue #36](https://github.com/JoshuaKushnir/Nightfall/issues/36)
-- ✅ Basic dialogue with 1-2 NPCs - [Issue #34](https://github.com/JoshuaKushnir/Nightfall/issues/34)
-- ✅ Polished UI and responsive feel - [Issue #39](https://github.com/JoshuaKushnir/Nightfall/issues/39)
-- ✅ Performance optimization (60 FPS target) - [Issue #38](https://github.com/JoshuaKushnir/Nightfall/issues/38)
-- ✅ Stable DataStore with fail-safes - [Issue #37](https://github.com/JoshuaKushnir/Nightfall/issues/37)
+- ✅ Equipment system (3-5 armor sets) - [Issue #36](https://github.com/JoshuaKushnir/Nightfall/issues/36)
+
+**Frontend/UI Systems:**
+- ✅ Client state binding & data sync - [Issue #42](https://github.com/JoshuaKushnir/Nightfall/issues/42)
+- ✅ Combat animations & visual feedback - [Issues #29, #43](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
+- ✅ Mantra casting UI & keybinds - [Issues #44-45](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
+- ✅ Character sheet (stats, progression display) - [Issue #46](https://github.com/JoshuaKushnir/Nightfall/issues/46)
+- ✅ Equipment inventory & loadout UI - [Issue #47](https://github.com/JoshuaKushnir/Nightfall/issues/47)
+- ✅ Dialogue UI with branching options - [Issue #34](https://github.com/JoshuaKushnir/Nightfall/issues/34)
+- ✅ Responsive UI polish - [Issue #39](https://github.com/JoshuaKushnir/Nightfall/issues/39)
 
 **Post-MVP (Future Updates):**
 - Advanced PvP arenas

@@ -1,0 +1,3 @@
+{
+  "query": "mutation { __schema { types { name } } }"
+}

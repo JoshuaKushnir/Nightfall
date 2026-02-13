@@ -17,6 +17,10 @@ export type NetworkEvent =
 	-- State Management
 	| "StateChanged"
 	| "StateRequest"
+	| "RequestStateSync"
+	| "ProfileData"
+	| "ProfileUpdate"
+	| "CombatData"
 	
 	-- Combat
 	| "DamageDealt"
@@ -52,13 +56,31 @@ export type NetworkEvent =
 -- Packet Definitions
 
 export type StateChangedPacket = {
-	Player: Player,
-	OldState: string,
 	NewState: string,
+	Timestamp: number?,
 }
 
 export type StateRequestPacket = {
 	NewState: string,
+}
+
+export type RequestStateSyncPacket = {
+	Timestamp: number,
+}
+
+export type ProfileDataPacket = {
+	ProfileData: any, -- PlayerProfile type
+}
+
+export type ProfileUpdatePacket = {
+	ProfileData: any, -- PlayerProfile type
+}
+
+export type CombatDataPacket = {
+	Health: number,
+	Mana: number,
+	Posture: number,
+	Level: number,
 }
 
 export type DamageDealtPacket = {
@@ -164,6 +186,10 @@ export type DebugInfoPacket = {
 export type NetworkPacket =
 	StateChangedPacket
 	| StateRequestPacket
+	| RequestStateSyncPacket
+	| ProfileDataPacket
+	| ProfileUpdatePacket
+	| CombatDataPacket
 	| DamageDealtPacket
 	| HealReceivedPacket
 	| PostureDamagePacket
@@ -209,6 +235,30 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 5,
 		RequiresValidation = true,
 		Description = "Client requests state change",
+	},
+	RequestStateSync = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 1,
+		RequiresValidation = false,
+		Description = "Client requests full state sync",
+	},
+	ProfileData = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Send initial profile data to client",
+	},
+	ProfileUpdate = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Send profile updates to client",
+	},
+	CombatData = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Send combat stat updates to client",
 	},
 	
 	-- Combat
