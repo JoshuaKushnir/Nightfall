@@ -175,7 +175,7 @@ local function StartStateTimeout(player: Player, state: PlayerState)
 			print(`[StateService] State timeout for {player.Name}: {state} expired after {timeout}s`)
 			
 			-- Auto-transition to Idle
-			StateService.SetPlayerState(player, "Idle")
+			StateService:SetPlayerState(player, "Idle")
 			
 			-- Fire timeout signal
 			StateTimeoutSignal:Fire(player, state)
@@ -210,7 +210,7 @@ end
 	@param playerData Optional existing player data (from DataService)
 	@return PlayerData The initialized player data
 ]]
-function StateService.InitializePlayer(player: Player, playerData: PlayerData?): PlayerData
+function StateService:InitializePlayer(player: Player, playerData: PlayerData?): PlayerData
 	assert(player, "Player cannot be nil")
 	
 	-- Use provided data or create new
@@ -305,7 +305,7 @@ end
 	@param player The player to query
 	@return PlayerData|nil The player's data or nil if not found
 ]]
-function StateService.GetPlayerData(player: Player): PlayerData?
+function StateService:GetPlayerData(player: Player): PlayerData?
 	return PlayerStates[player]
 end
 
@@ -315,7 +315,7 @@ end
 	@param newState The state to transition to
 	@return boolean Whether the transition is allowed
 ]]
-function StateService.CanTransitionTo(player: Player, newState: PlayerState): boolean
+function StateService:CanTransitionTo(player: Player, newState: PlayerState): boolean
 	local playerData = PlayerStates[player]
 	if not playerData then
 		warn(`[StateService] Cannot check transition for non-existent player: {player.Name}`)
@@ -340,7 +340,7 @@ end
 	@param force Whether to bypass validation (admin only)
 	@return boolean Success status
 ]]
-function StateService.SetPlayerState(player: Player, newState: PlayerState, force: boolean?): boolean
+function StateService:SetPlayerState(player: Player, newState: PlayerState, force: boolean?): boolean
 	local stateData = ExtendedPlayerStates[player]
 	if not stateData then
 		warn(`[StateService] Attempted to set state for non-existent player: {player.Name}`)
@@ -357,7 +357,7 @@ function StateService.SetPlayerState(player: Player, newState: PlayerState, forc
 	
 	-- Validate transition (unless forced)
 	if not force then
-		if not StateService.CanTransitionTo(player, newState) then
+		if not self:CanTransitionTo(player, newState) then
 			warn(`[StateService] Invalid state transition for {player.Name}: {oldState} -> {newState}`)
 			return false
 		end
@@ -397,8 +397,8 @@ end
 	@param player The player to update
 	@param newState The state to force
 ]]
-function StateService.ForceState(player: Player, newState: PlayerState)
-	StateService.SetPlayerState(player, newState, true)
+function StateService:ForceState(player: Player, newState: PlayerState)
+	StateService:SetPlayerState(player, newState, true)
 end
 
 --[[
@@ -406,7 +406,7 @@ end
 	@param player The player to query
 	@return {StateHistoryEntry} Array of recent states (last 5)
 ]]
-function StateService.GetStateHistory(player: Player): {StateHistoryEntry}
+function StateService:GetStateHistory(player: Player): {StateHistoryEntry}
 	return PlayerStateHistory[player] or {}
 end
 
@@ -415,7 +415,7 @@ end
 	@param player The player to check
 	@return boolean Whether the player can act
 ]]
-function StateService.CanPlayerAct(player: Player): boolean
+function StateService:CanPlayerAct(player: Player): boolean
 	local playerData = PlayerStates[player]
 	if not playerData then
 		return false
@@ -435,7 +435,7 @@ end
 	Get the signal for state changes
 	@return Signal<Player, OldState, NewState>
 ]]
-function StateService.GetStateChangedSignal(): Signal<Player, PlayerState, PlayerState>
+function StateService:GetStateChangedSignal(): Signal<Player, PlayerState, PlayerState>
 	return StateChangedSignal
 end
 
@@ -443,7 +443,7 @@ end
 	Get the signal for state timeouts
 	@return Signal<Player, ExpiredState>
 ]]
-function StateService.GetStateTimeoutSignal(): Signal<Player, PlayerState>
+function StateService:GetStateTimeoutSignal(): Signal<Player, PlayerState>
 	return StateTimeoutSignal
 end
 
@@ -451,7 +451,7 @@ end
 	Clean up player state when they leave
 	@param player The player to clean up
 ]]
-function StateService.CleanupPlayer(player: Player): ()
+function StateService:CleanupPlayer(player: Player): ()
 	-- Cancel any active timeout
 	local stateData = ExtendedPlayerStates[player]
 	if stateData and stateData.TimeoutThread then
@@ -468,7 +468,7 @@ end
 	Initialize the StateService
 	Called once on server startup
 ]]
-function StateService.Init(): ()
+function StateService:Init(): ()
 	print("[StateService] Initializing...")
 	
 	-- Handle existing players (if hot-reloaded)
