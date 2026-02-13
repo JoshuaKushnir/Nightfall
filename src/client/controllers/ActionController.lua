@@ -67,11 +67,12 @@ function ActionController.Start()
 		end
 		
 		-- Mock actions for testing
-		if input.KeyCode == Enum.KeyCode.E then
+		-- Left click to atk
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
-		elseif input.KeyCode == Enum.KeyCode.R then
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
 			ActionController.PlayAction(ActionTypes.ATTACK_HEAVY)
-		elseif input.KeyCode == Enum.KeyCode.Space then
+		elseif input.KeyCode == Enum.KeyCode.Q then
 			ActionController.PlayAction(ActionTypes.DODGE)
 		end
 	end)
