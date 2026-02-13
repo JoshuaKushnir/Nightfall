@@ -29,9 +29,9 @@ local StarterPlayer = game:GetService("StarterPlayer")
 -- Import Loader utility
 local Loader = require(ReplicatedStorage.Shared.modules.Loader)
 
-print("=" :rep(60))
+print(("="):rep(60))
 print("🌙 NIGHTFALL - Client Bootstrap")
-print("=" :rep(60))
+print(("="):rep(60))
 print(`[Client] Execution Context: {Loader.GetContext()}`)
 print(`[Client] Starting initialization sequence...`)
 print("")
@@ -128,12 +128,12 @@ for _ in controllers do
 	controllerCount += 1
 end
 
-print("=" :rep(60))
+print(("="):rep(60))
 print(`🌙 Client Bootstrap Complete`)
 print(`   Controllers Loaded: {controllerCount}`)
 print(`   Initialization Time: {math.floor(initTime * 100) / 100}ms`)
 print(`   Status: {if initSuccess and startSuccess then "✓ Ready" else "⚠ Partial"}`)
-print("=" :rep(60))
+print(("="):rep(60))
 print("")
 
 -- Export controllers for debugging (optional)
@@ -156,3 +156,6 @@ player.CharacterAdded:Connect(function(newCharacter)
 		end
 	end
 end)
+
+-- Return true to indicate successful module loading
+return true

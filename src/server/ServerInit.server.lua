@@ -14,6 +14,6 @@
 
 -- Require the runtime bootstrap module
 -- This will load all services and initialize them
-require(script.Parent.runtime.init)
+require(script.Parent.runtime)
 
 print("[ServerInit] Bootstrap initiated - see runtime output above")

@@ -33,7 +33,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 -- Dependencies
-local ProfileService = require(ReplicatedStorage.Packages.ProfileService)
+-- Wait for Packages to be available (Rojo sync delay)
+local ProfileServiceModule = ReplicatedStorage:WaitForChild("Packages", 5):WaitForChild("ProfileService", 5)
+local ProfileService = require(ProfileServiceModule)
 local PlayerDataTypes = require(ReplicatedStorage.Shared.types.PlayerData)
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 

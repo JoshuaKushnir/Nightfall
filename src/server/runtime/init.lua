@@ -27,9 +27,9 @@ local ServerScriptService = game:GetService("ServerScriptService")
 -- Import Loader utility
 local Loader = require(ReplicatedStorage.Shared.modules.Loader)
 
-print("=" :rep(60))
+print(("="):rep(60))
 print("🌙 NIGHTFALL - Server Bootstrap")
-print("=" :rep(60))
+print(("="):rep(60))
 print(`[Server] Execution Context: {Loader.GetContext()}`)
 print(`[Server] Starting initialization sequence...`)
 print("")
@@ -100,12 +100,12 @@ for _ in services do
 	serviceCount += 1
 end
 
-print("=" :rep(60))
+print(("="):rep(60))
 print(`🌙 Server Bootstrap Complete`)
 print(`   Services Loaded: {serviceCount}`)
 print(`   Initialization Time: {math.floor(initTime * 100) / 100}ms`)
 print(`   Status: {if initSuccess and startSuccess then "✓ Ready" else "⚠ Partial"}`)
-print("=" :rep(60))
+print(("="):rep(60))
 print("")
 
 -- Export services for debugging (optional)
@@ -130,3 +130,6 @@ game:BindToClose(function()
 	
 	print("[Server] Shutdown complete")
 end)
+
+-- Return true to indicate successful module loading
+return true

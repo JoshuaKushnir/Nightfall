@@ -14,6 +14,6 @@
 
 -- Require the runtime bootstrap module
 -- This will load all controllers and initialize them
-require(script.Parent.runtime.init)
+require(script.Parent.runtime)
 
 print("[ClientInit] Bootstrap initiated - see runtime output above")
