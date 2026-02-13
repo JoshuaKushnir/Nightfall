@@ -81,8 +81,40 @@ print("")
 print("[Server] [3/3] Starting services...")
 local startSuccess = true
 
+-- Start in a specific order to handle dependencies
+local startOrder = {
+	"NetworkService",      -- Must start first (depended on by others)
+	"StateSyncService",    -- Depends on NetworkService
+	"DataService",
+	"DefenseService",      -- May depend on other services
+}
+
+for _, name in startOrder do
+	local service = services[name]
+	if service and type(service) == "table" and service.Start then
+		local success, err = pcall(service.Start, service)
+		
+		if not success then
+			warn(`[Server] ❌ Failed to start {name}: {err}`)
+			startSuccess = false
+		else
+			print(`[Server] ✓ Started: {name}`)
+		end
+	end
+end
+
+-- Start any other services not in the explicit order
 for name, service in services do
-	if type(service) == "table" and service.Start then
+	-- Skip if already started above
+	local alreadyStarted = false
+	for _, startedName in startOrder do
+		if startedName == name then
+			alreadyStarted = true
+			break
+		end
+	end
+	
+	if not alreadyStarted and type(service) == "table" and service.Start then
 		local success, err = pcall(service.Start, service)
 		
 		if not success then

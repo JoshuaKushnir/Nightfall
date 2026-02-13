@@ -107,8 +107,40 @@ print("")
 print("[Client] [4/4] Starting controllers...")
 local startSuccess = true
 
+-- Start in a specific order to handle dependencies
+local startOrder = {
+	"NetworkController",  -- Must start first (depended on by others)
+	"ActionController",
+	"PlayerHUDController",
+	"StateSyncController",  -- Depends on NetworkController
+}
+
+for _, name in startOrder do
+	local controller = controllers[name]
+	if controller and type(controller) == "table" and controller.Start then
+		local success, err = pcall(controller.Start, controller)
+		
+		if not success then
+			warn(`[Client] ❌ Failed to start {name}: {err}`)
+			startSuccess = false
+		else
+			print(`[Client] ✓ Started: {name}`)
+		end
+	end
+end
+
+-- Start any other controllers not in the explicit order
 for name, controller in controllers do
-	if type(controller) == "table" and controller.Start then
+	-- Skip if already started above
+	local alreadyStarted = false
+	for _, startedName in startOrder do
+		if startedName == name then
+			alreadyStarted = true
+			break
+		end
+	end
+	
+	if not alreadyStarted and type(controller) == "table" and controller.Start then
 		local success, err = pcall(controller.Start, controller)
 		
 		if not success then
