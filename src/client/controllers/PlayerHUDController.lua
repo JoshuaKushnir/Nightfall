@@ -111,7 +111,11 @@ end
 	Creates the HUD UI structure
 ]]
 local function createHUD()
-	playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	playerGui = Players.LocalPlayer:WaitForChild("PlayerGui", 5)
+	
+	if not playerGui then
+		error("[PlayerHUDController] Failed to get PlayerGui")
+	end
 	
 	-- Main ScreenGui
 	screenGui = Instance.new("ScreenGui")

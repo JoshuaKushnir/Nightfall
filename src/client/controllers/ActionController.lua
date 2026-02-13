@@ -48,7 +48,11 @@ function ActionController.Init()
 	end
 	
 	Character = Player.Character or Player.CharacterAdded:Wait()
-	Humanoid = Character:WaitForChild("Humanoid") :: Humanoid
+	local humanoid = Character:WaitForChild("Humanoid", 5)
+	if not humanoid then
+		error("[ActionController] Character missing Humanoid")
+	end
+	Humanoid = humanoid :: Humanoid
 	
 	-- Wait for Animator with timeout (may not exist in all character models)
 	local animator = Character:WaitForChild("Animator", 5)
@@ -289,7 +293,13 @@ function ActionController.OnCharacterAdded(newCharacter: Model)
 	
 	-- Reinitialize
 	Character = newCharacter
-	Humanoid = Character:WaitForChild("Humanoid")
+	local humanoid = Character:WaitForChild("Humanoid", 5)
+	if not humanoid then
+		warn("[ActionController] New character missing Humanoid")
+		Humanoid = nil
+	else
+		Humanoid = humanoid
+	end
 	
 	local animator = Character:WaitForChild("Animator", 5)
 	if animator then
