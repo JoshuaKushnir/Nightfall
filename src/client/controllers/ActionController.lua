@@ -277,7 +277,7 @@ end
 	Handle character respawn
 	@param newCharacter The new character
 ]]
-function ActionController.OnCharacterAdded(newCharacter: Model)
+function ActionController:OnCharacterAdded(newCharacter: Model)
 	print("[ActionController] Character respawned")
 	
 	-- Clean up old action
