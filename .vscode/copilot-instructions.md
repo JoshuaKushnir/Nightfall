@@ -914,6 +914,30 @@ Client Input → Client Controller → Network → Server Service → StateServi
 - [ ] Security implications considered
 - [ ] GitHub issue ready to close (all criteria met)
 
+## Commit and Sync Protocols
+
+### Post-Change Workflow:
+After any substantive change (code edits, file creations, documentation updates):
+1. **Stage Changes**: `git add .` or specific files
+2. **Commit with Issue Reference**: `git commit -m "<type>(#issue): Description"`
+   - `<type>`: feat, fix, docs, refactor, test, chore
+   - `#issue`: GitHub issue number (e.g., #24)
+   - Description: Brief summary of changes
+3. **Push to Repository**: `git push origin <branch>`
+   - Ensure branch is up-to-date with remote
+4. **Sync Verification**: Confirm changes are visible in GitHub repository
+
+### Always Commit and Push:
+- **No uncommitted changes** - Commit immediately after validation
+- **Push after every commit** - Keep repository synchronized
+- **Branch Management**: Work on feature branches, merge via PR when ready
+- **Issue Tracking**: Reference issue in commit message for traceability
+
+### Exception Handling:
+- If build/tests fail, fix before committing
+- For hotfixes, commit and push immediately after validation
+- Document any deviations in GitHub issue comments
+
 ---
 
 ## 🎯 Remember: GitHub Issues First, Then Code
