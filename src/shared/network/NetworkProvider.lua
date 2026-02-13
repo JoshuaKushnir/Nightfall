@@ -105,21 +105,45 @@ function NetworkProvider:Init()
 			if not networkFolder then
 				error("[NetworkProvider] Failed to find network folder from server")
 			end
+		end
+		
+		-- Wait for RemoteEvents to be replicated from server
+		-- The folder exists but events may still be replicating
+		local waitStart = os.clock()
+		local MAX_WAIT = 5
+		local eventCount = 0
+		
+		while os.clock() - waitStart < MAX_WAIT do
+			-- Cache all RemoteEvents and RemoteFunctions found so far
+			table.clear(self._remoteEvents)
+			table.clear(self._remoteFunctions)
 			
-			-- Small delay to allow server to finish creating all RemoteEvents
-			task.wait(0.1)
-		end
-		
-		-- Cache all RemoteEvents
-		for _, child in networkFolder:GetChildren() do
-			if child:IsA("RemoteEvent") then
-				self._remoteEvents[child.Name] = child
-			elseif child:IsA("RemoteFunction") then
-				self._remoteFunctions[child.Name] = child
+			for _, child in networkFolder:GetChildren() do
+				if child:IsA("RemoteEvent") then
+					self._remoteEvents[child.Name] = child
+				elseif child:IsA("RemoteFunction") then
+					self._remoteFunctions[child.Name] = child
+				end
 			end
+			
+			eventCount = 0
+			for _ in self._remoteEvents do
+				eventCount += 1
+			end
+			
+			-- If we found at least some events, we're good
+			if eventCount > 0 then
+				break
+			end
+			
+			task.wait(0.05)
 		end
 		
-		print(`[NetworkProvider] Found {#self._remoteEvents} RemoteEvents from server`)
+		if eventCount == 0 then
+			warn("[NetworkProvider] No RemoteEvents found after waiting - network may not function correctly")
+		end
+		
+		print(`[NetworkProvider] Found {eventCount} RemoteEvents from server`)
 	end
 	
 	self._networkFolder = networkFolder

@@ -258,10 +258,27 @@ end
 ]]
 function StateSyncController:Start()
 	-- Register network event handlers
-	NetworkController.RegisterHandler("StateChanged", onServerStateChanged)
-	NetworkController.RegisterHandler("ProfileData", onServerProfileLoaded)
-	NetworkController.RegisterHandler("ProfileUpdate", onServerProfileUpdated)
-	NetworkController.RegisterHandler("CombatData", onServerCombatDataUpdated)
+	-- Use pcall to handle case where NetworkController isn't ready yet
+	local success, err = pcall(function()
+		NetworkController:RegisterHandler("StateChanged", onServerStateChanged)
+		NetworkController:RegisterHandler("ProfileData", onServerProfileLoaded)
+		NetworkController:RegisterHandler("ProfileUpdate", onServerProfileUpdated)
+		NetworkController:RegisterHandler("CombatData", onServerCombatDataUpdated)
+	end)
+	
+	if not success then
+		warn(`[StateSyncController] Failed to register handlers: {err}`)
+		-- Schedule retry after NetworkController is ready
+		task.delay(0.5, function()
+			if NetworkController then
+				NetworkController:RegisterHandler("StateChanged", onServerStateChanged)
+				NetworkController:RegisterHandler("ProfileData", onServerProfileLoaded)
+				NetworkController:RegisterHandler("ProfileUpdate", onServerProfileUpdated)
+				NetworkController:RegisterHandler("CombatData", onServerCombatDataUpdated)
+				print("[StateSyncController] Handlers registered after delay")
+			end
+		end)
+	end
 	
 	-- Request initial state sync
 	requestInitialSync()
