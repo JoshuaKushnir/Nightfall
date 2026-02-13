@@ -1,0 +1,10 @@
+# Selene Configuration for Nightfall (Roblox Project)
+# https://kampfkarren.github.io/selene/
+
+std = "roblox"
+
+[rules]
+# Type checking is handled by Luau strict mode
+unused_variable = "warn"
+undefined_variable = "warn"
+shadowing = "warn"
