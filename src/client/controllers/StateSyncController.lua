@@ -21,11 +21,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local Shared = ReplicatedStorage.Shared
-local Signal = require(ReplicatedStorage.Packages.Signal)
+local Signal = require(ReplicatedStorage.Signal)
 
 -- Types
-local NetworkTypes = require(Shared.Types.NetworkTypes)
-local PlayerData = require(Shared.Types.PlayerData)
+local NetworkTypes = require(Shared.types.NetworkTypes)
+local PlayerData = require(Shared.types.PlayerData)
 type PlayerState = PlayerData.PlayerState
 type PlayerProfile = PlayerData.PlayerProfile
 

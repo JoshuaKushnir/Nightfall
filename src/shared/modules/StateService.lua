@@ -28,7 +28,7 @@ type PlayerData = PlayerDataModule.PlayerData
 type PlayerState = PlayerDataModule.PlayerState
 
 -- Import Signal library
-local Signal = require(ReplicatedStorage.Packages.Signal)
+local Signal = require(ReplicatedStorage.Signal)
 type Signal<T...> = Signal.Signal<T...>
 
 -- Service Definition

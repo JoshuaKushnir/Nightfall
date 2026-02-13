@@ -63,7 +63,7 @@ print("")
 
 -- Step 2: Load all controllers
 print("[Client] [2/4] Loading controllers...")
-local controllersFolder = script.Parent.Parent.controllers
+local controllersFolder = script.Parent.controllers
 local controllers = Loader.LoadModules(controllersFolder, false)
 
 -- Handle case where no controllers exist yet

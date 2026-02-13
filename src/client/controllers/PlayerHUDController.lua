@@ -26,7 +26,7 @@ local Shared = ReplicatedStorage.Shared
 local UIBinding = require(script.Parent.Parent.modules.UIBinding)
 
 -- Types
-local PlayerData = require(Shared.Types.PlayerData)
+local PlayerData = require(Shared.types.PlayerData)
 type PlayerProfile = PlayerData.PlayerProfile
 type PlayerState = PlayerData.PlayerState
 

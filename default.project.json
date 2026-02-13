@@ -7,8 +7,11 @@
       "Shared": {
         "$path": "src/shared"
       },
-      "Packages": {
-        "$path": "Packages"
+      "ProfileService": {
+        "$path": "Packages/ProfileService.lua"
+      },
+      "Signal": {
+        "$path": "Packages/Signal.lua"
       }
     },
     "ServerScriptService": {
