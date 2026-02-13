@@ -40,15 +40,18 @@
 
 4. **ISSUE LIFECYCLE MANAGEMENT:**
    - **Epic Issues (Phase-Level):**
-     - **Create:** One per phase with task list of all sub-issues
-     - **Update:** When phase scope changes or new sub-issues added
-     - **Monitor:** Progress tracked automatically via sub-issue checkmarks
+     - **Create:** One per phase with overview, dependencies, and definition of done
+     - **Link Sub-Issues:** Use `gh sub-issue add <epic-number> <sub-issue-number>` to link existing issues
+     - **Create Sub-Issues:** Use `gh sub-issue create --parent <epic-number> --title "Title"` for new work
+     - **Monitor:** Progress tracked automatically via GitHub's native sub-issue tracking
      - **Close:** Only when ALL sub-issues complete AND phase fully delivered
    - **Sub-Issues (Feature-Level):**
-     - **Create:** Feature doesn't exist → Create with labels, link to epic
+     - **Create Standalone:** Use standard `gh issue create` with labels
+     - **Create Linked:** Use `gh sub-issue create --parent <epic-number>` to auto-link to epic
+     - **Link Existing:** Use `gh sub-issue add <parent> <child>` to link existing issue to epic
      - **Update:** During development → Add comments with progress checkpoint
      - **Review:** Before completion → Verify all acceptance criteria met
-     - **Close:** When fully implemented and tested → Close with completion summary
+     - **Close:** When fully implemented and tested → GitHub auto-updates parent epic progress
      - **Track:** Update session-log.md with issue progress and link to epic
 
 5. **WHEN CONFUSED OR AMBIGUOUS:**
@@ -144,43 +147,52 @@
   - `low` - Nice to have, cosmetic
 
 ### 🏗️ EPIC & SUB-ISSUE HIERARCHY:
-**Structure:** Every phase has ONE epic issue that contains a checklist of sub-issues.
+**Structure:** Every phase has ONE epic issue with proper GitHub sub-issues linked to it.
 
 - **Epic Issues (`epic` label):**
   - One per phase (e.g., #48 Phase 1, #49 Phase 2, #50 Phase 3, #51 Phase 4, #18 Phase 5)
-  - Contains **task list** with references to all sub-issues: `- [ ] #XX Issue Title`
-  - Task list automatically tracks progress (GitHub converts `#XX` to clickable links)
   - Epic body MUST include:
     - Phase overview and objectives
-    - Sub-issue checklist (checked = complete, unchecked = pending)
-    - Phase-level dependencies
+    - Dependencies on other phases or systems
     - Definition of done for entire phase
+  - GitHub automatically displays linked sub-issues with progress tracking
   - Epic stays OPEN until ALL sub-issues complete
   - Never close epic manually - only when phase is fully complete
 
-- **Sub-Issues (`sub-issue` label):**
+- **Sub-Issues (GitHub Native Feature):**
   - Features, systems, or components that belong to an epic
-  - Each sub-issue MUST reference its parent epic: `**Epic:** #48` in description
+  - Linked to parent epic using GitHub's sub-issue relationship (not labels!)
   - Each sub-issue has its own:
     - Detailed technical specifications
     - Acceptance criteria
     - Dependencies on other sub-issues
     - Priority and type labels
   - Sub-issues can be closed independently as they complete
-  - Closing a sub-issue automatically checks it off in parent epic's task list
+  - GitHub automatically shows sub-issue progress on parent epic
 
 - **Creating Sub-Issues:**
+  **Option 1: Link existing issue to epic**
+  ```bash
+  gh sub-issue add <parent-epic-number> <sub-issue-number> --repo JoshuaKushnir/Nightfall
+  ```
+  
+  **Option 2: Create new sub-issue directly linked to epic**
+  ```bash
+  gh sub-issue create --parent <parent-epic-number> --title "Title of sub-issue" --repo JoshuaKushnir/Nightfall
+  ```
+  
+  **Best Practice:**
   1. Check parent epic to see if issue already exists
-  2. If creating new sub-issue, add it to parent epic's task list
-  3. Label with `sub-issue` + relevant type labels (`backend`, `frontend`, `full-stack`)
-  4. Reference epic number in issue body: `**Epic:** #XX`
-  5. Add sub-issue to epic's task list: Edit epic body, add `- [ ] #NewIssue Title`
+  2. If issue exists but not linked: Use `gh sub-issue add` to link it
+  3. If creating new work: Use `gh sub-issue create --parent` to auto-link
+  4. Add relevant type labels (`backend`, `frontend`, `full-stack`)
+  5. Fill in detailed issue description with acceptance criteria
 
 - **Working on Sub-Issues:**
   - Always check parent epic first to understand phase context
   - Update sub-issue status independently (assign, mark in-progress, close)
-  - When closing sub-issue, verify epic's task list auto-updates with checkmark
-  - If epic task list doesn't auto-check, manually edit epic body
+  - GitHub automatically updates parent epic progress when sub-issues close
+  - View all sub-issues for an epic: Check epic's "Sub-issues" section on GitHub
 
 - **Example Hierarchy:**
   ```
@@ -199,11 +211,12 @@
   ```
 
 - **Why This Matters:**
-  - **Progress Tracking:** Epics show phase completion % automatically
+  - **Progress Tracking:** GitHub shows phase completion % automatically
   - **Scope Management:** Easy to see what's in/out of scope for a phase
   - **Dependency Clarity:** Sub-issues reference each other AND parent epic
   - **Context Preservation:** New team members can understand project by reading epics
   - **Work Organization:** Never lose track of what needs to be done in a phase
+  - **Native GitHub Feature:** Uses official GitHub sub-issue relationships (not labels)
 
 ---
 
