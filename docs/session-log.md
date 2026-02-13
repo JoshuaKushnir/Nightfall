@@ -1,12 +1,86 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-005
+## Current Session ID: NF-006
 **Date:** February 12, 2026  
-**Epic:** GitHub Epic-to-Sub-Issue Native Linking
+**Epic:** Issue-Driven Development Enforcement - Copilot Issue-First Protocol
 
-## Last Integrated System: All 5 Epic Issues with Native Parent-Child Relationships
+## Last Integrated System: Enhanced Copilot Instructions (Issue-First Development)
 
-### Session NF-005 Changes:
+### Session NF-006 Changes:
+✅ **Copilot Instructions Enhanced with Issue-First Protocol:**
+- **New Section: COPILOT ISSUE-DRIVEN DEVELOPMENT**
+  - Golden Rule: NO IMPLEMENTATION WITHOUT AN ISSUE
+  - All ideas → GitHub issue first
+  - Bug handling → Create issue immediately on discovery
+  - Issue lifecycle → Create → Update → Review → Close
+  - When confused → Use decision framework (minimize human interaction)
+  
+- **Enhanced BEFORE STARTING section:**
+  - Must verify GitHub issue exists
+  - If missing, create with `gh issue create` before ANY implementation
+  - Reference issue number in all work
+  
+- **Enhanced DURING EVERY TASK section:**
+  - Update GitHub issue with progress checkpoints
+  - Format: `## Progress Update` with checklist
+  - Add comments for each major milestone
+  - Reference issue in code comments and commits
+  
+- **Enhanced AFTER COMPLETING section:**
+  - Only close issue when ALL acceptance criteria met
+  - Add completion summary before closing
+  - Use `gh issue close` CLI
+  - Document follow-up work in GitHub
+  
+- **New Section: DECISION-MAKING & BEST PRACTICES**
+  - Autonomous decision framework with 5-tier priority
+  - Decision categories: API design, architecture, error handling, performance, types
+  - Common ambiguities table with default approaches
+  - Escalation guidelines (when to stop and create `blocked` issue)
+  - Emphasis on professional standards, minimize human contact
+  
+- **Updated Quality Checklist:**
+  - Added Issue Management section (new first checklist)
+  - Issue existence validation
+  - Progress tracking in GitHub
+  - Acceptance criteria verification
+  - Issue closure readiness
+  
+- **Updated Pre-Commit and Code Review Checklists:**
+  - Include GitHub issue references
+  - Commit message format includes issue number
+  - Issue ready to close verification
+  
+- **Updated Final Statement:**
+  - Changed emphasis from "Quality > Speed" to "GitHub Issues First, Then Code"
+  - GitHub Issue Board declared as single source of truth
+  - Links to issue board, session log, and standards
+
+### Key Principles Enforced:
+1. **Every task must have a GitHub issue** - No exceptions
+2. **Ideas must be approved through issues** - Creates audit trail
+3. **Bugs tracked in issues** - No silent bug fixes
+4. **Autonomous decision-making** - Within defined framework
+5. **Minimize human interaction** - Use best practices and standards
+6. **Professional standards guide ambiguity** - Industry norms over gut feelings
+7. **GitHub is single source of truth** - More authoritative than session log or backlog
+
+### Decision Framework (For Autonomous Work):
+- **Priority 1:** copilot-instructions.md standards
+- **Priority 2:** Existing code patterns in repo
+- **Priority 3:** Professional/industry best practices
+- **Priority 4:** This decision framework
+- **Priority 5:** Document in GitHub
+
+### When to Escalate (Create blocked issue):
+- Breaking changes to public APIs
+- Fundamental architectural decisions
+- Security or anti-cheat concerns
+- Undefined scope/conflicting requirements
+- Resource constraints (too complex)
+- Third-party library integration concerns
+
+## Previous Session: NF-005
 ✅ **Native GitHub Parent-Child Epic Linking Established:**
 - **Method Used:** `gh sub-issue add` CLI command (GitHub native)
 - **Epic #1 (Phase 1):** 4 linked sub-issues (#2-5)
@@ -159,8 +233,8 @@
 - [x] **Copilot Instructions 10x Expansion** - Comprehensive engineering manifesto with mandatory logging and issue board integration requirements (NF-003, February 12, 2026)
 - [x] **GitHub Issue Board Setup** - All 18 issues (#24-40, plus #18) migrated to GitHub with comprehensive label system (phase, priority, type labels) (NF-004, February 12, 2026)
 - [x] **BACKLOG.md Restructured** - Converted to GitHub-referencing roadmap, reduced from 974 to ~260 lines, GitHub is now single source of truth (NF-004, February 12, 2026)
-- [x] **NF-001: Genesis Init Complete** - Repository structure, types, and StateService operational
-- [x] **NF-002: Development Backlog Created** - Complete roadmap from infrastructure to MVP launch (19 GitHub issues across 5 phases)
+- [x] **GitHub Epic-to-Sub-Issue Native Linking** - Parent-child relationships established for all 5 epics with 18 sub-issues using GitHub native features (NF-005, February 12, 2026)
+- [x] **Issue-First Development Protocol** - Copilot instructions enforced with: NO IMPLEMENTATION WITHOUT ISSUE, decision framework for autonomy, bug tracking in issues, issue lifecycle management (NF-006, February 12, 2026)
 
 ---
 

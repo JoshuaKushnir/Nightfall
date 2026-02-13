@@ -7,6 +7,10 @@
 # Rojo Lock Files
 *.lock
 
+# Wally Packages
+Packages/
+wally.lock
+
 # Build Output
 build/
 dist/
