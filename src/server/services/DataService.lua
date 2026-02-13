@@ -201,7 +201,7 @@ end
 	Initialize DataService (called once at server start)
 	Creates the ProfileStore and sets up player join/leave handlers
 ]=]
-function DataService:Init()
+function DataService:Init(dependencies)
 	if self._initialized then
 		warn("[DataService] Already initialized")
 		return

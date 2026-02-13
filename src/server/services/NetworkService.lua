@@ -123,7 +123,7 @@ end
 	Initialize NetworkService
 	Sets up NetworkProvider and prepares to handle events
 ]]
-function NetworkService:Init()
+function NetworkService:Init(dependencies)
 	if self._initialized then
 		warn("[NetworkService] Already initialized")
 		return

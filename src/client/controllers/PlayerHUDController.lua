@@ -250,7 +250,7 @@ local PlayerHUDController = {}
 --[[
 	Initializes the controller (called by runtime)
 ]]
-function PlayerHUDController.Init(dependencies)
+function PlayerHUDController:Init(dependencies)
 	StateSyncController = dependencies.StateSyncController
 	
 	if not StateSyncController then

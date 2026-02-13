@@ -57,7 +57,7 @@ local RECONNECT_RETRY_DELAY = 5 -- seconds
 	Initialize NetworkController
 	Sets up NetworkProvider and prepares to send/receive events
 ]]
-function NetworkController:Init()
+function NetworkController:Init(dependencies)
 	if self._initialized then
 		warn("[NetworkController] Already initialized")
 		return

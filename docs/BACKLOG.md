@@ -76,6 +76,7 @@ To ensure features are actuated immediately as backend systems are built, each m
 ---
 
 ### ✅ Phase 1: Core Framework (Infrastructure)
+**Epic:** [Issue #48](https://github.com/JoshuaKushnir/Nightfall/issues/48)  
 **Goal:** Establish the foundational systems required for all gameplay features.  
 **Status:** ✅ COMPLETE (February 12, 2026)  
 **Issues:** [Filter by phase-1](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-1)
@@ -99,8 +100,8 @@ To ensure features are actuated immediately as backend systems are built, each m
 ---
 
 ### 🔄 Phase 2: Combat & Fluidity (The Feel)
+**Epic:** [Issue #49](https://github.com/JoshuaKushnir/Nightfall/issues/49)  
 **Goal:** Create responsive, satisfying combat with hitboxes, animations, and timing-based mechanics paired with visual feedback.  
-**Status:** Ready to Start  
 **Status:** Pending  
 **Issues:** [Filter by phase-2](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
 
@@ -120,6 +121,7 @@ To ensure features are actuated immediately as backend systems are built, each m
 ---
 
 ### ⏳ Phase 3: The Mantra System (Magic)
+**Epic:** [Issue #50](https://github.com/JoshuaKushnir/Nightfall/issues/50)  
 **Goal:** Implement the modular magic system with elements, classes, and resource management paired with casting UI and visual feedback.  
 **Status:** Pending  
 **Issues:** [Filter by phase-3](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
@@ -141,6 +143,7 @@ To ensure features are actuated immediately as backend systems are built, each m
 ---
 
 ### ⏳ Phase 4: World & Narrative (The RPG)
+**Epic:** [Issue #51](https://github.com/JoshuaKushnir/Nightfall/issues/51)  
 **Goal:** Add progression, dialogue, and RPG systems that give the game depth and replayability, with full UI integration.  
 **Status:** Pending  
 **Issues:** [Filter by phase-4](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-4)
@@ -163,6 +166,7 @@ To ensure features are actuated immediately as backend systems are built, each m
 ---
 
 ### ⏳ Phase 5: Polish & Deployment (The Launch)
+**Epic:** [Issue #18](https://github.com/JoshuaKushnir/Nightfall/issues/18)  
 **Goal:** Optimize, secure, and prepare the game for public release with analytics and fail-safes.  
 **Status:** Pending  
 **Issues:** [Filter by phase-5](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-5)

@@ -176,7 +176,7 @@ local StateSyncService = {}
 --[[
 	Initializes the service (called by runtime)
 ]]
-function StateSyncService.Init(dependencies)
+function StateSyncService:Init(dependencies)
 	NetworkService = dependencies.NetworkService
 	DataService = dependencies.DataService
 	

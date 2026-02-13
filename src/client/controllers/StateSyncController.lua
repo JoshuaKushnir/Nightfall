@@ -243,7 +243,7 @@ end
 --[[
 	Initializes the controller (called by runtime)
 ]]
-function StateSyncController.Init(dependencies)
+function StateSyncController:Init(dependencies)
 	NetworkController = dependencies.NetworkController
 	
 	if not NetworkController then

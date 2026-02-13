@@ -60,7 +60,7 @@ local dependencies = {
 
 for name, service in services do
 	if type(service) == "table" and service.Init then
-		local success, err = pcall(service.Init, dependencies)
+		local success, err = pcall(service.Init, service, dependencies)
 		
 		if not success then
 			warn(`[Server] ❌ Failed to initialize {name}: {err}`)
