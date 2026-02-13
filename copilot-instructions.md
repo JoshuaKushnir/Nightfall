@@ -22,5 +22,19 @@
 - **Composition:** Avoid large "Player" classes. Use a `Component` system for attributes like `Health`, `Mana`, and `Posture`.
 - **Boilerplate:** Every new module must include the standard documentation header (Class, Description, Dependencies).
 
+## 5. Issue Management & Dependencies
+- **Issue Linking:** Use GitHub's "Linked Issues" feature (not manual text in description) to mark issue dependencies.
+  - **How to Link Issues:**
+    1. Open the issue on GitHub web
+    2. Scroll to "Linked issues" section (right sidebar)
+    3. Click "Add linked issue"
+    4. Select relationship type: **"blocks"** (this issue blocks another) or **"blocked by"** (this issue is blocked by another)
+    5. Enter the issue number to link
+  - **When to Use:**
+    - Use `blocks` when your issue must be completed before another can start
+    - Use `blocked by` when your issue depends on another issue being completed first
+  - **Dependency Format:** Use `Requires #24` or similar in description ONLY for documentation/clarity. Always back it up with actual Linked Issues.
+  - **Removal:** Remove manual "Requires" text from descriptions once linked issues are created via GitHub UI.
+
 # docs/session-log.md (The Memory File)
 Always update this file so you remember what you've built.
