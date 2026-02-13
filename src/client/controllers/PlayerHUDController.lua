@@ -267,7 +267,7 @@ end
 --[[
 	Starts the controller and creates the HUD (called by runtime)
 ]]
-function PlayerHUDController.Start()
+function PlayerHUDController:Start()
 	-- Create HUD UI
 	createHUD()
 	
@@ -289,7 +289,7 @@ end
 --[[
 	Cleanup on shutdown (called by runtime)
 ]]
-function PlayerHUDController.Shutdown()
+function PlayerHUDController:Shutdown()
 	if screenGui then
 		screenGui:Destroy()
 	end

@@ -39,7 +39,7 @@ local MIN_ACTION_INTERVAL = 0.1
 --[[
 	Initialize the controller with character
 ]]
-function ActionController.Init()
+function ActionController:Init()
 	print("[ActionController] Initializing...")
 	
 	-- Wait for character
@@ -68,7 +68,7 @@ end
 --[[
 	Start the controller
 ]]
-function ActionController.Start()
+function ActionController:Start()
 	print("[ActionController] Starting...")
 	
 	-- Bind input for testing

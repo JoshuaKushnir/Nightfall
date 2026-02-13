@@ -33,7 +33,7 @@ local PARRY_STUN_DURATION = 0.5 -- Seconds attacker is stunned
 --[[
 	Initialize the service
 ]]
-function DefenseService.Init()
+function DefenseService:Init()
 	print("[DefenseService] Initializing...")
 	
 	-- Clean up when player leaves
@@ -49,7 +49,7 @@ end
 --[[
 	Start the service
 ]]
-function DefenseService.Start()
+function DefenseService:Start()
 	print("[DefenseService] Starting...")
 	
 	-- Listen for block requests

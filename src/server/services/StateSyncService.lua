@@ -194,7 +194,7 @@ end
 --[[
 	Starts the service and registers handlers (called by runtime)
 ]]
-function StateSyncService.Start()
+function StateSyncService:Start()
 	-- Register network event handlers
 	NetworkService:RegisterHandler("RequestStateSync", onRequestStateSync)
 	
@@ -226,7 +226,7 @@ end
 --[[
 	Cleanup on shutdown (called by runtime)
 ]]
-function StateSyncService.Shutdown()
+function StateSyncService:Shutdown()
 	table.clear(lastSyncTimestamp)
 	print("[StateSyncService] Shutdown complete")
 end

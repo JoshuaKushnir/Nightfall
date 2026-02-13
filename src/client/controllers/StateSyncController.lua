@@ -256,7 +256,7 @@ end
 --[[
 	Starts the controller and sets up event handlers (called by runtime)
 ]]
-function StateSyncController.Start()
+function StateSyncController:Start()
 	-- Register network event handlers
 	NetworkController.RegisterHandler("StateChanged", onServerStateChanged)
 	NetworkController.RegisterHandler("ProfileData", onServerProfileLoaded)
@@ -272,7 +272,7 @@ end
 --[[
 	Cleanup on shutdown (called by runtime)
 ]]
-function StateSyncController.Shutdown()
+function StateSyncController:Shutdown()
 	StateChangedSignal:Destroy()
 	ProfileLoadedSignal:Destroy()
 	ProfileUpdatedSignal:Destroy()
