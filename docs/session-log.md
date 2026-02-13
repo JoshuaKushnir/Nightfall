@@ -2,12 +2,32 @@
 
 ## Current Session ID: NF-008
 **Date:** February 12, 2026  
-**Epic:** Phase 1 - Core Framework Implementation (FINAL)
+**Epic:** Phase 1 - Core Framework Implementation (FINAL + HOTFIX)
 
 ## Last Integrated System: Client-Side Binding Framework & State Sync UI
 
-### Session NF-008 Changes:
-✅ **Phase 1 (Core Framework) - FULLY COMPLETE:**
+### Session NF-008 Changes (UPDATED):
+✅ **Phase 1 (Core Framework) - FULLY COMPLETE + HOTFIX:**
+
+**HOTFIX: Initialization System Bug (RESOLVED)**
+- **Issue Found:** Services/Controllers failing to initialize with "Must call Init() before Start()" errors
+- **Root Cause:** Inconsistent method call syntax in runtime bootstrap
+  - Runtime was calling `service.Init(dependencies)` without passing `self`
+  - Services defined as `function Service:Init()` expect `self` as first parameter
+  - This caused `_initialized` flag to never be set
+- **Fix Applied:**
+  - Updated all Init() signatures to accept dependencies: `Init(self, dependencies)`
+  - Updated runtime to properly call: `service.Init(service, dependencies)`
+  - Changed function syntax from `.Init` to `:Init` for consistency
+  - All services now properly initialize and set `_initialized = true`
+- **Files Modified:**
+  - `src/server/runtime/init.lua` - Proper method calls with self
+  - `src/client/runtime/init.lua` - Proper method calls with self
+  - `src/server/services/DataService.lua` - Added dependencies parameter
+  - `src/server/services/NetworkService.lua` - Added dependencies parameter
+  - `src/server/services/StateSyncService.lua` - Changed to method syntax
+  - `src/client/controllers/StateSyncController.lua` - Changed to method syntax
+  - `src/client/controllers/PlayerHUDController.lua` - Changed to method syntax
 
 **Issue #42: Client-Side Binding Framework & State Sync UI (COMPLETED)**
 - Created `src/client/controllers/StateSyncController.lua` (280+ lines)
