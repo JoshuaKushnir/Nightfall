@@ -24,7 +24,6 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local StarterPlayer = game:GetService("StarterPlayer")
 
 -- Import Loader utility
 local Loader = require(ReplicatedStorage.Shared.modules.Loader)
@@ -64,7 +63,7 @@ print("")
 
 -- Step 2: Load all controllers
 print("[Client] [2/4] Loading controllers...")
-local controllersFolder = StarterPlayer.StarterPlayerScripts.Client.controllers
+local controllersFolder = script.Parent.Parent.controllers
 local controllers = Loader.LoadModules(controllersFolder, false)
 
 -- Handle case where no controllers exist yet
