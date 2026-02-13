@@ -413,6 +413,7 @@
 - [x] **GitHub Epic-to-Sub-Issue Native Linking** - Parent-child relationships established for all 5 epics with 18 sub-issues using GitHub native features (NF-005, February 12, 2026)
 - [x] **Issue-First Development Protocol** - Copilot instructions enforced with: NO IMPLEMENTATION WITHOUT ISSUE, decision framework for autonomy, bug tracking in issues, issue lifecycle management (NF-006, February 12, 2026)
 - [x] **Commit and Sync Protocols Enforced** - Copilot instructions updated with mandatory post-change workflow: stage, commit with issue reference, push, and sync verification (NF-007, February 12, 2026)
+- [x] **Issue Board Scrubbed with New Criteria** - All GitHub issues (#6-40) updated with comprehensive quality assurance checklists (implementation, testing, code review) for standardized acceptance criteria (NF-008, February 12, 2026)
 
 ---
 
