@@ -16,8 +16,10 @@ export type ActionConfig = {
 	Name: string,
 	Type: ActionType,
 	
-	-- Animation
+	-- Animation (use project folder when set; otherwise AnimationId)
 	AnimationId: string,
+	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Front Roll")
+	AnimationAssetName: string?, -- Optional asset name under AnimSaves (e.g. "BackRoll")
 	AnimationSpeed: number?,
 	AnimationPriority: Enum.AnimationPriority?,
 	CanQueueWhile: {string}?, -- Animation names that allow queueing during them
@@ -33,6 +35,10 @@ export type ActionConfig = {
 	SoundId: string?, -- Sound effect
 	VfxId: string?, -- VFX effect
 	VfxAttachPoint: string?, -- Bone to attach VFX
+	
+	-- Combo System
+	IsFinisher: boolean?, -- True if this is the final hit in a combo
+	KnockbackPower: number?, -- Knockback force applied on hit
 	
 	-- Server Validation
 	Cooldown: number?, -- Seconds between uses
@@ -53,6 +59,7 @@ export type Action = {
 	IsActive: boolean,
 	TargetHit: Player?,
 	AnimationTrack: AnimationTrack?,
+	Hitbox: any?, -- HitboxTypes.Hitbox (can't import due to circular dep)
 	
 	-- Methods
 	Play: (self: Action) -> (),
@@ -66,7 +73,9 @@ local ATTACK_LIGHT: ActionConfig = {
 	Id = "atk_light",
 	Name = "Light Attack",
 	Type = "Attack",
-	AnimationId = "rbxassetid://12345678",
+	AnimationId = "",
+	AnimationName = "Fists",
+	AnimationAssetName = "punch 1",
 	AnimationSpeed = 1.0,
 	Duration = 0.6,
 	HitStartFrame = 0.3,
@@ -81,7 +90,9 @@ local ATTACK_HEAVY: ActionConfig = {
 	Id = "atk_heavy",
 	Name = "Heavy Attack",
 	Type = "Attack",
-	AnimationId = "rbxassetid://12345680",
+	AnimationId = "",
+	AnimationName = "Fists",
+	AnimationAssetName = "punch 5",
 	AnimationSpeed = 0.8,
 	Duration = 1.2,
 	HitStartFrame = 0.5,
@@ -96,7 +107,9 @@ local DODGE: ActionConfig = {
 	Id = "dodge",
 	Name = "Dodge",
 	Type = "Dodge",
-	AnimationId = "rbxassetid://12345682",
+	AnimationId = "",
+	AnimationName = "Front Roll",
+	AnimationAssetName = "FrontRoll",
 	AnimationSpeed = 1.2,
 	Duration = 0.5,
 	CameraShake = 0.1,
@@ -104,8 +117,42 @@ local DODGE: ActionConfig = {
 	RequiredState = "Idle",
 }
 
+local BLOCK: ActionConfig = {
+	Id = "block",
+	Name = "Block",
+	Type = "Block",
+	AnimationId = "",
+	AnimationName = "Fists",
+	AnimationAssetName = "BlockIdle",
+	AnimationSpeed = 1.0,
+	Duration = 999, -- Held until released
+	CameraShake = 0,
+	Cooldown = 0.1,
+	RequiredState = "Idle",
+	Interruptible = true,
+}
+
+local PARRY: ActionConfig = {
+	Id = "parry",
+	Name = "Parry",
+	Type = "Parry",
+	AnimationId = "",
+	AnimationName = "Front Roll",
+	AnimationAssetName = "FrontRoll",
+	AnimationSpeed = 1.5,
+	Duration = 0.3, -- Quick parry window
+	HitStartFrame = 0.1,
+	HitStopDuration = 0.05,
+	CameraShake = 0.2,
+	SoundId = "rbxassetid://12345685",
+	Cooldown = 0.5,
+	RequiredState = "Idle",
+}
+
 return {
 	ATTACK_LIGHT = ATTACK_LIGHT,
 	ATTACK_HEAVY = ATTACK_HEAVY,
 	DODGE = DODGE,
+	BLOCK = BLOCK,
+	PARRY = PARRY,
 }

@@ -137,7 +137,7 @@ function NetworkService:Init(dependencies)
 	-- Add default middleware
 	self:AddMiddleware(function(player: Player, eventName: NetworkEvent, packet: any): boolean
 		-- Authentication: Verify player instance is valid
-		if not player or not player.Parent == Players then
+		if not player or player.Parent ~= Players then
 			warn(`[NetworkService] Invalid player instance for event: {eventName}`)
 			return false
 		end

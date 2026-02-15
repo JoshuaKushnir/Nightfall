@@ -31,7 +31,7 @@ export type HitboxConfig = {
 	LifeTime: number?, -- Seconds before auto-expire
 	
 	-- Callbacks
-	OnHit: ((target: Player, hitData: HitData) -> ())?,
+	OnHit: ((target: any, hitData: HitData) -> ())?,
 	OnExpire: (() -> ())?,
 	
 	-- Validation

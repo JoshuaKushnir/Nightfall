@@ -36,5 +36,14 @@
   - **Dependency Format:** Use `Requires #24` or similar in description ONLY for documentation/clarity. Always back it up with actual Linked Issues.
   - **Removal:** Remove manual "Requires" text from descriptions once linked issues are created via GitHub UI.
 
+## 6. Issue Creation Standards
+- **Milestones/Phases:** Always assign the appropriate milestone corresponding to the project phase (Phase 1-5 as defined in the roadmap).
+- **Labels:** Apply relevant labels including:
+  - Phase label: `phase-1`, `phase-2`, `phase-3`, `phase-4`, or `phase-5`
+  - Priority label: `critical`, `high`, `medium`, or `low`
+  - Type label: `infrastructure`, `data`, `combat`, `magic`, `ui`, `networking`, `testing`, etc.
+- **Parents:** If the issue is a sub-issue or child of another, link it as 'blocked by' the parent issue using GitHub's linked issues.
+- **Blocked Status:** If the issue is blocked by another issue, immediately mark it as 'blocked by' the blocking issue(s) using GitHub's linked issues feature.
+
 # docs/session-log.md (The Memory File)
 Always update this file so you remember what you've built.

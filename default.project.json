@@ -1,6 +1,8 @@
 {
   "name": "Nightfall",
+  
   "tree": {
+    "$ignoreUnknownInstances": true,
     "$className": "DataModel",
     "ReplicatedStorage": {
       "$className": "ReplicatedStorage",

@@ -28,6 +28,9 @@ local Players = game:GetService("Players")
 -- Import Loader utility
 local Loader = require(ReplicatedStorage.Shared.modules.Loader)
 
+-- Import debug utilities
+local DebugInput = require(script.Parent.modules.DebugInput)
+
 print(("="):rep(60))
 print("🌙 NIGHTFALL - Client Bootstrap")
 print(("="):rep(60))
@@ -46,6 +49,10 @@ if not player then
 end
 
 print(`[Client] ✓ LocalPlayer found: {player.Name}`)
+print("")
+
+-- Setup debug input (for development)
+DebugInput:Init()
 print("")
 
 -- Step 1: Wait for character (optional but recommended)
@@ -82,6 +89,7 @@ local initSuccess = true
 local dependencies = {
 	NetworkController = controllers.NetworkController,
 	StateSyncController = controllers.StateSyncController,
+	MovementController = controllers.MovementController,
 }
 
 for name, controller in controllers do
@@ -109,10 +117,12 @@ local startSuccess = true
 
 -- Start in a specific order to handle dependencies
 local startOrder = {
-	"NetworkController",  -- Must start first (depended on by others)
+	"NetworkController",   -- Must start first (depended on by others)
+	"StateSyncController", -- Before MovementController so state cache exists
+	"MovementController", -- Epic #56: smooth movement (coyote, jump buffer, sprint)
 	"ActionController",
 	"PlayerHUDController",
-	"StateSyncController",  -- Depends on NetworkController
+	"CombatFeedbackUI",
 }
 
 for _, name in startOrder do

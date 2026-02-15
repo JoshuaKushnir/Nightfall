@@ -27,6 +27,9 @@ export type NetworkEvent =
 	| "HealReceived"
 	| "PostureDamage"
 	| "PostureBroken"
+	| "HitConfirmed"
+	| "BlockFeedback"
+	| "ParryFeedback"
 	
 	-- Abilities/Mantras
 	| "MantraCast"
@@ -103,6 +106,30 @@ export type PostureDamagePacket = {
 
 export type PostureBrokenPacket = {
 	Target: Player,
+}
+
+export type HitConfirmedPacket = {
+	Attacker: Player,
+	Target: Player,
+	Damage: number,
+	IsCritical: boolean?,
+	HitType: "Normal" | "Block" | "Parry" | "Block"?,
+	-- Optional reaction animation info for clients to play (prefer project animations under
+	-- ReplicatedStorage.Shared.animations; clients should fall back to AnimationId if provided).
+	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Crouching")
+	AnimationAssetName: string?, -- Optional specific asset under AnimSaves
+	AnimationDuration: number?, -- Optional duration hint (seconds)
+}
+
+export type BlockFeedbackPacket = {
+	Blocker: Player,
+	Attacker: Player,
+	BlockedDamage: number,
+}
+
+export type ParryFeedbackPacket = {
+	Parrier: Player,
+	Attacker: Player,
 }
 
 export type MantraCastPacket = {
@@ -194,6 +221,9 @@ export type NetworkPacket =
 	| HealReceivedPacket
 	| PostureDamagePacket
 	| PostureBrokenPacket
+	| HitConfirmedPacket
+	| BlockFeedbackPacket
+	| ParryFeedbackPacket
 	| MantraCastPacket
 	| MantraHitPacket
 	| CooldownUpdatePacket
@@ -285,6 +315,24 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Notify client posture is broken",
+	},
+	HitConfirmed = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify client of confirmed hit for feedback",
+	},
+	BlockFeedback = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Show block feedback UI",
+	},
+	ParryFeedback = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Show parry feedback UI",
 	},
 	
 	-- Abilities/Mantras
