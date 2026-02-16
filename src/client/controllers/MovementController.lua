@@ -198,6 +198,17 @@ local function getMoveDirection(): Vector3
 	return Vector3.zero
 end
 
+--[[
+	Initialize the MovementController with character references.
+	
+	Called once at startup before :Start().
+	Loads character, humanoid, and optional StateSyncController dependency.
+	
+	@param dependencies: {[string]: any}? - Optional table with StateSyncController reference
+	
+	Example:
+		MovementController:Init({StateSyncController = stateSyncService})
+]]
 function MovementController:Init(dependencies: {[string]: any}?)
 	print("[MovementController] Initializing...")
 	Player = Players.LocalPlayer
@@ -218,6 +229,16 @@ function MovementController:Init(dependencies: {[string]: any}?)
 	print("[MovementController] Character ready")
 end
 
+--[[
+	Start the MovementController.
+	
+	Hooks Heartbeat loop for smooth motion updates and binds input events for:
+	- Jump buffering (Space key)
+	- Sprint toggling (double-tap W)
+	- Slide initiation (press C)
+	
+	Call this after :Init().
+]]
 function MovementController:Start()
 	print("[MovementController] Starting...")
 	lastWasOnGround = isOnGround(Humanoid :: Humanoid)
@@ -319,32 +340,51 @@ function MovementController._TrySlide()
 	LinearVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
 	LinearVelocityInstance.Velocity = slideVelocity
 	
-	-- Decay the slide over time using TweenService for smooth easing
-	local TweenService = game:GetService("TweenService")
-	local tweenInfo = TweenInfo.new(
-		SLIDE_DURATION,
-		SLIDE_DECAY_EASING,
-		SLIDE_DECAY_DIRECTION
-	)
+	print(`[MovementController] Slide momentum: {math.floor(SLIDE_SPEED)} studs/s in direction {slideDirection}`)
 	
-	-- Create a dummy object to tween a velocity value
-	local tweenGoal = {Velocity = 0}
-	local tweenStart = {Velocity = SLIDE_SPEED}
-	
-	local tween = TweenService:Create(LinearVelocityInstance, tweenInfo, tweenGoal)
-	
-	tween.Completed:Connect(function()
+	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
+	task.spawn(function()
+		local slideStartTime = tick()
+		while isSliding and LinearVelocityInstance do
+			local elapsedTime = tick() - slideStartTime
+			local progress = math.min(1.0, elapsedTime / SLIDE_DURATION)
+			
+			-- Exponential.Out easing: 1 - (1 - progress)^3
+			local easeProgress = 1 - math.pow(1 - progress, 3)
+			local currentVelocityMagnitude = SLIDE_SPEED * (1 - easeProgress)
+			
+			if LinearVelocityInstance and currentVelocityMagnitude > 0.5 then
+				LinearVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
+			end
+			
+			if progress >= 1.0 then
+				break
+			end
+			
+			RunService.Heartbeat:Wait()
+		end
+		
+		-- Slide complete
 		if LinearVelocityInstance then
 			LinearVelocityInstance.Enabled = false
-			print("[MovementController] Slide momentum decayed")
+			print("[MovementController] Slide momentum fully decayed")
 		end
 		isSliding = false
 	end)
-	
-	tween:Play()
-	print(f"[MovementController] Slide momentum: {math.floor(SLIDE_SPEED)} studs/s in direction {slideDirection}")
 end
 
+--[[
+	Internal: Main update loop run on Heartbeat.
+	
+	Handles:
+	- Direction smoothing and camera-relative input
+	- Speed acceleration/deceleration with modifier stacking
+	- Sprint FOV parallax effects
+	- Animation state transitions
+	- Coyote time and jump buffering
+	
+	@param dt: number - Delta time since last frame (seconds)
+]]
 function MovementController._Update(dt: number)
 	local humanoid = Humanoid
 	local rootPart = RootPart
@@ -502,6 +542,14 @@ function MovementController._Update(dt: number)
 	end
 end
 
+--[[
+	Internal: Handle jump request input.
+	
+	Implements coyote time (jump window after leaving ledge) and jump buffering
+	(queue jump before landing).
+	
+	Called when player presses Space or jumps via JumpRequest.
+]]
 function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
@@ -521,6 +569,11 @@ function MovementController._OnJumpRequest()
 	end
 end
 
+--[[
+	Called when character respawns. Resets all movement state.
+	
+	@param newCharacter: Model - The respawned character model
+]]
 function MovementController:OnCharacterAdded(newCharacter: Model)
 	Character = newCharacter
 	local hum = newCharacter:WaitForChild("Humanoid", 5) :: Humanoid?

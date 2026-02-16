@@ -412,6 +412,13 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
+	-- If this is an attack, apply movement slowdown via MovementController.SetModifier()
+	if config.Type == "Attack" and MovementController and MovementController.SetModifier then
+		-- Default attack slowdown to 50% of normal speed
+		MovementController.SetModifier("Attacking", 0.5)
+		print("[ActionController] Applied movement modifier: Attacking = 0.5x")
+	end
+
 	-- Load and play animation if configured. Prefer project animations under
 	-- ReplicatedStorage.animations when `AnimationName` is provided;
 	-- otherwise fall back to `AnimationId` (asset id string).
@@ -695,6 +702,13 @@ function ActionController._UpdateAction(deltaTime: number)
 		print(`[ActionController] Action COMPLETE: {action.Config.Name}`)
 		action:Stop()
 		action:Cleanup()
+
+		-- If this was an attack, clear the movement slowdown modifier
+		if action.Config and action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+			MovementController.SetModifier("Attacking", 1.0)
+			print("[ActionController] Removed movement modifier: Attacking")
+		end
+
 		CurrentAction = nil
 
 		-- Process queued action
@@ -800,6 +814,12 @@ function ActionController:OnCharacterAdded(newCharacter: Model)
 
 	-- Clean up old action
 	if CurrentAction then
+		-- Ensure any attack slowdown modifier is cleared
+		if CurrentAction.Config and CurrentAction.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+			MovementController.SetModifier("Attacking", 1.0)
+			print("[ActionController] Removed movement modifier on respawn: Attacking")
+		end
+
 		CurrentAction:Stop()
 		CurrentAction:Cleanup()
 		CurrentAction = nil
