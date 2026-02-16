@@ -68,6 +68,7 @@ local jumpBufferLeft = 0.0
 local lastWasOnGround = false
 local lastMoveDirection: Vector3 = Vector3.zero
 local isSprinting = false
+local sprintAllowed = false -- set when double-tap W, cleared on W release
 local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
@@ -262,21 +263,28 @@ function MovementController:Start()
 		MovementController._OnJumpRequest()
 	end)
 	
-	-- Double-tap W to toggle sprint
+		-- Double-tap W to 'prime' sprint for the next hold (not a persistent toggle)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		
 		if input.KeyCode == Enum.KeyCode.W then
 			local currentTime = tick()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
-				-- Double-tap detected
-				isSprinting = not isSprinting
-				print("[MovementController] Sprint toggled: " .. (isSprinting and "ON" or "OFF"))
+				-- Double-tap detected: prime sprint until W is released
+				sprintAllowed = true
+				print("[MovementController] Sprint primed — hold W to sprint")
 			end
 			lastWKeyPressTime = currentTime
 		elseif input.KeyCode == SLIDE_KEY then
 			-- Attempt to slide
 			MovementController._TrySlide()
+		end
+	end)
+
+	-- Clear sprint allowance when W is released (sprint only while holding W)
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.KeyCode == Enum.KeyCode.W then
+			sprintAllowed = false
 		end
 	end)
 
@@ -427,8 +435,11 @@ function MovementController._Update(dt: number)
 	end
 
 	-- Target speed from input and sprint
-	local wantsSprint = isSprinting and canSprint() and moveDir.Magnitude > 0.5
-	
+	-- Sprint only when primed (double-tap) AND while holding W
+	local wantsSprint = sprintAllowed and UserInputService:IsKeyDown(Enum.KeyCode.W) and canSprint() and moveDir.Magnitude > 0.5
+	-- Expose current sprinting state for ActionController
+	isSprinting = wantsSprint
+
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
 		targetSpeed = wantsSprint and SPRINT_SPEED or WALK_SPEED
@@ -502,10 +513,19 @@ function MovementController._Update(dt: number)
 				print("[MovementController] ✓ Walk animation playing")
 			end
 		elseif newAnimState == "Sprint" then
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Sprint")
+		-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
+		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Sprint")
+		if currentAnimationTrack then
+			currentAnimationTrack:Play()
+			print("[MovementController] ✓ Sprint animation playing")
+		else
+			-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
+			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
+				currentAnimationTrack:AdjustSpeed(1.15)
 				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Sprint animation playing")
+				print("[MovementController] ✓ Sprint animation missing — using Walk fallback")
+			end
 			end
 		end
 		

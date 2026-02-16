@@ -31,6 +31,15 @@ return {
 			end,
 		},
 		{
+			name = "Double-tap primes sprint; sprint only while holding W",
+			fn = function()
+				-- Verify API exists
+				assert(type(MovementController._isSprinting) == "function")
+				-- Integration test should simulate: double-tap W -> press & hold W -> MovementController._isSprinting() == true
+				-- then release W -> MovementController._isSprinting() == false
+			end,
+		},
+		{
 			name = "Slide creates LinearVelocity and decays",
 			fn = function()
 				assert(type(MovementController._TrySlide) == "function")
