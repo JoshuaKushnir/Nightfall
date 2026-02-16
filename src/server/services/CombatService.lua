@@ -137,6 +137,12 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			print(`[CombatService] ✗ Target data not found: {targetPlayer.Name}`)
 			return false, 0
 		end
+		
+		-- Check if target is dodging (iframes)
+		if targetData.State == "Dodging" then
+			print(`[CombatService] ✗ Target is dodging (iframes): {targetPlayer.Name}`)
+			return false, 0
+		end
 	end
 	
 	-- Apply damage with variance

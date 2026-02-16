@@ -279,4 +279,62 @@ function Utils.EaseInOutQuad(t: number): number
 	return 1 - (-2 * t + 2) ^ 2 / 2
 end
 
+--[[
+	Spring damper for smooth, physics-based interpolation
+	Implements a semi-implicit Euler integrator for stable spring motion
+	
+	@param current Current position (number or Vector3)
+	@param target Target position (number or Vector3)
+	@param velocity Current velocity (number or Vector3)
+	@param frequency Natural frequency (Hz) - higher = stiffer spring
+	@param dampingRatio Damping ratio (0-1+) - 1 = critically damped, <1 = underdamped (bouncy), >1 = overdamped (slow)
+	@param dt Delta time (seconds)
+	@return newPosition, newVelocity
+]]
+function Utils.SpringDamper(current: any, target: any, velocity: any, frequency: number, dampingRatio: number, dt: number): (any, any)
+	-- Spring constants derived from frequency and damping ratio
+	local angularFrequency = 2 * math.pi * frequency
+	local springConstant = angularFrequency * angularFrequency
+	local dampingCoefficient = 2 * dampingRatio * angularFrequency
+	
+	-- Semi-implicit Euler integration for stability
+	local displacement = current - target
+	local springForce = -springConstant * displacement
+	local dampingForce = -dampingCoefficient * velocity
+	local acceleration = springForce + dampingForce
+	
+	local newVelocity = velocity + acceleration * dt
+	local newPosition = current + newVelocity * dt
+	
+	return newPosition, newVelocity
+end
+
+--[[
+	Spring damper specifically for Vector3 with per-axis application
+	More efficient for 3D motion than calling SpringDamper on each component
+	
+	@param current Current Vector3 position
+	@param target Target Vector3 position
+	@param velocity Current Vector3 velocity
+	@param frequency Natural frequency (Hz)
+	@param dampingRatio Damping ratio (0-1+)
+	@param dt Delta time (seconds)
+	@return newPosition Vector3, newVelocity Vector3
+]]
+function Utils.SpringDamperVector3(current: Vector3, target: Vector3, velocity: Vector3, frequency: number, dampingRatio: number, dt: number): (Vector3, Vector3)
+	local angularFrequency = 2 * math.pi * frequency
+	local springConstant = angularFrequency * angularFrequency
+	local dampingCoefficient = 2 * dampingRatio * angularFrequency
+	
+	local displacement = current - target
+	local springForce = -springConstant * displacement
+	local dampingForce = -dampingCoefficient * velocity
+	local acceleration = springForce + dampingForce
+	
+	local newVelocity = velocity + acceleration * dt
+	local newPosition = current + newVelocity * dt
+	
+	return newPosition, newVelocity
+end
+
 return Utils

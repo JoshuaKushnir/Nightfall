@@ -457,7 +457,7 @@ Every coding session has persistent memory through interconnected documentation:
   - Completed milestones checklist
   - Technical debt tracker
   - Pending issues and blockers
-- **`docs/BACKLOG.md`** - Complete development roadmap
+- **`https://github.com/JoshuaKushnir/Nightfall/issues`** - Complete development roadmap
   - All phases and issues
   - Feature specifications
   - Acceptance criteria

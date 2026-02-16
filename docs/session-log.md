@@ -1,6 +1,132 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-015
+## Current Session ID: NF-020
+**Date:** February 15, 2026  
+**Task:** Final fixes - disable camera shake, fix dodge direction detection
+
+### Session NF-020 Changes (Final Polish Fixes):
+✅ **Disabled all camera shake** (ActionController.lua)
+  - Commented out all `_ApplyCameraShake()` calls
+  - Commented out hit-stop camera zoom effect in `_ApplyHitStop()`
+  - Result: Pure gameplay without camera feedback effects
+
+✅ **Fixed dodge direction detection** (ActionController.lua)
+  - Issue: Dodge direction code wasn't running because it required `MovementController` dependency
+  - Root cause: `MovementController` wasn't being passed as a dependency, so code was skipped
+  - Solution: Removed `and MovementController` check - now dodge direction detection always runs
+  - Dodge now correctly reads real-time WASD input and changes animation:
+    - W = FrontRoll
+    - S = BackRoll
+    - D = RightRoll
+    - A = LeftRoll
+    - No input = FrontRoll (default)
+  - Result: Dodge animations now change direction based on input
+
+**Purpose:** Clean up visual feedback and ensure combat mechanics match player input.
+
+## Previous Session ID: NF-019
+**Date:** February 15, 2026  
+**Task:** Bug fixes - dodge direction detection and sprint double-tap
+
+### Session NF-019 Changes (Bug Fixes):
+✅ **Fixed dodge direction detection** (ActionController.lua)
+  - Issue: Dodge was always using FrontRoll regardless of movement input
+  - Root cause: Used cached `lastMoveDirection` which was zero when dodging without moving
+  - Solution: Get real-time keyboard input (WASD) at dodge time
+  - Now correctly detects FrontRoll, BackRoll, LeftRoll, RightRoll based on keys pressed
+  - Result: Dodge animations now change direction based on actual input
+
+✅ **Fixed double-tap W sprint detection** (ActionController.lua)
+  - Issue: Lunge attack never triggered because sprint wasn't being detected
+  - Root cause: `MovementController._isSprinting` is a function but wasn't being called (missing parentheses)
+  - Solution: Changed `MovementController._isSprinting` → `MovementController._isSprinting()`
+  - Now correctly reads sprint state
+  - Result: Sprinting + light attack now triggers lunge attack
+
+**Purpose:** Restore intended combat behaviors - directional dodges and sprint-based lunge attacks.
+
+## Previous Session ID: NF-018
+**Date:** February 15, 2026  
+**Task:** Advanced movement and combat interactions - double-tap sprint, combat priority, lunge attack
+
+### Session NF-018 Changes:
+✅ **Double-tap W to sprint** (MovementController.lua)
+  - Replaced Shift-hold with double-tap W detection
+  - SPRINT_DOUBLE_TAP_WINDOW: 0.3s to register double-tap
+  - Toggle sprint on/off with consecutive W presses
+  - Result: Faster sprint activation, no hand strain from holding shift
+
+✅ **Combat priority over movement** (MovementController.lua)
+  - Running/sprinting automatically disabled during Attacking, Dodging states
+  - Already handled by COMBAT_STATES validation
+  - Result: Natural flow - combat actions interrupt traversal
+
+✅ **Attack slowdown when walking** (MovementController.lua)
+  - Added ATTACK_SLOWDOWN_FACTOR = 0.5
+  - When in "Attacking" state, walk speed reduced to 50%
+  - Only affects walk, not sprint recovery time
+  - Result: Grounded, weighty attacks feel more committed
+
+✅ **Lunge attack on sprint + attack** (ActionController.lua, ActionTypes.lua)
+  - Created new LUNGE_ATTACK action config
+  - Duration: 0.8s (longer commitment)
+  - Cooldown: 1.2s (recover before next action)
+  - Knockback: 1.2x multiplier (more impact)
+  - Camera shake: 0.7 (more impactful than regular punch)
+  - Triggers when: sprinting + light attack button
+  - Lunge attempt cooldown: 0.3s minimum between attempts
+  - Result: Risk/reward mechanic - commit fully for extra damage
+
+**Purpose:** More fluid combat-movement integration - sprint feels snappy, attacks commit player, lunge attack rewards offensive play.
+
+## Previous Session ID: NF-017
+**Date:** February 15, 2026  
+**Task:** Gameplay feel refinements - shorter dodges, idle-to-forward animation, custom walk/sprint animations
+
+### Session NF-017 Changes:
+✅ **Reduced dodge duration** (ActionTypes.lua)
+  - Dodge Duration: 0.5s → 0.35s (snappier, less commitment)
+  - Result: Faster dodge recovery for quicker repositioning
+
+✅ **Fixed idle dodge animation** (ActionController.lua, `GetRollForDirection()`)
+  - Already defaults to FrontRoll when moveDir.Magnitude < 0.1 (confirmed)
+  - When not pressing movement keys, dodge plays forward roll animation (confirmed working)
+
+✅ **Added custom walk/sprint animations** (MovementController.lua)
+  - Added AnimationLoader require for animation handling
+  - New animation state tracking: "Idle" | "Walk" | "Sprint"
+  - Animation transitions on speed changes:
+    - Idle → Walk (moveDir > 0.5 and not sprinting)
+    - Walk → Sprint (moveDir > 0.5 and sprinting)
+    - Sprint/Walk → Idle (no movement input)
+  - Uses AnimationLoader.LoadTrack(Humanoid, "Walk|Sprint") for animation playback
+  - Animations loop while active, stop cleanly on state transitions
+  - Proper cleanup on character respawn
+
+**Purpose:** More responsive dodge, cleaner idle-to-forward animation, full movement animation system with walk/sprint states.
+
+## Previous Session ID: NF-016
+**Date:** February 15, 2026  
+**Task:** Polish camera shake and movement feel (final tuning pass)
+
+### Session NF-016 Changes:
+✅ **Created GitHub Issue #61:** "Polish camera shake effects"
+  - Camera Shake (ActionController.lua, `_ApplyCameraShake()`)
+  - Intensity reduced: 5x → 1.5x (less overwhelming)
+  - Rotation dampened: 5/5/8 factors → 1.5/1.5/1 (smoother, less jittery)
+  - Duration extended: 10 → 15 frames (gentler falloff)
+  - Decay curve: linear → exponential `^1.5` (elegant easing)
+  - **Result:** Smooth, elegant feedback without jarring jitter
+
+✅ **Created GitHub Issue #62:** "Refine movement direction responsiveness"
+  - Movement Feel (MovementController.lua, direction smoothing)
+  - Direction smoothing alpha: `dt * 18` → `dt * 12` (less over-responsive)
+  - Response time: ~50ms → ~70ms (more weighted, connected feel)
+  - **Result:** Less twitchy directional changes, better character control
+
+**Purpose:** Final polish on feel/responsiveness; camera shake now elegant, movement now weighty and connected.
+
+## Previous Session ID: NF-015
 **Date:** February 15, 2026  
 **Task:** Rojo sync deletes Studio-only animations
 

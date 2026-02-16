@@ -108,12 +108,12 @@ local DODGE: ActionConfig = {
 	Name = "Dodge",
 	Type = "Dodge",
 	AnimationId = "",
-	AnimationName = "Front Roll",
+	AnimationName = "FrontRoll",
 	AnimationAssetName = "FrontRoll",
 	AnimationSpeed = 1.2,
-	Duration = 0.5,
+	Duration = 0.35,
 	CameraShake = 0.1,
-	Cooldown = 0.3,
+	Cooldown = 0.8, -- Prevent spam dodging
 	RequiredState = "Idle",
 }
 
@@ -137,15 +137,33 @@ local PARRY: ActionConfig = {
 	Name = "Parry",
 	Type = "Parry",
 	AnimationId = "",
-	AnimationName = "Front Roll",
+	AnimationName = "FrontRoll",
 	AnimationAssetName = "FrontRoll",
 	AnimationSpeed = 1.5,
-	Duration = 0.3, -- Quick parry window
+	Duration = 0.19, -- Quick parry window
 	HitStartFrame = 0.1,
 	HitStopDuration = 0.05,
 	CameraShake = 0.2,
 	SoundId = "rbxassetid://12345685",
 	Cooldown = 0.5,
+	RequiredState = "Idle",
+}
+
+local LUNGE_ATTACK: ActionConfig = {
+	Id = "atk_lunge",
+	Name = "Lunge Attack",
+	Type = "Attack",
+	AnimationId = "",
+	AnimationName = "Fists",
+	AnimationAssetName = "punch 5",
+	AnimationSpeed = 1.0,
+	Duration = 0.8, -- Longer commitment for lunge
+	HitStartFrame = 0.4,
+	HitStopDuration = 0.15,
+	CameraShake = 0.7, -- More impactful
+	SoundId = "rbxassetid://12345681",
+	KnockbackPower = 1.2, -- Extra knockback from lunge
+	Cooldown = 1.2, -- Recover before next action
 	RequiredState = "Idle",
 }
 
@@ -155,4 +173,5 @@ return {
 	DODGE = DODGE,
 	BLOCK = BLOCK,
 	PARRY = PARRY,
+	LUNGE_ATTACK = LUNGE_ATTACK,
 }

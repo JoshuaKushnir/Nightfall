@@ -153,6 +153,7 @@ print("")
 if services.CombatService and services.NetworkService then
 	local CombatService = services.CombatService
 	local NetworkService = services.NetworkService
+	local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 	
 	-- Register handler for hit requests from clients
 	-- Clients send this when hitbox triggers
@@ -162,6 +163,13 @@ if services.CombatService and services.NetworkService then
 			local success, damage = CombatService.ValidateHit(player, requestData.HitData)
 			if success then
 				print(`[Server] Hit processed: {player.Name} dealt {damage} damage`)
+			end
+		elseif requestData.Type == "SetState" then
+			-- Handle state change request (e.g., for dodge iframes)
+			local newState = requestData.State
+			if newState then
+				StateService:SetPlayerState(player, newState)
+				print(`[Server] State changed for {player.Name}: {newState}`)
 			end
 		end
 	end)

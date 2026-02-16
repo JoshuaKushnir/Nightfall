@@ -33,6 +33,7 @@ export type PlayerState =
 	| "Running" 
 	| "Attacking" 
 	| "Blocking" 
+	| "Dodging"
 	| "Stunned" 
 	| "Ragdolled" 
 	| "Casting"
