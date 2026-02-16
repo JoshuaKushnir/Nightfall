@@ -111,10 +111,10 @@ function MovementController.SetModifier(name: string, multiplier: number)
 	if multiplier >= 1.0 then
 		-- Remove modifier (1.0 = no modification)
 		speedModifiers[name] = nil
-		print(`[MovementController] Modifier removed: {name}`)
+		print("[MovementController] Modifier removed: " .. tostring(name))
 	else
 		speedModifiers[name] = math.max(0, multiplier)
-		print(`[MovementController] Modifier set: {name} = {multiplier}x speed`)
+		print("[MovementController] Modifier set: " .. tostring(name) .. " = " .. tostring(multiplier) .. "x speed")
 	end
 end
 
@@ -131,7 +131,8 @@ end
 
 -- Camera effects
 local DEFAULT_FOV = MovementConfig.Camera.DefaultFOV or 70
-local SPRINT_FOV = 80 -- Increased from 75 for more noticeable effect
+local SPRINT_FOV = MovementConfig.Camera.SprintFOV or 80 -- configurable via MovementConfig
+local SPRINT_FOV_ENABLED = MovementConfig.Camera.FOVPunchEnabled or false
 local currentFOV = DEFAULT_FOV
 local targetFOV = DEFAULT_FOV
 
@@ -250,7 +251,7 @@ function MovementController:Start()
 		camera.FieldOfView = DEFAULT_FOV
 		currentFOV = DEFAULT_FOV
 		targetFOV = DEFAULT_FOV
-		print(`[MovementController] Camera FOV initialized to {DEFAULT_FOV}`)
+		print("[MovementController] Camera FOV initialized to " .. tostring(DEFAULT_FOV))
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -270,7 +271,7 @@ function MovementController:Start()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
 				-- Double-tap detected
 				isSprinting = not isSprinting
-				print(`[MovementController] Sprint toggled: {if isSprinting then \"ON\" else \"OFF\"}`)
+				print("[MovementController] Sprint toggled: " .. (isSprinting and "ON" or "OFF"))
 			end
 			lastWKeyPressTime = currentTime
 		elseif input.KeyCode == SLIDE_KEY then
@@ -311,7 +312,8 @@ function MovementController._TrySlide()
 	
 	local currentTime = tick()
 	if currentTime - lastSlideTime < SLIDE_COOLDOWN then
-		print(`[MovementController] Slide on cooldown ({math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100}s remaining)")
+		local remaining = math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100
+		print("[MovementController] Slide on cooldown (" .. tostring(remaining) .. "s remaining)")
 		return
 	end
 	
@@ -340,7 +342,7 @@ function MovementController._TrySlide()
 	LinearVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
 	LinearVelocityInstance.Velocity = slideVelocity
 	
-	print(`[MovementController] Slide momentum: {math.floor(SLIDE_SPEED)} studs/s in direction {slideDirection}`)
+	print("[MovementController] Slide momentum: " .. tostring(math.floor(SLIDE_SPEED)) .. " studs/s in direction " .. tostring(slideDirection))
 	
 	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
 	task.spawn(function()
@@ -439,19 +441,25 @@ function MovementController._Update(dt: number)
 	local speedMultiplier = getEffectiveSpeedMultiplier()
 	targetSpeed = targetSpeed * speedMultiplier
 	
-	-- FOV effect for sprint
-	targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
-	local fovSpeed = 12 -- Faster FOV changes for more noticeable effect
-	currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
+	-- FOV effect for sprint (only if enabled in MovementConfig)
+	if SPRINT_FOV_ENABLED then
+		targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
+		local fovSpeed = 12 -- Faster FOV changes for more noticeable effect
+		currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
 	
-	local camera = workspace.CurrentCamera
-	if camera then
-		camera.FieldOfView = currentFOV
-		-- Debug: print FOV changes
-		if isSprinting ~= lastSprintState then
-			print(`[MovementController] Sprint {if isSprinting then "START" else "STOP"} - FOV: {math.floor(currentFOV)}`)
-			lastSprintState = isSprinting
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera.FieldOfView = currentFOV
+			-- Debug: print FOV changes
+			if isSprinting ~= lastSprintState then
+				print("[MovementController] Sprint " .. (isSprinting and "START" or "STOP") .. " - FOV: " .. tostring(math.floor(currentFOV)))
+				lastSprintState = isSprinting
+			end
 		end
+	else
+		-- Ensure FOV stays default when disabled
+		targetFOV = DEFAULT_FOV
+		currentFOV = DEFAULT_FOV
 	end
 
 	-- Simplified acceleration with slight easing
@@ -478,7 +486,7 @@ function MovementController._Update(dt: number)
 	end
 	
 	if newAnimState ~= currentAnimationState then
-		print(`[MovementController] Animation transition: {currentAnimationState} → {newAnimState}`)
+		print("[MovementController] Animation transition: " .. tostring(currentAnimationState) .. " -> " .. tostring(newAnimState))
 		
 		-- Stop current animation
 		if currentAnimationTrack then
@@ -491,13 +499,13 @@ function MovementController._Update(dt: number)
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
 				currentAnimationTrack:Play()
-				print(`[MovementController] ✓ Walk animation playing`)
+				print("[MovementController] ✓ Walk animation playing")
 			end
 		elseif newAnimState == "Sprint" then
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Sprint")
 			if currentAnimationTrack then
 				currentAnimationTrack:Play()
-				print(`[MovementController] ✓ Sprint animation playing`)
+				print("[MovementController] ✓ Sprint animation playing")
 			end
 		end
 		

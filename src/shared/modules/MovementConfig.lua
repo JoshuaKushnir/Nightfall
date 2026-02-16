@@ -55,7 +55,7 @@ MovementConfig.Camera = {
 	HitReceivedTrauma = 0.5,
 	
 	-- FOV punch effects
-	FOVPunchEnabled = true,
+	FOVPunchEnabled = false, -- disable FOV punch/zoom by default (toggleable)
 	--DodgeFOVIncrease = 8, -- degrees
 	--HeavyAttackFOVDecrease = 5, -- degrees
 	FOVPunchDuration = 0.3, -- seconds

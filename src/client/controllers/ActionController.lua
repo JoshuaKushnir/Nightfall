@@ -18,6 +18,7 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
 type ActionConfig = ActionTypes.ActionConfig
 type Action = ActionTypes.Action
@@ -528,6 +529,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			print(`[ActionController] Dodge velocity applied: {dodgeVelocity}`)
 
 			-- Camera effect for dodge (FOV zoom + directional push)
+		if MovementConfig.Camera.FOVPunchEnabled then
 			print("[ActionController] DODGE CAMERA EFFECT!")
 			task.spawn(function()
 				local camera = workspace.CurrentCamera
@@ -551,7 +553,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 					task.wait(0.05)
 				end
 			end)
-
+		end
 			-- Clean up after dodge completes
 			task.delay(config.Duration, function()
 				if bodyVelocity and bodyVelocity.Parent then
