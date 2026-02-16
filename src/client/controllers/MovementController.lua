@@ -72,14 +72,65 @@ local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
+local isSliding = false
+local lastSlideTime = 0 -- Track slide cooldown
+
+-- Speed Modifiers: combat systems can apply multipliers via SetModifier()
+-- Example: SetModifier("Attacking", 0.5) = 50% walk/sprint speed during attack
+local speedModifiers: {[string]: number} = {}
+
+--[[
+	Get the effective speed multiplier by finding the minimum modifier value.
+	If multiple modifiers are active, returns the lowest multiplier (most restrictive).
+	Default: 1.0 (no modification)
+	
+	@return number - Speed multiplier (0.0 to 1.0+)
+]]
+local function getEffectiveSpeedMultiplier(): number
+	local minMultiplier = 1.0
+	for _, multiplier in speedModifiers do
+		minMultiplier = math.min(minMultiplier, multiplier)
+	end
+	return minMultiplier
+end
+
+--[[
+	Set a named speed modifier for this movement session.
+	Combat systems (e.g., ActionController) call this to restrict speed during actions.
+	
+	Multiple modifiers can be active; the lowest multiplier wins (most restrictive).
+	
+	@param name: string - Identifier for this modifier (e.g., "Attacking", "Stunned")
+	@param multiplier: number - Speed factor (1.0 = normal, 0.5 = half speed, 0.0 = frozen)
+	
+	Example:
+		MovementController.SetModifier("Attacking", 0.5)  -- 50% speed while attacking
+		MovementController.SetModifier("Attacking", 1.0)  -- Remove modifier
+]]
+function MovementController.SetModifier(name: string, multiplier: number)
+	if multiplier >= 1.0 then
+		-- Remove modifier (1.0 = no modification)
+		speedModifiers[name] = nil
+		print(`[MovementController] Modifier removed: {name}`)
+	else
+		speedModifiers[name] = math.max(0, multiplier)
+		print(`[MovementController] Modifier set: {name} = {multiplier}x speed`)
+	end
+end
 
 -- Movement state export (for ActionController)
+--[[
+	Get current sprint state.
+	ActionController calls this to detect sprint-based attacks (e.g., Lunge).
+	
+	@return boolean - True if currently sprinting
+]]
 function MovementController._isSprinting(): boolean
 	return isSprinting
 end
 
 -- Camera effects
-local DEFAULT_FOV = 70
+local DEFAULT_FOV = MovementConfig.Camera.DefaultFOV or 70
 local SPRINT_FOV = 80 -- Increased from 75 for more noticeable effect
 local currentFOV = DEFAULT_FOV
 local targetFOV = DEFAULT_FOV
@@ -201,6 +252,9 @@ function MovementController:Start()
 				print(`[MovementController] Sprint toggled: {if isSprinting then \"ON\" else \"OFF\"}`)
 			end
 			lastWKeyPressTime = currentTime
+		elseif input.KeyCode == SLIDE_KEY then
+			-- Attempt to slide
+			MovementController._TrySlide()
 		end
 	end)
 
@@ -252,17 +306,14 @@ function MovementController._Update(dt: number)
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
 		targetSpeed = wantsSprint and SPRINT_SPEED or WALK_SPEED
-		
-		-- Apply slowdown if currently attacking
-		local currentState = getCurrentState()
-		if currentState == "Attacking" then
-			targetSpeed = targetSpeed * ATTACK_SLOWDOWN_FACTOR
-		end
-		
 		lastMoveDirection = smoothedDirection
 	else
 		lastMoveDirection = Vector3.zero
 	end
+	
+	-- Apply speed modifiers (combat systems use SetModifier to restrict speed)
+	local speedMultiplier = getEffectiveSpeedMultiplier()
+	targetSpeed = targetSpeed * speedMultiplier
 	
 	-- FOV effect for sprint
 	targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
