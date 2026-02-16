@@ -261,6 +261,90 @@ function MovementController:Start()
 	print("[MovementController] Started")
 end
 
+--[[
+	Attempt to initiate a slide if conditions are met:
+	- Currently sprinting
+	- On ground
+	- Not in cooldown
+	- Move direction exists
+	
+	Uses LinearVelocity to preserve momentum with exponential decay.
+]]
+function MovementController._TrySlide()
+	local humanoid = Humanoid
+	local rootPart = RootPart
+	if not humanoid or not rootPart or not Character or humanoid.Health <= 0 then
+		return
+	end
+	
+	-- Check conditions
+	if not isSprinting then
+		print("[MovementController] Cannot slide: not sprinting")
+		return
+	end
+	
+	if not isOnGround(humanoid) then
+		print("[MovementController] Cannot slide: not on ground")
+		return
+	end
+	
+	local currentTime = tick()
+	if currentTime - lastSlideTime < SLIDE_COOLDOWN then
+		print(`[MovementController] Slide on cooldown ({math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100}s remaining)")
+		return
+	end
+	
+	if lastMoveDirection.Magnitude < 0.5 then
+		print("[MovementController] Cannot slide: no movement direction")
+		return
+	end
+	
+	-- Slide initiated
+	isSliding = true
+	lastSlideTime = currentTime
+	print("[MovementController] ✓ SLIDE INITIATED")
+	
+	-- Create or reuse LinearVelocity for momentum
+	if not LinearVelocityInstance then
+		LinearVelocityInstance = Instance.new("LinearVelocity")
+		LinearVelocityInstance.Parent = rootPart
+		print("[MovementController] LinearVelocity instance created")
+	end
+	
+	-- Set up slide trajectory
+	local slideDirection = lastMoveDirection.Unit
+	local slideVelocity = slideDirection * SLIDE_SPEED
+	
+	LinearVelocityInstance.Enabled = true
+	LinearVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
+	LinearVelocityInstance.Velocity = slideVelocity
+	
+	-- Decay the slide over time using TweenService for smooth easing
+	local TweenService = game:GetService("TweenService")
+	local tweenInfo = TweenInfo.new(
+		SLIDE_DURATION,
+		SLIDE_DECAY_EASING,
+		SLIDE_DECAY_DIRECTION
+	)
+	
+	-- Create a dummy object to tween a velocity value
+	local tweenGoal = {Velocity = 0}
+	local tweenStart = {Velocity = SLIDE_SPEED}
+	
+	local tween = TweenService:Create(LinearVelocityInstance, tweenInfo, tweenGoal)
+	
+	tween.Completed:Connect(function()
+		if LinearVelocityInstance then
+			LinearVelocityInstance.Enabled = false
+			print("[MovementController] Slide momentum decayed")
+		end
+		isSliding = false
+	end)
+	
+	tween:Play()
+	print(f"[MovementController] Slide momentum: {math.floor(SLIDE_SPEED)} studs/s in direction {slideDirection}")
+end
+
 function MovementController._Update(dt: number)
 	local humanoid = Humanoid
 	local rootPart = RootPart
