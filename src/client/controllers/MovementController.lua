@@ -130,6 +130,62 @@ function MovementController._isSprinting(): boolean
 	return isSprinting
 end
 
+-- Apply a short client-side impulse (used by actions like Lunge)
+-- direction: world-space horizontal Vector3 (will be projected to XZ)
+-- speed: studs/s magnitude
+-- duration: seconds to hold the impulse (will be clamped)
+-- tag: optional name for debugging
+function MovementController.ApplyImpulse(direction: Vector3, speed: number, duration: number, tag: string?)
+	local rootPart = RootPart
+	local humanoid = Humanoid
+	if not rootPart or not humanoid or humanoid.Health <= 0 then
+		print("[MovementController] ✗ ApplyImpulse failed - missing character/rootPart")
+		return false
+	end
+
+	-- Sanitize inputs
+	if not direction or direction.Magnitude < 0.01 then
+		return false
+	end
+	duration = math.clamp(duration or 0.2, 0.05, 1.0)
+
+	-- Project to horizontal plane and normalize
+	local hor = Vector3.new(direction.X, 0, direction.Z)
+	if hor.Magnitude < 0.01 then
+		hor = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+	end
+	local dir = hor.Unit
+
+	local vel = dir * (speed or 40)
+
+	-- Create a transient LinearVelocity instance for the impulse
+	local impulseName = (tag and ("_impulse_" .. tag)) or ("_impulse_" .. tostring(tick()))
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = impulseName
+	lv.Parent = rootPart
+	lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+	lv.Velocity = vel
+	lv.Enabled = true
+
+	-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
+	if rootPart and rootPart:IsA("BasePart") then
+		rootPart.AssemblyLinearVelocity = Vector3.new(vel.X, rootPart.AssemblyLinearVelocity.Y, vel.Z)
+	end
+
+	print(string.format("[MovementController] Impulse applied (%s) speed=%.1f duration=%.2f", tostring(tag or "anon"), vel.Magnitude, duration))
+
+	-- Clean up after duration
+	task.delay(duration, function()
+		if lv and lv.Parent then
+			lv.Enabled = false
+			lv:Destroy()
+			print(string.format("[MovementController] Impulse ended (%s)", tostring(tag or "anon")))
+		end
+	end)
+
+	return true
+end
+
 -- Camera effects
 local DEFAULT_FOV = MovementConfig.Camera.DefaultFOV or 70
 local SPRINT_FOV = MovementConfig.Camera.SprintFOV or 80 -- configurable via MovementConfig
@@ -493,7 +549,7 @@ function MovementController._Update(dt: number)
 	-- Handle animation state transitions
 	local newAnimState = "Idle"
 	if moveDir.Magnitude > 0.5 then
-		newAnimState = wantsSprint and "Sprint" or "Walk"
+		newAnimState = wantsSprint and "Running" or "Walk"
 	end
 	
 	if newAnimState ~= currentAnimationState then
@@ -512,19 +568,19 @@ function MovementController._Update(dt: number)
 				currentAnimationTrack:Play()
 				print("[MovementController] ✓ Walk animation playing")
 			end
-		elseif newAnimState == "Sprint" then
+		elseif newAnimState == "Running" then
 		-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
-		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Sprint")
+		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running")
 		if currentAnimationTrack then
 			currentAnimationTrack:Play()
-			print("[MovementController] ✓ Sprint animation playing")
+			print("[MovementController] ✓ Running animation playing")
 		else
 			-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
 				currentAnimationTrack:AdjustSpeed(1.15)
 				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Sprint animation missing — using Walk fallback")
+				print("[MovementController] ✓ Running animation missing — using Walk fallback")
 			end
 			end
 		end

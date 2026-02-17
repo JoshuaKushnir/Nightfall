@@ -515,49 +515,59 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				end
 			end
 
-			-- Apply velocity impulse for dodge movement
-			local DODGE_SPEED = 65 -- Snappy dodge speed
-			local dodgeVelocity = dodgeDir * DODGE_SPEED
+-- Apply movement via MovementController.ApplyImpulse when available (client-predicted)
+		local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
+		local DODGE_DURATION = (MovementConfig.Dodge and MovementConfig.Dodge.Duration) or config.Duration
+		local applied = false
+		if MovementController and MovementController.ApplyImpulse then
+			applied = MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, math.min(config.Duration, DODGE_DURATION), "dodge")
+			if applied then
+				print("[ActionController] Dodge applied via MovementController.ApplyImpulse")
+			end
+		end
 
-			-- Use BodyVelocity for consistent movement during dodge
+		-- Fallback: legacy BodyVelocity if MovementController not available
+		if not applied and rootPart then
+			local dodgeVelocity = dodgeDir * DODGE_SPEED
 			local bodyVelocity = Instance.new("BodyVelocity")
 			bodyVelocity.MaxForce = Vector3.new(30000, 0, 30000)
 			bodyVelocity.Velocity = dodgeVelocity
 			bodyVelocity.P = 5000
 			bodyVelocity.Parent = rootPart
 
-			print(`[ActionController] Dodge velocity applied: {dodgeVelocity}`)
+			print(`[ActionController] Dodge velocity applied (fallback): {dodgeVelocity}`)
 
-			-- Camera effect for dodge (FOV zoom + directional push)
-		if MovementConfig.Camera.FOVPunchEnabled then
-			print("[ActionController] DODGE CAMERA EFFECT!")
-			task.spawn(function()
-				local camera = workspace.CurrentCamera
-				if not camera then return end
-
-				local startFOV = camera.FieldOfView
-				local startCFrame = camera.CFrame
-
-				-- DRAMATIC zoom out effect
-				camera.FieldOfView = startFOV + 15 -- Much more noticeable
-
-				-- Camera speed blur effect by pushing back
-				local pushAmount = 1.2
-				camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
-
-				-- Smooth return over dodge duration
-				local startTime = tick()
-				while tick() - startTime < config.Duration and camera do
-					local progress = (tick() - startTime) / config.Duration
-					camera.FieldOfView = startFOV + 15 * (1 - progress)
-					task.wait(0.05)
-				end
-			end)
-		end
 			-- Clean up after dodge completes
 			task.delay(config.Duration, function()
 				if bodyVelocity and bodyVelocity.Parent then
 					bodyVelocity:Destroy()
+				end
+			end)
+		end
+
+		-- Camera effect for dodge (FOV zoom + directional push)
+	if MovementConfig.Camera.FOVPunchEnabled then
+		print("[ActionController] DODGE CAMERA EFFECT!")
+		task.spawn(function()
+			local camera = workspace.CurrentCamera
+			if not camera then return end
+
+			local startFOV = camera.FieldOfView
+			local startCFrame = camera.CFrame
+
+			-- DRAMATIC zoom out effect
+			camera.FieldOfView = startFOV + 15 -- Much more noticeable
+
+			-- Camera speed blur effect by pushing back
+			local pushAmount = 1.2
+			camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
+
+			-- Smooth return over dodge duration
+			local startTime = tick()
+			while tick() - startTime < config.Duration and camera do
+				local progress = (tick() - startTime) / config.Duration
+				camera.FieldOfView = startFOV + 15 * (1 - progress)
+				task.wait(0.05)
 				end
 			end)
 		end
@@ -581,6 +591,63 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				})
 				print(`[ActionController] Dodge complete, returning to Idle`)
 			end)
+		end
+	end
+
+	-- Lunge attack: client-predicted forward burst while the action is active
+	if config.Type == "Attack" and config.Id == "atk_lunge" then
+		local rootPart = Utils.GetRootPart(Player)
+		if rootPart then
+			local camera = workspace.CurrentCamera
+			local forward = rootPart.CFrame.LookVector
+			-- Prefer camera-forward for player input direction
+			if camera then
+				local look = camera.CFrame.LookVector
+				forward = Vector3.new(look.X, 0, look.Z)
+				if forward.Magnitude < 0.1 then
+					forward = Vector3.new(0, 0, -1)
+				end
+				forward = forward.Unit
+			else
+				forward = Vector3.new(forward.X, 0, forward.Z).Unit
+			end
+
+			local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
+			local lungeVelocity = forward * LUNGE_SPEED
+
+			-- Primary: use LinearVelocity (modern, reliable)
+			local lv = rootPart:FindFirstChild("_LungeLinearVelocity") :: LinearVelocity?
+			if not lv then
+				lv = Instance.new("LinearVelocity")
+				lv.Name = "_LungeLinearVelocity"
+				lv.Attachment0 = nil
+				lv.Parent = rootPart
+			end
+			lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+			lv.Velocity = lungeVelocity
+			lv.Enabled = true
+
+			-- Backup: directly set AssemblyLinearVelocity once to ensure immediate displacement
+			if rootPart and rootPart:IsA("BasePart") then
+				rootPart.AssemblyLinearVelocity = lungeVelocity
+			end
+
+			print(`[ActionController] Lunge velocity applied (LinearVelocity): {lungeVelocity}`)
+
+			-- Keep velocity through the hit frame + small buffer, then remove/disable
+			local hitTime = (config.HitStartFrame and (config.Duration * config.HitStartFrame)) or (config.Duration * 0.4)
+			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
+			task.delay(keepTime, function()
+				if lv and lv.Parent then
+					lv.Enabled = false
+					lv:Destroy()
+				end
+			end)
+
+			-- Diagnostic: if we couldn't find a root part, log for debugging
+			if not rootPart then
+				print("[ActionController] ✗ Lunge: HumanoidRootPart not found")
+			end
 		end
 	end
 

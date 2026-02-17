@@ -46,5 +46,19 @@ return {
 				-- Integration test should trigger a slide and verify LinearVelocity is added to HumanoidRootPart and decays over SLIDE_DURATION
 			end,
 		},
+		{
+			name = "ApplyImpulse API exists and is callable",
+			fn = function()
+				assert(type(MovementController.ApplyImpulse) == "function")
+				-- Integration test should verify impulse actually moves the character in-game
+			end,
+		},
+		{
+			name = "MovementConfig contains LungeSpeed",
+			fn = function()
+				local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+				assert(type(MovementConfig.Movement.LungeSpeed) == "number")
+			end,
+		},
 	},
 }

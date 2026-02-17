@@ -11,6 +11,7 @@ local MovementConfig = {}
 MovementConfig.Movement = {
 	WalkSpeed = 12, -- studs per second
 	SprintSpeed = 20, -- studs per second
+	LungeSpeed = 45, -- studs per second for sprint->attack lunge (configurable)
 	Acceleration = 45, -- studs/s^2 when speeding up
 	Deceleration = 55, -- studs/s^2 when slowing down
 	
