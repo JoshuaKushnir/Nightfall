@@ -621,10 +621,16 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 			-- Prefer using centralized MovementController.ApplyImpulse (client prediction)
 			local appliedViaMovementController = false
+			print("[ActionController] Lunge: checking MovementController / ApplyImpulse availability")
+			print("[ActionController] \tMovementController present: " .. tostring(MovementController ~= nil))
+			print("[ActionController] \tApplyImpulse method present: " .. tostring(MovementController and MovementController.ApplyImpulse ~= nil))
 			if MovementController and MovementController.ApplyImpulse then
 				appliedViaMovementController = MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
+				print("[ActionController] MovementController.ApplyImpulse returned: " .. tostring(appliedViaMovementController))
 				if appliedViaMovementController then
 					print("[ActionController] Lunge applied via MovementController.ApplyImpulse")
+				else
+					print("[ActionController] ✗ MovementController.ApplyImpulse returned false — falling back to LinearVelocity")
 				end
 			end
 
