@@ -615,34 +615,47 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
 			local lungeVelocity = forward * LUNGE_SPEED
 
-			-- Primary: use LinearVelocity (modern, reliable)
-			local lv = rootPart:FindFirstChild("_LungeLinearVelocity") :: LinearVelocity?
-			if not lv then
-				lv = Instance.new("LinearVelocity")
-				lv.Name = "_LungeLinearVelocity"
-				lv.Attachment0 = nil
-				lv.Parent = rootPart
-			end
-			lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
-			lv.Velocity = lungeVelocity
-			lv.Enabled = true
-
-			-- Backup: directly set AssemblyLinearVelocity once to ensure immediate displacement
-			if rootPart and rootPart:IsA("BasePart") then
-				rootPart.AssemblyLinearVelocity = lungeVelocity
-			end
-
-			print(`[ActionController] Lunge velocity applied (LinearVelocity): {lungeVelocity}`)
-
-			-- Keep velocity through the hit frame + small buffer, then remove/disable
+			-- Calculate keep time (how long prediction should persist)
 			local hitTime = (config.HitStartFrame and (config.Duration * config.HitStartFrame)) or (config.Duration * 0.4)
 			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
-			task.delay(keepTime, function()
-				if lv and lv.Parent then
-					lv.Enabled = false
-					lv:Destroy()
+
+			-- Prefer using centralized MovementController.ApplyImpulse (client prediction)
+			local appliedViaMovementController = false
+			if MovementController and MovementController.ApplyImpulse then
+				appliedViaMovementController = MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
+				if appliedViaMovementController then
+					print("[ActionController] Lunge applied via MovementController.ApplyImpulse")
 				end
-			end)
+			end
+
+			-- Fallback: use local LinearVelocity + AssemblyLinearVelocity if the MovementController API is unavailable
+			if not appliedViaMovementController then
+				local lv = rootPart:FindFirstChild("_LungeLinearVelocity") :: LinearVelocity?
+				if not lv then
+					lv = Instance.new("LinearVelocity")
+					lv.Name = "_LungeLinearVelocity"
+					lv.Attachment0 = nil
+					lv.Parent = rootPart
+				end
+				lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+				lv.Velocity = lungeVelocity
+				lv.Enabled = true
+
+				-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
+				if rootPart and rootPart:IsA("BasePart") then
+					rootPart.AssemblyLinearVelocity = lungeVelocity
+				end
+
+				print(`[ActionController] Lunge velocity applied (LinearVelocity fallback): {lungeVelocity}`)
+
+				-- Clean up after keepTime
+				task.delay(keepTime, function()
+					if lv and lv.Parent then
+						lv.Enabled = false
+						lv:Destroy()
+					end
+				end)
+			end
 
 			-- Diagnostic: if we couldn't find a root part, log for debugging
 			if not rootPart then
