@@ -206,7 +206,7 @@ end
 	@param config The action configuration
 ]]
 function ActionController.PlayAction(config: ActionConfig)
-	print(`[ActionController] PlayAction called: {config.Name} (Type: {config.Type})`)
+	print(`[ActionController] PlayAction called: {config.Name} (Id: {config.Id}) (Type: {config.Type})`)
 
 	-- Validate character
 	if not Character or not Humanoid or Humanoid.Health <= 0 then
@@ -366,6 +366,7 @@ end
 	@param config The action configuration
 ]]
 function ActionController._PlayActionLocal(config: ActionConfig)
+	print(`[ActionController] _PlayActionLocal entry - id={config.Id} name={config.Name} type={config.Type}`)
 	if not Character or not Humanoid then
 		print(`[ActionController] Cannot play action - missing character components`)
 		return
