@@ -256,6 +256,26 @@ function ActionController.PlayAction(config: ActionConfig)
 			local now = tick()
 			if now - LastLungeAttackTime > 0.3 then
 				print("[ActionController] Lunge attack triggered (sprinting + attack)")
+
+				-- QUICK-FIX: pre-emptively apply client impulse here so movement is visible
+				-- even if later prediction/animation timing is delayed or overwritten.
+				if MovementController and MovementController.ApplyImpulse then
+					local camera = workspace.CurrentCamera
+					local forward = Vector3.new(0, 0, -1)
+					if camera then
+						local look = camera.CFrame.LookVector
+						forward = Vector3.new(look.X, 0, look.Z)
+						if forward.Magnitude < 0.1 then
+							forward = Vector3.new(0, 0, -1)
+						end
+						forward = forward.Unit
+					end
+
+					local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
+					local applied = MovementController.ApplyImpulse(forward, LUNGE_SPEED, 0.24, "lunge_preempt")
+					print("[ActionController] Pre-emptive ApplyImpulse at PlayAction returned: " .. tostring(applied))
+				end
+
 				ActionController.PlayAction(ActionTypes.LUNGE_ATTACK)
 				LastLungeAttackTime = now
 				return
