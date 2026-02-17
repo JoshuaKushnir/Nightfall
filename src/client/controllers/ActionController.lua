@@ -621,6 +621,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end)
 		end
 	end
+	end
 
 	-- Lunge attack: client-predicted forward burst while the action is active
 	if config.Type == "Attack" and config.Id == "atk_lunge" then
