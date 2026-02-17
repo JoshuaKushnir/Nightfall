@@ -145,6 +145,7 @@ function MovementController.ApplyImpulse(direction: Vector3, speed: number, dura
 
 	-- Sanitize inputs
 	if not direction or direction.Magnitude < 0.01 then
+		print("[MovementController] ✗ ApplyImpulse failed - invalid direction: " .. tostring(direction))
 		return false
 	end
 	duration = math.clamp(duration or 0.2, 0.05, 1.0)

@@ -272,8 +272,15 @@ function ActionController.PlayAction(config: ActionConfig)
 					end
 
 					local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
-					local applied = MovementController.ApplyImpulse(forward, LUNGE_SPEED, 0.24, "lunge_preempt")
-					print("[ActionController] Pre-emptive ApplyImpulse at PlayAction returned: " .. tostring(applied))
+
+					-- Ensure the pre-emptive impulse covers the lunge's hit window so the
+					-- visible forward burst is still present when the hit frame occurs.
+					local lungeCfg = ActionTypes.LUNGE_ATTACK
+					local hitTime = (lungeCfg.HitStartFrame and (lungeCfg.Duration * lungeCfg.HitStartFrame)) or (lungeCfg.Duration * 0.4)
+					local preemptDur = math.clamp(hitTime + 0.12, 0.12, 0.6)
+
+					local applied = MovementController.ApplyImpulse(forward, LUNGE_SPEED, preemptDur, "lunge_preempt")
+					print("[ActionController] Pre-emptive ApplyImpulse at PlayAction returned: " .. tostring(applied) .. " (dur=" .. tostring(preemptDur) .. ")")
 				end
 
 				ActionController.PlayAction(ActionTypes.LUNGE_ATTACK)
