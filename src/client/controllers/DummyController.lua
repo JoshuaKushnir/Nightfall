@@ -18,6 +18,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace         = game:GetService("Workspace")
 local TweenService      = game:GetService("TweenService")
 
+local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
+
 local DummyDataModule = require(ReplicatedStorage.Shared.types.DummyData)
 type DummyData  = DummyDataModule.DummyData
 type DummyState = DummyDataModule.DummyState
@@ -29,10 +31,17 @@ local DummyController = {}
 -- Client-side model registry (populated from Workspace replicated models)
 local DummyModels: {[string]: Model} = {}
 
+-- Per-dummy idle AnimationTrack (looped while dummy is in Normal state)
+local DummyIdleTracks: {[string]: AnimationTrack} = {}
+
 -- Constants
 local SPAWN_EVENT_NAME         = "SpawnDummy"
 local DESPAWN_EVENT_NAME       = "DespawnDummy"
 local STATE_CHANGED_EVENT_NAME = "DummyStateChanged"
+
+-- Animation folder / asset for the dummy idle (must exist under ReplicatedStorage.animations/Dummy/)
+local IDLE_ANIM_FOLDER = "Dummy"
+local IDLE_ANIM_ASSET  = "Idle"
 
 -- Flash colour shown briefly on state entry (purely visual, server color is authoritative)
 local STATE_FLASH_COLOR: {[DummyState]: Color3} = {
@@ -40,6 +49,44 @@ local STATE_FLASH_COLOR: {[DummyState]: Color3} = {
 	Blocking  = Color3.fromRGB(80,  120, 255),
 	Staggered = Color3.fromRGB(255, 140, 40),
 }
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Animation helpers
+-- ──────────────────────────────────────────────────────────────────────────
+
+--[[
+	Load and loop the idle animation on a dummy model.
+	Safe to call multiple times - skips if a track is already active.
+]]
+local function playIdleAnimation(dummyId: string, model: Model)
+	if DummyIdleTracks[dummyId] then return end  -- already playing
+
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		warn(`[DummyController] No Humanoid found on dummy {dummyId} for idle animation`)
+		return
+	end
+
+	local track = AnimationLoader.LoadTrack(humanoid, IDLE_ANIM_FOLDER, IDLE_ANIM_ASSET)
+	if track then
+		track.Looped = true
+		track:Play()
+		DummyIdleTracks[dummyId] = track
+		print(`[DummyController] Playing idle animation on dummy {dummyId}`)
+	end
+end
+
+--[[
+	Stop and discard the idle animation track for a dummy.
+]]
+local function stopIdleAnimation(dummyId: string)
+	local track = DummyIdleTracks[dummyId]
+	if track then
+		track:Stop()
+		DummyIdleTracks[dummyId] = nil
+		print(`[DummyController] Stopped idle animation on dummy {dummyId}`)
+	end
+end
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- Lifecycle
@@ -104,6 +151,7 @@ function DummyController._OnDummySpawned(dummyData: DummyData)
 		if found then
 			DummyModels[dummyData.Id] = found
 			print(`[DummyController] Linked to replicated model: {modelName}`)
+			playIdleAnimation(dummyData.Id, found)
 		else
 			warn(`[DummyController] Replicated model not found: {modelName}`)
 		end
@@ -115,6 +163,7 @@ end
 ]]
 function DummyController._OnDummyDespawned(dummyId: string)
 	print(`[DummyController] Dummy despawned: {dummyId}`)
+	stopIdleAnimation(dummyId)
 	DummyModels[dummyId] = nil
 end
 
@@ -127,6 +176,16 @@ function DummyController._OnStateChanged(packet: {DummyId: string, State: DummyS
 	if not model then return end
 
 	print(`[DummyController] Dummy {packet.DummyId} state -> {packet.State} ({packet.Health}/{packet.MaxHealth} HP)`)
+
+	-- Idle animation: play when Normal, stop for all other states
+	if packet.State == "Normal" then
+		local m = DummyModels[packet.DummyId]
+		if m then
+			playIdleAnimation(packet.DummyId, m)
+		end
+	else
+		stopIdleAnimation(packet.DummyId)
+	end
 
 	local flashColor = STATE_FLASH_COLOR[packet.State]
 	if not flashColor then return end
