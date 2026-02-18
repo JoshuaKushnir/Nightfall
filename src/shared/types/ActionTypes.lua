@@ -39,6 +39,8 @@ export type ActionConfig = {
 	-- Combo System
 	IsFinisher: boolean?, -- True if this is the final hit in a combo
 	KnockbackPower: number?, -- Knockback force applied on hit
+	CancelFrame: number?,   -- Fraction of Duration after which a queued action can interrupt (e.g. 0.55)
+	AttackImpulse: number?, -- Brief forward studs/s nudge applied at swing start (non-lunge attacks)
 
 	-- Server Validation
 	Cooldown: number?, -- Seconds between uses
@@ -76,13 +78,15 @@ local ATTACK_LIGHT: ActionConfig = {
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 1",
-	AnimationSpeed = 1.0,
-	Duration = 0.6,
+	AnimationSpeed = 1.3,   -- snappier swing
+	Duration = 0.45,        -- tighter window
 	HitStartFrame = 0.3,
-	HitStopDuration = 0.1,
+	HitStopDuration = 0.07, -- shorter freeze on contact
+	CancelFrame = 0.55,     -- can chain next hit at 55% of duration (~0.25 s)
+	AttackImpulse = 14,     -- small forward nudge per swing
 	CameraShake = 0.3,
 	SoundId = "rbxassetid://12345679",
-	Cooldown = 0.5,
+	Cooldown = 0.3,
 	RequiredState = "Idle",
 }
 
@@ -93,13 +97,15 @@ local ATTACK_HEAVY: ActionConfig = {
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 5",
-	AnimationSpeed = 0.8,
-	Duration = 1.2,
-	HitStartFrame = 0.5,
-	HitStopDuration = 0.15,
+	AnimationSpeed = 1.0,
+	Duration = 0.9,         -- was 1.2; still a commitment but less punishing
+	HitStartFrame = 0.45,
+	HitStopDuration = 0.12,
+	CancelFrame = 0.65,     -- can cancel into a dodge/combo at 65% (~0.59 s)
+	AttackImpulse = 10,
 	CameraShake = 0.6,
 	SoundId = "rbxassetid://12345681",
-	Cooldown = 1.0,
+	Cooldown = 0.6,
 	RequiredState = "Idle",
 }
 
@@ -156,14 +162,15 @@ local LUNGE_ATTACK: ActionConfig = {
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 2",
-	AnimationSpeed = 1.0,
-	Duration = 0.8, -- Longer commitment for lunge
+	AnimationSpeed = 1.1,
+	Duration = 0.8,
 	HitStartFrame = 0.4,
-	HitStopDuration = 0.15,
-	CameraShake = 0.7, -- More impactful
+	HitStopDuration = 0.12,
+	CancelFrame = 0.60,     -- can cancel into next attack after the hit lands
+	CameraShake = 0.7,
 	SoundId = "rbxassetid://12345681",
-	KnockbackPower = 1.2, -- Extra knockback from lunge
-	Cooldown = 1.2, -- Recover before next action
+	KnockbackPower = 1.2,
+	Cooldown = 1.0,
 	RequiredState = "Idle",
 }
 

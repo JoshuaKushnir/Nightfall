@@ -496,9 +496,9 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	-- If this is an attack, apply movement slowdown via MovementController.SetModifier()
 	if config.Type == "Attack" and MovementController and MovementController.SetModifier then
-		-- Default attack slowdown to 50% of normal speed
-		MovementController.SetModifier("Attacking", 0.5)
-		print("[ActionController] Applied movement modifier: Attacking = 0.5x")
+		-- 0.75 — still slightly restricted but not mud-slow
+		MovementController.SetModifier("Attacking", 0.75)
+		print("[ActionController] Applied movement modifier: Attacking = 0.75x")
 	end
 
 	-- Load and play animation if configured. Prefer project animations under
@@ -569,9 +569,25 @@ if config.OnStart then
 	task.spawn(config.OnStart, Player)
 end
 
-	-- Handle dodge movement and iframes
-	if config.Type == "Dodge" then
+	-- Small forward root-motion nudge for non-lunge attacks.
+	-- Gives each swing a sense of aggression without a full lunge burst.
+	if config.Type == "Attack" and config.Id ~= "atk_lunge" and config.AttackImpulse and config.AttackImpulse > 0 then
 		local rootPart = Utils.GetRootPart(Player)
+		if rootPart and MovementController and MovementController.ApplyImpulse then
+			local camera = workspace.CurrentCamera
+			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
+			if camera then
+				local look = camera.CFrame.LookVector
+				local camForward = Vector3.new(look.X, 0, look.Z)
+				if camForward.Magnitude > 0.1 then
+					forward = camForward.Unit
+				end
+			end
+			if forward.Magnitude > 0.1 then
+				MovementController.ApplyImpulse(forward, config.AttackImpulse, 0.12, "attack_nudge")
+			end
+		end
+	end
 		if rootPart then
 			-- Determine dodge direction from real-time input (same as animation direction)
 			local camera = workspace.CurrentCamera
@@ -823,6 +839,11 @@ end
 									},
 								})
 							end
+
+						-- Hit-stop only on actual contact, not on every swing
+						if config.HitStopDuration and CurrentAction == action then
+							ActionController._ApplyHitStop(config.HitStopDuration)
+						end
 						end,
 					}
 
@@ -838,14 +859,11 @@ end
 	end
 
 	-- Simulate hit-stop if action has hit timing
-	if config.HitStartFrame and config.HitStopDuration then
-		local hitTime = config.Duration * config.HitStartFrame
-		task.delay(hitTime, function()
-			if CurrentAction == action then
-				ActionController._ApplyHitStop(config.HitStopDuration)
-			end
-		end)
-	end
+	-- NOTE: hit-stop is now triggered inside the hitbox OnHit callback so it
+	-- only fires on actual contact.  This block is intentionally left empty.
+	--[[
+	if config.HitStartFrame and config.HitStopDuration then … end
+	--]]
 
 	-- Simulate camera shake - DISABLED
 	if config.CameraShake then
@@ -866,6 +884,40 @@ function ActionController._UpdateAction(deltaTime: number)
 	end
 
 	local action = CurrentAction
+
+	-- ── Early cancel window ────────────────────────────────────────────────
+	-- Once the current action passes its CancelFrame fraction, allow a queued
+	-- action to interrupt — this is the core of fluid combo chaining.
+	if action.Config.CancelFrame and #ActionQueue > 0 then
+		local cancelAt = action.StartTime + action.Config.Duration * action.Config.CancelFrame
+		if tick() >= cancelAt then
+			-- Fade the current animation out gently so the blend is smooth
+			if action.AnimationTrack and action.AnimationTrack.IsPlaying then
+				action.AnimationTrack:Stop(0.08)
+			end
+			action.IsActive = false
+			-- Destroy the track slightly later so the fadeout plays
+			local dyingTrack = action.AnimationTrack
+			action.AnimationTrack = nil
+			if dyingTrack then
+				task.delay(0.15, function() dyingTrack:Destroy() end)
+			end
+			-- Release the hitbox if it wasn't fired yet
+			if action.Hitbox then
+				HitboxService.RemoveHitbox(action.Hitbox)
+				action.Hitbox = nil
+			end
+			-- Clear attack movement penalty
+			if action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+				MovementController.SetModifier("Attacking", 1.0)
+			end
+			CurrentAction = nil
+			local nextConfig = table.remove(ActionQueue, 1)
+			print("[ActionController] ⚡ Early cancel → " .. nextConfig.Name)
+			ActionController._PlayActionLocal(nextConfig)
+			return
+		end
+	end
 
 	-- Check if action complete
 	if tick() >= action.EndTime then
@@ -924,7 +976,7 @@ function ActionController._ApplyHitStop(duration: number)
 		if animator then
 			for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
 				local originalSpeed = track.Speed
-				track:AdjustSpeed(0.05) -- Slow to 5% speed for more dramatic effect
+				track:AdjustSpeed(0.15) -- brief slow-down (15% \u2014 gives impact feel without full freeze)
 				task.delay(duration, function()
 					if track.IsPlaying then
 						track:AdjustSpeed(originalSpeed)
