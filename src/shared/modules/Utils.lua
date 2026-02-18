@@ -12,9 +12,24 @@
 	- Table operations (safe removal, finding by property)
 	- Validation helpers (nil checks, type guards)
 	- Timing utilities (frame-based calculations)
+	- ID generation (GenerateId)
 ]]
 
+local HttpService = game:GetService("HttpService")
+
 local Utils = {}
+
+--[[
+	===== ID GENERATION =====
+]]
+
+--[[
+	Generate a unique ID string using a GUID
+	@return Unique ID string
+]]
+function Utils.GenerateId(): string
+	return HttpService:GenerateGUID(false)
+end
 
 --[[
 	===== GEOMETRY & SPATIAL CALCULATIONS =====
