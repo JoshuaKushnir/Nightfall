@@ -15,6 +15,7 @@ Issue #64: Spawnable test dummies for attack testing
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
 
 local DummyDataModule = require(ReplicatedStorage.Shared.types.DummyData)
 type DummyData  = DummyDataModule.DummyData
@@ -51,13 +52,6 @@ Blocking  = BrickColor.new("Bright blue"),
 Staggered = BrickColor.new("Bright orange"),
 }
 
--- Default positions where dummies auto-spawn on game start
-local AUTO_SPAWN_POSITIONS: {Vector3} = {
-Vector3.new(0,  3,  10),
-Vector3.new(10, 3,  0),
-Vector3.new(-10, 3, 0),
-}
-
 -- ──────────────────────────────────────────────────────────────────────────
 -- Init / Start
 -- ──────────────────────────────────────────────────────────────────────────
@@ -73,10 +67,39 @@ end
 function DummyService:Start()
 print("[DummyService] Starting...")
 
-for _, pos in AUTO_SPAWN_POSITIONS do
-DummyService.SpawnDummy(pos)
-end
-print(`[DummyService] Auto-spawned {#AUTO_SPAWN_POSITIONS} dummy(s) at game start`)
+-- Spawn dummies near each player when their character loads
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		-- Wait for the root part to be positioned by the server
+		task.wait(1)
+		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not root then return end
+		-- Spawn 3 dummies in an arc in front of the player
+		local cf = root.CFrame
+		local offsets = {
+			Vector3.new(-6, 0, -12),
+			Vector3.new( 0, 0, -15),
+			Vector3.new( 6, 0, -12),
+		}
+		for _, offset in offsets do
+			local worldPos = (cf * CFrame.new(offset)).Position
+			-- Keep same Y as the player's root so dummies stand on the same floor
+			worldPos = Vector3.new(worldPos.X, root.Position.Y, worldPos.Z)
+			local ok, err = pcall(DummyService.SpawnDummy, worldPos)
+			if not ok then
+				warn("[DummyService] SpawnDummy failed: " .. tostring(err))
+			end
+		end
+	end)
+	-- Re-send any already-active dummies to the joining client once they init
+	task.wait(1)
+	local spawnEvt = NetworkProvider:GetRemoteEvent(SPAWN_EVENT_NAME)
+	if spawnEvt then
+		for _, dd in ActiveDummies do
+			spawnEvt:FireClient(player, dd)
+		end
+	end
+end)
 
 local spawnEvent = NetworkProvider:GetRemoteEvent(SPAWN_EVENT_NAME)
 if spawnEvent then
