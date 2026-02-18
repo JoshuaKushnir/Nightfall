@@ -41,7 +41,7 @@ local Player: Player? = nil
 local Character: Model? = nil
 local Humanoid: Humanoid? = nil
 local RootPart: BasePart? = nil
-local LinearVelocityInstance: LinearVelocity? = nil
+local BodyVelocityInstance: BodyVelocity? = nil
 
 -- Movement config (from MovementConfig or fallback)
 local WALK_SPEED = MovementConfig.Movement.WalkSpeed or 12
@@ -159,14 +159,15 @@ function MovementController.ApplyImpulse(direction: Vector3, speed: number, dura
 
 	local vel = dir * (speed or 40)
 
-	-- Create a transient LinearVelocity instance for the impulse
+	-- Create a transient BodyVelocity instance for the impulse (using BodyVelocity for simplicity/reliability over LinearVelocity without attachments)
 	local impulseName = (tag and ("_impulse_" .. tag)) or ("_impulse_" .. tostring(tick()))
-	local lv = Instance.new("LinearVelocity")
+	local lv = Instance.new("BodyVelocity")
 	lv.Name = impulseName
 	lv.Parent = rootPart
 	lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
 	lv.Velocity = vel
-	lv.Enabled = true
+	lv.P = 1250 -- High P for responsiveness
+	-- lv.Enabled = true (BodyVelocity is enabled by default)
 
 	-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
 	if rootPart and rootPart:IsA("BasePart") then
@@ -175,10 +176,9 @@ function MovementController.ApplyImpulse(direction: Vector3, speed: number, dura
 
 	print(string.format("[MovementController] Impulse applied (%s) speed=%.1f duration=%.2f", tostring(tag or "anon"), vel.Magnitude, duration))
 
-	-- Clean up after duration
+	-- Clean up after duration (BodyVelocity has no Enabled property, just destroy it)
 	task.delay(duration, function()
 		if lv and lv.Parent then
-			lv.Enabled = false
 			lv:Destroy()
 			print(string.format("[MovementController] Impulse ended (%s)", tostring(tag or "anon")))
 		end
@@ -392,27 +392,28 @@ function MovementController._TrySlide()
 	lastSlideTime = currentTime
 	print("[MovementController] ✓ SLIDE INITIATED")
 	
-	-- Create or reuse LinearVelocity for momentum
-	if not LinearVelocityInstance then
-		LinearVelocityInstance = Instance.new("LinearVelocity")
-		LinearVelocityInstance.Parent = rootPart
-		print("[MovementController] LinearVelocity instance created")
+	-- Create or reuse BodyVelocity for momentum
+	if not BodyVelocityInstance then
+		BodyVelocityInstance = Instance.new("BodyVelocity")
+		BodyVelocityInstance.Name = "SlideVelocity"
+		BodyVelocityInstance.Parent = rootPart
+		print("[MovementController] BodyVelocity instance created")
 	end
 	
 	-- Set up slide trajectory
 	local slideDirection = lastMoveDirection.Unit
 	local slideVelocity = slideDirection * SLIDE_SPEED
 	
-	LinearVelocityInstance.Enabled = true
-	LinearVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
-	LinearVelocityInstance.Velocity = slideVelocity
+	BodyVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
+	BodyVelocityInstance.Velocity = slideVelocity
+	BodyVelocityInstance.P = 1500 -- Slightly softer P for sliding
 	
 	print("[MovementController] Slide momentum: " .. tostring(math.floor(SLIDE_SPEED)) .. " studs/s in direction " .. tostring(slideDirection))
 	
 	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
 	task.spawn(function()
 		local slideStartTime = tick()
-		while isSliding and LinearVelocityInstance do
+		while isSliding and BodyVelocityInstance do
 			local elapsedTime = tick() - slideStartTime
 			local progress = math.min(1.0, elapsedTime / SLIDE_DURATION)
 			
@@ -420,8 +421,8 @@ function MovementController._TrySlide()
 			local easeProgress = 1 - math.pow(1 - progress, 3)
 			local currentVelocityMagnitude = SLIDE_SPEED * (1 - easeProgress)
 			
-			if LinearVelocityInstance and currentVelocityMagnitude > 0.5 then
-				LinearVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
+			if BodyVelocityInstance and currentVelocityMagnitude > 0.5 then
+				BodyVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
 			end
 			
 			if progress >= 1.0 then
@@ -432,8 +433,8 @@ function MovementController._TrySlide()
 		end
 		
 		-- Slide complete
-		if LinearVelocityInstance then
-			LinearVelocityInstance.Enabled = false
+		if BodyVelocityInstance then
+			BodyVelocityInstance.MaxForce = Vector3.zero
 			print("[MovementController] Slide momentum fully decayed")
 		end
 		isSliding = false
@@ -563,7 +564,14 @@ function MovementController._Update(dt: number)
 		end
 		
 		-- Play new animation
-		if newAnimState == "Walk" then
+		if newAnimState == "Idle" then
+			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Idle")
+			if currentAnimationTrack then
+				currentAnimationTrack.Looped = true
+				currentAnimationTrack:Play()
+				print("[MovementController] ✓ Idle animation playing")
+			end
+		elseif newAnimState == "Walk" then
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
 				currentAnimationTrack:Play()
