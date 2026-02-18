@@ -446,15 +446,14 @@ end
 	@param config The action configuration
 ]]
 function ActionController._PlayActionLocal(config: ActionConfig)
-	print(`[ActionController] _PlayActionLocal entry - id={config.Id} name={config.Name} type={config.Type}`)
 	if not Character or not Humanoid then
-		print(`[ActionController] Cannot play action - missing character components`)
+		print("[ActionController] Cannot play action - missing character components")
 		return
 	end
 
 	print(`[ActionController] ===== PLAYING ACTION: {config.Name} (Duration: {config.Duration}s) =====`)
 
-	-- Create action
+	-- ── Create action object ──────────────────────────────────────────────
 	local action: Action = {
 		Config = config,
 		StartTime = tick(),
@@ -468,12 +467,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			if self.AnimationTrack then
 				self.AnimationTrack:Play()
 			end
-			print(`[ActionController] Playing animation: {self.Config.Name}`)
 		end,
 
 		Stop = function(self: Action)
 			if self.AnimationTrack then
-				self.AnimationTrack:Stop()
+				self.AnimationTrack:Stop(0.1)
 			end
 			self.IsActive = false
 		end,
@@ -483,8 +481,8 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		Cleanup = function(self: Action)
 			if self.AnimationTrack then
 				self.AnimationTrack:Destroy()
+				self.AnimationTrack = nil
 			end
-			-- Clean up hitbox
 			if self.Hitbox then
 				HitboxService.RemoveHitbox(self.Hitbox)
 				self.Hitbox = nil
@@ -494,94 +492,61 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
-	-- If this is an attack, apply movement slowdown via MovementController.SetModifier()
+	-- ── Movement modifier (attacks slow player slightly) ─────────────────
 	if config.Type == "Attack" and MovementController and MovementController.SetModifier then
-		-- 0.75 — still slightly restricted but not mud-slow
 		MovementController.SetModifier("Attacking", 0.75)
-		print("[ActionController] Applied movement modifier: Attacking = 0.75x")
 	end
 
-	-- Load and play animation if configured. Prefer project animations under
-	-- ReplicatedStorage.animations when `AnimationName` is provided;
-	-- otherwise fall back to `AnimationId` (asset id string).
-	if not AnimationController then
-		print(`[ActionController] ✗ No AnimationController for {config.Name}`)
-	elseif not Humanoid then
-		print(`[ActionController] ✗ No Humanoid for {config.Name}`)
-	else
-		local track: AnimationTrack?
+	-- ── Animation ─────────────────────────────────────────────────────────
+	local track: AnimationTrack? = nil
 
-		-- Try loading from project folder (ReplicatedStorage.animations)
+	if AnimationController and Humanoid then
+		-- Prefer named project animation
 		if config.AnimationName and config.AnimationName ~= "" then
-			print(`[ActionController] Trying AnimationLoader: {config.AnimationName} (asset: {config.AnimationAssetName or "nil"})`)
 			track = AnimationLoader.LoadTrack(Humanoid, config.AnimationName, config.AnimationAssetName)
-			if track then
-				print(`[ActionController] ✓ Loaded project animation: {config.AnimationName}`)
-			else
-				print(`[ActionController] ✗ Failed to load project animation: {config.AnimationName}`)
-			end
 		end
-
-		-- Fallback to AnimationId if no project animation loaded
-		if (not track) and config.AnimationId and config.AnimationId ~= "" then
-			print(`[ActionController] Falling back to AnimationId: {config.AnimationId}`)
-			local animation = Instance.new("Animation")
-			animation.AnimationId = config.AnimationId
-			local success, loaded = pcall(function()
-				return AnimationController:LoadAnimation(animation)
-			end)
-			if success and loaded then
+		-- Fallback to raw AnimationId
+		if not track and config.AnimationId and config.AnimationId ~= "" then
+			local anim = Instance.new("Animation")
+			anim.AnimationId = config.AnimationId
+			local ok, loaded = pcall(function() return AnimationController:LoadAnimation(anim) end)
+			if ok and loaded then
 				track = loaded :: AnimationTrack
-				print(`[ActionController] ✓ Loaded AnimationId track`)
 			else
-				print(`[ActionController] ✗ Failed to load AnimationId: {if success then "loaded is nil" else tostring(loaded)}`)
-				if animation then
-					animation:Destroy()
-				end
+				anim:Destroy()
 			end
 		end
+	end
 
 	if track then
-		if config.AnimationPriority then
-			track.Priority = config.AnimationPriority
-		else
-			track.Priority = Enum.AnimationPriority.Action
-		end
-
+		track.Priority = config.AnimationPriority or Enum.AnimationPriority.Action
 		if config.AnimationSpeed then
 			track:AdjustSpeed(config.AnimationSpeed)
 		end
-
 		action.AnimationTrack = track
 		action:Play()
-		print(`[ActionController] ✓ Animation playing for {config.Name}`)
+		print(`[ActionController] ✓ Animation playing: {config.Name}`)
 	else
-		print(`[ActionController] ⚠ No animation found for {config.Name} - action proceeding without animation`)
-		-- Don't block action - let it proceed even without animation
+		print(`[ActionController] ⚠ No animation for {config.Name} — proceeding without`)
 	end
 
-	-- Still trigger Play even without animation (for game feel)
-	action:Play()
-end -- Closing the if AnimationController / Humanoid block (lines 470-510)
+	-- ── OnStart callback ──────────────────────────────────────────────────
+	if config.OnStart then
+		task.spawn(config.OnStart, Player)
+	end
 
--- Call start callback
-if config.OnStart then
-	task.spawn(config.OnStart, Player)
-end
-
-	-- Small forward root-motion nudge for non-lunge attacks.
-	-- Gives each swing a sense of aggression without a full lunge burst.
-	if config.Type == "Attack" and config.Id ~= "atk_lunge" and config.AttackImpulse and config.AttackImpulse > 0 then
+	-- ── Attack: small forward nudge to make swings feel aggressive ────────
+	if config.Type == "Attack" and config.Id ~= "atk_lunge"
+		and config.AttackImpulse and config.AttackImpulse > 0
+		and MovementController and MovementController.ApplyImpulse then
 		local rootPart = Utils.GetRootPart(Player)
-		if rootPart and MovementController and MovementController.ApplyImpulse then
-			local camera = workspace.CurrentCamera
+		if rootPart then
 			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
-			if camera then
-				local look = camera.CFrame.LookVector
-				local camForward = Vector3.new(look.X, 0, look.Z)
-				if camForward.Magnitude > 0.1 then
-					forward = camForward.Unit
-				end
+			local cam = workspace.CurrentCamera
+			if cam then
+				local look = cam.CFrame.LookVector
+				local cf = Vector3.new(look.X, 0, look.Z)
+				if cf.Magnitude > 0.1 then forward = cf.Unit end
 			end
 			if forward.Magnitude > 0.1 then
 				MovementController.ApplyImpulse(forward, config.AttackImpulse, 0.12, "attack_nudge")
@@ -589,290 +554,181 @@ end
 		end
 	end
 
-	-- Handle dodge movement and iframes
+	-- ── Dodge: directional impulse + iframes ──────────────────────────────
 	if config.Type == "Dodge" then
 		local rootPart = Utils.GetRootPart(Player)
-		if rootPart then
-			-- Determine dodge direction from real-time input (same as animation direction)
-			local camera = workspace.CurrentCamera
-			local dodgeDir = rootPart.CFrame.LookVector
-			
-			if camera then
-				local look = camera.CFrame.LookVector
-				local forward = Vector3.new(look.X, 0, look.Z).Unit
-				if forward.Magnitude < 0.1 then
-					forward = Vector3.new(0, 0, -1)
-				end
-				local right = Vector3.new(-forward.Z, 0, forward.X)
+		local dodgeDir = (rootPart and rootPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
+
+		-- Resolve direction from current input + camera
+		local cam = workspace.CurrentCamera
+		if cam and rootPart then
+			local look = cam.CFrame.LookVector
+			local fwd = Vector3.new(look.X, 0, look.Z)
+			if fwd.Magnitude > 0.1 then
+				fwd = fwd.Unit
+				local right = Vector3.new(-fwd.Z, 0, fwd.X)
 				local x, z = 0, 0
 				if UserInputService:IsKeyDown(Enum.KeyCode.W) then z += 1 end
 				if UserInputService:IsKeyDown(Enum.KeyCode.S) then z -= 1 end
 				if UserInputService:IsKeyDown(Enum.KeyCode.D) then x += 1 end
 				if UserInputService:IsKeyDown(Enum.KeyCode.A) then x -= 1 end
-				local moveDir = forward * z + right * x
-				
-				if moveDir.Magnitude > 0 then
-					dodgeDir = moveDir.Unit
-				end
-			end
-
--- Apply movement via MovementController.ApplyImpulse when available (client-predicted)
-		local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
-		local DODGE_DURATION = (MovementConfig.Dodge and MovementConfig.Dodge.Duration) or config.Duration
-		local applied = false
-		if MovementController and MovementController.ApplyImpulse then
-			applied = MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, math.min(config.Duration, DODGE_DURATION), "dodge")
-			if applied then
-				print("[ActionController] Dodge applied via MovementController.ApplyImpulse")
+				local moveDir = fwd * z + right * x
+				if moveDir.Magnitude > 0 then dodgeDir = moveDir.Unit end
 			end
 		end
 
-		-- Fallback: legacy BodyVelocity if MovementController not available
-		if not applied and rootPart then
-			local dodgeVelocity = dodgeDir * DODGE_SPEED
-			local bodyVelocity = Instance.new("BodyVelocity")
-			bodyVelocity.MaxForce = Vector3.new(30000, 0, 30000)
-			bodyVelocity.Velocity = dodgeVelocity
-			bodyVelocity.P = 5000
-			bodyVelocity.Parent = rootPart
+		-- Apply impulse
+		local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
+		local DODGE_DUR   = math.min(config.Duration, (MovementConfig.Dodge and MovementConfig.Dodge.Duration) or config.Duration)
+		local didApply = MovementController and MovementController.ApplyImpulse
+			and MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, DODGE_DUR, "dodge")
 
-			print(`[ActionController] Dodge velocity applied (fallback): {dodgeVelocity}`)
-
-			-- Clean up after dodge completes
+		-- Fallback BodyVelocity
+		if not didApply and rootPart then
+			local bv = Instance.new("BodyVelocity")
+			bv.MaxForce = Vector3.new(30000, 0, 30000)
+			bv.Velocity  = dodgeDir * DODGE_SPEED
+			bv.P = 5000
+			bv.Parent = rootPart
 			task.delay(config.Duration, function()
-				if bodyVelocity and bodyVelocity.Parent then
-					bodyVelocity:Destroy()
-				end
+				if bv.Parent then bv:Destroy() end
 			end)
 		end
 
-		-- Camera effect for dodge (FOV zoom + directional push)
-		if MovementConfig.Camera.FOVPunchEnabled then
-			print("[ActionController] DODGE CAMERA EFFECT!")
+		-- FOV punch
+		if MovementConfig.Camera and MovementConfig.Camera.FOVPunchEnabled then
 			task.spawn(function()
-				local camera = workspace.CurrentCamera
-				if not camera then return end
-
-				local startFOV = camera.FieldOfView
-				local startCFrame = camera.CFrame
-
-				-- DRAMATIC zoom out effect
-				camera.FieldOfView = startFOV + 15 -- Much more noticeable
-
-				-- Camera speed blur effect by pushing back
-				local pushAmount = 1.2
-				camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
-
-				-- Smooth return over dodge duration
-				local startTime = tick()
-				while tick() - startTime < config.Duration and camera do
-					local progress = (tick() - startTime) / config.Duration
-					camera.FieldOfView = startFOV + 15 * (1 - progress)
+				local cam2 = workspace.CurrentCamera
+				if not cam2 then return end
+				local startFOV = cam2.FieldOfView
+				cam2.FieldOfView = startFOV + 12
+				local t0 = tick()
+				while tick() - t0 < config.Duration and cam2 do
+					cam2.FieldOfView = startFOV + 12 * (1 - (tick() - t0) / config.Duration)
 					task.wait(0.05)
 				end
+				if cam2 then cam2.FieldOfView = startFOV end
 			end)
 		end
 
-		-- Notify server to set Dodging state (for iframes)
-		local networkEvent = NetworkProvider:GetRemoteEvent("StateRequest")
-		if networkEvent then
-			networkEvent:FireServer({
-				Type = "SetState",
-				State = "Dodging",
-				Timestamp = tick(),
-			})
-			print(`[ActionController] Requested Dodging state from server`)
-
-			-- Return to Idle after dodge completes
+		-- Tell server: Dodging → Idle
+		local stateEvent = NetworkProvider:GetRemoteEvent("StateRequest")
+		if stateEvent then
+			stateEvent:FireServer({ Type = "SetState", State = "Dodging", Timestamp = tick() })
 			task.delay(config.Duration, function()
-				networkEvent:FireServer({
-					Type = "SetState",
-					State = "Idle",
-					Timestamp = tick(),
-				})
-				print(`[ActionController] Dodge complete, returning to Idle`)
+				stateEvent:FireServer({ Type = "SetState", State = "Idle", Timestamp = tick() })
 			end)
 		end
 	end
-end
 
-	-- Lunge attack: client-predicted forward burst while the action is active
+	-- ── Lunge: forward burst ──────────────────────────────────────────────
 	if config.Type == "Attack" and config.Id == "atk_lunge" then
 		local rootPart = Utils.GetRootPart(Player)
 		if rootPart then
-			local camera = workspace.CurrentCamera
-			local forward = rootPart.CFrame.LookVector
-			-- Prefer camera-forward for player input direction
-			if camera then
-				local look = camera.CFrame.LookVector
-				forward = Vector3.new(look.X, 0, look.Z)
-				if forward.Magnitude < 0.1 then
-					forward = Vector3.new(0, 0, -1)
-				end
-				forward = forward.Unit
-			else
-				forward = Vector3.new(forward.X, 0, forward.Z).Unit
+			local cam = workspace.CurrentCamera
+			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
+			if cam then
+				local look = cam.CFrame.LookVector
+				local cf = Vector3.new(look.X, 0, look.Z)
+				if cf.Magnitude > 0.1 then forward = cf.Unit end
 			end
+			if forward.Magnitude > 0.1 then forward = forward.Unit end
 
 			local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
-			local lungeVelocity = forward * LUNGE_SPEED
-
-			-- Calculate keep time (how long prediction should persist)
-			local hitTime = (config.HitStartFrame and (config.Duration * config.HitStartFrame)) or (config.Duration * 0.4)
+			local hitTime = (config.HitStartFrame and config.Duration * config.HitStartFrame) or (config.Duration * 0.4)
 			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
 
-			-- Prefer using centralized MovementController.ApplyImpulse (client prediction)
-			local appliedViaMovementController = false
-			print("[ActionController] Lunge: checking MovementController / ApplyImpulse availability")
-			print("[ActionController] \tMovementController present: " .. tostring(MovementController ~= nil))
-			print("[ActionController] \tApplyImpulse method present: " .. tostring(MovementController and MovementController.ApplyImpulse ~= nil))
-			if MovementController and MovementController.ApplyImpulse then
-				appliedViaMovementController = MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
-				print("[ActionController] MovementController.ApplyImpulse returned: " .. tostring(appliedViaMovementController))
-				if appliedViaMovementController then
-					print("[ActionController] Lunge applied via MovementController.ApplyImpulse")
-				else
-					print("[ActionController] ✗ MovementController.ApplyImpulse returned false — falling back to LinearVelocity")
-				end
-			end
+			local applied = MovementController and MovementController.ApplyImpulse
+				and MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
 
-			-- Fallback: use local BodyVelocity + AssemblyLinearVelocity if the MovementController API is unavailable
-			if not appliedViaMovementController then
-				local lv = rootPart:FindFirstChild("_LungeBodyVelocity") :: BodyVelocity?
-				if not lv then
-					lv = Instance.new("BodyVelocity")
-					lv.Name = "_LungeBodyVelocity"
-					lv.Parent = rootPart
-				end
+			-- Fallback BodyVelocity
+			if not applied then
+				local lv = Instance.new("BodyVelocity")
+				lv.Name = "_LungeBodyVelocity"
 				lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
-				lv.Velocity = lungeVelocity
-				-- BodyVelocity doesn't expose an `Enabled` property; rely on parenting/destroy instead.
-
-				-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
-				if rootPart and rootPart:IsA("BasePart") then
-					rootPart.AssemblyLinearVelocity = lungeVelocity
+				lv.Velocity  = forward * LUNGE_SPEED
+				lv.Parent = rootPart
+				if rootPart:IsA("BasePart") then
+					rootPart.AssemblyLinearVelocity = forward * LUNGE_SPEED
 				end
-
-				print(`[ActionController] Lunge velocity applied (LinearVelocity fallback): {lungeVelocity}`)
-
-				-- Clean up after keepTime
 				task.delay(keepTime, function()
-					if lv and lv.Parent then
-						-- stop applying velocity then destroy
+					if lv.Parent then
 						lv.Velocity = Vector3.new(0, 0, 0)
 						lv:Destroy()
 					end
 				end)
 			end
-
-			-- Diagnostic: if we couldn't find a root part, log for debugging
-			if not rootPart then
-				print("[ActionController] ✗ Lunge: HumanoidRootPart not found")
-			end
 		end
 	end
 
-	-- Create hitbox for attack actions
+	-- ── Hitbox (attacks only) ─────────────────────────────────────────────
 	if config.Type == "Attack" and config.HitStartFrame then
 		local hitTime = config.Duration * config.HitStartFrame
-		print(`[ActionController] Scheduling hitbox creation in {hitTime}s for {config.Name}`)
 		task.delay(hitTime, function()
-			print(`[ActionController] Hitbox creation callback fired for {config.Name}`)
-			if CurrentAction == action and action.IsActive and Character then
-				local rootPart = Utils.GetRootPart(Player)
-				if rootPart then
-					print(`[ActionController] Creating hitbox at {rootPart.Position}`)
-					-- Create sphere hitbox in front of player
-					local hitboxConfig = {
-						Shape = "Sphere",
-						Owner = Player,
-						Damage = 10, -- Base damage, will be adjusted by mantra/equipment
-						Position = rootPart.Position + (rootPart.CFrame.LookVector * 5),
-						Size = Vector3.new(6, 6, 6), -- 6 stud radius
-						LifeTime = 1.0, -- Hitbox active for 1 second (debug)
-						OnHit = function(target: any, hitData)
-							local targetName = ""
-							if typeof(target) == "Instance" and target:IsA("Player") then
-								targetName = target.Name
-							elseif type(target) == "string" then
-								targetName = target -- dummy ID
-							else
-								print(`[ActionController] Unknown target type: {typeof(target)}`)
-								return
-							end
+			if CurrentAction ~= action or not action.IsActive or not Character then return end
+			local rootPart = Utils.GetRootPart(Player)
+			if not rootPart then return end
 
-							print(`[ActionController] ✓ Hit {targetName} with {config.Name}`)
+			local hitboxConfig = {
+				Shape   = "Sphere",
+				Owner   = Player,
+				Damage  = config.Damage or 10,
+				Position = rootPart.Position + rootPart.CFrame.LookVector * 5,
+				Size    = Vector3.new(6, 6, 6),
+				LifeTime = 1.0,
+				OnHit = function(target: any, _hitData: any)
+					local targetName: string
+					if typeof(target) == "Instance" and target:IsA("Player") then
+						targetName = target.Name
+					elseif type(target) == "string" then
+						targetName = target
+					else
+						return
+					end
 
-						-- Apply knockback on finisher (5th punch)
-						if config.IsFinisher and typeof(target) == "Instance" then
-							local targetChar = target.Character
-							if targetChar then
-								local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
-								local rootPart = Utils.GetRootPart(Player)
-								if targetRoot and rootPart then
-									-- Calculate knockback direction (away from attacker)
-									local knockbackDir = (targetRoot.Position - rootPart.Position).Unit
-									local knockbackVelocity = knockbackDir * (config.KnockbackPower or 50)
+					print(`[ActionController] ✓ Hit {targetName} with {config.Name}`)
 
-									-- Apply velocity (upward component for better feel)
-									knockbackVelocity = Vector3.new(knockbackVelocity.X, 20, knockbackVelocity.Z)
-
-									-- Apply to target's root part
-									if targetRoot:IsA("BasePart") then
-										targetRoot.AssemblyLinearVelocity = knockbackVelocity
-										print(`[ActionController] Applied knockback to {targetName}: {knockbackVelocity}`)
-									end
-								end
+					-- Finisher knockback
+					if config.IsFinisher and typeof(target) == "Instance" then
+						local targetChar = (target :: Player).Character
+						if targetChar then
+							local tRoot = targetChar:FindFirstChild("HumanoidRootPart")
+							local myRoot = Utils.GetRootPart(Player)
+							if tRoot and myRoot and tRoot:IsA("BasePart") then
+								local dir = (tRoot.Position - myRoot.Position).Unit
+								local force = dir * (config.KnockbackPower or 50)
+								tRoot.AssemblyLinearVelocity = Vector3.new(force.X, 20, force.Z)
 							end
 						end
+					end
 
-						-- Notify server for validation
-						local StateRequestEvent = NetworkProvider:GetRemoteEvent("StateRequest")
-						if StateRequestEvent then
-							StateRequestEvent:FireServer({
-								Type = "HitRequest",
-								Timestamp = tick(),
-								ActionId = config.Id,
-								HitData = {
-									TargetName = targetName,
-									Damage = config.Damage or 10,
-									HitType = config.Type,
-									ActionName = config.Name,
-									IsFinisher = config.IsFinisher or false,
-									KnockbackPower = config.KnockbackPower,
-									},
-								})
-							end
+					-- Server validation
+					local ev = NetworkProvider:GetRemoteEvent("StateRequest")
+					if ev then
+						ev:FireServer({
+							Type = "HitRequest",
+							Timestamp = tick(),
+							ActionId  = config.Id,
+							HitData   = {
+								TargetName   = targetName,
+								Damage       = config.Damage or 10,
+								HitType      = config.Type,
+								ActionName   = config.Name,
+								IsFinisher   = config.IsFinisher or false,
+								KnockbackPower = config.KnockbackPower,
+							},
+						})
+					end
 
-						-- Hit-stop only on actual contact, not on every swing
-						if config.HitStopDuration and CurrentAction == action then
-							ActionController._ApplyHitStop(config.HitStopDuration)
-						end
-						end,
-					}
+					-- Hit-stop only on actual contact
+					if config.HitStopDuration and CurrentAction == action then
+						ActionController._ApplyHitStop(config.HitStopDuration)
+					end
+				end,
+			}
 
-					action.Hitbox = HitboxService.CreateHitbox(hitboxConfig)
-					print(`[ActionController] Hitbox created: {action.Hitbox.Id}`)
-				else
-					print(`[ActionController] Cannot create hitbox - root part not found`)
-				end
-			else
-				print(`[ActionController] Cannot create hitbox - action no longer active`)
-			end
+			action.Hitbox = HitboxService.CreateHitbox(hitboxConfig)
 		end)
-	end
-
-	-- Simulate hit-stop if action has hit timing
-	-- NOTE: hit-stop is now triggered inside the hitbox OnHit callback so it
-	-- only fires on actual contact.  This block is intentionally left empty.
-	--[[
-	if config.HitStartFrame and config.HitStopDuration then … end
-	--]]
-
-	-- Simulate camera shake - DISABLED
-	if config.CameraShake then
-		-- Camera shake disabled per user request
-		-- ActionController._ApplyCameraShake(config.CameraShake)
 	end
 
 	print(`[ActionController] ✓ Playing: {config.Name}`)
