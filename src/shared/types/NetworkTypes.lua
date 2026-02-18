@@ -59,6 +59,7 @@ export type NetworkEvent =
 	-- Dev/Debug (spawn/despawn dummies)
 	| "SpawnDummy"
 	| "DespawnDummy"
+	| "DummyStateChanged"
 
 	-- Abilities
 	| "UseAbility"
@@ -139,6 +140,13 @@ export type SpawnDummyPacket = {
 
 export type DespawnDummyPacket = {
 	DummyId: string,
+}
+
+export type DummyStateChangedPacket = {
+	DummyId: string,
+	State: string, -- "Normal" | "Blocking" | "Staggered"
+	Health: number,
+	MaxHealth: number,
 }
 
 export type BlockFeedbackPacket = {
@@ -263,6 +271,7 @@ export type NetworkPacket =
 	| UIInteractionPacket
 	| SpawnDummyPacket
 	| DespawnDummyPacket
+	| DummyStateChangedPacket
 	| UseAbilityPacket
 	| AdminCommandPacket
 	| DebugInfoPacket
@@ -375,6 +384,13 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 5,
 		RequiresValidation = false,
 		Description = "Despawn a dev test dummy (dev-only)",
+	},
+
+	DummyStateChanged = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast dummy state change (Normal/Blocking/Staggered) to all clients",
 	},
 	
 	-- Abilities/Mantras

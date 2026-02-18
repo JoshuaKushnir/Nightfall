@@ -2,121 +2,154 @@
 --[[
 	DummyController.lua
 
-	Client-side management of combat test dummies.
-	Handles spawning/despawning visuals and replication.
+	Client-side observer for combat test dummies.
 
-	Issue #52: Create Combat Test Dummies
+	The server creates all dummy models in Workspace and Roblox replication
+	propagates them to clients automatically, so this controller does NOT
+	create its own geometry.  It:
+	  • Tracks a name->model mapping so other controllers can look up dummies.
+	  • Reacts to DummyStateChanged: plays a brief highlight flash so the
+	    local player sees the state transition clearly on their end.
+
+	Issue #64: Spawnable test dummies for attack testing
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
+local Workspace         = game:GetService("Workspace")
+local TweenService      = game:GetService("TweenService")
 
 local DummyDataModule = require(ReplicatedStorage.Shared.types.DummyData)
-type DummyData = DummyDataModule.DummyData
+type DummyData  = DummyDataModule.DummyData
+type DummyState = DummyDataModule.DummyState
 
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
 local DummyController = {}
 
--- Storage
+-- Client-side model registry (populated from Workspace replicated models)
 local DummyModels: {[string]: Model} = {}
 
 -- Constants
-local SPAWN_EVENT_NAME = "SpawnDummy"
-local DESPAWN_EVENT_NAME = "DespawnDummy"
+local SPAWN_EVENT_NAME         = "SpawnDummy"
+local DESPAWN_EVENT_NAME       = "DespawnDummy"
+local STATE_CHANGED_EVENT_NAME = "DummyStateChanged"
 
---[[
-	Initialize the controller
-]]
+-- Flash colour shown briefly on state entry (purely visual, server color is authoritative)
+local STATE_FLASH_COLOR: {[DummyState]: Color3} = {
+	Normal    = Color3.fromRGB(180, 180, 180),
+	Blocking  = Color3.fromRGB(80,  120, 255),
+	Staggered = Color3.fromRGB(255, 140, 40),
+}
+
+-- ──────────────────────────────────────────────────────────────────────────
+-- Lifecycle
+-- ──────────────────────────────────────────────────────────────────────────
+
 function DummyController:Init()
 	print("[DummyController] Initializing...")
-	
-	-- Nothing to init yet
-	
 	print("[DummyController] Initialized successfully")
 end
 
---[[
-	Start the controller
-]]
 function DummyController:Start()
 	print("[DummyController] Starting...")
-	
-	-- Listen for spawn events
+
+	-- Spawn: record the replicated model reference
 	local spawnEvent = NetworkProvider:GetRemoteEvent(SPAWN_EVENT_NAME)
 	if spawnEvent then
 		spawnEvent.OnClientEvent:Connect(function(dummyData: DummyData)
 			DummyController._OnDummySpawned(dummyData)
 		end)
 	end
-	
-	-- Listen for despawn events
+
+	-- Despawn: drop the reference (server destroys the model; replication removes it)
 	local despawnEvent = NetworkProvider:GetRemoteEvent(DESPAWN_EVENT_NAME)
 	if despawnEvent then
 		despawnEvent.OnClientEvent:Connect(function(dummyId: string)
 			DummyController._OnDummyDespawned(dummyId)
 		end)
 	end
-	
+
+	-- State change: client-side flash effect
+	local stateEvent = NetworkProvider:GetRemoteEvent(STATE_CHANGED_EVENT_NAME)
+	if stateEvent then
+		stateEvent.OnClientEvent:Connect(function(packet: {DummyId: string, State: DummyState, Health: number, MaxHealth: number})
+			DummyController._OnStateChanged(packet)
+		end)
+	end
+
 	print("[DummyController] Started successfully")
 end
 
+-- ──────────────────────────────────────────────────────────────────────────
+-- Event handlers
+-- ──────────────────────────────────────────────────────────────────────────
+
 --[[
-	Handle dummy spawn event
-	@param dummyData The dummy data
+	Server fires SpawnDummy after creating the model.
+	Wait briefly for replication then store the reference.
 ]]
 function DummyController._OnDummySpawned(dummyData: DummyData)
 	print(`[DummyController] Dummy spawned: {dummyData.Id}`)
-	
-	-- Create visual model
-	local model = DummyController._CreateDummyModel(dummyData)
-	if model then
-		DummyModels[dummyData.Id] = model
-	end
+
+	-- The model is created server-side and replicates; find it in Workspace.
+	-- Poll briefly to handle replication lag.
+	task.spawn(function()
+		local modelName = `Dummy_{dummyData.Id}`
+		local found: Model? = nil
+		for _ = 1, 10 do
+			found = Workspace:FindFirstChild(modelName) :: Model?
+			if found then break end
+			task.wait(0.1)
+		end
+		if found then
+			DummyModels[dummyData.Id] = found
+			print(`[DummyController] Linked to replicated model: {modelName}`)
+		else
+			warn(`[DummyController] Replicated model not found: {modelName}`)
+		end
+	end)
 end
 
 --[[
-	Handle dummy despawn event
-	@param dummyId The dummy ID
+	Server fires DespawnDummy before destroying the model.
 ]]
 function DummyController._OnDummyDespawned(dummyId: string)
 	print(`[DummyController] Dummy despawned: {dummyId}`)
-	
-	local model = DummyModels[dummyId]
-	if model then
-		model:Destroy()
-		DummyModels[dummyId] = nil
-	end
+	DummyModels[dummyId] = nil
 end
 
 --[[
-	Create the visual model for a dummy
-	@param dummyData The dummy data
-	@return Model or nil
+	Server fires DummyStateChanged whenever a dummy transitions state.
+	Play a brief local highlight flash so the transition reads clearly.
 ]]
-function DummyController._CreateDummyModel(dummyData: DummyData): Model?
-	local model = Instance.new("Model")
-	model.Name = `Dummy_{dummyData.Id}`
+function DummyController._OnStateChanged(packet: {DummyId: string, State: DummyState, Health: number, MaxHealth: number})
+	local model = DummyModels[packet.DummyId]
+	if not model then return end
 
-	local part = Instance.new("Part")
-	part.Name = "Body"
-	part.Size = Vector3.new(4, 6, 2)
-	part.Position = dummyData.Position
-	part.Anchored = true
-	part.CanCollide = true
-	part.BrickColor = BrickColor.new("Bright red") -- Visual indicator
-	part.Material = Enum.Material.Plastic
-	part.Parent = model
+	print(`[DummyController] Dummy {packet.DummyId} state -> {packet.State} ({packet.Health}/{packet.MaxHealth} HP)`)
 
-	-- Add humanoid for compatibility
-	local humanoid = Instance.new("Humanoid")
-	humanoid.Health = dummyData.Health
-	humanoid.MaxHealth = dummyData.MaxHealth
-	humanoid.Parent = model
+	local flashColor = STATE_FLASH_COLOR[packet.State]
+	if not flashColor then return end
 
-	model.Parent = Workspace
+	-- Brief tween all visible parts to a flash color, then hand back to server color
+	local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Linear)
+	for _, part in model:GetDescendants() do
+		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+			local tween = TweenService:Create(part, tweenInfo, { Color = flashColor })
+			tween:Play()
+		end
+	end
+end
 
-	return model
+-- ──────────────────────────────────────────────────────────────────────────
+-- Public helpers
+-- ──────────────────────────────────────────────────────────────────────────
+
+--[[
+	Return the replicated model for a dummy (may be nil before replication).
+]]
+function DummyController.GetModel(dummyId: string): Model?
+	return DummyModels[dummyId]
 end
 
 return DummyController
