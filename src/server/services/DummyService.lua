@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 DummyService.lua
 
