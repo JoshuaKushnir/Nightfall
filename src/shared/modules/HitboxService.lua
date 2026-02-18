@@ -1,15 +1,16 @@
 --!strict
 --[[
 	HitboxService.lua
-	
+
 	Issue #7: Modular Raycast-Based Hitbox System
 	Epic: Phase 2 - Combat & Fluidity
-	
+
 	Server-authoritative hitbox detection system. Supports Box, Sphere, and Raycast shapes.
 	Client predicts hits; server validates and confirms damage.
 ]]
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local HitboxTypes = require(ReplicatedStorage.Shared.types.HitboxTypes)
@@ -42,25 +43,25 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 	assert(config, "Config cannot be nil")
 	assert(config.Owner, "Config.Owner cannot be nil")
 	assert(config.Shape, "Config.Shape cannot be nil")
-	
+
 	print(`[HitboxService] CreateHitbox called with shape {config.Shape}`)
-	
+
 	HitboxCounter += 1
-	
+
 	local hitbox: Hitbox = {
 		Id = `HB_{HitboxCounter}_{os.clock()}`,
 		Config = config,
 		Active = true,
 		CreatedTime = tick(),
 		HitTargets = {},
-		
+
 		Hit = function(self: Hitbox, target: Player): boolean
 			if not self:IsValidTarget(target) then
 				return false
 			end
-			
+
 			table.insert(self.HitTargets, target)
-			
+
 			local hitData: HitData = {
 				Hitbox = self,
 				Target = target,
@@ -68,15 +69,15 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				HitTime = tick(),
 				Damage = self.Config.Damage,
 			}
-			
+
 			if self.Config.OnHit then
 				task.spawn(self.Config.OnHit, target, hitData)
 			end
-			
+
 			print(`[HitboxService] Hit confirmed: {self.Id} -> {target.Name} ({self.Config.Damage} damage)`)
 			return true
 		end,
-		
+
 		Update = function(self: Hitbox, position: Vector3?)
 			if position then
 				self.Config.Position = position
@@ -87,37 +88,37 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				HitboxService._UpdateVisual(self)
 			end
 		end,
-		
+
 		Expire = function(self: Hitbox)
 			self.Active = false
 			table.remove(ActiveHitboxes, table.find(ActiveHitboxes, self) or -1)
-			
+
 			-- Remove debug visual
 			HitboxService._RemoveVisual(self)
-			
+
 			if self.Config.OnExpire then
 				task.spawn(self.Config.OnExpire)
 			end
-			
+
 			print(`[HitboxService] Hitbox expired: {self.Id}`)
 		end,
-		
+
 		IsValidTarget = function(self: Hitbox, target: any): boolean
 			-- Already hit
 			if table.find(self.HitTargets, target) and not self.Config.CanHitTwice then
 				return false
 			end
-			
+
 			-- Owner can't hit self
 			if self.Config.Owner == target then
 				return false
 			end
-			
+
 			-- Blacklist check
 			if self.Config.Blacklist and table.find(self.Config.Blacklist, target) then
 				return false
 			end
-			
+
 			-- State validation (only for players)
 			if self.Config.StunAffinity and typeof(target) == "Instance" and target:IsA("Player") then
 				local targetData = StateService:GetPlayerData(target)
@@ -125,48 +126,48 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 					return false
 				end
 			end
-			
+
 			-- Target must exist
 			if typeof(target) == "Instance" and not target.Parent then
 				return false
 			end
-			
+
 			return true
 		end,
-		
+
 		CheckShape = function(self: Hitbox, targetPosition: Vector3): boolean
 			local shape = self.Config.Shape
-			
+
 			if shape == "Sphere" then
 				if not self.Config.Position or not self.Config.Size then
 					return false
 				end
-				
+
 				local radius = self.Config.Size.X
 				return Utils.PointInSphere(targetPosition, self.Config.Position, radius)
-				
+
 			elseif shape == "Box" then
 				if not self.Config.Position or not self.Config.Size then
 					return false
 				end
-				
+
 				return Utils.PointInBox(targetPosition, self.Config.Position, self.Config.Size)
-				
+
 			elseif shape == "Raycast" then
 				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then
 					return false
 				end
-				
+
 				local _, distance = Utils.ClosestPointOnRay(self.Config.Origin, self.Config.Direction, self.Config.Length, targetPosition)
 				return distance <= 3 -- 3 stud radius for raycast
 			end
-			
+
 			return false
 		end,
 	}
-	
+
 	table.insert(ActiveHitboxes, hitbox)
-	
+
 	-- Create debug visual (always create, will be shown/hidden based on setting)
 	HitboxService._CreateVisual(hitbox)
 	if config.LifeTime then
@@ -176,7 +177,7 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 			end
 		end)
 	end
-	
+
 	print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {config.Owner.Name})`)
 	return hitbox
 end
@@ -188,13 +189,13 @@ end
 ]]
 function HitboxService.GetPlayerHitboxes(player: Player): {Hitbox}
 	local playerHitboxes: {Hitbox} = {}
-	
+
 	for _, hitbox in ActiveHitboxes do
 		if hitbox.Config.Owner == player and hitbox.Active then
 			table.insert(playerHitboxes, hitbox)
 		end
 	end
-	
+
 	return playerHitboxes
 end
 
@@ -207,25 +208,25 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 	if not hitbox.Active then
 		return 0
 	end
-	
+
 	local hitCount = 0
-	
+
 	-- Test against players
 	for _, player in Players:GetPlayers() do
 		if player == hitbox.Config.Owner then
 			continue
 		end
-		
+
 		if not hitbox:IsValidTarget(player) then
 			continue
 		end
-		
+
 		-- Get target position using Utils
 		local humanoidRootPart = Utils.GetRootPart(player)
 		if not humanoidRootPart then
 			continue
 		end
-		
+
 		-- Check shape collision
 		if hitbox:CheckShape(humanoidRootPart.Position) then
 			if hitbox:Hit(player) then
@@ -233,7 +234,7 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 			end
 		end
 	end
-	
+
 	-- Test against dummies
 	for _, model in Workspace:GetChildren() do
 		if model:IsA("Model") and model.Name:match("^Dummy_") then
@@ -241,17 +242,17 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 			if not dummyId then
 				continue
 			end
-			
+
 			if not hitbox:IsValidTarget(model) then
 				continue
 			end
-			
-			-- Get position from Body part
-			local bodyPart = model:FindFirstChild("Body")
+
+			-- Get position from Torso (or HumanoidRootPart as fallback)
+			local bodyPart = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
 			if not bodyPart then
 				continue
 			end
-			
+
 			-- Check shape collision
 			if hitbox:CheckShape(bodyPart.Position) then
 				if hitbox:Hit(dummyId) then -- Pass dummyId as target
@@ -260,7 +261,7 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 			end
 		end
 	end
-	
+
 	return hitCount
 end
 
@@ -290,10 +291,10 @@ end
 ]]
 function HitboxService._CreateVisual(hitbox: Hitbox)
 	print(`[HitboxService] _CreateVisual called for {hitbox.Id}`)
-	
+
 	local config = hitbox.Config
 	local visual: Instance?
-	
+
 	-- Create folder for all visuals
 	if not HitboxService._VisualFolder then
 		print(`[HitboxService] Creating visual folder in workspace`)
@@ -302,7 +303,7 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		HitboxService._VisualFolder.Parent = workspace
 		print(`[HitboxService] Visual folder created and parented to workspace`)
 	end
-	
+
 	if config.Shape == "Sphere" then
 		print(`[HitboxService] Creating sphere visual`)
 		local part = Instance.new("Part")
@@ -320,7 +321,7 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Parent = HitboxService._VisualFolder
 		visual = part
 		print(`[HitboxService] Sphere visual created at {part.Position}`)
-		
+
 	elseif config.Shape == "Box" then
 		local part = Instance.new("Part")
 		part.Shape = Enum.PartType.Block
@@ -335,7 +336,7 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Name = `Hitbox_{hitbox.Id}`
 		part.Parent = HitboxService._VisualFolder
 		visual = part
-		
+
 	elseif config.Shape == "Raycast" then
 		-- Create a thin cylinder for raycast visualization
 		local part = Instance.new("Part")
@@ -346,17 +347,17 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Color = Color3.fromRGB(255, 0, 0) -- Red
 		part.Transparency = 0.7
 		part.Name = `Hitbox_{hitbox.Id}`
-		
+
 		-- Position along ray
 		if config.Origin and config.Direction then
 			local rayMidpoint = config.Origin + (config.Direction.Unit * (config.Length or 10) / 2)
 			part.CFrame = CFrame.new(rayMidpoint, rayMidpoint + config.Direction)
 		end
-		
+
 		part.Parent = HitboxService._VisualFolder
 		visual = part
 	end
-	
+
 	HitboxVisuals[hitbox] = visual
 	HitboxService._UpdateVisualVisibility()
 end
@@ -370,9 +371,9 @@ function HitboxService._UpdateVisual(hitbox: Hitbox)
 	if not visual then
 		return
 	end
-	
+
 	local config = hitbox.Config
-	
+
 	if config.Shape == "Sphere" or config.Shape == "Box" then
 		if config.Position then
 			visual.Position = config.Position
@@ -404,9 +405,9 @@ function HitboxService._UpdateVisualVisibility()
 	if not HitboxService._VisualFolder then
 		return
 	end
-	
+
 	local showHitboxes = DebugSettings.Get("ShowHitboxes")
-	
+
 	if showHitboxes then
 		-- Show all visuals
 		HitboxService._VisualFolder.Parent = workspace
@@ -428,5 +429,18 @@ end
 DebugSettings.OnChanged("ShowHitboxes", function(_, enabled)
 	HitboxService._UpdateVisualVisibility()
 end)
+
+-- Auto-test all active hitboxes every frame (client-side hit detection)
+if RunService:IsClient() then
+	RunService.Heartbeat:Connect(function()
+		-- Iterate a snapshot so Expire() mutations don't break the loop
+		local snapshot = table.clone(ActiveHitboxes)
+		for _, hitbox in snapshot do
+			if hitbox.Active then
+				HitboxService.TestHitbox(hitbox)
+			end
+		end
+	end)
+end
 
 return HitboxService

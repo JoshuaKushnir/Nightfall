@@ -82,9 +82,13 @@ Players.PlayerAdded:Connect(function(player)
 			Vector3.new( 6, 0, -12),
 		}
 		for _, offset in offsets do
-			local worldPos = (cf * CFrame.new(offset)).Position
-			-- Keep same Y as the player's root so dummies stand on the same floor
-			worldPos = Vector3.new(worldPos.X, root.Position.Y, worldPos.Z)
+				local worldPos = (cf * CFrame.new(offset)).Position
+				-- Raycast down to find the actual floor so dummies don't float
+				local rayOrigin = Vector3.new(worldPos.X, worldPos.Y + 50, worldPos.Z)
+				local rayResult = Workspace:Raycast(rayOrigin, Vector3.new(0, -100, 0))
+				local groundY = rayResult and rayResult.Position.Y or 0
+				-- Dummy legs bottom = rootY - 2, so rootY = groundY + 2
+				worldPos = Vector3.new(worldPos.X, groundY + 2, worldPos.Z)
 			local ok, err = pcall(DummyService.SpawnDummy, worldPos)
 			if not ok then
 				warn("[DummyService] SpawnDummy failed: " .. tostring(err))
