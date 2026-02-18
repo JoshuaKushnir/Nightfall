@@ -31,6 +31,14 @@ local DUMMY_LIFETIME = 300 -- 5 minutes
 local SPAWN_EVENT_NAME = "SpawnDummy"
 local DESPAWN_EVENT_NAME = "DespawnDummy"
 
+-- Default positions where dummies auto-spawn on game start
+-- Adjust these Vector3 positions to match your map layout
+local AUTO_SPAWN_POSITIONS: {Vector3} = {
+	Vector3.new(0,  3,  10),
+	Vector3.new(10, 3,  0),
+	Vector3.new(-10, 3, 0),
+}
+
 --[[
 	Initialize the service
 ]]
@@ -50,6 +58,12 @@ end
 ]]
 function DummyService:Start()
 	print("[DummyService] Starting...")
+
+	-- Auto-spawn dummies at predefined positions so testers have targets immediately
+	for _, pos in AUTO_SPAWN_POSITIONS do
+		DummyService.SpawnDummy(pos)
+	end
+	print(`[DummyService] ✓ Auto-spawned {#AUTO_SPAWN_POSITIONS} dummy(s) at game start`)
 
 	-- Listen for spawn requests
 	local spawnEvent = NetworkProvider:GetRemoteEvent(SPAWN_EVENT_NAME)
