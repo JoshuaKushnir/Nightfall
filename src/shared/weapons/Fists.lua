@@ -81,8 +81,8 @@ local Fists: WeaponConfig = {
 
 	-- ── Abilities ─────────────────────────────────────────────────────────────
 	Abilities = {
-		Active  = nil,  -- no active ability
-		Passive = nil,  -- no passive ability
+		Active  = "Adrenaline",  -- E: +50% damage for 4s (12s cooldown)
+		Passive = nil,
 	},
 
 	-- ── VFX / SFX ─────────────────────────────────────────────────────────────

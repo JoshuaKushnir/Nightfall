@@ -184,6 +184,18 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			end
 		end
 	end
+
+	-- Apply attacker's active damage boost (Adrenaline etc.)
+	do
+		local attackerChar = attacker.Character
+		if attackerChar then
+			local boost = attackerChar:GetAttribute("DamageBoost")
+			if type(boost) == "number" and boost > 1 then
+				finalDamage = math.floor(finalDamage * boost)
+				print(("[CombatService] DamageBoost x%.2f applied → %d"):format(boost, finalDamage))
+			end
+		end
+	end
 	
 	if isCritical then
 		finalDamage = math.floor(finalDamage * CRITICAL_MULTIPLIER)
