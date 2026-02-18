@@ -23,6 +23,7 @@ local DummyService = require(script.Parent.DummyService)
 -- Lazy-required to avoid load-order cycles; resolved in :Start()
 local AbilitySystem: any = nil
 local WeaponService: any = nil
+local PostureService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 
 local CombatService = {}
@@ -35,6 +36,7 @@ local HIT_COOLDOWN_MIN = 0.05 -- Minimum 50ms between hits per player
 local BASE_DAMAGE_VARIANCE = 0.1 -- ±10% damage variance
 local CRITICAL_CHANCE = 0.15 -- 15% critical hit chance
 local CRITICAL_MULTIPLIER = 1.5 -- 1.5x damage on crit
+local BREAK_HIT_DAMAGE = 45   -- HP damage dealt on a successful Break (mirrors PostureService.BREAK_DAMAGE)
 local CONFIRM_HIT_EVENT_NAME = "HitConfirmed"
 local BLOCK_FEEDBACK_EVENT_NAME = "BlockFeedback"
 local PARRY_FEEDBACK_EVENT_NAME = "ParryFeedback"
@@ -62,6 +64,7 @@ function CombatService:Start()
 	-- Resolve lazy dependencies (avoids circular-require at module load time)
 	AbilitySystem = require(script.Parent.AbilitySystem)
 	WeaponService  = require(script.Parent.WeaponService)
+	PostureService = require(script.Parent.PostureService)
 	
 	-- This service is event-driven. Events are received via NetworkProvider
 	-- in the server runtime. This Start is here for consistency with other services.
@@ -209,19 +212,25 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	local wasParried = false
 	
 	if not isDummy then
-		-- Server-side block check (client should have handled this, but validate)
-		-- This is a placeholder - DefenseService would handle the actual checks
-		
-		-- If target is blocking, apply block reduction
+		-- Server-side block check
 		if targetData.State == "Blocking" then
-			finalDamage = math.floor(finalDamage * 0.5) -- 50% reduction
+			-- Blocked hits drain Posture but deal NO HP damage (dual-health model #75)
 			wasBlocked = true
-			print(`[CombatService] 🛡️  Blocked: {baseDamage} → {finalDamage}`)
-			
-			-- Notify target of block
+			finalDamage = 0
+			print(`[CombatService] 🛡️  Blocked — draining posture instead of HP`)
+
+			-- Drain posture on the blocker
+			if PostureService then
+				local broke = PostureService.DrainPosture(targetPlayer, nil, "Blocked")
+				if broke then
+					print(`[CombatService] ⚡ {targetPlayer.Name}'s posture broken by blocked hit!`)
+				end
+			end
+
+			-- Notify target of block feedback
 			local blockEvent = NetworkProvider:GetRemoteEvent(BLOCK_FEEDBACK_EVENT_NAME)
 			if blockEvent then
-				blockEvent:FireClient(targetPlayer, attacker, finalDamage)
+				blockEvent:FireClient(targetPlayer, attacker, baseDamage)
 			end
 		end
 	end
@@ -242,9 +251,31 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → Dummy {targetName} ({finalDamage} damage)`)
 			end
 		else
-			-- Apply damage to player
+			-- Dual-health model (#75): unguarded hits drain both HP and Posture.
+			-- (Blocked hits already returned 0 finalDamage above so this block is
+			-- only reached for unblocked / unguarded hits.)
+
+			-- Check for Break opportunity — if target is in PostureService Stagger window,
+			-- execute a Break instead of a normal hit (more damage, special event).
+			if PostureService and PostureService.IsStaggered(targetPlayer) then
+				local success = PostureService.ExecuteBreak(attacker, targetPlayer)
+				if success then
+					print(`[CombatService] 💥 Break executed on {targetPlayer.Name}`)
+					-- Break handled posture + HP, so skip normal damage below
+					return true, BREAK_HIT_DAMAGE
+				end
+			end
+
 			targetData.Health = math.max(0, targetData.Health - finalDamage)
-			
+
+			-- Drain posture from unguarded hit
+			if PostureService then
+				local broke = PostureService.DrainPosture(targetPlayer, nil, "Unguarded")
+				if broke then
+					print(`[CombatService] ⚡ {targetPlayer.Name}'s posture broken by unguarded hit!`)
+				end
+			end
+
 			-- Check if target died
 			if targetData.Health <= 0 then
 				StateService:SetPlayerState(targetPlayer, "Dead")
@@ -313,6 +344,25 @@ end
 ]]
 function CombatService._RollCritical(): boolean
 	return math.random() < CRITICAL_CHANCE
+end
+
+--[[
+	Apply Break damage directly to a player's HP (called by PostureService.ExecuteBreak).
+	This bypasses normal hit validation — the Stagger check in PostureService is the guard.
+	@param player  The Staggered player receiving break damage.
+	@param amount  HP damage to apply.
+]]
+function CombatService.ApplyBreakDamage(player: Player, amount: number)
+	local playerData = StateService:GetPlayerData(player)
+	if not playerData then return end
+
+	playerData.Health = math.max(0, playerData.Health - amount)
+	print(("[CombatService] 💥 Break damage: %s lost %d HP (now %d)"):format(
+		player.Name, amount, playerData.Health))
+
+	if playerData.Health <= 0 then
+		StateService:SetPlayerState(player, "Dead")
+	end
 end
 
 --[[

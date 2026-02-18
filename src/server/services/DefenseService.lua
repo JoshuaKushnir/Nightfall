@@ -13,9 +13,11 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
-local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
 local DefenseService = {}
+
+-- Lazy-required to avoid circular deps; resolved in :Start()
+local PostureService: any = nil
 
 -- Storage
 local PlayerBlocks: {[Player]: {Active: boolean, StartTime: number}} = {}
@@ -25,9 +27,9 @@ local LastBlockTime: {[Player]: number} = {}
 -- Constants
 local PARRY_WINDOW = 0.2 -- Seconds for parry timing
 local BLOCK_COOLDOWN = 0.1 -- Minimum between block activate/release
-local BLOCK_DAMAGE_REDUCTION = 0.5 -- 50% damage reduction
+-- BLOCK_DAMAGE_REDUCTION removed: blocked hits now deal 0 HP (dual-health model #75)
 local BLOCK_SPEED_REDUCTION = 0.6 -- 60% movement speed while blocking
-local POSTURE_BLOCK_DRAIN = 5 -- Posture reduction per block
+-- POSTURE_BLOCK_DRAIN removed: posture drain delegated to PostureService (#75)
 local PARRY_STUN_DURATION = 0.5 -- Seconds attacker is stunned
 
 --[[
@@ -51,15 +53,10 @@ end
 ]]
 function DefenseService:Start()
 	print("[DefenseService] Starting...")
+
+	-- Lazy resolve
+	PostureService = require(script.Parent.PostureService)
 	
-	-- Listen for block requests
-	local blockEvents = {
-		"BlockStart",
-		"BlockEnd",
-		"ParryAttempt",
-	}
-	
-	print(`[DefenseService] Listening to defensive events`)
 	print("[DefenseService] Started successfully")
 end
 
@@ -186,21 +183,17 @@ function DefenseService.CalculateBlockedDamage(baseDamage: number, blocker: Play
 	end
 	
 	-- Block successful
-	local reducedDamage = baseDamage * (1 - BLOCK_DAMAGE_REDUCTION)
-	
-	-- Drain posture
-	local playerData = StateService:GetPlayerData(blocker)
-	if playerData then
-		playerData.PostureHealth = math.max(0, playerData.PostureHealth - POSTURE_BLOCK_DRAIN)
-		
-		-- Break if posture depleted
-		if playerData.PostureHealth <= 0 then
-			StateService:SetPlayerState(blocker, "PostureBroken")
-			print(`[DefenseService] {blocker.Name}'s posture broken!`)
+	local reducedDamage = 0  -- Dual-health model (#75): blocked hits deal 0 HP damage
+
+	-- Drain posture on the blocker via PostureService
+	if PostureService then
+		local broke = PostureService.DrainPosture(blocker, nil, "Blocked")
+		if broke then
+			print(`[DefenseService] {blocker.Name}'s posture broken by blocked hit!`)
 		end
 	end
-	
-	print(`[DefenseService] Block! {blocker.Name} reduced {baseDamage} -> {math.floor(reducedDamage)} damage`)
+
+	print(`[DefenseService] Block! {blocker.Name} absorbed {baseDamage} damage (0 HP, posture drained)`)
 	return reducedDamage, true
 end
 

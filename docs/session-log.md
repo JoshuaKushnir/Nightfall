@@ -1,8 +1,46 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-021
-**Date:** February 16, 2026  
-**Task:** Implement Movement & Momentum System (Issue #9)
+## Current Session ID: NF-022
+**Date:** February 18, 2026
+**Task:** Issue #75 — Posture + HP dual health model with Break and Stagger
+
+### Session NF-022 Changes (Posture + HP System):
+✅ **PostureService.lua** — new server service
+- Per-player `PostureState` table: `Current`, `Max`, `LastHitTime`, `Staggered`, `StaggerEnd`
+- `DrainPosture(player, amount?, source?)` — drains posture (Blocked 20 pts, Unguarded 8 pts, Aspect 25 pts); triggers Stagger at 0
+- `TriggerStagger(player)` — 0.8 s Stagger window, fires `Staggered` event, sets "Stunned" state, restores 20% posture on exit
+- `ExecuteBreak(attacker, target)` — validates Stagger window, deals 45 HP, fires `BreakExecuted`
+- Heartbeat regen loop — 8 pts/s passive (3 pts/s while blocking), paused for 1.8 s after any hit
+- Reset on `CharacterAdded`; cleanup on `PlayerRemoving`
+
+✅ **NetworkTypes.lua** — added three new events
+- `PostureChanged` → `{ PlayerId, Current, Max }` — for posture bars
+- `Staggered` → `{ PlayerId, Duration }` — for VFX / state
+- `BreakExecuted` → `{ AttackerId, TargetId, Damage }` — for hit-stop / SFX
+
+✅ **CombatService.lua** — dual HP/Posture model
+- Removed 50% block damage reduction; blocked hits now deal **0 HP damage**
+- Blocked hits call `PostureService.DrainPosture(target, nil, "Blocked")`
+- Unguarded hits deal HP damage *and* call `PostureService.DrainPosture(target, nil, "Unguarded")`
+- Break check: if attacker hits a Staggered target → `PostureService.ExecuteBreak` (45 HP, special event)
+- Added `CombatService.ApplyBreakDamage(player, amount)` for PostureService callback
+
+✅ **DefenseService.lua** — cleaned up
+- Removed stale `playerData.PostureHealth` assignment
+- Posture drain in `CalculateBlockedDamage` delegated to PostureService
+- Removed unused `NetworkProvider`, `BLOCK_DAMAGE_REDUCTION`, `POSTURE_BLOCK_DRAIN` constants
+
+✅ **CombatFeedbackUI.lua** — posture bar + Break/Stagger feedback
+- Subscribed to `BlockFeedback` and `ParryFeedback` (was missing from Start())
+- `_BuildPostureBar()` — ScreenGui posture bar (300×12 px, bottom-centre)
+- `PostureChanged` → updates fill width + colour (orange when ≤25%)
+- `Staggered` → `_PlayStaggerFlash(playerId, duration)` — orange 3-flash on character parts
+- `BreakExecuted` → `_ShowBreakFeedback(targetId, damage)` — "BREAK! -45" floating label (red)
+
+✅ **Server Runtime** — added `PostureService` to explicit start order (after CombatService)
+
+**Purpose:** Establish the dual-health foundation for all combat depth (Issue #75).  The Break → Stagger → posture regen cycle rewards offensive pressure
+while giving defenders a recoverable resource to protect.
 
 ### Session NF-021 Changes (Movement & Momentum System):
 ✅ **Implemented MovementController SetModifier & Sliding**

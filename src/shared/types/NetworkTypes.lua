@@ -27,6 +27,9 @@ export type NetworkEvent =
 	| "HealReceived"
 	| "PostureDamage"
 	| "PostureBroken"
+	| "PostureChanged"
+	| "Staggered"
+	| "BreakExecuted"
 	| "HitConfirmed"
 	| "BlockFeedback"
 	| "ParryFeedback"
@@ -118,6 +121,24 @@ export type PostureDamagePacket = {
 
 export type PostureBrokenPacket = {
 	Target: Player,
+}
+
+export type PostureChangedPacket = {
+	-- playerId / playername so non-local clients can look up the character
+	PlayerId: number,
+	Current: number,
+	Max: number,
+}
+
+export type StaggeredPacket = {
+	PlayerId: number,
+	Duration: number,
+}
+
+export type BreakExecutedPacket = {
+	AttackerId: number,
+	TargetId: number,
+	Damage: number,
 }
 
 export type HitConfirmedPacket = {
@@ -253,6 +274,9 @@ export type NetworkPacket =
 	| HealReceivedPacket
 	| PostureDamagePacket
 	| PostureBrokenPacket
+	| PostureChangedPacket
+	| StaggeredPacket
+	| BreakExecutedPacket
 	| HitConfirmedPacket
 	| BlockFeedbackPacket
 	| ParryFeedbackPacket
@@ -351,6 +375,24 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Notify client posture is broken",
+	},
+	PostureChanged = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast current/max posture for a player so clients can update posture bars",
+	},
+	Staggered = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast that a player entered Staggered state (posture break)",
+	},
+	BreakExecuted = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast that a Break attack was executed during a Stagger window",
 	},
 	HitConfirmed = {
 		Direction = "ServerToClient",

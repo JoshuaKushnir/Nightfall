@@ -90,6 +90,7 @@ local startOrder = {
 	"WeaponService",       -- #69: equip system (after NetworkService)
 	"DefenseService",      -- Defense mechanics
 	"CombatService",       -- Combat validation and damage application
+	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
 }
 
 for _, name in startOrder do
