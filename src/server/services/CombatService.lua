@@ -20,6 +20,11 @@ local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local DummyService = require(script.Parent.DummyService)
 
+-- Lazy-required to avoid load-order cycles; resolved in :Start()
+local AbilitySystem: any = nil
+local WeaponService: any = nil
+local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+
 local CombatService = {}
 
 -- Rate limiting per player (prevent spam)
@@ -54,6 +59,10 @@ end
 function CombatService:Start()
 	print("[CombatService] Starting...")
 	
+	-- Resolve lazy dependencies (avoids circular-require at module load time)
+	AbilitySystem = require(script.Parent.AbilitySystem)
+	WeaponService  = require(script.Parent.WeaponService)
+	
 	-- This service is event-driven. Events are received via NetworkProvider
 	-- in the server runtime. This Start is here for consistency with other services.
 	
@@ -86,6 +95,18 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		return false, 0
 	end
 	HitCooldowns[attacker] = now
+
+	-- Anti-cheat: rate, range and damage ceiling (#74)
+	if WeaponService then
+		local ok, clampedDamage = WeaponService.ValidateAttack(attacker, hitData)
+		if not ok then
+			print(`[CombatService] ✗ Anti-cheat blocked hit from {attacker.Name}`)
+			return false, 0
+		end
+		-- Use the server-clamped damage value from here on
+		hitData = table.clone(hitData)
+		hitData.Damage = clampedDamage
+	end
 	
 	-- Get attacker data
 	local attackerData = StateService:GetPlayerData(attacker)
@@ -148,6 +169,21 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	-- Apply damage with variance
 	local finalDamage = CombatService._ApplyDamageVariance(baseDamage)
 	local isCritical = CombatService._RollCritical()
+
+	-- Apply active-ability damage reduction (IronWill etc.)
+	do
+		local targetChar: Model? = nil
+		if not isDummy and targetPlayer then
+			targetChar = (targetPlayer :: Player).Character
+		end
+		if targetChar then
+			local reduction = targetChar:GetAttribute("DamageReduction")
+			if type(reduction) == "number" and reduction > 0 then
+				finalDamage = math.floor(finalDamage * (1 - reduction))
+				print(("[CombatService] DamageReduction %.0f%% applied → %d"):format(reduction * 100, finalDamage))
+			end
+		end
+	end
 	
 	if isCritical then
 		finalDamage = math.floor(finalDamage * CRITICAL_MULTIPLIER)
@@ -220,7 +256,21 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				hitEvent:FireAllClients(attacker, targetPlayer, finalDamage, isCritical, false, animationName, animationAssetName, animationDuration)
 			end
 		end
-		
+
+		-- Notify AbilitySystem for passive ability triggers (e.g. Stagger every N hits)
+		if AbilitySystem then
+			local weaponId = WeaponService and WeaponService.GetEquipped(attacker)
+			local weapon = weaponId and WeaponRegistry.Get(weaponId)
+			if weapon then
+				local abilityTarget = isDummy
+					and DummyService.GetDummyModel and DummyService.GetDummyModel(targetName)
+					or targetPlayer
+				if abilityTarget then
+					AbilitySystem.OnHit(attacker, abilityTarget, weapon)
+				end
+			end
+		end
+
 		return true, finalDamage
 	end
 	

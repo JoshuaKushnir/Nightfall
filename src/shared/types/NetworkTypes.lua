@@ -40,6 +40,10 @@ export type NetworkEvent =
 	| "EquipItem"
 	| "UnequipItem"
 	| "UseItem"
+	| "EquipWeapon"
+	| "UnequipWeapon"
+	| "WeaponEquipped"
+	| "WeaponUnequipped"
 	
 	-- Dialogue/Quests
 	| "DialogueStart"
@@ -55,7 +59,10 @@ export type NetworkEvent =
 	-- Dev/Debug (spawn/despawn dummies)
 	| "SpawnDummy"
 	| "DespawnDummy"
-	
+
+	-- Abilities
+	| "UseAbility"
+
 	-- Admin/Debug
 	| "AdminCommand"
 	| "DebugInfo"
@@ -212,6 +219,10 @@ export type UIInteractionPacket = {
 	Data: {[string]: any}?,
 }
 
+export type UseAbilityPacket = {
+	-- No payload needed: server resolves equipped weapon from sender
+}
+
 export type AdminCommandPacket = {
 	Command: string,
 	Args: {string},
@@ -252,6 +263,7 @@ export type NetworkPacket =
 	| UIInteractionPacket
 	| SpawnDummyPacket
 	| DespawnDummyPacket
+	| UseAbilityPacket
 	| AdminCommandPacket
 	| DebugInfoPacket
 
@@ -398,6 +410,30 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = true,
 		Description = "Client requests to unequip item",
 	},
+	EquipWeapon = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Client requests to equip a weapon by id",
+	},
+	UnequipWeapon = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Client requests to unequip current weapon",
+	},
+	WeaponEquipped = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast to all clients that a player equipped a weapon",
+	},
+	WeaponUnequipped = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Broadcast to all clients that a player unequipped their weapon",
+	},
 	UseItem = {
 		Direction = "ClientToServer",
 		RateLimitPerSecond = 5,
@@ -451,6 +487,14 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		Description = "Client interacts with UI",
 	},
 	
+	-- Abilities
+	UseAbility = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Client activates their weapon's active ability",
+	},
+
 	-- Admin/Debug
 	AdminCommand = {
 		Direction = "ClientToServer",

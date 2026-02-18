@@ -127,6 +127,13 @@ function ActionController:Start()
 					ActionController.PlayAction(ActionTypes.BLOCK)
 				end
 			end)
+		-- E to activate weapon ability
+		elseif input.KeyCode == Enum.KeyCode.E then
+			print("[ActionController INPUT] USE ABILITY triggered")
+			local useAbilityEvent = NetworkProvider:GetRemoteEvent("UseAbility")
+			if useAbilityEvent then
+				useAbilityEvent:FireServer()
+			end
 		end
 	end)
 

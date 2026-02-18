@@ -27,6 +27,22 @@ local WeaponService = {}
 -- Keyed by player UserId; value is the equipped weapon Id
 local EquippedWeapons: {[number]: string} = {}
 
+-- ─── Anti-cheat (#74) ────────────────────────────────────────────────────────
+
+-- Server-side attack cooldown — last confirmed hit time per player
+local _lastAttackTime: {[number]: number} = {}
+-- Strike counter — accumulated violations per player (3 = kick)
+local _strikes: {[number]: number} = {}
+
+-- Minimum seconds between server-confirmed attacks (50 ms)
+local SERVER_ATTACK_COOLDOWN = 0.05
+-- Extra studs added to weapon.Range for server tolerance
+local SERVER_RANGE_TOLERANCE = 3
+-- Max damage multiplier vs weapon.BaseDamage (caps runaway damage packets)
+local MAX_DAMAGE_MULTIPLIER = 2.0
+-- Hits allowed above MAX_DAMAGE_MULTIPLIER before striking
+local MAX_VIOLATIONS_BEFORE_KICK = 3
+
 -- ─── Constants ───────────────────────────────────────────────────────────────
 
 local EQUIP_EVENT_NAME     = "EquipWeapon"
@@ -109,6 +125,85 @@ local function _RemoveTool(player: Player, weaponId: string)
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
+
+--[[
+	Anti-cheat: record a strike against a player for sending suspicious data.
+	If the strike counter reaches MAX_VIOLATIONS_BEFORE_KICK the player is kicked.
+]]
+function WeaponService.RecordViolation(player: Player, reason: string)
+	local uid = player.UserId
+	_strikes[uid] = (_strikes[uid] or 0) + 1
+	warn(("[WeaponService] ⚠  Strike %d/%d for %s — %s"):format(
+		_strikes[uid], MAX_VIOLATIONS_BEFORE_KICK, player.Name, reason))
+	if _strikes[uid] >= MAX_VIOLATIONS_BEFORE_KICK then
+		player:Kick("Anti-cheat: excessive violation count.")
+	end
+end
+
+--[[
+	Anti-cheat: validate a client attack request before damage is applied.
+	Checks per-player fire-rate and optionally validates range + damage ceiling.
+
+	@param player       The attacker
+	@param hitData      The hitData table from the network packet
+	@return ok(bool), clampedDamage(number)
+	         ok=false means the hit should be rejected entirely.
+]]
+function WeaponService.ValidateAttack(player: Player, hitData: {[string]: any}): (boolean, number)
+	local uid = player.UserId
+	local now = tick()
+
+	-- ── 1. Rate-limit ──────────────────────────────────────────────────────
+	if _lastAttackTime[uid] and (now - _lastAttackTime[uid]) < SERVER_ATTACK_COOLDOWN then
+		WeaponService.RecordViolation(player, "attack rate exceeded")
+		return false, 0
+	end
+	_lastAttackTime[uid] = now
+
+	-- ── 2. Damage ceiling ──────────────────────────────────────────────────
+	local weaponId = EquippedWeapons[uid]
+	local config = weaponId and WeaponRegistry.Get(weaponId)
+	local baseDamage: number = (config and config.BaseDamage) or 10
+	local maxAllowed = baseDamage * MAX_DAMAGE_MULTIPLIER
+	local incoming: number = (hitData.Damage and tonumber(hitData.Damage)) or baseDamage
+
+	if incoming > maxAllowed then
+		WeaponService.RecordViolation(player, ("damage %d > max %d"):format(incoming, maxAllowed))
+		-- Clamp rather than reject outright, so lag doesn't unfairly penalise
+		incoming = maxAllowed
+	end
+
+	-- ── 3. Range check ─────────────────────────────────────────────────────
+	if config and config.Range then
+		local maxRange = config.Range + SERVER_RANGE_TOLERANCE
+		local attackerChar = player.Character
+		local attackerHRP = attackerChar and attackerChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+		if attackerHRP and hitData.TargetName then
+			local targetPlayer = game:GetService("Players"):FindFirstChild(hitData.TargetName :: string)
+			local targetChar = targetPlayer and (targetPlayer :: Player).Character
+			local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+
+			if not targetHRP then
+				-- Try dummy workspace model
+				local dummyModel = workspace:FindFirstChild(hitData.TargetName :: string) :: Model?
+				local dummyHRP = dummyModel and dummyModel:FindFirstChild("HumanoidRootPart") :: BasePart?
+				targetHRP = dummyHRP
+			end
+
+			if targetHRP then
+				local dist = (attackerHRP.Position - targetHRP.Position).Magnitude
+				if dist > maxRange then
+					WeaponService.RecordViolation(player,
+						("range %.1f > max %.1f"):format(dist, maxRange))
+					return false, 0
+				end
+			end
+		end
+	end
+
+	return true, math.floor(incoming)
+end
 
 --[[
 	Return the currently equipped weapon Id for a player, or nil.
@@ -260,6 +355,8 @@ function WeaponService:Init()
 	-- Clean up when a player leaves.
 	Players.PlayerRemoving:Connect(function(player)
 		EquippedWeapons[player.UserId] = nil
+		_lastAttackTime[player.UserId] = nil
+		_strikes[player.UserId]       = nil
 	end)
 
 	print("[WeaponService] Initialized successfully")
