@@ -236,6 +236,17 @@ if services.NetworkService and services.DummyService then
 	print("[Server] ✓ AdminCommand handler registered")
 end
 
+-- Register UseAbility handler (weapon active abilities, issue #72)
+if services.NetworkService and services.AbilitySystem then
+	local NetworkService = services.NetworkService
+	local AbilitySystem = services.AbilitySystem
+
+	NetworkService:RegisterHandler("UseAbility", function(player: Player, _packet: any)
+		AbilitySystem.HandleUseAbility(player)
+	end)
+	print("[Server] ✓ UseAbility handler registered")
+end
+
 print("")
 
 -- Export services for debugging (optional)

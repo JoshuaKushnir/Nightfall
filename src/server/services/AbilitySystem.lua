@@ -15,6 +15,7 @@
 
 	Public API (server):
 		AbilitySystem.OnHit(attacker, target, weapon)
+		AbilitySystem.HandleUseAbility(player)    -- called by server runtime via NetworkService
 		AbilitySystem.GetPassive(weapon)  -> abilityConfig?
 		AbilitySystem.GetActive(weapon)   -> abilityConfig?
 ]]
@@ -22,16 +23,11 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local AbilityRegistry  = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local WeaponService    = require(script.Parent.WeaponService)
 
 local AbilitySystem = {}
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local USE_ABILITY_EVENT = "UseAbility"
 
 -- ─── State ────────────────────────────────────────────────────────────────────
 
@@ -148,48 +144,47 @@ function AbilitySystem:Init()
 	print("[AbilitySystem] Initialized successfully")
 end
 
-function AbilitySystem:Start()
-	print("[AbilitySystem] Starting...")
-
-	-- Listen for active ability activation from client (keybind E)
-	local useEvent = NetworkProvider:GetRemoteEvent(USE_ABILITY_EVENT)
-	if useEvent then
-		useEvent.OnServerEvent:Connect(function(player: Player)
-			-- Look up this player's equipped weapon
-			local weaponId = WeaponService.GetEquipped(player)
-			if not weaponId then
-				warn(("[AbilitySystem] UseAbility from %s — no weapon equipped"):format(player.Name))
-				return
-			end
-
-			local weapon = WeaponRegistry.Get(weaponId)
-			if not weapon then return end
-
-			local active = AbilitySystem.GetActive(weapon)
-			if not active then
-				warn(("[AbilitySystem] %s has no active ability (%s)"):format(player.Name, weaponId))
-				return
-			end
-
-			if _IsActiveCoolingDown(player, active.Id) then
-				warn(("[AbilitySystem] %s UseAbility cooldown not ready: %s"):format(player.Name, active.Id))
-				return
-			end
-
-			-- Start cooldown before activation (prevents double-fire)
-			_StartActiveCooldown(player, active.Id, active.Cooldown or 8)
-
-			if active.OnActivate then
-				local ok, err = pcall(active.OnActivate, player, weapon)
-				if not ok then
-					warn(("[AbilitySystem] Active '%s' OnActivate error: %s"):format(active.Id, tostring(err)))
-				else
-					print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, active.Id))
-				end
-			end
-		end)
+--[[
+	Handle a UseAbility request from a client. Called by the server runtime
+	via NetworkService:RegisterHandler so that rate-limiting middleware applies.
+]]
+function AbilitySystem.HandleUseAbility(player: Player)
+	-- Look up this player's equipped weapon
+	local weaponId = WeaponService.GetEquipped(player)
+	if not weaponId then
+		print(("[AbilitySystem] UseAbility from %s — no weapon equipped"):format(player.Name))
+		return
 	end
 
+	local weapon = WeaponRegistry.Get(weaponId)
+	if not weapon then return end
+
+	local active = AbilitySystem.GetActive(weapon)
+	if not active then
+		-- Fists and other weapons without an active ability: silently ignore
+		print(("[AbilitySystem] %s: weapon '%s' has no active ability"):format(player.Name, weaponId))
+		return
+	end
+
+	if _IsActiveCoolingDown(player, active.Id) then
+		print(("[AbilitySystem] %s UseAbility cooldown not ready: %s"):format(player.Name, active.Id))
+		return
+	end
+
+	-- Start cooldown before activation (prevents double-fire)
+	_StartActiveCooldown(player, active.Id, active.Cooldown or 8)
+
+	if active.OnActivate then
+		local ok, err = pcall(active.OnActivate, player, weapon)
+		if not ok then
+			warn(("[AbilitySystem] Active '%s' OnActivate error: %s"):format(active.Id, tostring(err)))
+		else
+			print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, active.Id))
+		end
+	end
+end
+
+function AbilitySystem:Start()
 	print("[AbilitySystem] Started successfully")
 end
 
