@@ -16,6 +16,7 @@ type DummyData = DummyDataModule.DummyData
 
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local Loader = require(ReplicatedStorage.Shared.modules.Loader)
 
 local DummyService = {}
 
@@ -54,6 +55,10 @@ function DummyService:Start()
 	local spawnEvent = NetworkProvider:GetRemoteEvent(SPAWN_EVENT_NAME)
 	if spawnEvent then
 		spawnEvent.OnServerEvent:Connect(function(player, position)
+			if not DummyService._IsPlayerAllowed(player) then
+				warn(`[DummyService] Spawn denied for {player.Name} ({player.UserId}) - dev-only`)
+				return
+			end
 			DummyService.SpawnDummy(position)
 		end)
 	end
@@ -62,11 +67,34 @@ function DummyService:Start()
 	local despawnEvent = NetworkProvider:GetRemoteEvent(DESPAWN_EVENT_NAME)
 	if despawnEvent then
 		despawnEvent.OnServerEvent:Connect(function(player, dummyId)
+			if not DummyService._IsPlayerAllowed(player) then
+				warn(`[DummyService] Despawn denied for {player.Name} ({player.UserId}) - dev-only`)
+				return
+			end
 			DummyService.DespawnDummy(dummyId)
 		end)
 	end
 
 	print("[DummyService] Started successfully")
+end
+
+--[[
+	Check whether a player is allowed to spawn/despawn dummies (dev-only)
+	@param player The player to check
+	@return boolean
+]]
+function DummyService._IsPlayerAllowed(player: Player?): boolean
+	-- Allow only in Studio for development workflows
+	if Loader and Loader.IsStudio and Loader.IsStudio() then
+		return true
+	end
+
+	-- Fallback: allow game creator in non-studio environments
+	if player and player.UserId == game.CreatorId then
+		return true
+	end
+
+	return false
 end
 
 --[[
