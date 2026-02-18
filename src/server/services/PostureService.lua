@@ -202,8 +202,12 @@ function PostureService.TriggerStagger(player: Player)
 	state.StaggerEnd = tick() + STAGGER_DURATION
 	state.Current = 0
 
-	-- Update the state machine
-	StateService:SetPlayerState(player, "Stunned", true)
+	-- Track via character attribute so broken-posture can be detected without
+	-- locking the player out of blocking/parrying (which would enable infinite combos).
+	local character = player.Character
+	if character then
+		character:SetAttribute("IsStaggered", true)
+	end
 
 	-- Broadcast so clients play stagger VFX
 	_broadcast("Staggered", player.UserId, STAGGER_DURATION)
@@ -220,10 +224,10 @@ function PostureService.TriggerStagger(player: Player)
 		stateNow.Current = math.floor(stateNow.Max * 0.20)  -- 20% on exit
 		_notifyChange(player, stateNow)
 
-		-- Return player to Idle if still Stunned
-		local playerData = StateService:GetPlayerData(player)
-		if playerData and playerData.State == "Stunned" then
-			StateService:SetPlayerState(player, "Idle")
+		-- Clear stagger attribute
+		local exitChar = player.Character
+		if exitChar then
+			exitChar:SetAttribute("IsStaggered", false)
 		end
 		print(("[PostureService] %s Stagger expired"):format(player.Name))
 	end)
@@ -274,10 +278,10 @@ function PostureService.ExecuteBreak(attacker: Player, target: Player): boolean
 	state.Current = math.floor(state.Max * 0.15)
 	_notifyChange(target, state)
 
-	-- Return target to Idle
-	local targetData = StateService:GetPlayerData(target)
-	if targetData and targetData.State == "Stunned" then
-		StateService:SetPlayerState(target, "Idle")
+	-- Clear stagger attribute on the target after a successful Break
+	local breakChar = target.Character
+	if breakChar then
+		breakChar:SetAttribute("IsStaggered", false)
 	end
 
 	-- Broadcast Break event
@@ -352,6 +356,29 @@ function PostureService:Start()
 			end
 		end
 	end)
+
+	-- Send the local player their current posture after a short delay so the
+	-- client's PostureChanged listener is guaranteed to be connected first.
+	local function _sendInitialPosture(player: Player)
+		task.delay(0.5, function()
+			local uid = player.UserId
+			local state = _postures[uid]
+			if state then
+				_fireClient(player, "PostureChanged", uid, state.Current, state.Max)
+			end
+		end)
+	end
+
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			_sendInitialPosture(player)
+		end)
+	end)
+
+	-- Cover players who are already in-game when Start() runs
+	for _, player in Players:GetPlayers() do
+		_sendInitialPosture(player)
+	end
 
 	print("[PostureService] Started successfully")
 end

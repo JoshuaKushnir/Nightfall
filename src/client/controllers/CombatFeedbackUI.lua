@@ -138,8 +138,8 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	-- Outer container (bottom-centre of screen, just below the HP bar)
 	local bar = Instance.new("Frame")
 	bar.Name = "PostureBar"
-	bar.Size = UDim2.new(0, 300, 0, 12)
-	bar.Position = UDim2.new(0.5, -150, 1, -80)  -- above the bottom edge
+	bar.Size = UDim2.new(0, 300, 0, 18)
+	bar.Position = UDim2.new(0.5, -150, 1, -85)  -- above the bottom edge
 	bar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 	bar.BorderSizePixel = 0
 	bar.Parent = gui
@@ -168,6 +168,11 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	label.TextSize = 11
 	label.Text = "POSTURE"
 	label.Parent = bar
+
+	-- Immediately render at full posture so the bar is visible on spawn
+	-- before the first PostureChanged event arrives from the server.
+	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.BackgroundColor3 = POSTURE_COLOR_NORMAL
 
 	print("[CombatFeedbackUI] Posture bar created")
 	return { bar = bar, fill = fill }
