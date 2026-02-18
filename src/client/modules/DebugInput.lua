@@ -60,17 +60,17 @@ function DebugInput:Init()
 		if gameProcessed then
 			return
 		end
-		
+
 		-- L: Toggle hitbox visualization
 		if input.KeyCode == Enum.KeyCode.L then
 			DebugSettings.Toggle("ShowHitboxes")
 		end
-		
+
 		-- K: Toggle state labels
 		if input.KeyCode == Enum.KeyCode.K then
 			DebugSettings.Toggle("ShowStateLabels")
 		end
-		
+
 		-- M: Cycle slow-motion speed
 		if input.KeyCode == Enum.KeyCode.M then
 			local current = DebugSettings.Get("SlowMotionSpeed") :: number
@@ -87,26 +87,25 @@ function DebugInput:Init()
 			DebugSettings.Set("SlowMotionSpeed", nextSpeed)
 			DebugSettings.Toggle("SlowMotion")
 		end
-		
+
 		-- H: Spawn test hitbox
 		if input.KeyCode == Enum.KeyCode.H then
 			DebugInput._SpawnTestHitbox()
 		end
-		
-		-- J: Spawn combat dummy
-		if input.KeyCode == Enum.KeyCode.J then
+
+		-- J: Spawn combat dummy (plain)
+		if input.KeyCode == Enum.KeyCode.J and not (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift)) then
 			DebugInput._SpawnCombatDummy()
 		end
 
-	-- Ctrl+Shift+J: Admin spawn dummy (sends AdminCommand - does NOT broadcast chat)
-	if input.KeyCode == Enum.KeyCode.J and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-		DebugInput._SendAdminSpawnDummy()
-	end
+		-- Ctrl+Shift+J: Admin spawn dummy (sends AdminCommand - does NOT broadcast chat)
+		if input.KeyCode == Enum.KeyCode.J and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+			DebugInput._SendAdminSpawnDummy()
+		end
 
-	-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
-	if input.KeyCode == Enum.KeyCode.Slash then
-		DebugInput._OpenCommandPrompt()
-	end
+		-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
+		if input.KeyCode == Enum.KeyCode.Slash then
+			DebugInput._OpenCommandPrompt()
 		end
 	end)
 end

@@ -40,7 +40,7 @@ local DESPAWN_EVENT_NAME       = "DespawnDummy"
 local STATE_CHANGED_EVENT_NAME = "DummyStateChanged"
 
 -- Animation folder / asset for the dummy idle (must exist under ReplicatedStorage.animations/Dummy/)
-local IDLE_ANIM_FOLDER = "Dummy"
+local IDLE_ANIM_FOLDER = "Idle"
 local IDLE_ANIM_ASSET  = "Idle"
 
 -- Flash colour shown briefly on state entry (purely visual, server color is authoritative)

@@ -82,7 +82,7 @@ local Fists: WeaponConfig = {
 	-- ── Abilities ─────────────────────────────────────────────────────────────
 	Abilities = {
 		Active  = "Adrenaline",  -- E: +50% damage for 4s (12s cooldown)
-		Passive = nil,
+		Passive = "Stagger",    -- every 3rd hit applies stagger to target
 	},
 
 	-- ── VFX / SFX ─────────────────────────────────────────────────────────────

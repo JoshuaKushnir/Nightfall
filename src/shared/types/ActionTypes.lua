@@ -1,10 +1,10 @@
 --!strict
 --[[
 	ActionTypes.lua
-	
+
 	Issue #8: Action Controller (Animation & Feel)
 	Epic: Phase 2 - Combat & Fluidity
-	
+
 	Type definitions for combat actions with animations, hit-stop, and game feel.
 ]]
 
@@ -15,7 +15,7 @@ export type ActionConfig = {
 	Id: string,
 	Name: string,
 	Type: ActionType,
-	
+
 	-- Animation (use project folder when set; otherwise AnimationId)
 	AnimationId: string,
 	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Front Roll")
@@ -24,28 +24,28 @@ export type ActionConfig = {
 	AnimationPriority: Enum.AnimationPriority?,
 	CanQueueWhile: {string}?, -- Animation names that allow queueing during them
 	Interruptible: boolean?,
-	
+
 	-- Timing
 	Duration: number, -- Total action duration
 	HitStartFrame: number?, -- Frame when hit occurs (0-1)
 	HitStopDuration: number?, -- Freeze time on hit
-	
+
 	-- Game Feel
 	CameraShake: number?, -- Trauma amount (0-1)
 	SoundId: string?, -- Sound effect
 	VfxId: string?, -- VFX effect
 	VfxAttachPoint: string?, -- Bone to attach VFX
-	
+
 	-- Combo System
 	IsFinisher: boolean?, -- True if this is the final hit in a combo
 	KnockbackPower: number?, -- Knockback force applied on hit
-	
+
 	-- Server Validation
 	Cooldown: number?, -- Seconds between uses
 	RequiredState: string?, -- Required player state
 	RequiredResource: string?, -- Mantra, energy, etc
 	ResourceCost: number?,
-	
+
 	-- Callbacks
 	OnStart: ((player: Player) -> ())?,
 	OnHit: ((player: Player, target: Player) -> ())?,
@@ -60,7 +60,7 @@ export type Action = {
 	TargetHit: Player?,
 	AnimationTrack: AnimationTrack?,
 	Hitbox: any?, -- HitboxTypes.Hitbox (can't import due to circular dep)
-	
+
 	-- Methods
 	Play: (self: Action) -> (),
 	Stop: (self: Action) -> (),
@@ -155,7 +155,7 @@ local LUNGE_ATTACK: ActionConfig = {
 	Type = "Attack",
 	AnimationId = "",
 	AnimationName = "Fists",
-	AnimationAssetName = "punch 5",
+	AnimationAssetName = "punch 2",
 	AnimationSpeed = 1.0,
 	Duration = 0.8, -- Longer commitment for lunge
 	HitStartFrame = 0.4,
