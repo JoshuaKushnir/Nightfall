@@ -229,8 +229,13 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	-- Apply damage to target
 	if finalDamage > 0 then
 		if isDummy then
-			-- Apply damage to dummy
-			local stillAlive = DummyService.ApplyDamage(targetName, finalDamage)
+			-- Apply damage to dummy (pass attacker position for knockback)
+			local attackerPos: Vector3? = nil
+			if attacker and attacker.Character then
+				local root = attacker.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if root then attackerPos = root.Position end
+			end
+			local stillAlive = DummyService.ApplyDamage(targetName, finalDamage, attackerPos)
 			if not stillAlive then
 				print(`[CombatService] ☠️ Dummy defeated! ({finalDamage} damage)`)
 			else

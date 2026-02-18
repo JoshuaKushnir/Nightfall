@@ -14,6 +14,7 @@ Issue #64: Spawnable test dummies for attack testing
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService    = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 
@@ -40,6 +41,9 @@ local BLOCK_INTERVAL_MIN = 6    -- seconds between block windows
 local BLOCK_INTERVAL_MAX = 10
 local BLOCK_DURATION     = 3    -- seconds a dummy holds a block
 local BLOCK_DAMAGE_MULT  = 0.5  -- 50% damage while blocking
+local KNOCKBACK_POWER    = 7    -- studs pushed on hit
+local KNOCKBACK_DURATION = 0.18 -- seconds
+local RESPAWN_DELAY      = 4    -- seconds before defeated dummy respawns
 
 local SPAWN_EVENT_NAME         = "SpawnDummy"
 local DESPAWN_EVENT_NAME       = "DespawnDummy"
@@ -302,6 +306,30 @@ return DummyModels[dummyId]
 end
 
 --[[
+Slide all anchored dummy parts by a knockback vector, then update stored position.
+]]
+function DummyService._ApplyKnockback(dummyId: string, attackerPosition: Vector3)
+local dummyData = ActiveDummies[dummyId]
+local model     = DummyModels[dummyId]
+if not dummyData or not model then return end
+
+local dummyPos = dummyData.Position
+local flat = Vector3.new(dummyPos.X - attackerPosition.X, 0, dummyPos.Z - attackerPosition.Z)
+local dir = if flat.Magnitude > 0.1 then flat.Unit else Vector3.new(0, 0, 1)
+local kbOffset = dir * KNOCKBACK_POWER
+
+local tweenInfo = TweenInfo.new(KNOCKBACK_DURATION, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+for _, part in model:GetDescendants() do
+if part:IsA("BasePart") then
+TweenService:Create(part, tweenInfo, { CFrame = part.CFrame + kbOffset }):Play()
+end
+end
+
+-- Keep data position in sync so future visuals land correctly
+dummyData.Position = dummyPos + kbOffset
+end
+
+--[[
 Periodic blocking cycle: every BLOCK_INTERVAL seconds the dummy enters
 Blocking for BLOCK_DURATION seconds, then returns to Normal.
 Only runs while the dummy is alive.
@@ -403,10 +431,12 @@ end
 --[[
 Apply damage to a dummy.
 Blocking halves incoming damage.
-Any surviving hit transitions the dummy to Staggered.
+Any surviving hit knocks back and transitions the dummy to Staggered.
+On death the dummy respawns at the same position after RESPAWN_DELAY seconds.
+@param attackerPosition Optional world position of the attacker for knockback direction.
 @return true if dummy is still alive
 ]]
-function DummyService.ApplyDamage(dummyId: string, damage: number): boolean
+function DummyService.ApplyDamage(dummyId: string, damage: number, attackerPosition: Vector3?): boolean
 local dummyData = ActiveDummies[dummyId]
 if not dummyData or not dummyData.IsActive then return false end
 
@@ -419,6 +449,11 @@ end
 
 dummyData.Health = math.max(0, dummyData.Health - effectiveDamage)
 
+-- Knockback (before health-zero check so position is updated while model exists)
+if attackerPosition then
+DummyService._ApplyKnockback(dummyId, attackerPosition)
+end
+
 -- Sync Humanoid health (drives the in-world health bar)
 local model = DummyModels[dummyId]
 if model then
@@ -429,7 +464,12 @@ end
 
 if dummyData.Health <= 0 then
 print(`[DummyService] Dummy defeated: {dummyId}`)
+local respawnPos = dummyData.Position  -- save before DespawnDummy clears it
 DummyService.DespawnDummy(dummyId)
+task.delay(RESPAWN_DELAY, function()
+print(`[DummyService] Respawning dummy at {respawnPos}`)
+DummyService.SpawnDummy(respawnPos)
+end)
 return false
 end
 
