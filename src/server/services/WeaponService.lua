@@ -51,6 +51,63 @@ local function _GetHumanoid(player: Player): Humanoid?
 	return character:FindFirstChildOfClass("Humanoid") :: Humanoid?
 end
 
+--[[
+	Create a Roblox Tool for the given weapon config and parent it to the
+	player's Backpack so it appears in the hotbar.
+	@param player   The player who will receive the tool.
+	@param config   The WeaponConfig table from WeaponRegistry.
+]]
+local function _GiveTool(player: Player, config: any)
+	local backpack = player:FindFirstChildOfClass("Backpack")
+	if not backpack then
+		warn(`[WeaponService] No Backpack found for {player.Name} — cannot give tool`)
+		return
+	end
+
+	-- Remove any leftover tool with the same weapon id first (safety).
+	for _, item in backpack:GetChildren() do
+		if item:IsA("Tool") and item:GetAttribute("WeaponId") == config.Id then
+			item:Destroy()
+		end
+	end
+
+	local tool = Instance.new("Tool")
+	tool.Name            = config.Name
+	tool.ToolTip         = config.Description or ""
+	tool.RequiresHandle  = false   -- no physical Handle part needed
+	tool.CanBeDropped    = false   -- weapons are not droppable
+	tool:SetAttribute("WeaponId", config.Id)
+
+	-- Grip offset from config (defaults to identity if not set).
+	if config.GripOffset then
+		tool.GripPos   = config.GripOffset.Position
+		tool.GripRight  = config.GripOffset.RightVector
+		tool.GripUp     = config.GripOffset.UpVector
+		tool.GripForward = config.GripOffset.LookVector
+	end
+
+	tool.Parent = backpack
+	print(`[WeaponService] ✓ Tool '{tool.Name}' added to {player.Name}'s Backpack`)
+end
+
+--[[
+	Remove the Tool matching weaponId from the player's Backpack and Character.
+	@param player   The player whose tool should be removed.
+	@param weaponId Weapon Id to find and destroy.
+]]
+local function _RemoveTool(player: Player, weaponId: string)
+	local function clearFrom(parent: Instance?)
+		if not parent then return end
+		for _, item in parent:GetChildren() do
+			if item:IsA("Tool") and item:GetAttribute("WeaponId") == weaponId then
+				item:Destroy()
+			end
+		end
+	end
+	clearFrom(player:FindFirstChildOfClass("Backpack"))
+	clearFrom(player.Character)
+end
+
 -- ─── Public API ──────────────────────────────────────────────────────────────
 
 --[[
@@ -102,6 +159,12 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 		character:SetAttribute(ATTR_EQUIPPED, weaponId)
 	end
 
+	-- Give the player a Tool instance so it appears in the hotbar.
+	local config = WeaponRegistry.Get(weaponId)
+	if config then
+		_GiveTool(player, config)
+	end
+
 	print(`[WeaponService] ✓ {player.Name} equipped "{weaponId}"`)
 
 	-- Broadcast to all clients
@@ -130,6 +193,9 @@ function WeaponService.UnequipWeapon(player: Player)
 	if character then
 		character:SetAttribute(ATTR_EQUIPPED, nil)
 	end
+
+	-- Remove the Tool from Backpack and Character.
+	_RemoveTool(player, current)
 
 	print(`[WeaponService] ✓ {player.Name} unequipped "{current}"`)
 
