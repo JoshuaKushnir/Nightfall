@@ -143,12 +143,48 @@ end
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 --[[
+	Equip the default weapon (fists) for a player.
+	Force-clears any existing entry so this is safe to call on respawn.
+	@param player Player
+]]
+local function _EquipDefault(player: Player)
+	-- Force-clear any stale entry so EquipWeapon doesn't reject the request.
+	EquippedWeapons[player.UserId] = nil
+	-- Clear the attribute too so the character starts clean.
+	if player.Character then
+		player.Character:SetAttribute(ATTR_EQUIPPED, nil)
+	end
+	WeaponService.EquipWeapon(player, "fists")
+end
+
+--[[
 	Initialize the service
 ]]
 function WeaponService:Init()
 	print("[WeaponService] Initializing...")
 
-	-- Clean up when a player leaves
+	-- Auto-equip fists whenever a character spawns.
+	Players.PlayerAdded:Connect(function(player)
+		player.CharacterAdded:Connect(function()
+			task.defer(_EquipDefault, player)
+		end)
+		-- Handle players already in-game when the service starts.
+		if player.Character then
+			task.defer(_EquipDefault, player)
+		end
+	end)
+
+	-- Handle players already connected before this service loaded.
+	for _, player in Players:GetPlayers() do
+		player.CharacterAdded:Connect(function()
+			task.defer(_EquipDefault, player)
+		end)
+		if player.Character then
+			task.defer(_EquipDefault, player)
+		end
+	end
+
+	-- Clean up when a player leaves.
 	Players.PlayerRemoving:Connect(function(player)
 		EquippedWeapons[player.UserId] = nil
 	end)

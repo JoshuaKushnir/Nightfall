@@ -220,6 +220,12 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
+	-- Gate attack actions: require an equipped weapon (fists counts).
+	if (config.Type == "Attack") and WeaponController and not WeaponController.GetEquipped() then
+		print("[ActionController] ✗ Cannot attack — no weapon equipped")
+		return
+	end
+
 	-- For dodge actions, determine roll direction based on current input (real-time)
 	if config.Type == "Dodge" then
 		-- Get current move input direction (not cached) - always check, don't depend on MovementController
