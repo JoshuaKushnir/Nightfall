@@ -588,6 +588,10 @@ end
 			end
 		end
 	end
+
+	-- Handle dodge movement and iframes
+	if config.Type == "Dodge" then
+		local rootPart = Utils.GetRootPart(Player)
 		if rootPart then
 			-- Determine dodge direction from real-time input (same as animation direction)
 			local camera = workspace.CurrentCamera
