@@ -19,6 +19,11 @@ local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+
+-- WeaponController is injected via dependencies in :Init() to avoid a
+-- circular-require (WeaponController is a client controller, not shared).
+local WeaponController: any = nil
 
 type ActionConfig = ActionTypes.ActionConfig
 type Action = ActionTypes.Action
@@ -58,6 +63,7 @@ function ActionController:Init(dependencies: {[string]: any}?)
 	-- Store dependency references
 	if dependencies then
 		MovementController = dependencies.MovementController
+		WeaponController   = dependencies.WeaponController
 	end
 
 	-- Wait for character
@@ -143,7 +149,7 @@ function ActionController:Start()
 		lastUpdate = now
 
 		-- Update cooldowns
-		for actionId, cooldownEnd in ActionCooldowns do
+		for actionId, cooldownEnd in pairs(ActionCooldowns) do
 			if now >= cooldownEnd then
 				ActionCooldowns[actionId] = nil
 			end
@@ -235,7 +241,7 @@ function ActionController.PlayAction(config: ActionConfig)
 			if moveDir.Magnitude > 0 then
 				moveDir = moveDir.Unit
 			else
-				moveDir = Vector3.zero
+				moveDir = Vector3.new(0, 0, 0)
 			end
 			
 			local rollFolder, rollAsset = GetRollForDirection(moveDir)
@@ -252,9 +258,10 @@ function ActionController.PlayAction(config: ActionConfig)
 		-- Check if sprinting (use lunge attack instead)
 		local isCurrentlySprinting = MovementController and MovementController._isSprinting() or false
 		if isCurrentlySprinting then
-			-- Check lunge cooldown
+			-- Check lunge cooldown (use config cooldown to prevent spam)
 			local now = tick()
-			if now - LastLungeAttackTime > 0.3 then
+			local lungeCooldown = ActionTypes.LUNGE_ATTACK.Cooldown or 1.2
+			if now - LastLungeAttackTime > lungeCooldown then
 				print("[ActionController] Lunge attack triggered (sprinting + attack)")
 
 				-- QUICK-FIX: pre-emptively apply client impulse here so movement is visible
@@ -296,29 +303,62 @@ function ActionController.PlayAction(config: ActionConfig)
 			ComboCount = 0
 		end
 
+		-- ── Weapon-aware combo tree (Issue #71) ───────────────────────────────
+		-- If the player has a weapon equipped attempt to use that weapon's
+		-- Animations.Combo table.  Fall back to bare-hands punch N on no weapon.
+		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
+		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
+
+		local maxCombo: number
+		if weaponCfg and weaponCfg.Animations and weaponCfg.Animations.Combo and #weaponCfg.Animations.Combo > 0 then
+			maxCombo = #weaponCfg.Animations.Combo
+		else
+			maxCombo = 5 -- bare-hands default
+		end
+
 		-- Increment combo
 		ComboCount = ComboCount + 1
-		if ComboCount > 5 then
+		if ComboCount > maxCombo then
 			ComboCount = 1
 		end
 
 		LastComboTime = now
 
-		-- Clone config and set punch animation
+		-- Clone config and apply animation
 		config = table.clone(config)
-		config.AnimationAssetName = `punch {ComboCount}`
 
-		-- Mark if this is the final combo hit for knockback
-		if ComboCount == 5 then
+		if weaponCfg and weaponCfg.Animations and weaponCfg.Animations.Combo and weaponCfg.Animations.Combo[ComboCount] then
+			-- Weapon combo: use Folder/Asset pair from the weapon definition
+			local comboEntry = weaponCfg.Animations.Combo[ComboCount]
+			config.AnimationName      = comboEntry.Folder
+			config.AnimationAssetName = comboEntry.Asset
+
+			-- Rescale duration by the weapon's AttackSpeed multiplier (< 1 = faster)
+			if weaponCfg.AttackSpeed and weaponCfg.AttackSpeed > 0 then
+				config.Duration = config.Duration / weaponCfg.AttackSpeed
+			end
+
+			-- Apply weapon base damage
+			if weaponCfg.BaseDamage then
+				config.Damage = weaponCfg.BaseDamage
+			end
+
+			print(`[ActionController] Weapon combo {ComboCount}/{maxCombo} ({weaponId}) - {config.AnimationName}/{config.AnimationAssetName}`)
+		else
+			-- Bare-hands fallback: reuse legacy punch N animation names
+			config.AnimationAssetName = `punch {ComboCount}`
+			print(`[ActionController] Bare-hands combo {ComboCount}/{maxCombo} - {config.AnimationAssetName}`)
+		end
+
+		-- Mark finisher on the last combo hit
+		if ComboCount == maxCombo then
 			config.IsFinisher = true
-			config.KnockbackPower = 50 -- Strong knockback on 5th hit
+			config.KnockbackPower = (weaponCfg and (weaponCfg.KnockbackPower or 1.0) * 50) or 50
 			-- Apply cooldown after finishing combo
 			ActionCooldowns[config.Id] = now + COMBO_FINISH_COOLDOWN
 		else
 			config.IsFinisher = false
 		end
-
-		print(`[ActionController] Combo: {ComboCount}/5 - Using {config.AnimationAssetName}`)
 	end
 		-- Throttle rapid requests
 	if tick() - LastActionTime < MIN_ACTION_INTERVAL then
@@ -341,7 +381,7 @@ function ActionController.PlayAction(config: ActionConfig)
 		end
 
 		-- Don't queue dodge if another dodge is already queued
-		for _, queuedAction in ActionQueue do
+		for _, queuedAction in ipairs(ActionQueue) do
 			if queuedAction.Type == "Dodge" then
 				print(`[ActionController] Dodge already queued, ignoring duplicate`)
 				return
@@ -488,33 +528,33 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end
 		end
 
-		if track then
-			if config.AnimationPriority then
-				track.Priority = config.AnimationPriority
-			else
-				track.Priority = Enum.AnimationPriority.Action
-			end
-
-			if config.AnimationSpeed then
-				track:AdjustSpeed(config.AnimationSpeed)
-			end
-
-			action.AnimationTrack = track
-			action:Play()
-			print(`[ActionController] ✓ Animation playing for {config.Name}`)
+	if track then
+		if config.AnimationPriority then
+			track.Priority = config.AnimationPriority
 		else
-			print(`[ActionController] ⚠ No animation found for {config.Name} - action proceeding without animation`)
-			-- Don't block action - let it proceed even without animation
+			track.Priority = Enum.AnimationPriority.Action
 		end
 
-		-- Still trigger Play even without animation (for game feel)
+		if config.AnimationSpeed then
+			track:AdjustSpeed(config.AnimationSpeed)
+		end
+
+		action.AnimationTrack = track
 		action:Play()
+		print(`[ActionController] ✓ Animation playing for {config.Name}`)
+	else
+		print(`[ActionController] ⚠ No animation found for {config.Name} - action proceeding without animation`)
+		-- Don't block action - let it proceed even without animation
 	end
 
-	-- Call start callback
-	if config.OnStart then
-		task.spawn(config.OnStart, Player)
-	end
+	-- Still trigger Play even without animation (for game feel)
+	action:Play()
+end -- Closing the if AnimationController / Humanoid block (lines 470-510)
+
+-- Call start callback
+if config.OnStart then
+	task.spawn(config.OnStart, Player)
+end
 
 	-- Handle dodge movement and iframes
 	if config.Type == "Dodge" then
@@ -574,28 +614,28 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		end
 
 		-- Camera effect for dodge (FOV zoom + directional push)
-	if MovementConfig.Camera.FOVPunchEnabled then
-		print("[ActionController] DODGE CAMERA EFFECT!")
-		task.spawn(function()
-			local camera = workspace.CurrentCamera
-			if not camera then return end
+		if MovementConfig.Camera.FOVPunchEnabled then
+			print("[ActionController] DODGE CAMERA EFFECT!")
+			task.spawn(function()
+				local camera = workspace.CurrentCamera
+				if not camera then return end
 
-			local startFOV = camera.FieldOfView
-			local startCFrame = camera.CFrame
+				local startFOV = camera.FieldOfView
+				local startCFrame = camera.CFrame
 
-			-- DRAMATIC zoom out effect
-			camera.FieldOfView = startFOV + 15 -- Much more noticeable
+				-- DRAMATIC zoom out effect
+				camera.FieldOfView = startFOV + 15 -- Much more noticeable
 
-			-- Camera speed blur effect by pushing back
-			local pushAmount = 1.2
-			camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
+				-- Camera speed blur effect by pushing back
+				local pushAmount = 1.2
+				camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
 
-			-- Smooth return over dodge duration
-			local startTime = tick()
-			while tick() - startTime < config.Duration and camera do
-				local progress = (tick() - startTime) / config.Duration
-				camera.FieldOfView = startFOV + 15 * (1 - progress)
-				task.wait(0.05)
+				-- Smooth return over dodge duration
+				local startTime = tick()
+				while tick() - startTime < config.Duration and camera do
+					local progress = (tick() - startTime) / config.Duration
+					camera.FieldOfView = startFOV + 15 * (1 - progress)
+					task.wait(0.05)
 				end
 			end)
 		end
@@ -621,6 +661,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end)
 		end
 	end
+end
 
 	-- Lunge attack: client-predicted forward burst while the action is active
 	if config.Type == "Attack" and config.Id == "atk_lunge" then
@@ -662,18 +703,17 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				end
 			end
 
-			-- Fallback: use local LinearVelocity + AssemblyLinearVelocity if the MovementController API is unavailable
+			-- Fallback: use local BodyVelocity + AssemblyLinearVelocity if the MovementController API is unavailable
 			if not appliedViaMovementController then
-				local lv = rootPart:FindFirstChild("_LungeLinearVelocity") :: LinearVelocity?
+				local lv = rootPart:FindFirstChild("_LungeBodyVelocity") :: BodyVelocity?
 				if not lv then
-					lv = Instance.new("LinearVelocity")
-					lv.Name = "_LungeLinearVelocity"
-					lv.Attachment0 = nil
+					lv = Instance.new("BodyVelocity")
+					lv.Name = "_LungeBodyVelocity"
 					lv.Parent = rootPart
 				end
 				lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
 				lv.Velocity = lungeVelocity
-				lv.Enabled = true
+				-- BodyVelocity doesn't expose an `Enabled` property; rely on parenting/destroy instead.
 
 				-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
 				if rootPart and rootPart:IsA("BasePart") then
@@ -685,7 +725,8 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				-- Clean up after keepTime
 				task.delay(keepTime, function()
 					if lv and lv.Parent then
-						lv.Enabled = false
+						-- stop applying velocity then destroy
+						lv.Velocity = Vector3.new(0, 0, 0)
 						lv:Destroy()
 					end
 				end)

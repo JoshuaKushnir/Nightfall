@@ -87,6 +87,7 @@ local startOrder = {
 	"NetworkService",      -- Must start first (depended on by others)
 	"StateSyncService",    -- Depends on NetworkService
 	"DataService",
+	"WeaponService",       -- #69: equip system (after NetworkService)
 	"DefenseService",      -- Defense mechanics
 	"CombatService",       -- Combat validation and damage application
 }

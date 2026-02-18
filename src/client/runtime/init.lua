@@ -87,9 +87,10 @@ local initSuccess = true
 
 -- Build dependencies table for dependency injection
 local dependencies = {
-	NetworkController = controllers.NetworkController,
+	NetworkController   = controllers.NetworkController,
 	StateSyncController = controllers.StateSyncController,
-	MovementController = controllers.MovementController,
+	MovementController  = controllers.MovementController,
+	WeaponController    = controllers.WeaponController,
 }
 
 for name, controller in controllers do
@@ -119,7 +120,8 @@ local startSuccess = true
 local startOrder = {
 	"NetworkController",   -- Must start first (depended on by others)
 	"StateSyncController", -- Before MovementController so state cache exists
-	"MovementController", -- Epic #56: smooth movement (coyote, jump buffer, sprint)
+	"MovementController",  -- Epic #56: smooth movement (coyote, jump buffer, sprint)
+	"WeaponController",    -- #69: equip state must be ready before ActionController
 	"ActionController",
 	"PlayerHUDController",
 	"CombatFeedbackUI",
