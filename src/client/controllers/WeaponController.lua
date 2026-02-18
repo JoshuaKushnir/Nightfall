@@ -62,15 +62,30 @@ end
 function WeaponController:Start()
 	print("[WeaponController] Starting...")
 
-	-- Listen for server broadcasts about equipped weapons
+	-- The server fires WeaponEquipped BEFORE this controller starts listening,
+	-- so we can't rely on catching the broadcast for the initial equip.
+	-- Read the EquippedWeapon attribute the server already stamped on the character.
+	local character = Player.Character
+	if character then
+		local existing = character:GetAttribute("EquippedWeapon")
+		if existing and existing ~= "" then
+			_currentWeaponId = existing
+			print(`[WeaponController] ✓ Restored equipped weapon from attribute: {existing}`)
+		end
+	end
+
+	-- Clear on respawn; the server will re-equip and broadcast again.
+	Player.CharacterAdded:Connect(function()
+		_currentWeaponId = nil
+	end)
+
+	-- Listen for server broadcasts about equipped weapons (future equips/swaps)
 	local equippedEvent = NetworkProvider:GetRemoteEvent(EQUIPPED_EVENT)
 	if equippedEvent then
 		equippedEvent.OnClientEvent:Connect(function(who: Player, weaponId: string)
 			if who == Player then
 				_currentWeaponId = weaponId
 				print(`[WeaponController] Weapon equipped: {weaponId}`)
-			else
-				print(`[WeaponController] {who.Name} equipped: {weaponId}`)
 			end
 		end)
 	end
@@ -83,8 +98,6 @@ function WeaponController:Start()
 				local previous = _currentWeaponId
 				_currentWeaponId = nil
 				print(`[WeaponController] Weapon unequipped (was: {tostring(previous)})`)
-			else
-				print(`[WeaponController] {who.Name} unequipped their weapon`)
 			end
 		end)
 	end
