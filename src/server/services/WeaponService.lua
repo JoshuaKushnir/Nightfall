@@ -220,6 +220,13 @@ local function _EquipDefault(player: Player)
 	if player.Character then
 		player.Character:SetAttribute(ATTR_EQUIPPED, nil)
 	end
+	-- Wait for the Humanoid to exist — CharacterAdded fires before the
+	-- character's children are all in place, so _GetHumanoid would return nil
+	-- if we called EquipWeapon immediately.
+	local character = player.Character
+	if character then
+		character:WaitForChild("Humanoid", 10)
+	end
 	WeaponService.EquipWeapon(player, "fists")
 end
 
@@ -231,22 +238,22 @@ function WeaponService:Init()
 
 	-- Auto-equip fists whenever a character spawns.
 	Players.PlayerAdded:Connect(function(player)
-		player.CharacterAdded:Connect(function()
-			task.defer(_EquipDefault, player)
+		player.CharacterAdded:Connect(function(character)
+			-- Run in a separate thread so WaitForChild doesn't block the signal.
+			task.spawn(_EquipDefault, player)
 		end)
-		-- Handle players already in-game when the service starts.
 		if player.Character then
-			task.defer(_EquipDefault, player)
+			task.spawn(_EquipDefault, player)
 		end
 	end)
 
 	-- Handle players already connected before this service loaded.
 	for _, player in Players:GetPlayers() do
-		player.CharacterAdded:Connect(function()
-			task.defer(_EquipDefault, player)
+		player.CharacterAdded:Connect(function(character)
+			task.spawn(_EquipDefault, player)
 		end)
 		if player.Character then
-			task.defer(_EquipDefault, player)
+			task.spawn(_EquipDefault, player)
 		end
 	end
 
