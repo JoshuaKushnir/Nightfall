@@ -51,6 +51,10 @@ export type NetworkEvent =
 	| "OpenUI"
 	| "CloseUI"
 	| "UIInteraction"
+
+	-- Dev/Debug (spawn/despawn dummies)
+	| "SpawnDummy"
+	| "DespawnDummy"
 	
 	-- Admin/Debug
 	| "AdminCommand"
@@ -119,6 +123,15 @@ export type HitConfirmedPacket = {
 	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Crouching")
 	AnimationAssetName: string?, -- Optional specific asset under AnimSaves
 	AnimationDuration: number?, -- Optional duration hint (seconds)
+}
+
+-- Spawn/Despawn dev dummies
+export type SpawnDummyPacket = {
+	Position: Vector3?, -- Optional; server may place relative to player if omitted
+}
+
+export type DespawnDummyPacket = {
+	DummyId: string,
 }
 
 export type BlockFeedbackPacket = {
@@ -237,6 +250,8 @@ export type NetworkPacket =
 	| OpenUIPacket
 	| CloseUIPacket
 	| UIInteractionPacket
+	| SpawnDummyPacket
+	| DespawnDummyPacket
 	| AdminCommandPacket
 	| DebugInfoPacket
 
@@ -333,6 +348,21 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Show parry feedback UI",
+	},
+
+	-- Dev/Debug dummies
+	SpawnDummy = {
+		Direction = "Bidirectional",
+		RateLimitPerSecond = 5,
+		RequiresValidation = false,
+		Description = "Spawn or broadcast a dev test dummy (dev-only)",
+	},
+
+	DespawnDummy = {
+		Direction = "Bidirectional",
+		RateLimitPerSecond = 5,
+		RequiresValidation = false,
+		Description = "Despawn a dev test dummy (dev-only)",
 	},
 	
 	-- Abilities/Mantras
