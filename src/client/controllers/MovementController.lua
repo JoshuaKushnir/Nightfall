@@ -338,10 +338,20 @@ function MovementController:Start()
 		end
 	end)
 
-	-- Clear sprint allowance when W is released (sprint only while holding W)
+	-- Clear sprint allowance when all movement keys are released
 	UserInputService.InputEnded:Connect(function(input, gameProcessed)
-		if input.KeyCode == Enum.KeyCode.W then
-			sprintAllowed = false
+		if input.KeyCode == Enum.KeyCode.W
+			or input.KeyCode == Enum.KeyCode.A
+			or input.KeyCode == Enum.KeyCode.S
+			or input.KeyCode == Enum.KeyCode.D
+		then
+			local anyMovementHeld = UserInputService:IsKeyDown(Enum.KeyCode.W)
+				or UserInputService:IsKeyDown(Enum.KeyCode.A)
+				or UserInputService:IsKeyDown(Enum.KeyCode.S)
+				or UserInputService:IsKeyDown(Enum.KeyCode.D)
+			if not anyMovementHeld then
+				sprintAllowed = false
+			end
 		end
 	end)
 
@@ -494,7 +504,7 @@ function MovementController._Update(dt: number)
 
 	-- Target speed from input and sprint
 	-- Sprint only when primed (double-tap) AND while holding W
-	local wantsSprint = sprintAllowed and UserInputService:IsKeyDown(Enum.KeyCode.W) and canSprint() and moveDir.Magnitude > 0.5
+	local wantsSprint = sprintAllowed and canSprint() and moveDir.Magnitude > 0.5
 	-- Expose current sprinting state for ActionController
 	isSprinting = wantsSprint
 
