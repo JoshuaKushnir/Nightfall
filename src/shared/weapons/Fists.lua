@@ -27,8 +27,8 @@ local Fists: WeaponConfig = {
 
 	-- ── Rarity & Loot ─────────────────────────────────────────────────────────
 	Rarity      = "Common",
-	LootWeight  = 0,    -- not a loot drop; never appears in pools
-	LootPools   = {},   -- intentionally empty
+	LootWeight  = 1,     -- minimum valid value; fists are never in a loot pool
+	LootPools   = {},    -- intentionally empty
 
 	-- ── Tool ──────────────────────────────────────────────────────────────────
 	ToolModelId = "",   -- no visible tool model
@@ -40,7 +40,7 @@ local Fists: WeaponConfig = {
 	AttackSpeed    = 1.0,   -- baseline speed; other weapons are relative to this
 	Range          = 3.5,   -- shorter reach than any bladed weapon
 	KnockbackPower = 0.5,
-	Weight         = 0.0,   -- no movement penalty
+	Weight         = 0.1,   -- near-zero; no meaningful movement penalty
 
 	-- ── Animations ────────────────────────────────────────────────────────────
 	-- Reuses the existing punch 1-5 animation assets already in the project.

@@ -106,10 +106,10 @@ function WeaponValidator.Validate(config: any): (boolean, string?)
 	-- ── Rarity & Loot ────────────────────────────────────────────────────────
 	check(errors, isString(config.Rarity) and VALID_RARITIES[config.Rarity] == true,
 		"Rarity must be one of: Common, Uncommon, Rare, Legendary")
-	check(errors, isNumber(config.LootWeight) and config.LootWeight >= 1 and config.LootWeight <= 100,
-		"LootWeight must be a number between 1 and 100")
-	check(errors, isTable(config.LootPools) and #config.LootPools > 0,
-		"LootPools must be a non-empty array of strings")
+	check(errors, isNumber(config.LootWeight) and config.LootWeight >= 0 and config.LootWeight <= 100,
+		"LootWeight must be a number between 0 and 100")
+	check(errors, isTable(config.LootPools),
+		"LootPools must be an array (may be empty for non-loot weapons)")
 	if isTable(config.LootPools) then
 		for i, v in config.LootPools do
 			check(errors, isString(v) and v ~= "", ("LootPools[%d] must be a non-empty string"):format(i))
@@ -133,7 +133,7 @@ function WeaponValidator.Validate(config: any): (boolean, string?)
 			"KnockbackPower must be a non-negative number")
 	end
 	if config.Weight ~= nil then
-		check(errors, isNumber(config.Weight) and config.Weight > 0, "Weight must be a positive number")
+		check(errors, isNumber(config.Weight) and config.Weight >= 0, "Weight must be a non-negative number")
 	end
 
 	-- ── Animations ───────────────────────────────────────────────────────────
