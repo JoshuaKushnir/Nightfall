@@ -39,7 +39,22 @@ function DebugInput:Init()
 	print("[DebugInput] Press M to cycle slow-motion speed")
 	print("[DebugInput] Press H to spawn test hitbox")
 	print("[DebugInput] Press J to spawn combat dummy")
+	print("[DebugInput] Press Ctrl+Shift+J to admin-spawn a dummy (dev only)")
+	print("[DebugInput] Press / to open local command prompt (commands are NOT broadcast to chat)")
 	print("[DebugInput] Press Ctrl+Shift+D to list all settings")
+
+	-- Listen for admin/debug responses from server (DebugInfo)
+	local networkFolder = ReplicatedStorage:FindFirstChild("NetworkEvents")
+	if networkFolder then
+		local debugEvent = networkFolder:FindFirstChild("DebugInfo")
+		if debugEvent and debugEvent:IsA("RemoteEvent") then
+			debugEvent.OnClientEvent:Connect(function(packet)
+				if packet and packet.Category == "AdminCommand" then
+					print(`[DebugInput] AdminCommand response: {tostring(packet.Data.Result or packet.Data.Error)}`)
+				end
+			end)
+		end
+	end
 	
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then
@@ -82,10 +97,16 @@ function DebugInput:Init()
 		if input.KeyCode == Enum.KeyCode.J then
 			DebugInput._SpawnCombatDummy()
 		end
-		
-		-- Ctrl+Shift+D: List all settings
-		if input.KeyCode == Enum.KeyCode.D and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-			DebugSettings.ListSettings()
+
+	-- Ctrl+Shift+J: Admin spawn dummy (sends AdminCommand - does NOT broadcast chat)
+	if input.KeyCode == Enum.KeyCode.J and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+		DebugInput._SendAdminSpawnDummy()
+	end
+
+	-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
+	if input.KeyCode == Enum.KeyCode.Slash then
+		DebugInput._OpenCommandPrompt()
+	end
 		end
 	end)
 end
@@ -153,6 +174,129 @@ function DebugInput._SpawnCombatDummy()
 	else
 		print("[DebugInput] SpawnDummy event not found")
 	end
+end
+
+--[[
+	Send an admin command packet to the server (uses AdminCommand network event)
+	This is a local-only command path and does NOT broadcast input to public chat.
+]]
+function DebugInput._SendAdminCommand(packet: { Command: string, Args: {string}? })
+	local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+	local adminEvent = NetworkProvider:GetRemoteEvent("AdminCommand")
+	if not adminEvent then
+		print("[DebugInput] AdminCommand event not available")
+		return
+	end
+
+	-- Fire server-only admin command (server will validate permissions)
+	adminEvent:FireServer(packet)
+	print(`[DebugInput] AdminCommand sent: {packet.Command} ({table.concat(packet.Args or {}, " ")})`)
+end
+
+--[[
+	Spawn a dummy via AdminCommand (sends request to server; local-only input)
+]]
+function DebugInput._SendAdminSpawnDummy()
+	local player = Players.LocalPlayer
+	if not player or not player.Character then
+		print("[DebugInput] Cannot spawn dummy - no character")
+		return
+	end
+
+	-- Use "here" so server positions it safely in front of player
+	DebugInput._SendAdminCommand({ Command = "spawn_dummy", Args = { "here" } })
+end
+
+--[[
+	Open a small, local command prompt (does NOT send typed text to public chat)
+]]
+function DebugInput._OpenCommandPrompt()
+	local player = Players.LocalPlayer
+	if not player then
+		return
+	end
+
+	local playerGui = player:FindFirstChildOfClass("PlayerGui")
+	if not playerGui then
+		return
+	end
+
+	-- Simple transient UI
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "DebugCommandPrompt"
+	screenGui.ResetOnSpawn = false
+	screenGui.Parent = playerGui
+
+	local textBox = Instance.new("TextBox")
+	textBox.Size = UDim2.new(0, 400, 0, 30)
+	textBox.Position = UDim2.new(0.5, -200, 0.05, 0)
+	textBox.BackgroundTransparency = 0.25
+	textBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+	textBox.PlaceholderText = "/admin spawn_dummy [here|x y z]"
+	textBox.ClearTextOnFocus = true
+	textBox.Text = ""
+	textBox.Parent = screenGui
+
+	textBox:CaptureFocus()
+
+	textBox.FocusLost:Connect(function(enterPressed)
+		local text = textBox.Text or ""
+		screenGui:Destroy()
+		if enterPressed and text ~= "" then
+			DebugInput._HandleCommand(text)
+		end
+	end)
+end
+
+--[[
+	Parse and handle local commands (only a small subset supported here)
+]]
+function DebugInput._HandleCommand(text: string)
+	local tokens = {}
+	for token in string.gmatch(text, "%S+") do
+		table.insert(tokens, token)
+	end
+
+	if #tokens == 0 then
+		return
+	end
+
+	local cmdRoot = string.lower(tokens[1])
+	if cmdRoot == "/admin" or cmdRoot == "admin" then
+		local sub = tokens[2] and string.lower(tokens[2]) or ""
+		if sub == "spawn_dummy" then
+			-- Support: /admin spawn_dummy
+			--          /admin spawn_dummy here
+			--          /admin spawn_dummy x y z
+			local args = {}
+			for i = 3, #tokens do
+				table.insert(args, tokens[i])
+			end
+
+			if #args == 0 then
+				DebugInput._SendAdminSpawnDummy()
+				return
+			elseif #args == 1 and string.lower(args[1]) == "here" then
+				DebugInput._SendAdminSpawnDummy()
+				return
+			elseif #args >= 3 then
+				-- Validate numeric args
+				local x = tonumber(args[1])
+				local y = tonumber(args[2])
+				local z = tonumber(args[3])
+				if x and y and z then
+					DebugInput._SendAdminCommand({ Command = "spawn_dummy", Args = { tostring(x), tostring(y), tostring(z) } })
+					return
+				end
+			end
+
+			print("[DebugInput] Invalid args for /admin spawn_dummy")
+			return
+		end
+	end
+
+	print("[DebugInput] Unknown command: " .. text)
 end
 
 return DebugInput

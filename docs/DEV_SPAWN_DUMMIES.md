@@ -5,6 +5,7 @@ Purpose
 
 How to spawn
 - Client debug hotkey: `J` (requires `DebugInput` enabled)
+- Admin command (local-only prompt or hotkey): `/admin spawn_dummy [here|x y z]` or press `Ctrl+Shift+J` to spawn a dummy in front of you. (Command input is not sent to public chat.)
 - Programmatic (client): Fire `ReplicatedStorage.NetworkEvents.SpawnDummy` with a `Vector3` position
 - Programmatic (server): `DummyService.SpawnDummy(position)` → returns `dummyId`
 

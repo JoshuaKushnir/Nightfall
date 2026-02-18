@@ -176,6 +176,65 @@ if services.CombatService and services.NetworkService then
 	print("[Server] ✓ Combat hit event handler registered")
 end
 
+-- Register AdminCommand handler (dev/admin-only commands)
+if services.NetworkService and services.DummyService then
+	local NetworkService = services.NetworkService
+	local DummyService = services.DummyService
+	local Utils = require(ReplicatedStorage.Shared.modules.Utils)
+
+	NetworkService:RegisterHandler("AdminCommand", function(player: Player, packet: any)
+		if not packet or type(packet.Command) ~= "string" then
+			warn("[AdminCommand] Malformed packet")
+			return
+		end
+
+		local cmd = string.lower(packet.Command)
+		local args = packet.Args or {}
+
+		-- Only allow authorized devs/admins to run admin commands
+		if not DummyService._IsPlayerAllowed(player) then
+			warn(`[AdminCommand] Permission denied for {player.Name}`)
+			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "permission_denied" } })
+			return
+		end
+
+		if cmd == "spawn_dummy" then
+			-- Determine spawn position
+			local spawnPos: Vector3? = nil
+			if #args >= 3 then
+				local x = tonumber(args[1])
+				local y = tonumber(args[2])
+				local z = tonumber(args[3])
+				if x and y and z then
+					spawnPos = Vector3.new(x, y, z)
+				end
+			elseif #args == 1 and tostring(args[1]) == "here" then
+				local root = Utils.GetRootPart(player)
+				if root then
+					spawnPos = root.Position + root.CFrame.LookVector * 10
+				end
+			else
+				local root = Utils.GetRootPart(player)
+				if root then
+					spawnPos = root.Position + root.CFrame.LookVector * 10
+				end
+			end
+
+			if not spawnPos then
+				spawnPos = Vector3.new(0, 5, 0)
+			end
+
+			local dummyId = DummyService.SpawnDummy(spawnPos)
+			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = dummyId and "ok" or "failed", DummyId = dummyId } })
+			print(`[AdminCommand] {player.Name} spawned dummy: {dummyId}`)
+		else
+			warn(`[AdminCommand] Unknown admin command: {cmd}`)
+			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "unknown_command" } })
+		end
+	end)
+	print("[Server] ✓ AdminCommand handler registered")
+end
+
 print("")
 
 -- Export services for debugging (optional)
