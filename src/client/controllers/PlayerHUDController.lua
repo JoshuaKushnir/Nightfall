@@ -19,6 +19,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 
 local Shared = ReplicatedStorage.Shared
 
@@ -32,6 +33,7 @@ type PlayerState = PlayerData.PlayerState
 
 -- Controllers (injected via Init)
 local StateSyncController = nil
+local MovementController = nil
 
 -- UI Elements
 local playerGui: PlayerGui
@@ -44,9 +46,235 @@ local stateLabel: TextLabel
 local coinsLabel: TextLabel
 local expLabel: TextLabel
 
+-- Movement HUD elements (#95)
+local movementGui: ScreenGui
+local breathBarFill: Frame
+local breathLabel: TextLabel
+local momentumFill: Frame
+local momentumLabel: TextLabel
+local exhaustedOverlay: Frame
+local movementHudConn: RBXScriptConnection?
+
 -- State
 local profile: PlayerProfile? = nil
 local currentState: PlayerState? = nil
+
+--------------------------------------------------------------------------------
+-- Movement HUD (#95)  Breath bar + Momentum chain
+--------------------------------------------------------------------------------
+
+--[[
+	Builds the movement HUD anchored bottom-left.
+	Two rows:
+	  Row 1 — BREATH label + depleting bar (dark-teal fill, red on exhaust)
+	  Row 2 — MOMENTUM label + chain fill (grey→orange→gold at 3×)
+]]
+local function createMovementHUD()
+	playerGui = Players.LocalPlayer:WaitForChild("PlayerGui", 5)
+
+	-- Separate ScreenGui so it never clashes with the main HUD ZIndex
+	movementGui = Instance.new("ScreenGui")
+	movementGui.Name = "MovementHUD"
+	movementGui.ResetOnSpawn = false
+	movementGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	movementGui.DisplayOrder = 10
+	movementGui.Parent = playerGui
+
+	-- Root panel — bottom-left
+	local panel = Instance.new("Frame")
+	panel.Name = "MovementPanel"
+	panel.Size = UDim2.new(0, 220, 0, 78)
+	panel.Position = UDim2.new(0, 16, 1, -94)
+	panel.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
+	panel.BackgroundTransparency = 0.35
+	panel.BorderSizePixel = 0
+	panel.Parent = movementGui
+	local panelCorner = Instance.new("UICorner")
+	panelCorner.CornerRadius = UDim.new(0, 8)
+	panelCorner.Parent = panel
+	local panelPadding = Instance.new("UIPadding")
+	panelPadding.PaddingLeft   = UDim.new(0, 12)
+	panelPadding.PaddingRight  = UDim.new(0, 12)
+	panelPadding.PaddingTop    = UDim.new(0, 10)
+	panelPadding.PaddingBottom = UDim.new(0, 10)
+	panelPadding.Parent = panel
+
+	-- ── BREATH ROW ──────────────────────────────────────────────
+	local breathRowLabel = Instance.new("TextLabel")
+	breathRowLabel.Name = "BreathTitle"
+	breathRowLabel.Size = UDim2.new(1, 0, 0, 14)
+	breathRowLabel.Position = UDim2.new(0, 0, 0, 0)
+	breathRowLabel.BackgroundTransparency = 1
+	breathRowLabel.Text = "BREATH"
+	breathRowLabel.TextColor3 = Color3.fromRGB(160, 210, 220)
+	breathRowLabel.TextSize = 11
+	breathRowLabel.Font = Enum.Font.GothamBold
+	breathRowLabel.TextXAlignment = Enum.TextXAlignment.Left
+	breathRowLabel.Parent = panel
+
+	local breathBg = Instance.new("Frame")
+	breathBg.Name = "BreathBg"
+	breathBg.Size = UDim2.new(1, 0, 0, 16)
+	breathBg.Position = UDim2.new(0, 0, 0, 16)
+	breathBg.BackgroundColor3 = Color3.fromRGB(30, 35, 42)
+	breathBg.BorderSizePixel = 0
+	breathBg.Parent = panel
+	local breathBgCorner = Instance.new("UICorner")
+	breathBgCorner.CornerRadius = UDim.new(0, 4)
+	breathBgCorner.Parent = breathBg
+
+	breathBarFill = Instance.new("Frame")
+	breathBarFill.Name = "BreathFill"
+	breathBarFill.Size = UDim2.new(1, 0, 1, 0)
+	breathBarFill.BackgroundColor3 = Color3.fromRGB(56, 182, 190)
+	breathBarFill.BorderSizePixel = 0
+	breathBarFill.Parent = breathBg
+	local fillCorner = Instance.new("UICorner")
+	fillCorner.CornerRadius = UDim.new(0, 4)
+	fillCorner.Parent = breathBarFill
+
+	-- Exhausted flash overlay (hidden by default)
+	exhaustedOverlay = Instance.new("Frame")
+	exhaustedOverlay.Name = "ExhaustedOverlay"
+	exhaustedOverlay.Size = UDim2.new(1, 0, 1, 0)
+	exhaustedOverlay.BackgroundColor3 = Color3.fromRGB(200, 50, 30)
+	exhaustedOverlay.BackgroundTransparency = 1
+	exhaustedOverlay.BorderSizePixel = 0
+	exhaustedOverlay.ZIndex = 5
+	exhaustedOverlay.Parent = breathBg
+	local exhaustedCorner = Instance.new("UICorner")
+	exhaustedCorner.CornerRadius = UDim.new(0, 4)
+	exhaustedCorner.Parent = exhaustedOverlay
+
+	breathLabel = Instance.new("TextLabel")
+	breathLabel.Name = "BreathValue"
+	breathLabel.Size = UDim2.new(1, 0, 1, 0)
+	breathLabel.BackgroundTransparency = 1
+	breathLabel.Text = "100"
+	breathLabel.TextColor3 = Color3.fromRGB(220, 240, 245)
+	breathLabel.TextSize = 11
+	breathLabel.Font = Enum.Font.GothamBold
+	breathLabel.ZIndex = 6
+	breathLabel.Parent = breathBg
+
+	-- ── MOMENTUM ROW ────────────────────────────────────────────
+	local momentumRowLabel = Instance.new("TextLabel")
+	momentumRowLabel.Name = "MomentumTitle"
+	momentumRowLabel.Size = UDim2.new(1, 0, 0, 14)
+	momentumRowLabel.Position = UDim2.new(0, 0, 0, 40)
+	momentumRowLabel.BackgroundTransparency = 1
+	momentumRowLabel.Text = "MOMENTUM"
+	momentumRowLabel.TextColor3 = Color3.fromRGB(215, 175, 100)
+	momentumRowLabel.TextSize = 11
+	momentumRowLabel.Font = Enum.Font.GothamBold
+	momentumRowLabel.TextXAlignment = Enum.TextXAlignment.Left
+	momentumRowLabel.Parent = panel
+
+	local momentumBg = Instance.new("Frame")
+	momentumBg.Name = "MomentumBg"
+	momentumBg.Size = UDim2.new(1, 0, 0, 16)
+	momentumBg.Position = UDim2.new(0, 0, 0, 56)
+	momentumBg.BackgroundColor3 = Color3.fromRGB(30, 28, 20)
+	momentumBg.BorderSizePixel = 0
+	momentumBg.Parent = panel
+	local momentumBgCorner = Instance.new("UICorner")
+	momentumBgCorner.CornerRadius = UDim.new(0, 4)
+	momentumBgCorner.Parent = momentumBg
+
+	momentumFill = Instance.new("Frame")
+	momentumFill.Name = "MomentumFill"
+	momentumFill.Size = UDim2.new(0, 0, 1, 0)
+	momentumFill.BackgroundColor3 = Color3.fromRGB(160, 110, 30)
+	momentumFill.BorderSizePixel = 0
+	momentumFill.Parent = momentumBg
+	local momentumFillCorner = Instance.new("UICorner")
+	momentumFillCorner.CornerRadius = UDim.new(0, 4)
+	momentumFillCorner.Parent = momentumFill
+
+	momentumLabel = Instance.new("TextLabel")
+	momentumLabel.Name = "MomentumValue"
+	momentumLabel.Size = UDim2.new(1, 0, 1, 0)
+	momentumLabel.BackgroundTransparency = 1
+	momentumLabel.Text = "1.0×"
+	momentumLabel.TextColor3 = Color3.fromRGB(230, 200, 140)
+	momentumLabel.TextSize = 11
+	momentumLabel.Font = Enum.Font.GothamBold
+	momentumLabel.ZIndex = 4
+	momentumLabel.Parent = momentumBg
+end
+
+--[[
+	Polled each Heartbeat. Reads MovementController getters and updates
+	breath bar, exhausted flash, and momentum fill+colour.
+]]
+local MOMENTUM_CAP = 3.0
+local exhaustPulseTime = 0
+
+local function updateMovementHUD(dt: number)
+	if not MovementController then return end
+
+	-- ── Breath ──────────────────────────────────────
+	local breath    = MovementController.GetBreath()
+	local breathMax = MovementController.GetBreathMax()
+	local pct       = math.clamp(breath / breathMax, 0, 1)
+
+	-- Smooth the bar width
+	breathBarFill.Size = breathBarFill.Size:Lerp(
+		UDim2.new(pct, 0, 1, 0),
+		math.min(1, dt * 8)
+	)
+
+	-- Text
+	breathLabel.Text = tostring(math.floor(breath))
+
+	-- Colour: teal → yellow → orange as Breath gets low
+	if pct > 0.5 then
+		breathBarFill.BackgroundColor3 = Color3.fromRGB(56, 182, 190)
+	elseif pct > 0.2 then
+		breathBarFill.BackgroundColor3 = Color3.fromRGB(210, 170, 50)
+	else
+		breathBarFill.BackgroundColor3 = Color3.fromRGB(210, 60, 40)
+	end
+
+	-- Exhausted flash overlay
+	local exhausted = MovementController.IsBreathExhausted()
+	if exhausted then
+		exhaustPulseTime += dt * 4
+		local alpha = 0.5 + 0.4 * math.sin(exhaustPulseTime)
+		exhaustedOverlay.BackgroundTransparency = 1 - alpha * 0.55
+	else
+		exhaustPulseTime = 0
+		exhaustedOverlay.BackgroundTransparency = 1
+	end
+
+	-- ── Momentum ────────────────────────────────────
+	local mult = MovementController.GetMomentumMultiplier()
+	local mPct = math.clamp((mult - 1.0) / (MOMENTUM_CAP - 1.0), 0, 1)
+
+	-- Smooth fill
+	momentumFill.Size = momentumFill.Size:Lerp(
+		UDim2.new(mPct, 0, 1, 0),
+		math.min(1, dt * 6)
+	)
+
+	-- Colour: dull gold → bright orange → blazing gold at cap
+	if mPct < 0.5 then
+		momentumFill.BackgroundColor3 = Color3.fromRGB(130, 90, 25)
+	elseif mPct < 0.85 then
+		momentumFill.BackgroundColor3 = Color3.fromRGB(210, 130, 30)
+	else
+		momentumFill.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+	end
+
+	-- Label shows multiplier; "MAX" when at cap
+	if mult >= MOMENTUM_CAP - 0.01 then
+		momentumLabel.Text = "MAX"
+		momentumLabel.TextColor3 = Color3.fromRGB(255, 230, 80)
+	else
+		momentumLabel.Text = string.format("%.1f×", mult)
+		momentumLabel.TextColor3 = Color3.fromRGB(230, 200, 140)
+	end
+end
 
 --------------------------------------------------------------------------------
 -- UI Creation
@@ -256,11 +484,12 @@ local PlayerHUDController = {}
 ]]
 function PlayerHUDController:Init(dependencies)
 	StateSyncController = dependencies.StateSyncController
-	
+	MovementController  = dependencies.MovementController
+
 	if not StateSyncController then
 		error("[PlayerHUDController] StateSyncController dependency not provided")
 	end
-	
+
 	print("[PlayerHUDController] Initialized")
 end
 
@@ -270,7 +499,11 @@ end
 function PlayerHUDController:Start()
 	-- Create HUD UI
 	createHUD()
-	
+
+	-- Create Movement HUD (#95)
+	createMovementHUD()
+	movementHudConn = RunService.Heartbeat:Connect(updateMovementHUD)
+
 	-- Connect to StateSyncController signals
 	StateSyncController.GetProfileLoadedSignal():Connect(onProfileLoaded)
 	StateSyncController.GetProfileUpdatedSignal():Connect(onProfileUpdated)
@@ -290,12 +523,19 @@ end
 	Cleanup on shutdown (called by runtime)
 ]]
 function PlayerHUDController:Shutdown()
+	if movementHudConn then
+		movementHudConn:Disconnect()
+		movementHudConn = nil
+	end
+	if movementGui then
+		movementGui:Destroy()
+	end
 	if screenGui then
 		screenGui:Destroy()
 	end
-	
+
 	UIBinding.DisconnectAll(hudFrame)
-	
+
 	print("[PlayerHUDController] Shutdown complete")
 end
 
