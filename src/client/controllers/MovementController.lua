@@ -68,6 +68,7 @@ local jumpBufferLeft = 0.0
 local lastWasOnGround = false
 local lastMoveDirection: Vector3 = Vector3.zero
 local isSprinting = false
+local sprintAllowed = false -- set when double-tap W, cleared on W release
 local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
@@ -111,10 +112,10 @@ function MovementController.SetModifier(name: string, multiplier: number)
 	if multiplier >= 1.0 then
 		-- Remove modifier (1.0 = no modification)
 		speedModifiers[name] = nil
-		print(`[MovementController] Modifier removed: {name}`)
+		print("[MovementController] Modifier removed: " .. tostring(name))
 	else
 		speedModifiers[name] = math.max(0, multiplier)
-		print(`[MovementController] Modifier set: {name} = {multiplier}x speed`)
+		print("[MovementController] Modifier set: " .. tostring(name) .. " = " .. tostring(multiplier) .. "x speed")
 	end
 end
 
@@ -129,9 +130,67 @@ function MovementController._isSprinting(): boolean
 	return isSprinting
 end
 
+-- Apply a short client-side impulse (used by actions like Lunge)
+-- direction: world-space horizontal Vector3 (will be projected to XZ)
+-- speed: studs/s magnitude
+-- duration: seconds to hold the impulse (will be clamped)
+-- tag: optional name for debugging
+function MovementController.ApplyImpulse(direction: Vector3, speed: number, duration: number, tag: string?)
+	local rootPart = RootPart
+	local humanoid = Humanoid
+	if not rootPart or not humanoid or humanoid.Health <= 0 then
+		print("[MovementController] ✗ ApplyImpulse failed - missing character/rootPart")
+		return false
+	end
+
+	-- Sanitize inputs
+	if not direction or direction.Magnitude < 0.01 then
+		print("[MovementController] ✗ ApplyImpulse failed - invalid direction: " .. tostring(direction))
+		return false
+	end
+	duration = math.clamp(duration or 0.2, 0.05, 1.0)
+
+	-- Project to horizontal plane and normalize
+	local hor = Vector3.new(direction.X, 0, direction.Z)
+	if hor.Magnitude < 0.01 then
+		hor = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+	end
+	local dir = hor.Unit
+
+	local vel = dir * (speed or 40)
+
+	-- Create a transient LinearVelocity instance for the impulse
+	local impulseName = (tag and ("_impulse_" .. tag)) or ("_impulse_" .. tostring(tick()))
+	local lv = Instance.new("LinearVelocity")
+	lv.Name = impulseName
+	lv.Parent = rootPart
+	lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+	lv.Velocity = vel
+	lv.Enabled = true
+
+	-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
+	if rootPart and rootPart:IsA("BasePart") then
+		rootPart.AssemblyLinearVelocity = Vector3.new(vel.X, rootPart.AssemblyLinearVelocity.Y, vel.Z)
+	end
+
+	print(string.format("[MovementController] Impulse applied (%s) speed=%.1f duration=%.2f", tostring(tag or "anon"), vel.Magnitude, duration))
+
+	-- Clean up after duration
+	task.delay(duration, function()
+		if lv and lv.Parent then
+			lv.Enabled = false
+			lv:Destroy()
+			print(string.format("[MovementController] Impulse ended (%s)", tostring(tag or "anon")))
+		end
+	end)
+
+	return true
+end
+
 -- Camera effects
 local DEFAULT_FOV = MovementConfig.Camera.DefaultFOV or 70
-local SPRINT_FOV = 80 -- Increased from 75 for more noticeable effect
+local SPRINT_FOV = MovementConfig.Camera.SprintFOV or 80 -- configurable via MovementConfig
+local SPRINT_FOV_ENABLED = MovementConfig.Camera.FOVPunchEnabled or false
 local currentFOV = DEFAULT_FOV
 local targetFOV = DEFAULT_FOV
 
@@ -198,6 +257,17 @@ local function getMoveDirection(): Vector3
 	return Vector3.zero
 end
 
+--[[
+	Initialize the MovementController with character references.
+	
+	Called once at startup before :Start().
+	Loads character, humanoid, and optional StateSyncController dependency.
+	
+	@param dependencies: {[string]: any}? - Optional table with StateSyncController reference
+	
+	Example:
+		MovementController:Init({StateSyncController = stateSyncService})
+]]
 function MovementController:Init(dependencies: {[string]: any}?)
 	print("[MovementController] Initializing...")
 	Player = Players.LocalPlayer
@@ -218,6 +288,16 @@ function MovementController:Init(dependencies: {[string]: any}?)
 	print("[MovementController] Character ready")
 end
 
+--[[
+	Start the MovementController.
+	
+	Hooks Heartbeat loop for smooth motion updates and binds input events for:
+	- Jump buffering (Space key)
+	- Sprint toggling (double-tap W)
+	- Slide initiation (press C)
+	
+	Call this after :Init().
+]]
 function MovementController:Start()
 	print("[MovementController] Starting...")
 	lastWasOnGround = isOnGround(Humanoid :: Humanoid)
@@ -229,7 +309,7 @@ function MovementController:Start()
 		camera.FieldOfView = DEFAULT_FOV
 		currentFOV = DEFAULT_FOV
 		targetFOV = DEFAULT_FOV
-		print(`[MovementController] Camera FOV initialized to {DEFAULT_FOV}`)
+		print("[MovementController] Camera FOV initialized to " .. tostring(DEFAULT_FOV))
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -240,21 +320,28 @@ function MovementController:Start()
 		MovementController._OnJumpRequest()
 	end)
 	
-	-- Double-tap W to toggle sprint
+		-- Double-tap W to 'prime' sprint for the next hold (not a persistent toggle)
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
 		
 		if input.KeyCode == Enum.KeyCode.W then
 			local currentTime = tick()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
-				-- Double-tap detected
-				isSprinting = not isSprinting
-				print(`[MovementController] Sprint toggled: {if isSprinting then \"ON\" else \"OFF\"}`)
+				-- Double-tap detected: prime sprint until W is released
+				sprintAllowed = true
+				print("[MovementController] Sprint primed — hold W to sprint")
 			end
 			lastWKeyPressTime = currentTime
 		elseif input.KeyCode == SLIDE_KEY then
 			-- Attempt to slide
 			MovementController._TrySlide()
+		end
+	end)
+
+	-- Clear sprint allowance when W is released (sprint only while holding W)
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.KeyCode == Enum.KeyCode.W then
+			sprintAllowed = false
 		end
 	end)
 
@@ -290,7 +377,8 @@ function MovementController._TrySlide()
 	
 	local currentTime = tick()
 	if currentTime - lastSlideTime < SLIDE_COOLDOWN then
-		print(`[MovementController] Slide on cooldown ({math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100}s remaining)")
+		local remaining = math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100
+		print("[MovementController] Slide on cooldown (" .. tostring(remaining) .. "s remaining)")
 		return
 	end
 	
@@ -319,32 +407,51 @@ function MovementController._TrySlide()
 	LinearVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
 	LinearVelocityInstance.Velocity = slideVelocity
 	
-	-- Decay the slide over time using TweenService for smooth easing
-	local TweenService = game:GetService("TweenService")
-	local tweenInfo = TweenInfo.new(
-		SLIDE_DURATION,
-		SLIDE_DECAY_EASING,
-		SLIDE_DECAY_DIRECTION
-	)
+	print("[MovementController] Slide momentum: " .. tostring(math.floor(SLIDE_SPEED)) .. " studs/s in direction " .. tostring(slideDirection))
 	
-	-- Create a dummy object to tween a velocity value
-	local tweenGoal = {Velocity = 0}
-	local tweenStart = {Velocity = SLIDE_SPEED}
-	
-	local tween = TweenService:Create(LinearVelocityInstance, tweenInfo, tweenGoal)
-	
-	tween.Completed:Connect(function()
+	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
+	task.spawn(function()
+		local slideStartTime = tick()
+		while isSliding and LinearVelocityInstance do
+			local elapsedTime = tick() - slideStartTime
+			local progress = math.min(1.0, elapsedTime / SLIDE_DURATION)
+			
+			-- Exponential.Out easing: 1 - (1 - progress)^3
+			local easeProgress = 1 - math.pow(1 - progress, 3)
+			local currentVelocityMagnitude = SLIDE_SPEED * (1 - easeProgress)
+			
+			if LinearVelocityInstance and currentVelocityMagnitude > 0.5 then
+				LinearVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
+			end
+			
+			if progress >= 1.0 then
+				break
+			end
+			
+			RunService.Heartbeat:Wait()
+		end
+		
+		-- Slide complete
 		if LinearVelocityInstance then
 			LinearVelocityInstance.Enabled = false
-			print("[MovementController] Slide momentum decayed")
+			print("[MovementController] Slide momentum fully decayed")
 		end
 		isSliding = false
 	end)
-	
-	tween:Play()
-	print(f"[MovementController] Slide momentum: {math.floor(SLIDE_SPEED)} studs/s in direction {slideDirection}")
 end
 
+--[[
+	Internal: Main update loop run on Heartbeat.
+	
+	Handles:
+	- Direction smoothing and camera-relative input
+	- Speed acceleration/deceleration with modifier stacking
+	- Sprint FOV parallax effects
+	- Animation state transitions
+	- Coyote time and jump buffering
+	
+	@param dt: number - Delta time since last frame (seconds)
+]]
 function MovementController._Update(dt: number)
 	local humanoid = Humanoid
 	local rootPart = RootPart
@@ -385,8 +492,11 @@ function MovementController._Update(dt: number)
 	end
 
 	-- Target speed from input and sprint
-	local wantsSprint = isSprinting and canSprint() and moveDir.Magnitude > 0.5
-	
+	-- Sprint only when primed (double-tap) AND while holding W
+	local wantsSprint = sprintAllowed and UserInputService:IsKeyDown(Enum.KeyCode.W) and canSprint() and moveDir.Magnitude > 0.5
+	-- Expose current sprinting state for ActionController
+	isSprinting = wantsSprint
+
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
 		targetSpeed = wantsSprint and SPRINT_SPEED or WALK_SPEED
@@ -399,19 +509,25 @@ function MovementController._Update(dt: number)
 	local speedMultiplier = getEffectiveSpeedMultiplier()
 	targetSpeed = targetSpeed * speedMultiplier
 	
-	-- FOV effect for sprint
-	targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
-	local fovSpeed = 12 -- Faster FOV changes for more noticeable effect
-	currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
+	-- FOV effect for sprint (only if enabled in MovementConfig)
+	if SPRINT_FOV_ENABLED then
+		targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
+		local fovSpeed = 12 -- Faster FOV changes for more noticeable effect
+		currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
 	
-	local camera = workspace.CurrentCamera
-	if camera then
-		camera.FieldOfView = currentFOV
-		-- Debug: print FOV changes
-		if isSprinting ~= lastSprintState then
-			print(`[MovementController] Sprint {if isSprinting then "START" else "STOP"} - FOV: {math.floor(currentFOV)}`)
-			lastSprintState = isSprinting
+		local camera = workspace.CurrentCamera
+		if camera then
+			camera.FieldOfView = currentFOV
+			-- Debug: print FOV changes
+			if isSprinting ~= lastSprintState then
+				print("[MovementController] Sprint " .. (isSprinting and "START" or "STOP") .. " - FOV: " .. tostring(math.floor(currentFOV)))
+				lastSprintState = isSprinting
+			end
 		end
+	else
+		-- Ensure FOV stays default when disabled
+		targetFOV = DEFAULT_FOV
+		currentFOV = DEFAULT_FOV
 	end
 
 	-- Simplified acceleration with slight easing
@@ -434,11 +550,11 @@ function MovementController._Update(dt: number)
 	-- Handle animation state transitions
 	local newAnimState = "Idle"
 	if moveDir.Magnitude > 0.5 then
-		newAnimState = wantsSprint and "Sprint" or "Walk"
+		newAnimState = wantsSprint and "Running" or "Walk"
 	end
 	
 	if newAnimState ~= currentAnimationState then
-		print(`[MovementController] Animation transition: {currentAnimationState} → {newAnimState}`)
+		print("[MovementController] Animation transition: " .. tostring(currentAnimationState) .. " -> " .. tostring(newAnimState))
 		
 		-- Stop current animation
 		if currentAnimationTrack then
@@ -451,13 +567,22 @@ function MovementController._Update(dt: number)
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
 				currentAnimationTrack:Play()
-				print(`[MovementController] ✓ Walk animation playing`)
+				print("[MovementController] ✓ Walk animation playing")
 			end
-		elseif newAnimState == "Sprint" then
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Sprint")
+		elseif newAnimState == "Running" then
+		-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
+		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running")
+		if currentAnimationTrack then
+			currentAnimationTrack:Play()
+			print("[MovementController] ✓ Running animation playing")
+		else
+			-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
+			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 			if currentAnimationTrack then
+				currentAnimationTrack:AdjustSpeed(1.15)
 				currentAnimationTrack:Play()
-				print(`[MovementController] ✓ Sprint animation playing`)
+				print("[MovementController] ✓ Running animation missing — using Walk fallback")
+			end
 			end
 		end
 		
@@ -502,6 +627,14 @@ function MovementController._Update(dt: number)
 	end
 end
 
+--[[
+	Internal: Handle jump request input.
+	
+	Implements coyote time (jump window after leaving ledge) and jump buffering
+	(queue jump before landing).
+	
+	Called when player presses Space or jumps via JumpRequest.
+]]
 function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
@@ -521,6 +654,11 @@ function MovementController._OnJumpRequest()
 	end
 end
 
+--[[
+	Called when character respawns. Resets all movement state.
+	
+	@param newCharacter: Model - The respawned character model
+]]
 function MovementController:OnCharacterAdded(newCharacter: Model)
 	Character = newCharacter
 	local hum = newCharacter:WaitForChild("Humanoid", 5) :: Humanoid?

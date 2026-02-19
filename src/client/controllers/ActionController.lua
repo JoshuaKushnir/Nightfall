@@ -18,6 +18,7 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
 type ActionConfig = ActionTypes.ActionConfig
 type Action = ActionTypes.Action
@@ -205,7 +206,7 @@ end
 	@param config The action configuration
 ]]
 function ActionController.PlayAction(config: ActionConfig)
-	print(`[ActionController] PlayAction called: {config.Name} (Type: {config.Type})`)
+	print(`[ActionController] PlayAction called: {config.Name} (Id: {config.Id}) (Type: {config.Type})`)
 
 	-- Validate character
 	if not Character or not Humanoid or Humanoid.Health <= 0 then
@@ -255,6 +256,33 @@ function ActionController.PlayAction(config: ActionConfig)
 			local now = tick()
 			if now - LastLungeAttackTime > 0.3 then
 				print("[ActionController] Lunge attack triggered (sprinting + attack)")
+
+				-- QUICK-FIX: pre-emptively apply client impulse here so movement is visible
+				-- even if later prediction/animation timing is delayed or overwritten.
+				if MovementController and MovementController.ApplyImpulse then
+					local camera = workspace.CurrentCamera
+					local forward = Vector3.new(0, 0, -1)
+					if camera then
+						local look = camera.CFrame.LookVector
+						forward = Vector3.new(look.X, 0, look.Z)
+						if forward.Magnitude < 0.1 then
+							forward = Vector3.new(0, 0, -1)
+						end
+						forward = forward.Unit
+					end
+
+					local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
+
+					-- Ensure the pre-emptive impulse covers the lunge's hit window so the
+					-- visible forward burst is still present when the hit frame occurs.
+					local lungeCfg = ActionTypes.LUNGE_ATTACK
+					local hitTime = (lungeCfg.HitStartFrame and (lungeCfg.Duration * lungeCfg.HitStartFrame)) or (lungeCfg.Duration * 0.4)
+					local preemptDur = math.clamp(hitTime + 0.12, 0.12, 0.6)
+
+					local applied = MovementController.ApplyImpulse(forward, LUNGE_SPEED, preemptDur, "lunge_preempt")
+					print("[ActionController] Pre-emptive ApplyImpulse at PlayAction returned: " .. tostring(applied) .. " (dur=" .. tostring(preemptDur) .. ")")
+				end
+
 				ActionController.PlayAction(ActionTypes.LUNGE_ATTACK)
 				LastLungeAttackTime = now
 				return
@@ -365,6 +393,7 @@ end
 	@param config The action configuration
 ]]
 function ActionController._PlayActionLocal(config: ActionConfig)
+	print(`[ActionController] _PlayActionLocal entry - id={config.Id} name={config.Name} type={config.Type}`)
 	if not Character or not Humanoid then
 		print(`[ActionController] Cannot play action - missing character components`)
 		return
@@ -411,6 +440,13 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	}
 
 	CurrentAction = action
+
+	-- If this is an attack, apply movement slowdown via MovementController.SetModifier()
+	if config.Type == "Attack" and MovementController and MovementController.SetModifier then
+		-- Default attack slowdown to 50% of normal speed
+		MovementController.SetModifier("Attacking", 0.5)
+		print("[ActionController] Applied movement modifier: Attacking = 0.5x")
+	end
 
 	-- Load and play animation if configured. Prefer project animations under
 	-- ReplicatedStorage.animations when `AnimationName` is provided;
@@ -507,48 +543,59 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				end
 			end
 
-			-- Apply velocity impulse for dodge movement
-			local DODGE_SPEED = 65 -- Snappy dodge speed
-			local dodgeVelocity = dodgeDir * DODGE_SPEED
+-- Apply movement via MovementController.ApplyImpulse when available (client-predicted)
+		local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
+		local DODGE_DURATION = (MovementConfig.Dodge and MovementConfig.Dodge.Duration) or config.Duration
+		local applied = false
+		if MovementController and MovementController.ApplyImpulse then
+			applied = MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, math.min(config.Duration, DODGE_DURATION), "dodge")
+			if applied then
+				print("[ActionController] Dodge applied via MovementController.ApplyImpulse")
+			end
+		end
 
-			-- Use BodyVelocity for consistent movement during dodge
+		-- Fallback: legacy BodyVelocity if MovementController not available
+		if not applied and rootPart then
+			local dodgeVelocity = dodgeDir * DODGE_SPEED
 			local bodyVelocity = Instance.new("BodyVelocity")
 			bodyVelocity.MaxForce = Vector3.new(30000, 0, 30000)
 			bodyVelocity.Velocity = dodgeVelocity
 			bodyVelocity.P = 5000
 			bodyVelocity.Parent = rootPart
 
-			print(`[ActionController] Dodge velocity applied: {dodgeVelocity}`)
-
-			-- Camera effect for dodge (FOV zoom + directional push)
-			print("[ActionController] DODGE CAMERA EFFECT!")
-			task.spawn(function()
-				local camera = workspace.CurrentCamera
-				if not camera then return end
-
-				local startFOV = camera.FieldOfView
-				local startCFrame = camera.CFrame
-
-				-- DRAMATIC zoom out effect
-				camera.FieldOfView = startFOV + 15 -- Much more noticeable
-
-				-- Camera speed blur effect by pushing back
-				local pushAmount = 1.2
-				camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
-
-				-- Smooth return over dodge duration
-				local startTime = tick()
-				while tick() - startTime < config.Duration and camera do
-					local progress = (tick() - startTime) / config.Duration
-					camera.FieldOfView = startFOV + 15 * (1 - progress)
-					task.wait(0.05)
-				end
-			end)
+			print(`[ActionController] Dodge velocity applied (fallback): {dodgeVelocity}`)
 
 			-- Clean up after dodge completes
 			task.delay(config.Duration, function()
 				if bodyVelocity and bodyVelocity.Parent then
 					bodyVelocity:Destroy()
+				end
+			end)
+		end
+
+		-- Camera effect for dodge (FOV zoom + directional push)
+	if MovementConfig.Camera.FOVPunchEnabled then
+		print("[ActionController] DODGE CAMERA EFFECT!")
+		task.spawn(function()
+			local camera = workspace.CurrentCamera
+			if not camera then return end
+
+			local startFOV = camera.FieldOfView
+			local startCFrame = camera.CFrame
+
+			-- DRAMATIC zoom out effect
+			camera.FieldOfView = startFOV + 15 -- Much more noticeable
+
+			-- Camera speed blur effect by pushing back
+			local pushAmount = 1.2
+			camera.CFrame = startCFrame * CFrame.new(-dodgeDir * pushAmount)
+
+			-- Smooth return over dodge duration
+			local startTime = tick()
+			while tick() - startTime < config.Duration and camera do
+				local progress = (tick() - startTime) / config.Duration
+				camera.FieldOfView = startFOV + 15 * (1 - progress)
+				task.wait(0.05)
 				end
 			end)
 		end
@@ -572,6 +619,83 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				})
 				print(`[ActionController] Dodge complete, returning to Idle`)
 			end)
+		end
+	end
+	end
+
+	-- Lunge attack: client-predicted forward burst while the action is active
+	if config.Type == "Attack" and config.Id == "atk_lunge" then
+		local rootPart = Utils.GetRootPart(Player)
+		if rootPart then
+			local camera = workspace.CurrentCamera
+			local forward = rootPart.CFrame.LookVector
+			-- Prefer camera-forward for player input direction
+			if camera then
+				local look = camera.CFrame.LookVector
+				forward = Vector3.new(look.X, 0, look.Z)
+				if forward.Magnitude < 0.1 then
+					forward = Vector3.new(0, 0, -1)
+				end
+				forward = forward.Unit
+			else
+				forward = Vector3.new(forward.X, 0, forward.Z).Unit
+			end
+
+			local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
+			local lungeVelocity = forward * LUNGE_SPEED
+
+			-- Calculate keep time (how long prediction should persist)
+			local hitTime = (config.HitStartFrame and (config.Duration * config.HitStartFrame)) or (config.Duration * 0.4)
+			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
+
+			-- Prefer using centralized MovementController.ApplyImpulse (client prediction)
+			local appliedViaMovementController = false
+			print("[ActionController] Lunge: checking MovementController / ApplyImpulse availability")
+			print("[ActionController] \tMovementController present: " .. tostring(MovementController ~= nil))
+			print("[ActionController] \tApplyImpulse method present: " .. tostring(MovementController and MovementController.ApplyImpulse ~= nil))
+			if MovementController and MovementController.ApplyImpulse then
+				appliedViaMovementController = MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
+				print("[ActionController] MovementController.ApplyImpulse returned: " .. tostring(appliedViaMovementController))
+				if appliedViaMovementController then
+					print("[ActionController] Lunge applied via MovementController.ApplyImpulse")
+				else
+					print("[ActionController] ✗ MovementController.ApplyImpulse returned false — falling back to LinearVelocity")
+				end
+			end
+
+			-- Fallback: use local LinearVelocity + AssemblyLinearVelocity if the MovementController API is unavailable
+			if not appliedViaMovementController then
+				local lv = rootPart:FindFirstChild("_LungeLinearVelocity") :: LinearVelocity?
+				if not lv then
+					lv = Instance.new("LinearVelocity")
+					lv.Name = "_LungeLinearVelocity"
+					lv.Attachment0 = nil
+					lv.Parent = rootPart
+				end
+				lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
+				lv.Velocity = lungeVelocity
+				lv.Enabled = true
+
+				-- Immediate fallback: set AssemblyLinearVelocity for instant displacement
+				if rootPart and rootPart:IsA("BasePart") then
+					rootPart.AssemblyLinearVelocity = lungeVelocity
+				end
+
+				print(`[ActionController] Lunge velocity applied (LinearVelocity fallback): {lungeVelocity}`)
+
+				-- Clean up after keepTime
+				task.delay(keepTime, function()
+					if lv and lv.Parent then
+						lv.Enabled = false
+						lv:Destroy()
+					end
+				end)
+			end
+
+			-- Diagnostic: if we couldn't find a root part, log for debugging
+			if not rootPart then
+				print("[ActionController] ✗ Lunge: HumanoidRootPart not found")
+			end
 		end
 	end
 
@@ -695,6 +819,13 @@ function ActionController._UpdateAction(deltaTime: number)
 		print(`[ActionController] Action COMPLETE: {action.Config.Name}`)
 		action:Stop()
 		action:Cleanup()
+
+		-- If this was an attack, clear the movement slowdown modifier
+		if action.Config and action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+			MovementController.SetModifier("Attacking", 1.0)
+			print("[ActionController] Removed movement modifier: Attacking")
+		end
+
 		CurrentAction = nil
 
 		-- Process queued action
@@ -800,6 +931,12 @@ function ActionController:OnCharacterAdded(newCharacter: Model)
 
 	-- Clean up old action
 	if CurrentAction then
+		-- Ensure any attack slowdown modifier is cleared
+		if CurrentAction.Config and CurrentAction.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+			MovementController.SetModifier("Attacking", 1.0)
+			print("[ActionController] Removed movement modifier on respawn: Attacking")
+		end
+
 		CurrentAction:Stop()
 		CurrentAction:Cleanup()
 		CurrentAction = nil

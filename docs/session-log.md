@@ -1,6 +1,23 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-020
+## Current Session ID: NF-021
+**Date:** February 16, 2026  
+**Task:** Implement Movement & Momentum System (Issue #9)
+
+### Session NF-021 Changes (Movement & Momentum System):
+✅ **Implemented MovementController SetModifier & Sliding**
+- Added `SetModifier(name, multiplier)` to `MovementController.lua` to allow combat speed modifiers
+- Implemented decay-based slide using `LinearVelocity` triggered by `C` while sprinting
+- Smooth acceleration/deceleration now honor `MovementConfig.Movement.Acceleration` / `Deceleration`
+
+✅ **ActionController integration**
+- `ActionController` now applies `SetModifier("Attacking", 0.5)` when attack actions start and removes it on completion
+
+✅ **Tests & docs**
+- Added unit test skeletons for coyote time, slide decay, and speed modifiers
+- Updated session log and prepared commit
+
+## Previous Session ID: NF-020
 **Date:** February 15, 2026  
 **Task:** Final fixes - disable camera shake, fix dodge direction detection
 

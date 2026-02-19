@@ -11,6 +11,7 @@ local MovementConfig = {}
 MovementConfig.Movement = {
 	WalkSpeed = 12, -- studs per second
 	SprintSpeed = 20, -- studs per second
+	LungeSpeed = 45, -- studs per second for sprint->attack lunge (configurable)
 	Acceleration = 45, -- studs/s^2 when speeding up
 	Deceleration = 55, -- studs/s^2 when slowing down
 	
@@ -55,7 +56,7 @@ MovementConfig.Camera = {
 	HitReceivedTrauma = 0.5,
 	
 	-- FOV punch effects
-	FOVPunchEnabled = true,
+	FOVPunchEnabled = false, -- disable FOV punch/zoom by default (toggleable)
 	--DodgeFOVIncrease = 8, -- degrees
 	--HeavyAttackFOVDecrease = 5, -- degrees
 	FOVPunchDuration = 0.3, -- seconds
