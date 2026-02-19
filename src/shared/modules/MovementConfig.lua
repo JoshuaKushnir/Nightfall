@@ -93,6 +93,68 @@ MovementConfig.Audio = {
 	},
 }
 
+-- Breath resource system (Issue #95)
+-- Drain rates per action; regen fastest when grounded + stationary.
+-- All values are TBD tuning numbers — change here, re-test in Roblox.
+MovementConfig.Breath = {
+	Pool = 100,                -- maximum Breath units
+	RegenRateStationary = 25,  -- /sec — grounded and not moving
+	RegenRateMoving = 12,      -- /sec — grounded and moving
+	-- No regen while airborne.
+	SprintDrainRate = 10,      -- /sec — sustained sprint cost
+	DashDrainFlat = 15,        -- flat cost per dash / slide use
+	WallRunDrainRate = 20,     -- /sec — fastest drain (wall-run)
+	-- Stumble animation fires on Breath reaching 0 (asset: TODO — ref #95)
+}
+
+-- Momentum multiplier (Issue #95)
+-- Accumulates by chaining movement actions; cap confirmed at 3×.
+-- Ramp curve is linear (ChainGainPerAction added per chained action).
+MovementConfig.Momentum = {
+	Cap = 3.0,                  -- confirmed maximum multiplier
+	ChainGainPerAction = 0.4,   -- multiplier added per chained movement action
+	ChainWindowSec = 1.5,       -- seconds of inactivity before chain breaks
+	DecayRatePerSec = 2.0,      -- multiplier/sec lost after chain breaks
+	-- Effects at >1× (full bonus at Cap):
+	--   Dash/slide distance  ×Cap
+	--   Jump height          +JumpHeightBonus at Cap
+	--   Forward melee bonus  exposed via GetMomentumMultiplier() → CombatService
+	JumpHeightBonus = 0.25,     -- fraction of base JumpHeight added at 3×
+}
+
+-- Wall-run (Issue #95)
+-- 3 steps chosen from spec's "2–3". Each step = one wall attachment per air session.
+MovementConfig.WallRun = {
+	MaxSteps = 3,               -- max wall-run attachments per airborne phase
+	MinEntrySpeed = 14,         -- studs/s required (approx sprint speed)
+	MaxDuration = 1.8,          -- seconds before auto-detach
+	WallDetectDistance = 3.0,   -- studs lateral raycast range
+	JumpOffLateralForce = 22,   -- studs/s perpendicular kick on wall-jump
+	JumpOffUpForce = 30,        -- studs/s upward on wall-jump
+	-- Gravity is countered by zeroing downward AssemblyLinearVelocity Y each frame
+}
+
+-- Vault (Issue #95)
+MovementConfig.Vault = {
+	MaxObstacleHeight = 5.5,       -- studs — tallest obstacle to vault
+	MinObstacleHeight = 1.5,       -- studs — ignore tiny bumps below this
+	ForwardDetectDistance = 2.5,   -- studs ahead to raycast
+	Duration = 0.35,               -- seconds for vault tween
+	MomentumPreservePct = 0.85,    -- fraction of sprint speed kept after vault
+	Cooldown = 1.0,                -- seconds before another vault can trigger
+}
+
+-- Ledge catch (Issue #95)
+-- Auto-triggers when player is falling and near a ledge edge.
+MovementConfig.LedgeCatch = {
+	ForwardDetectDistance = 2.0,   -- studs ahead to probe
+	HeightCheckOffset = 2.5,       -- studs above root for ledge probe
+	HangDuration = 0.6,            -- seconds hanging before auto pull-up
+	PullUpDuration = 0.4,          -- seconds for pull-up tween
+	TriggerFallSpeed = -8,         -- velocity.Y (negative = falling) to enable catch
+	ReachWindow = 2.5,             -- max height above root to detect ledge
+}
+
 -- Particle effects
 MovementConfig.Particles = {
 	-- Sprint dust trail

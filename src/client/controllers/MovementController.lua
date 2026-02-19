@@ -60,6 +60,45 @@ local SLIDE_COOLDOWN = MovementConfig.Dodge.Cooldown or 0.8 -- seconds before ne
 local SLIDE_DECAY_EASING = MovementConfig.Dodge.DecayEasing or Enum.EasingStyle.Exponential
 local SLIDE_DECAY_DIRECTION = MovementConfig.Dodge.DecayDirection or Enum.EasingDirection.Out
 
+-- Breath resource (#95)
+local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breath.Pool) or 100
+local BREATH_REGEN_STATIONARY  = (MovementConfig.Breath and MovementConfig.Breath.RegenRateStationary) or 25
+local BREATH_REGEN_MOVING      = (MovementConfig.Breath and MovementConfig.Breath.RegenRateMoving) or 12
+local BREATH_SPRINT_DRAIN      = (MovementConfig.Breath and MovementConfig.Breath.SprintDrainRate) or 10
+local BREATH_DASH_DRAIN        = (MovementConfig.Breath and MovementConfig.Breath.DashDrainFlat) or 15
+local BREATH_WALL_DRAIN        = (MovementConfig.Breath and MovementConfig.Breath.WallRunDrainRate) or 20
+
+-- Momentum (#95)
+local MOMENTUM_CAP          = (MovementConfig.Momentum and MovementConfig.Momentum.Cap) or 3.0
+local MOMENTUM_GAIN         = (MovementConfig.Momentum and MovementConfig.Momentum.ChainGainPerAction) or 0.4
+local MOMENTUM_CHAIN_WINDOW = (MovementConfig.Momentum and MovementConfig.Momentum.ChainWindowSec) or 1.5
+local MOMENTUM_DECAY        = (MovementConfig.Momentum and MovementConfig.Momentum.DecayRatePerSec) or 2.0
+local MOMENTUM_JUMP_BONUS   = (MovementConfig.Momentum and MovementConfig.Momentum.JumpHeightBonus) or 0.25
+
+-- Wall-run (#95)
+local WALLRUN_MAX_STEPS      = (MovementConfig.WallRun and MovementConfig.WallRun.MaxSteps) or 3
+local WALLRUN_MIN_SPEED      = (MovementConfig.WallRun and MovementConfig.WallRun.MinEntrySpeed) or 14
+local WALLRUN_MAX_DURATION   = (MovementConfig.WallRun and MovementConfig.WallRun.MaxDuration) or 1.8
+local WALLRUN_DETECT_DIST    = (MovementConfig.WallRun and MovementConfig.WallRun.WallDetectDistance) or 3.0
+local WALLRUN_JUMP_LATERAL   = (MovementConfig.WallRun and MovementConfig.WallRun.JumpOffLateralForce) or 22
+local WALLRUN_JUMP_UP        = (MovementConfig.WallRun and MovementConfig.WallRun.JumpOffUpForce) or 30
+
+-- Vault (#95)
+local VAULT_MAX_HEIGHT    = (MovementConfig.Vault and MovementConfig.Vault.MaxObstacleHeight) or 5.5
+local VAULT_MIN_HEIGHT    = (MovementConfig.Vault and MovementConfig.Vault.MinObstacleHeight) or 1.5
+local VAULT_FORWARD_DIST  = (MovementConfig.Vault and MovementConfig.Vault.ForwardDetectDistance) or 2.5
+local VAULT_DURATION      = (MovementConfig.Vault and MovementConfig.Vault.Duration) or 0.35
+local VAULT_MOMENTUM_KEEP = (MovementConfig.Vault and MovementConfig.Vault.MomentumPreservePct) or 0.85
+local VAULT_COOLDOWN      = (MovementConfig.Vault and MovementConfig.Vault.Cooldown) or 1.0
+
+-- Ledge catch (#95)
+local LEDGE_FORWARD_DIST  = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.ForwardDetectDistance) or 2.0
+local LEDGE_HEIGHT_OFFSET = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HeightCheckOffset) or 2.5
+local LEDGE_HANG_DURATION = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HangDuration) or 0.6
+local LEDGE_PULL_DURATION = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.PullUpDuration) or 0.4
+local LEDGE_TRIGGER_SPEED = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.TriggerFallSpeed) or -8
+local LEDGE_REACH_WINDOW  = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.ReachWindow) or 2.5
+
 -- State
 local currentSpeed = 0.0
 local smoothedDirection: Vector3 = Vector3.zero -- Smoothed input direction
@@ -75,6 +114,28 @@ local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
 local isSliding = false
 local lastSlideTime = 0 -- Track slide cooldown
+
+-- Breath state (#95)
+local breathPool: number = BREATH_POOL
+local isBreathExhausted: boolean = false
+
+-- Momentum state (#95)
+local momentumMultiplier: number = 1.0
+local lastChainActionTime: number = 0
+local chainTimerActive: boolean = false
+
+-- Wall-run state (#95)
+local isWallRunning: boolean = false
+local wallRunNormal: Vector3 = Vector3.zero   -- surface normal of current wall
+local wallRunStepsUsed: number = 0            -- resets each time player lands
+local wallRunStartTime: number = 0
+
+-- Vault state (#95)
+local isVaulting: boolean = false
+local lastVaultTime: number = 0
+
+-- Ledge-catch state (#95)
+local isLedgeCatching: boolean = false
 
 -- Speed Modifiers: combat systems can apply multipliers via SetModifier()
 -- Example: SetModifier("Attacking", 0.5) = 50% walk/sprint speed during attack
@@ -93,6 +154,330 @@ local function getEffectiveSpeedMultiplier(): number
 		minMultiplier = math.min(minMultiplier, multiplier)
 	end
 	return minMultiplier
+end
+
+-- ============================================================
+-- BREATH SYSTEM  (#95)
+-- ============================================================
+
+--[[
+	Drain Breath by `amount`. Returns true if pool still has Breath.
+	Returns false and sets exhausted flag when pool hits 0.
+	TODO: fire stumble animation when asset is available (ref #95 spec gap).
+]]
+local function DrainBreath(amount: number): boolean
+	if isBreathExhausted then return false end
+	breathPool = math.max(0, breathPool - amount)
+	if breathPool <= 0 then
+		isBreathExhausted = true
+		print("[MovementController] ⚠ BREATH EXHAUSTED — stumble (TODO: play stumble anim when asset ready)")
+		return false
+	end
+	return true
+end
+
+--[[
+	Called each frame. Handles regen when not actively draining.
+	Sprint drain and wall-run drain are applied at their call sites.
+]]
+local function UpdateBreath(dt: number, onGround: boolean, moving: boolean)
+	if isWallRunning then return end -- wall-run drain handled in UpdateWallRun
+	if isSprinting and onGround then
+		DrainBreath(BREATH_SPRINT_DRAIN * dt)
+		return
+	end
+	-- Regen
+	local regenRate = 0
+	if onGround then
+		regenRate = (not moving) and BREATH_REGEN_STATIONARY or BREATH_REGEN_MOVING
+	end
+	if regenRate > 0 then
+		breathPool = math.min(BREATH_POOL, breathPool + regenRate * dt)
+		if isBreathExhausted and breathPool > 5 then
+			isBreathExhausted = false
+		end
+	end
+end
+
+-- ============================================================
+-- MOMENTUM SYSTEM  (#95)
+-- Ramp: +MOMENTUM_GAIN per chained action, cap 3×, linear ramp.
+-- Decay: -MOMENTUM_DECAY/sec after MOMENTUM_CHAIN_WINDOW of inactivity.
+-- Effects exposed via GetMomentumMultiplier():
+--   • Dash/slide distance scaled by multiplier (applied in _TrySlide)
+--   • Jump height bonus applied in _OnJumpRequest
+--   • Melee bonus read by CombatService / ActionController
+-- ============================================================
+
+local function ChainAction()
+	momentumMultiplier = math.min(MOMENTUM_CAP, momentumMultiplier + MOMENTUM_GAIN)
+	lastChainActionTime = tick()
+	chainTimerActive = true
+	print(string.format("[MovementController] Momentum chained → %.2f×", momentumMultiplier))
+end
+
+local function UpdateMomentum(dt: number)
+	if not chainTimerActive then return end
+	if tick() - lastChainActionTime <= MOMENTUM_CHAIN_WINDOW then return end
+	-- Chain broken — decay toward 1.0
+	if momentumMultiplier > 1.0 then
+		momentumMultiplier = math.max(1.0, momentumMultiplier - MOMENTUM_DECAY * dt)
+	else
+		momentumMultiplier = 1.0
+		chainTimerActive = false
+	end
+end
+
+-- ============================================================
+-- WALL-RUN  (#95)
+-- Detected via lateral raycasts while airborne.
+-- MaxSteps = 3 per air session (resets on landing).
+-- Gravity countered by zeroing negative Y velocity each frame.
+-- ============================================================
+
+local function StopWallRun()
+	if not isWallRunning then return end
+	isWallRunning = false
+	wallRunNormal = Vector3.zero
+	print("[MovementController] Wall-run ended")
+end
+
+local function StartWallRun(normal: Vector3)
+	if isWallRunning then return end
+	if wallRunStepsUsed >= WALLRUN_MAX_STEPS then return end
+	isWallRunning = true
+	wallRunNormal = normal
+	wallRunStepsUsed += 1
+	wallRunStartTime = tick()
+	ChainAction()
+	print(string.format("[MovementController] Wall-run started (step %d/%d)", wallRunStepsUsed, WALLRUN_MAX_STEPS))
+end
+
+--[[
+	Called every frame from _Update.
+	Starts a wall-run when airborne, fast enough, and adjacent to a wall.
+	Maintains the active wall-run each frame (anti-gravity, duration check, Breath drain).
+]]
+local function UpdateWallRun(dt: number, onGround: boolean)
+	local rootPart = RootPart
+	local humanoid = Humanoid
+	if not rootPart or not humanoid then return end
+
+	-- Reset step count on landing
+	if onGround then
+		if isWallRunning then
+			StopWallRun()
+		end
+		wallRunStepsUsed = 0
+		return
+	end
+
+	-- Maintain an active wall-run
+	if isWallRunning then
+		-- Drain Breath
+		if not DrainBreath(BREATH_WALL_DRAIN * dt) then
+			StopWallRun()
+			return
+		end
+		-- Timeout
+		if tick() - wallRunStartTime > WALLRUN_MAX_DURATION then
+			StopWallRun()
+			return
+		end
+		-- Counter gravity: clamp Y velocity so player doesn't fall during run
+		local vel = rootPart.AssemblyLinearVelocity
+		if vel.Y < 0 then
+			rootPart.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
+		end
+		return
+	end
+
+	-- Don't start if no steps remaining
+	if wallRunStepsUsed >= WALLRUN_MAX_STEPS then return end
+	-- Don't start if moving too slow
+	local vel = rootPart.AssemblyLinearVelocity
+	local horzSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+	if horzSpeed < WALLRUN_MIN_SPEED then return end
+
+	-- Raycast left and right to find a wall
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { Character :: Model }
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	local rightDir = rootPart.CFrame.RightVector * Vector3.new(1, 0, 1)
+	local leftDir  = -rightDir
+
+	local hitRight = workspace:Raycast(rootPart.Position, rightDir * WALLRUN_DETECT_DIST, params)
+	local hitLeft  = workspace:Raycast(rootPart.Position, leftDir  * WALLRUN_DETECT_DIST, params)
+
+	if hitRight then
+		StartWallRun(hitRight.Normal)
+	elseif hitLeft then
+		StartWallRun(hitLeft.Normal)
+	end
+end
+
+-- ============================================================
+-- VAULT  (#95)
+-- Detects low obstacles during sprint, auto-vaults if clearance exists.
+-- ============================================================
+
+local function TryVault()
+	local humanoid = Humanoid
+	local rootPart = RootPart
+	if not humanoid or not rootPart or not Character then return end
+	if isVaulting or isLedgeCatching or isWallRunning then return end
+	if not isSprinting then return end
+	if humanoid.FloorMaterial == Enum.Material.Air then return end -- not on ground
+	if tick() - lastVaultTime < VAULT_COOLDOWN then return end
+
+	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+	if lookDir.Magnitude < 0.01 then return end
+	lookDir = lookDir.Unit
+
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { Character :: Model }
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	-- Cast forward at waist level to find obstacle face
+	local hitForward = workspace:Raycast(rootPart.Position, lookDir * VAULT_FORWARD_DIST, params)
+	if not hitForward then return end
+
+	-- Estimate obstacle height relative to ground
+	local groundY = rootPart.Position.Y - 2.5 -- approximate ground under character
+	local obstacleRelHeight = hitForward.Position.Y - groundY
+
+	if obstacleRelHeight < VAULT_MIN_HEIGHT or obstacleRelHeight > VAULT_MAX_HEIGHT then return end
+
+	-- Confirm clearance above the obstacle top (player head must fit)
+	local topCheck = hitForward.Position + Vector3.new(0, 0.5, 0) + lookDir * 0.5
+	local clearHit = workspace:Raycast(topCheck, Vector3.new(0, 6, 0), params)
+	if clearHit then return end -- no headroom
+
+	-- Vault!
+	isVaulting = true
+	lastVaultTime = tick()
+	print(string.format("[MovementController] Vault → obstacle %.1f studs", obstacleRelHeight))
+
+	local startCFrame = rootPart.CFrame
+	-- Target: on top of the obstacle, one step forward
+	local targetPos = Vector3.new(
+		hitForward.Position.X + lookDir.X * 1.5,
+		hitForward.Position.Y + 0.6,
+		hitForward.Position.Z + lookDir.Z * 1.5
+	)
+	local targetCFrame = CFrame.new(targetPos, targetPos + lookDir)
+
+	humanoid.PlatformStand = true
+	rootPart.AssemblyLinearVelocity = Vector3.zero
+
+	local vaultStart = tick()
+	local conn: RBXScriptConnection
+	conn = RunService.Heartbeat:Connect(function()
+		local t = math.min(1.0, (tick() - vaultStart) / VAULT_DURATION)
+		local easedT = 1 - math.pow(1 - t, 2) -- ease-out quad
+		if rootPart then
+			rootPart.CFrame = startCFrame:Lerp(targetCFrame, easedT)
+		end
+		if t >= 1.0 then
+			conn:Disconnect()
+			if humanoid then
+				humanoid.PlatformStand = false
+			end
+			-- Preserve forward momentum
+			if rootPart then
+				rootPart.AssemblyLinearVelocity = lookDir * (currentSpeed * VAULT_MOMENTUM_KEEP)
+			end
+			isVaulting = false
+			ChainAction()
+			print("[MovementController] Vault complete")
+		end
+	end)
+end
+
+-- ============================================================
+-- LEDGE CATCH  (#95)
+-- Auto-triggers when falling and near a ledge edge above character.
+-- Brief hang → auto pull-up.
+-- ============================================================
+
+local function TryLedgeCatch()
+	local humanoid = Humanoid
+	local rootPart = RootPart
+	if not humanoid or not rootPart or not Character then return end
+	if isLedgeCatching or isVaulting or isWallRunning then return end
+	if humanoid.FloorMaterial ~= Enum.Material.Air then return end -- on ground, skip
+
+	-- Only trigger when falling at sufficient speed
+	local vel = rootPart.AssemblyLinearVelocity
+	if vel.Y > LEDGE_TRIGGER_SPEED then return end -- not falling fast enough
+
+	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
+	if lookDir.Magnitude < 0.01 then return end
+	lookDir = lookDir.Unit
+
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { Character :: Model }
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	-- Cast downward from a point ahead of the character near head height
+	local probeOrigin = rootPart.Position + lookDir * LEDGE_FORWARD_DIST
+		+ Vector3.new(0, LEDGE_HEIGHT_OFFSET + 0.5, 0)
+	local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -(LEDGE_HEIGHT_OFFSET + 2), 0), params)
+	if not hitDown then return end
+
+	local ledgeY = hitDown.Position.Y
+	local charTopY = rootPart.Position.Y + 1.5 -- approximate top of character
+
+	-- Ledge must be just above the character's reach
+	if ledgeY < charTopY or ledgeY > charTopY + LEDGE_REACH_WINDOW then return end
+
+	-- Catch!
+	isLedgeCatching = true
+	print("[MovementController] Ledge catch triggered")
+
+	-- Snap character to hang position
+	humanoid.PlatformStand = true
+	local catchPos = Vector3.new(
+		hitDown.Position.X - lookDir.X * 0.6,
+		ledgeY - 2.0, -- root hangs below ledge surface
+		hitDown.Position.Z - lookDir.Z * 0.6
+	)
+	rootPart.CFrame = CFrame.new(catchPos, catchPos + lookDir)
+	rootPart.AssemblyLinearVelocity = Vector3.zero
+
+	-- Hang for HangDuration, then pull up
+	task.delay(LEDGE_HANG_DURATION, function()
+		if not isLedgeCatching then return end
+		print("[MovementController] Ledge pull-up")
+
+		local pullTarget = Vector3.new(
+			hitDown.Position.X + lookDir.X * 1.0,
+			ledgeY + 0.5,
+			hitDown.Position.Z + lookDir.Z * 1.0
+		)
+		local pullStart = rootPart and rootPart.Position or pullTarget
+		local startTime = tick()
+		local conn: RBXScriptConnection
+		conn = RunService.Heartbeat:Connect(function()
+			local t = math.min(1.0, (tick() - startTime) / LEDGE_PULL_DURATION)
+			if rootPart then
+				rootPart.CFrame = CFrame.new(
+					pullStart:Lerp(pullTarget, t),
+					pullTarget + lookDir
+				)
+			end
+			if t >= 1.0 then
+				conn:Disconnect()
+				if humanoid then
+					humanoid.PlatformStand = false
+				end
+				isLedgeCatching = false
+				ChainAction()
+				print("[MovementController] Ledge pull-up complete")
+			end
+		end)
+	end)
 end
 
 --[[
@@ -400,6 +785,8 @@ function MovementController._TrySlide()
 	-- Slide initiated
 	isSliding = true
 	lastSlideTime = currentTime
+	DrainBreath(BREATH_DASH_DRAIN) -- flat Breath cost per slide (#95)
+	ChainAction()                  -- count as a momentum chain link (#95)
 	print("[MovementController] ✓ SLIDE INITIATED")
 	
 	-- Create or reuse BodyVelocity for momentum
@@ -472,6 +859,16 @@ function MovementController._Update(dt: number)
 
 	local moveDir = getMoveDirection()
 	local onGround = isOnGround(humanoid)
+	local isMoving = moveDir.Magnitude > 0.1
+
+	-- #95 systems — run first so their output is available below
+	UpdateBreath(dt, onGround, isMoving)
+	UpdateMomentum(dt)
+	UpdateWallRun(dt, onGround)
+	if not isMovementRestricted() then
+		TryVault()
+		TryLedgeCatch()
+	end
 	
 	-- Smooth direction transitions (lerp towards target direction)
 	if moveDir.Magnitude > 0.1 then
@@ -657,6 +1054,34 @@ function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
 
+	-- Wall-jump: jump off current wall if wall-running (#95)
+	if isWallRunning then
+		local rootPart = RootPart
+		if rootPart then
+			-- Kick perpendicular from wall + upward
+			local kickLateral = Vector3.new(wallRunNormal.X, 0, wallRunNormal.Z).Unit
+			rootPart.AssemblyLinearVelocity = Vector3.new(
+				kickLateral.X * WALLRUN_JUMP_LATERAL,
+				WALLRUN_JUMP_UP,
+				kickLateral.Z * WALLRUN_JUMP_LATERAL
+			)
+		end
+		StopWallRun()
+		ChainAction()
+		print("[MovementController] Wall-jump!")
+		return
+	end
+
+	-- Apply momentum jump bonus (#95): scale JumpHeight at peak multiplier
+	if momentumMultiplier > 1.0 then
+		local bonus = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0) * MOMENTUM_JUMP_BONUS
+		local base = humanoid.JumpHeight
+		humanoid.JumpHeight = base * (1 + bonus)
+		task.defer(function()
+			if humanoid then humanoid.JumpHeight = base end
+		end)
+	end
+
 	local onGround = isOnGround(humanoid)
 	if onGround then
 		-- Normal jump
@@ -705,5 +1130,59 @@ end
 function MovementController:GetLastMoveDirection(): Vector3
 	return lastMoveDirection
 end
+
+-- ============================================================
+-- PUBLIC GETTERS — #95 systems (for HUD, CombatService, etc.)
+-- ============================================================
+
+--[[
+	Current Breath value (0 – BREATH_POOL).
+	PlayerHUDController reads this to render the Breath bar.
+]]
+function MovementController.GetBreath(): number
+	return breathPool
+end
+
+function MovementController.GetBreathMax(): number
+	return BREATH_POOL
+end
+
+function MovementController.IsBreathExhausted(): boolean
+	return isBreathExhausted
+end
+
+--[[
+	Current momentum multiplier (1.0 – 3.0).
+	CombatService / ActionController reads this to apply the forward-melee bonus.
+	HUD may display this as a chain indicator.
+]]
+function MovementController.GetMomentumMultiplier(): number
+	return momentumMultiplier
+end
+
+function MovementController.IsWallRunning(): boolean
+	return isWallRunning
+end
+
+function MovementController.IsVaulting(): boolean
+	return isVaulting
+end
+
+function MovementController.IsLedgeCatching(): boolean
+	return isLedgeCatching
+end
+
+-- ============================================================
+-- ASPECT MOVEMENT MODIFIERS  (#95)
+-- Blocked by #78 (Aspect system). Stubs only — do not implement until #78 lands.
+-- Each stub accepts the player's resolved Aspect string from AbilityRegistry and
+-- gates the behaviour behind a feature flag that #78 will populate.
+-- ============================================================
+-- TODO(#78): Ash   — dash leaves false afterimage trails
+-- TODO(#78): Tide  — slides further; momentum preserved on wet terrain surfaces
+-- TODO(#78): Gale  — one mid-air directional redirect per jump
+-- TODO(#78): Ember — faster sprint acceleration ramp (reduce ACCELERATION to ~30, SPRINT_SPEED +2)
+-- TODO(#78): Void  — brief phase through geometry corners on cooldown (WALLRUN_DETECT_DIST × 2)
+-- TODO(#78): Marrow— Poise regenerates faster during movement (expose tick to PostureService)
 
 return MovementController
