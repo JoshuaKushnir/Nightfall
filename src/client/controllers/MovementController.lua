@@ -1029,6 +1029,16 @@ function MovementController._Update(dt: number)
 				currentAnimationTrack.Looped = true
 				currentAnimationTrack:Play()
 				print("[MovementController] ✓ Idle animation playing")
+				-- Safety: stop any other playing tracks that might cause perpetual walk/run visuals
+				local animator = (Humanoid and Humanoid:FindFirstChildOfClass("Animator"))
+				if animator then
+					for _, t in ipairs(animator:GetPlayingAnimationTracks()) do
+						if t ~= currentAnimationTrack then
+							-- stop rogue tracks (defensive fix for stuck animations)
+							t:Stop()
+						end
+					end
+				end
 			end
 		elseif newAnimState == "Walk" then
 			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
