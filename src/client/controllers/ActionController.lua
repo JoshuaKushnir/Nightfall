@@ -52,6 +52,8 @@ local COMBO_FINISH_COOLDOWN = 0.6 -- Cooldown after completing 5-hit combo
 
 -- Constants
 local MIN_ACTION_INTERVAL = 0.1
+local BETWEEN_ATTACK_DELAY = 0.08 -- Brief pause between chained attacks (weight/impact feel)
+local PER_SWING_COOLDOWN   = 0.22 -- Minimum gap between any two swings (covers BETWEEN_ATTACK_DELAY + small buffer)
 local MAX_QUEUE_SIZE = 1 -- Limit action queue to prevent spam stacking
 
 --[[
@@ -367,8 +369,8 @@ function ActionController.PlayAction(config: ActionConfig)
 		if ComboCount == maxCombo then
 			config.IsFinisher = true
 			config.KnockbackPower = (weaponCfg and (weaponCfg.KnockbackPower or 1.0) * 50) or 50
-			-- Apply cooldown after finishing combo
-			ActionCooldowns[config.Id] = now + COMBO_FINISH_COOLDOWN
+			-- NOTE: cooldown is set AFTER the finisher action completes, not here.
+			-- Setting it here would block the action before it even plays.
 		else
 			config.IsFinisher = false
 		end
@@ -771,10 +773,24 @@ function ActionController._UpdateAction(deltaTime: number)
 			if action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
 				MovementController.SetModifier("Attacking", 1.0)
 			end
+			-- Block fresh spam only during the brief transition gap (not the full per-swing cooldown,
+			-- which would prevent the next queued attack from being re-queued and skip combo hits)
+			if action.Config.Type == "Attack" then
+				ActionCooldowns[action.Config.Id] = tick() + BETWEEN_ATTACK_DELAY + 0.01
+			end
 			CurrentAction = nil
 			local nextConfig = table.remove(ActionQueue, 1)
 			print("[ActionController] ⚡ Early cancel → " .. nextConfig.Name)
-			ActionController._PlayActionLocal(nextConfig)
+			if nextConfig.Type == "Attack" then
+				-- Brief pause for impact weight before chaining next hit
+				task.delay(BETWEEN_ATTACK_DELAY, function()
+					if not CurrentAction then
+						ActionController._PlayActionLocal(nextConfig)
+					end
+				end)
+			else
+				ActionController._PlayActionLocal(nextConfig)
+			end
 			return
 		end
 	end
@@ -791,13 +807,32 @@ function ActionController._UpdateAction(deltaTime: number)
 			print("[ActionController] Removed movement modifier: Attacking")
 		end
 
+		-- Apply cooldown: finisher gets the long pause, every other swing gets the short one
+		if action.Config.Type == "Attack" then
+			if action.Config.IsFinisher then
+				ActionCooldowns[action.Config.Id] = tick() + COMBO_FINISH_COOLDOWN
+				print(`[ActionController] Finisher complete — cooldown set: {COMBO_FINISH_COOLDOWN}s`)
+			else
+				ActionCooldowns[action.Config.Id] = tick() + PER_SWING_COOLDOWN
+			end
+		end
+
 		CurrentAction = nil
 
 		-- Process queued action
 		if #ActionQueue > 0 then
 			local nextAction = table.remove(ActionQueue, 1)
 			print(`[ActionController] Processing queued action: {nextAction.Name}`)
-			ActionController._PlayActionLocal(nextAction)
+			if nextAction.Type == "Attack" then
+				-- Brief pause for impact weight
+				task.delay(BETWEEN_ATTACK_DELAY, function()
+					if not CurrentAction then
+						ActionController._PlayActionLocal(nextAction)
+					end
+				end)
+			else
+				ActionController._PlayActionLocal(nextAction)
+			end
 		end
 	else
 		action:OnFrame(deltaTime)
