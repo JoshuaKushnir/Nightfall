@@ -816,6 +816,20 @@ function MovementController._TrySlide()
 
 	print(string.format("[MovementController] Slide %.0f studs/s (%.1f× momentum)", effectiveSlideSpeed, momentumScale))
 
+	-- Play slide animation (if available) and mark animation state
+	if currentAnimationTrack then
+		currentAnimationTrack:Stop()
+		currentAnimationTrack = nil
+	end
+	local slideTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
+	if slideTrack then
+		slideTrack.Looped = true
+		slideTrack:Play()
+		currentAnimationTrack = slideTrack
+		currentAnimationState = "Sliding"
+		print("[MovementController] ✓ Slide animation playing")
+	end
+
 	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
 	task.spawn(function()
 		local slideStartTime = tick()
@@ -842,6 +856,12 @@ function MovementController._TrySlide()
 		if BodyVelocityInstance then
 			BodyVelocityInstance.MaxForce = Vector3.zero
 			print("[MovementController] Slide momentum fully decayed")
+		end
+		-- Stop slide animation immediately (if playing)
+		if currentAnimationState == "Sliding" and currentAnimationTrack then
+			currentAnimationTrack:Stop()
+			currentAnimationTrack = nil
+			currentAnimationState = nil
 		end
 		isSliding = false
 	end)
@@ -975,6 +995,10 @@ function MovementController._Update(dt: number)
 	if moveDir.Magnitude > 0.5 then
 		newAnimState = wantsSprint and "Running" or "Walk"
 	end
+	-- Preserve slide animation while sliding
+	if isSliding then
+		newAnimState = "Sliding"
+	end
 	
 	if newAnimState ~= currentAnimationState then
 		print("[MovementController] Animation transition: " .. tostring(currentAnimationState) .. " -> " .. tostring(newAnimState))
@@ -1014,21 +1038,14 @@ function MovementController._Update(dt: number)
 				print("[MovementController] ✓ Running animation missing — using Walk fallback")
 			end
 			end
-		end
-		
-		currentAnimationState = newAnimState
-	end
-	
-	-- Camera tilt effect based on movement direction changes
-	if camera and moveDir.Magnitude > 0.5 then
-		local rootPartCFrame = rootPart.CFrame
-		local relativeDir = rootPartCFrame:VectorToObjectSpace(smoothedDirection)
-		-- Tilt camera slightly based on strafe direction
-		local tiltAmount = relativeDir.X * 1.5 -- Degrees of tilt
-		local currentTilt = camera.CFrame:ToEulerAnglesYXZ()
-		-- Apply subtle roll for direction changes
-		local targetRoll = math.rad(tiltAmount)
-		local rollSpeed = 6
+		-- Sliding animation state
+		elseif newAnimState == "Sliding" then
+			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
+			if currentAnimationTrack then
+				currentAnimationTrack.Looped = true
+				currentAnimationTrack:Play()
+				print("[MovementController] ✓ Slide animation playing")
+			end
 		local newRoll = currentTilt + (targetRoll - currentTilt) * math.min(1, dt * rollSpeed) * 0
 		-- Disabled for now, can be enabled by changing * 0 to * 1
 	end
@@ -1075,6 +1092,12 @@ function MovementController._OnJumpRequest()
 		isSliding = false  -- break the slide decay loop
 		if BodyVelocityInstance then
 			BodyVelocityInstance.MaxForce = Vector3.zero
+		end
+		-- Stop slide animation immediately (if playing)
+		if currentAnimationState == "Sliding" and currentAnimationTrack then
+			currentAnimationTrack:Stop()
+			currentAnimationTrack = nil
+			currentAnimationState = nil
 		end
 		if rootPart then
 			local hor = lastMoveDirection.Magnitude > 0.1
