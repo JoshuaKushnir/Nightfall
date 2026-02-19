@@ -1,6 +1,16 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-022
+## Current Session ID: NF-023
+**Date:** February 19, 2026
+**Task:** EOD — grouped commits & cleanup
+
+### Session NF-023 Changes (EOD grouping & commits):
+- Committed grouped changes: client controller (`ActionController.lua`), network types, project mapping, weapon tweak, removed placeholder animations, and added `docs/Game Plan`.
+- Pushed all commits to `feat/spawn-dummies-64`.
+- Short summary: added scheduled hitbox creation and block hold/release to `ActionController`; expanded `NetworkTypes` with `HitConfirmed`/`BlockFeedback`/`ParryFeedback` packets; cleaned placeholder assets and added Game Plan docs.
+- Next actions: add artist animation assets, run playtests for slide/slide-jump and landing sprint-resume, add server validation tests for MovementService.
+
+### Previous Session ID: NF-022
 **Date:** February 18, 2026
 **Task:** Issue #75 — Posture + HP dual health model with Break and Stagger
 
