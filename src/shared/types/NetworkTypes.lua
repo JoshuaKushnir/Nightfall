@@ -67,6 +67,9 @@ export type NetworkEvent =
 	-- Abilities
 	| "UseAbility"
 
+	-- Movement (client requests validated on server)
+	| "RequestSlide"
+
 	-- Admin/Debug
 	| "AdminCommand"
 	| "DebugInfo"
@@ -262,8 +265,14 @@ export type DebugInfoPacket = {
 	Data: {[string]: any},
 }
 
+-- Slide request packet (Start | Leap)
+export type SlideRequestPacket = {
+	Type: "Start" | "Leap",
+	Timestamp: number?,
+}
+
 -- Unified packet type for type safety
-export type NetworkPacket =
+export type NetworkPacket = 
 	StateChangedPacket
 	| StateRequestPacket
 	| RequestStateSyncPacket
@@ -331,6 +340,14 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 1,
 		RequiresValidation = false,
 		Description = "Client requests full state sync",
+	},
+
+	-- Client requests to start a slide or perform a slide-jump; validated server-side
+	RequestSlide = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 5,
+		RequiresValidation = true,
+		Description = "Client requests a slide start or slide-jump (server validates cooldown/state)",
 	},
 	ProfileData = {
 		Direction = "ServerToClient",
