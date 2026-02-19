@@ -61,6 +61,7 @@ local SLIDE_DECAY_EASING = MovementConfig.Dodge.DecayEasing or Enum.EasingStyle.
 local SLIDE_DECAY_DIRECTION = MovementConfig.Dodge.DecayDirection or Enum.EasingDirection.Out
 local SLIDE_LEAP_FORWARD = MovementConfig.Dodge.LeapForwardForce or 35  -- horizontal launch on slide jump
 local SLIDE_LEAP_UP      = MovementConfig.Dodge.LeapUpForce      or 28  -- vertical launch on slide jump
+local LANDING_SPRINT_GRACE = MovementConfig.Dodge.LandingSprintGraceWindow or 0.15 -- seconds to resume sprint after slide-jump landing
 
 -- Breath resource (#95)
 local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breath.Pool) or 100
@@ -115,6 +116,7 @@ local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
 local isSliding = false
+local slideJumped = false -- true when player performed slide->jump and we should handle the landing
 local lastSlideTime = 0 -- Track slide cooldown
 
 -- Breath state (#95)
@@ -1050,10 +1052,47 @@ function MovementController._Update(dt: number)
 		-- Disabled for now, can be enabled by changing * 0 to * 1
 	end
 	
-	-- Landing effect
+	-- Landing effect + slide-jump landing handling
 	if not lastWasOnGround and onGround and humanoid.FloorMaterial ~= Enum.Material.Air then
 		-- Just landed - create visible impact
 		print("[MovementController] LANDING EFFECT!")
+
+		-- If we landed from a slide-jump, either roll into sprint (if movement held)
+		-- or play a landing animation when no movement input is present.
+		if slideJumped then
+			slideJumped = false
+			local moveInputHeld = UserInputService:IsKeyDown(Enum.KeyCode.W)
+				or UserInputService:IsKeyDown(Enum.KeyCode.A)
+				or UserInputService:IsKeyDown(Enum.KeyCode.S)
+				or UserInputService:IsKeyDown(Enum.KeyCode.D)
+				or lastMoveDirection.Magnitude > 0.1
+
+			if moveInputHeld and canSprint() then
+				-- Play a directional roll (fallback to Front Roll)
+				local md = getMoveDirection()
+				local rollFolder = "Front Roll"
+				if md.Magnitude > 0.1 then
+					if math.abs(md.X) > math.abs(md.Z) then
+						rollFolder = (md.X > 0) and "RightRoll" or "LeftRoll"
+					else
+						rollFolder = (md.Z > 0) and "Front Roll" or "BackRoll"
+					end
+				end
+				local rollTrack = AnimationLoader.LoadTrack(Humanoid, rollFolder)
+				if rollTrack then rollTrack:Play() end
+
+				-- Force sprint allowance so the next update resumes sprinting while input held
+				sprintAllowed = true
+				print("[MovementController] Slide-jump landing → rolling into sprint")
+				ChainAction()
+			else
+				-- Normal landing animation (if present)
+				local landTrack = AnimationLoader.LoadTrack(Humanoid, "Landing")
+				if landTrack then landTrack:Play() end
+				print("[MovementController] Slide-jump landing → normal landing")
+			end
+		end
+
 		task.spawn(function()
 			if camera then
 				local originalCFrame = camera.CFrame
@@ -1109,6 +1148,7 @@ function MovementController._OnJumpRequest()
 				hor.Z * SLIDE_LEAP_FORWARD
 			)
 		end
+		slideJumped = true
 		ChainAction()
 		print("[MovementController] Slide leap!")
 		return

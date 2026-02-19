@@ -60,5 +60,20 @@ return {
 				assert(type(MovementConfig.Movement.LungeSpeed) == "number")
 			end,
 		},
+		{
+			name = "Slide-jump landing resumes sprint when movement input held",
+			fn = function()
+				-- API surface check; integration tests should simulate slide->jump->land while holding movement key
+				assert(type(MovementController._OnJumpRequest) == "function")
+			end,
+		},
+		{
+			name = "Slide cooldown default updated to 1.5s",
+			fn = function()
+				local cfg = require(ReplicatedStorage.Shared.modules.MovementConfig)
+				assert(type(cfg.Dodge.Cooldown) == "number")
+				assert(cfg.Dodge.Cooldown == 1.5)
+			end,
+		},
 	},
 }

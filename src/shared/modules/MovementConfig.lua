@@ -32,7 +32,10 @@ MovementConfig.Dodge = {
 	Speed = 50, -- studs per second (initial velocity)
 	Duration = 0.5, -- dodge duration (seconds)
 	SlideDuration = 1.2, -- slide duration (seconds)
-	Cooldown = 0.8, -- seconds
+	Cooldown = 1.5, -- seconds (increased to reduce instant chaining)
+	
+	-- Slide-jump landing: grace window to resume sprint if movement input is held
+	LandingSprintGraceWindow = 0.15, -- seconds
 	
 	-- Velocity decay (for smooth slowdown)
 	DecayEasing = Enum.EasingStyle.Exponential,
