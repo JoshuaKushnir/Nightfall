@@ -111,7 +111,8 @@ local jumpBufferLeft = 0.0
 local lastWasOnGround = false
 local lastMoveDirection: Vector3 = Vector3.zero
 local isSprinting = false
-local sprintAllowed = false -- set when double-tap W, cleared on W release
+local sprintToggled = false -- toggled by double-tap W (ww)
+local sprintResumeUntil = 0   -- transient grace window (slide-jump land → resume sprint)
 local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
@@ -175,9 +176,9 @@ local function DrainBreath(amount: number): boolean
 	breathPool = math.max(0, breathPool - amount)
 	if breathPool <= 0 then
 		isBreathExhausted = true
-		-- Force to walk speed; block sprint while exhausted
+		-- Force to walk speed; clear sprint toggle while exhausted
 		speedModifiers["BreathExhaust"] = 0.5
-		sprintAllowed = false
+		sprintToggled = false
 		print("[MovementController] ⚠ BREATH EXHAUSTED — stumble (TODO: play stumble anim when asset ready)")
 		return false
 	end
@@ -722,15 +723,11 @@ function MovementController:Start()
 		if input.KeyCode == Enum.KeyCode.W then
 			local currentTime = tick()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
-				-- Double-tap detected: prime sprint until W is released
-				sprintAllowed = true
-				print("[MovementController] Sprint primed — hold W to sprint")
+				-- Double-tap detected: toggle sprint state (ww)
+				sprintToggled = not sprintToggled
+				print("[MovementController] Sprint toggled " .. (sprintToggled and "ON" or "OFF"))
 			end
 			lastWKeyPressTime = currentTime
-		elseif input.KeyCode == SPRINT_KEY then
-			-- Hold sprint key to enable sprint while held
-			sprintAllowed = true
-			print("[MovementController] Sprint key pressed — sprint enabled while held")
 		elseif input.KeyCode == SLIDE_KEY then
 			-- Attempt to slide
 			MovementController._TrySlide()
@@ -738,27 +735,10 @@ function MovementController:Start()
 	end)
 
 	-- Clear sprint allowance when all movement keys are released
-	UserInputService.InputEnded:Connect(function(input, gameProcessed)
-		if input.KeyCode == Enum.KeyCode.W
-			or input.KeyCode == Enum.KeyCode.A
-			or input.KeyCode == Enum.KeyCode.S
-			or input.KeyCode == Enum.KeyCode.D
-		then
-			local anyMovementHeld = UserInputService:IsKeyDown(Enum.KeyCode.W)
-				or UserInputService:IsKeyDown(Enum.KeyCode.A)
-				or UserInputService:IsKeyDown(Enum.KeyCode.S)
-				or UserInputService:IsKeyDown(Enum.KeyCode.D)
-			if not anyMovementHeld then
-				sprintAllowed = false
-			end
-		end
-
-		-- Release sprint key
-		if input.KeyCode == SPRINT_KEY then
-			sprintAllowed = false
-			print("[MovementController] Sprint key released — sprint disabled")
-		end
-	end)
+	-- InputEnded handler retained for future use; sprint state is now toggled via double-tap (ww).
+UserInputService.InputEnded:Connect(function(_input, _gameProcessed)
+	-- no-op for sprint (toggle handled by double-tap)
+end)
 
 	print("[MovementController] Started")
 end
@@ -943,7 +923,7 @@ function MovementController._Update(dt: number)
 
 	-- Target speed from input and sprint
 	-- Sprint only when primed (double-tap) AND while holding W
-	local wantsSprint = sprintAllowed and canSprint() and moveDir.Magnitude > 0.5
+	local wantsSprint = (sprintToggled or tick() < sprintResumeUntil) and canSprint() and moveDir.Magnitude > 0.5
 	-- Expose current sprinting state for ActionController
 	isSprinting = wantsSprint
 
@@ -1092,9 +1072,9 @@ function MovementController._Update(dt: number)
 				local rollTrack = AnimationLoader.LoadTrack(Humanoid, rollFolder)
 				if rollTrack then rollTrack:Play() end
 
-				-- Force sprint allowance so the next update resumes sprinting while input held
-				sprintAllowed = true
-				print("[MovementController] Slide-jump landing → rolling into sprint")
+				-- Give a short resume-sprint grace window (transient)
+				sprintResumeUntil = tick() + LANDING_SPRINT_GRACE
+				print("[MovementController] Slide-jump landing → rolling into sprint (grace window)")
 				ChainAction()
 			else
 				-- Normal landing animation (if present)

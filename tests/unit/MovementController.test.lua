@@ -31,12 +31,12 @@ return {
 			end,
 		},
 		{
-			name = "Double-tap primes sprint; sprint only while holding W",
+			name = "Double-tap toggles sprint on/off (ww)",
 			fn = function()
 				-- Verify API exists
 				assert(type(MovementController._isSprinting) == "function")
-				-- Integration test should simulate: double-tap W -> press & hold W -> MovementController._isSprinting() == true
-				-- then release W -> MovementController._isSprinting() == false
+				-- Integration test should simulate: double-tap W -> MovementController._isSprinting() == true
+				-- then double-tap W again -> MovementController._isSprinting() == false
 			end,
 		},
 		{
