@@ -40,6 +40,13 @@ return {
 			end,
 		},
 		{
+			name = "Sprint key present in MovementConfig",
+			fn = function()
+				local cfg = require(ReplicatedStorage.Shared.modules.MovementConfig)
+				assert(cfg.Movement and cfg.Movement.SprintKey, "SprintKey missing in MovementConfig")
+			end,
+		},
+		{
 			name = "Slide creates LinearVelocity and decays",
 			fn = function()
 				assert(type(MovementController._TrySlide) == "function")

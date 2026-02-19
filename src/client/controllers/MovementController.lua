@@ -53,6 +53,7 @@ local JUMP_BUFFER_TIME = MovementConfig.Movement.JumpBufferTime or 0.15
 
 -- Slide mechanics
 local SPRINT_DOUBLE_TAP_WINDOW = 0.3 -- seconds to detect double-tap
+local SPRINT_KEY = MovementConfig.Movement.SprintKey or Enum.KeyCode.LeftShift
 local SLIDE_KEY = Enum.KeyCode.C
 local SLIDE_SPEED = MovementConfig.Dodge.Speed or 50 -- studs/s initial momentum
 local SLIDE_DURATION = MovementConfig.Dodge.SlideDuration or 1.2 -- seconds before decay
@@ -726,6 +727,10 @@ function MovementController:Start()
 				print("[MovementController] Sprint primed — hold W to sprint")
 			end
 			lastWKeyPressTime = currentTime
+		elseif input.KeyCode == SPRINT_KEY then
+			-- Hold sprint key to enable sprint while held
+			sprintAllowed = true
+			print("[MovementController] Sprint key pressed — sprint enabled while held")
 		elseif input.KeyCode == SLIDE_KEY then
 			-- Attempt to slide
 			MovementController._TrySlide()
@@ -746,6 +751,12 @@ function MovementController:Start()
 			if not anyMovementHeld then
 				sprintAllowed = false
 			end
+		end
+
+		-- Release sprint key
+		if input.KeyCode == SPRINT_KEY then
+			sprintAllowed = false
+			print("[MovementController] Sprint key released — sprint disabled")
 		end
 	end)
 
