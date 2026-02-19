@@ -1,2 +1,0 @@
-Placeholder folder for the Landing animation.
-Add an Animation or KeyframeSequence here (preferred: Humanoid/AnimSaves structure) in Studio.
