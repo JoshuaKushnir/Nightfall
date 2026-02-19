@@ -42,6 +42,7 @@ local Character: Model? = nil
 local Humanoid: Humanoid? = nil
 local RootPart: BasePart? = nil
 local BodyVelocityInstance: BodyVelocity? = nil
+local NetworkController: any = nil -- injected dependency (used to send slide requests to server)
 
 -- Movement config (from MovementConfig or fallback)
 local WALK_SPEED = MovementConfig.Movement.WalkSpeed or 12
@@ -53,7 +54,6 @@ local JUMP_BUFFER_TIME = MovementConfig.Movement.JumpBufferTime or 0.15
 
 -- Slide mechanics
 local SPRINT_DOUBLE_TAP_WINDOW = 0.3 -- seconds to detect double-tap
-local SPRINT_KEY = MovementConfig.Movement.SprintKey or Enum.KeyCode.LeftShift
 local SLIDE_KEY = Enum.KeyCode.C
 local SLIDE_SPEED = MovementConfig.Dodge.Speed or 50 -- studs/s initial momentum
 local SLIDE_DURATION = MovementConfig.Dodge.SlideDuration or 1.2 -- seconds before decay
@@ -62,7 +62,7 @@ local SLIDE_DECAY_EASING = MovementConfig.Dodge.DecayEasing or Enum.EasingStyle.
 local SLIDE_DECAY_DIRECTION = MovementConfig.Dodge.DecayDirection or Enum.EasingDirection.Out
 local SLIDE_LEAP_FORWARD = MovementConfig.Dodge.LeapForwardForce or 35  -- horizontal launch on slide jump
 local SLIDE_LEAP_UP      = MovementConfig.Dodge.LeapUpForce      or 28  -- vertical launch on slide jump
-local LANDING_SPRINT_GRACE = MovementConfig.Dodge.LandingSprintGraceWindow or 0.15 -- seconds to resume sprint after slide-jump landing
+local LANDING_SPRINT_GRACE = (MovementConfig.Dodge and MovementConfig.Dodge.LandingSprintGraceWindow) or 0.15 -- seconds to resume sprint after slide-jump landing
 
 -- Breath resource (#95)
 local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breath.Pool) or 100
@@ -111,14 +111,13 @@ local jumpBufferLeft = 0.0
 local lastWasOnGround = false
 local lastMoveDirection: Vector3 = Vector3.zero
 local isSprinting = false
-local sprintToggled = false -- toggled by double-tap W (ww)
-local sprintResumeUntil = 0   -- transient grace window (slide-jump land → resume sprint)
+local sprintAllowed = false -- set when double-tap W, cleared on W release
 local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
 local isSliding = false
-local slideJumped = false -- true when player performed slide->jump and we should handle the landing
+local slideJumped = false -- set when player performed slide->jump, handled on landing
 local lastSlideTime = 0 -- Track slide cooldown
 
 -- Breath state (#95)
@@ -176,9 +175,9 @@ local function DrainBreath(amount: number): boolean
 	breathPool = math.max(0, breathPool - amount)
 	if breathPool <= 0 then
 		isBreathExhausted = true
-		-- Force to walk speed; clear sprint toggle while exhausted
+		-- Force to walk speed; block sprint while exhausted
 		speedModifiers["BreathExhaust"] = 0.5
-		sprintToggled = false
+		sprintAllowed = false
 		print("[MovementController] ⚠ BREATH EXHAUSTED — stumble (TODO: play stumble anim when asset ready)")
 		return false
 	end
@@ -681,6 +680,7 @@ function MovementController:Init(dependencies: {[string]: any}?)
 		warn("[MovementController] HumanoidRootPart not found")
 	end
 	MovementController._stateSyncRef = (dependencies and dependencies.StateSyncController) or nil
+	NetworkController = (dependencies and dependencies.NetworkController) or nil
 	print("[MovementController] Character ready")
 end
 
@@ -723,9 +723,9 @@ function MovementController:Start()
 		if input.KeyCode == Enum.KeyCode.W then
 			local currentTime = tick()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
-				-- Double-tap detected: toggle sprint state (ww)
-				sprintToggled = not sprintToggled
-				print("[MovementController] Sprint toggled " .. (sprintToggled and "ON" or "OFF"))
+				-- Double-tap detected: prime sprint until W is released
+				sprintAllowed = true
+				print("[MovementController] Sprint primed — hold W to sprint")
 			end
 			lastWKeyPressTime = currentTime
 		elseif input.KeyCode == SLIDE_KEY then
@@ -735,10 +735,21 @@ function MovementController:Start()
 	end)
 
 	-- Clear sprint allowance when all movement keys are released
-	-- InputEnded handler retained for future use; sprint state is now toggled via double-tap (ww).
-UserInputService.InputEnded:Connect(function(_input, _gameProcessed)
-	-- no-op for sprint (toggle handled by double-tap)
-end)
+	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.KeyCode == Enum.KeyCode.W
+			or input.KeyCode == Enum.KeyCode.A
+			or input.KeyCode == Enum.KeyCode.S
+			or input.KeyCode == Enum.KeyCode.D
+		then
+			local anyMovementHeld = UserInputService:IsKeyDown(Enum.KeyCode.W)
+				or UserInputService:IsKeyDown(Enum.KeyCode.A)
+				or UserInputService:IsKeyDown(Enum.KeyCode.S)
+				or UserInputService:IsKeyDown(Enum.KeyCode.D)
+			if not anyMovementHeld then
+				sprintAllowed = false
+			end
+		end
+	end)
 
 	print("[MovementController] Started")
 end
@@ -785,9 +796,17 @@ function MovementController._TrySlide()
 	-- Slide initiated
 	isSliding = true
 	lastSlideTime = currentTime
+	-- Clear any queued/buffered jump so a previous jump input doesn't trigger
+	-- a normal jump during the slide (we only allow slide‑leap while sliding).
+	jumpBufferLeft = 0
 	DrainBreath(BREATH_DASH_DRAIN) -- flat Breath cost per slide (#95)
 	ChainAction()                  -- count as a momentum chain link (#95)
 	print("[MovementController] ✓ SLIDE INITIATED")
+
+	-- Optimistic server validation: inform server of slide start (server may reject later)
+	if NetworkController and NetworkController.SendToServer then
+		NetworkController.SendToServer("RequestSlide", { Type = "Start", Timestamp = tick() })
+	end
 	
 	-- Create or reuse BodyVelocity for momentum
 	if not BodyVelocityInstance then
@@ -808,20 +827,6 @@ function MovementController._TrySlide()
 	BodyVelocityInstance.P = 1500 -- Slightly softer P for sliding
 
 	print(string.format("[MovementController] Slide %.0f studs/s (%.1f× momentum)", effectiveSlideSpeed, momentumScale))
-
-	-- Play slide animation (if available) and mark animation state
-	if currentAnimationTrack then
-		currentAnimationTrack:Stop()
-		currentAnimationTrack = nil
-	end
-	local slideTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
-	if slideTrack then
-		slideTrack.Looped = true
-		slideTrack:Play()
-		currentAnimationTrack = slideTrack
-		currentAnimationState = "Sliding"
-		print("[MovementController] ✓ Slide animation playing")
-	end
 
 	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
 	task.spawn(function()
@@ -849,12 +854,6 @@ function MovementController._TrySlide()
 		if BodyVelocityInstance then
 			BodyVelocityInstance.MaxForce = Vector3.zero
 			print("[MovementController] Slide momentum fully decayed")
-		end
-		-- Stop slide animation immediately (if playing)
-		if currentAnimationState == "Sliding" and currentAnimationTrack then
-			currentAnimationTrack:Stop()
-			currentAnimationTrack = nil
-			currentAnimationState = nil
 		end
 		isSliding = false
 	end)
@@ -912,8 +911,11 @@ function MovementController._Update(dt: number)
 	lastWasOnGround = onGround
 
 	-- Jump buffer: count down when on ground and consume
+	-- NOTE: Do NOT consume buffered jumps while sliding — jump should be disabled
+	-- during an active slide (only slide->jump allowed). Any buffered jump is
+	-- cleared on slide start to avoid accidental normal jumps.
 	if onGround then
-		if jumpBufferLeft > 0 then
+		if jumpBufferLeft > 0 and not isSliding then
 			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 			jumpBufferLeft = 0
 		end
@@ -923,7 +925,7 @@ function MovementController._Update(dt: number)
 
 	-- Target speed from input and sprint
 	-- Sprint only when primed (double-tap) AND while holding W
-	local wantsSprint = (sprintToggled or tick() < sprintResumeUntil) and canSprint() and moveDir.Magnitude > 0.5
+	local wantsSprint = sprintAllowed and canSprint() and moveDir.Magnitude > 0.5
 	-- Expose current sprinting state for ActionController
 	isSprinting = wantsSprint
 
@@ -988,10 +990,6 @@ function MovementController._Update(dt: number)
 	if moveDir.Magnitude > 0.5 then
 		newAnimState = wantsSprint and "Running" or "Walk"
 	end
-	-- Preserve slide animation while sliding
-	if isSliding then
-		newAnimState = "Sliding"
-	end
 	
 	if newAnimState ~= currentAnimationState then
 		print("[MovementController] Animation transition: " .. tostring(currentAnimationState) .. " -> " .. tostring(newAnimState))
@@ -1031,59 +1029,29 @@ function MovementController._Update(dt: number)
 				print("[MovementController] ✓ Running animation missing — using Walk fallback")
 			end
 			end
-		-- Sliding animation state
-		elseif newAnimState == "Sliding" then
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
-			if currentAnimationTrack then
-				currentAnimationTrack.Looped = true
-				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Slide animation playing")
-			end
+		end
+		
+		currentAnimationState = newAnimState
+	end
+	
+	-- Camera tilt effect based on movement direction changes
+	if camera and moveDir.Magnitude > 0.5 then
+		local rootPartCFrame = rootPart.CFrame
+		local relativeDir = rootPartCFrame:VectorToObjectSpace(smoothedDirection)
+		-- Tilt camera slightly based on strafe direction
+		local tiltAmount = relativeDir.X * 1.5 -- Degrees of tilt
+		local currentTilt = camera.CFrame:ToEulerAnglesYXZ()
+		-- Apply subtle roll for direction changes
+		local targetRoll = math.rad(tiltAmount)
+		local rollSpeed = 6
 		local newRoll = currentTilt + (targetRoll - currentTilt) * math.min(1, dt * rollSpeed) * 0
 		-- Disabled for now, can be enabled by changing * 0 to * 1
 	end
 	
-	-- Landing effect + slide-jump landing handling
+	-- Landing effect
 	if not lastWasOnGround and onGround and humanoid.FloorMaterial ~= Enum.Material.Air then
 		-- Just landed - create visible impact
 		print("[MovementController] LANDING EFFECT!")
-
-		-- If we landed from a slide-jump, either roll into sprint (if movement held)
-		-- or play a landing animation when no movement input is present.
-		if slideJumped then
-			slideJumped = false
-			local moveInputHeld = UserInputService:IsKeyDown(Enum.KeyCode.W)
-				or UserInputService:IsKeyDown(Enum.KeyCode.A)
-				or UserInputService:IsKeyDown(Enum.KeyCode.S)
-				or UserInputService:IsKeyDown(Enum.KeyCode.D)
-				or lastMoveDirection.Magnitude > 0.1
-
-			if moveInputHeld and canSprint() then
-				-- Play a directional roll (fallback to Front Roll)
-				local md = getMoveDirection()
-				local rollFolder = "Front Roll"
-				if md.Magnitude > 0.1 then
-					if math.abs(md.X) > math.abs(md.Z) then
-						rollFolder = (md.X > 0) and "RightRoll" or "LeftRoll"
-					else
-						rollFolder = (md.Z > 0) and "Front Roll" or "BackRoll"
-					end
-				end
-				local rollTrack = AnimationLoader.LoadTrack(Humanoid, rollFolder)
-				if rollTrack then rollTrack:Play() end
-
-				-- Give a short resume-sprint grace window (transient)
-				sprintResumeUntil = tick() + LANDING_SPRINT_GRACE
-				print("[MovementController] Slide-jump landing → rolling into sprint (grace window)")
-				ChainAction()
-			else
-				-- Normal landing animation (if present)
-				local landTrack = AnimationLoader.LoadTrack(Humanoid, "Landing")
-				if landTrack then landTrack:Play() end
-				print("[MovementController] Slide-jump landing → normal landing")
-			end
-		end
-
 		task.spawn(function()
 			if camera then
 				local originalCFrame = camera.CFrame
@@ -1123,12 +1091,27 @@ function MovementController._OnJumpRequest()
 		if BodyVelocityInstance then
 			BodyVelocityInstance.MaxForce = Vector3.zero
 		end
-		-- Stop slide animation immediately (if playing)
-		if currentAnimationState == "Sliding" and currentAnimationTrack then
-			currentAnimationTrack:Stop()
-			currentAnimationTrack = nil
-			currentAnimationState = nil
+
+		-- Play SlideJump animation if available (add 'SlideJump' under ReplicatedStorage.animations)
+		local slideJumpTrack = AnimationLoader.LoadTrack(Humanoid, "SlideJump")
+		if slideJumpTrack then
+			slideJumpTrack:Play()
+			currentAnimationTrack = slideJumpTrack
+			currentAnimationState = "Jumping"
+			print("[MovementController] ✓ SlideJump animation playing")
+		else
+			-- Fallback: use Running/Walk/Idle so there's always visual feedback while artists add the proper SlideJump asset
+			local fallback = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk") or AnimationLoader.LoadTrack(Humanoid, "Idle")
+			if fallback then
+				fallback:Play()
+				currentAnimationTrack = fallback
+				currentAnimationState = "Jumping"
+				print("[MovementController] ⚠ SlideJump missing — using fallback animation (add 'SlideJump' under ReplicatedStorage.animations)")
+			else
+				print("[MovementController] ⚠ SlideJump missing and no fallback available")
+			end
 		end
+
 		if rootPart then
 			local hor = lastMoveDirection.Magnitude > 0.1
 				and lastMoveDirection.Unit
@@ -1139,9 +1122,15 @@ function MovementController._OnJumpRequest()
 				hor.Z * SLIDE_LEAP_FORWARD
 			)
 		end
-		slideJumped = true
 		ChainAction()
+		slideJumped = true
 		print("[MovementController] Slide leap!")
+
+		-- Optimistic server validation (server may reject)
+		if NetworkController and NetworkController.SendToServer then
+			NetworkController.SendToServer("RequestSlide", { Type = "Leap", Timestamp = tick() })
+		end
+
 		return
 	end
 

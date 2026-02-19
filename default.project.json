@@ -9,6 +9,9 @@
       "Shared": {
         "$path": "src/shared"
       },
+      "animations": {
+        "$path": "src/replicated/animations"
+      },
       "ProfileService": {
         "$path": "Packages/ProfileService.lua"
       },
