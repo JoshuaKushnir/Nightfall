@@ -30,7 +30,7 @@ MovementConfig.Movement = {
 -- Dodge/roll mechanics
 MovementConfig.Dodge = {
 	Speed = 50, -- studs per second (initial velocity)
-	Duration = 0.5, -- seconds
+	Duration = 1.2, -- seconds (extended for longer slides)
 	Cooldown = 0.8, -- seconds
 	
 	-- Velocity decay (for smooth slowdown)
@@ -39,6 +39,10 @@ MovementConfig.Dodge = {
 	
 	-- Force parameters (no longer using BodyVelocity, kept for reference)
 	MaxForce = 25000, -- legacy value
+
+	-- Slide leap: jump pressed during an active slide
+	LeapForwardForce = 35, -- horizontal launch speed (studs/s)
+	LeapUpForce = 28,      -- vertical launch speed (studs/s)
 }
 
 -- Camera effects configuration

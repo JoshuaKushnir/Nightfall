@@ -59,6 +59,8 @@ local SLIDE_DURATION = MovementConfig.Dodge.Duration or 0.5 -- seconds before de
 local SLIDE_COOLDOWN = MovementConfig.Dodge.Cooldown or 0.8 -- seconds before next slide
 local SLIDE_DECAY_EASING = MovementConfig.Dodge.DecayEasing or Enum.EasingStyle.Exponential
 local SLIDE_DECAY_DIRECTION = MovementConfig.Dodge.DecayDirection or Enum.EasingDirection.Out
+local SLIDE_LEAP_FORWARD = MovementConfig.Dodge.LeapForwardForce or 35  -- horizontal launch on slide jump
+local SLIDE_LEAP_UP      = MovementConfig.Dodge.LeapUpForce      or 28  -- vertical launch on slide jump
 
 -- Breath resource (#95)
 local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breath.Pool) or 100
@@ -1066,6 +1068,28 @@ end
 function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
+
+	-- Slide leap: jump during a slide launches forward + upward
+	if isSliding then
+		local rootPart = RootPart
+		isSliding = false  -- break the slide decay loop
+		if BodyVelocityInstance then
+			BodyVelocityInstance.MaxForce = Vector3.zero
+		end
+		if rootPart then
+			local hor = lastMoveDirection.Magnitude > 0.1
+				and lastMoveDirection.Unit
+				or (rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
+			rootPart.AssemblyLinearVelocity = Vector3.new(
+				hor.X * SLIDE_LEAP_FORWARD,
+				SLIDE_LEAP_UP,
+				hor.Z * SLIDE_LEAP_FORWARD
+			)
+		end
+		ChainAction()
+		print("[MovementController] Slide leap!")
+		return
+	end
 
 	-- Wall-jump: jump off current wall if wall-running (#95)
 	if isWallRunning then
