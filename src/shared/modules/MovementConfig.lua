@@ -30,7 +30,8 @@ MovementConfig.Movement = {
 -- Dodge/roll mechanics
 MovementConfig.Dodge = {
 	Speed = 50, -- studs per second (initial velocity)
-	Duration = 1.2, -- seconds (extended for longer slides)
+	Duration = 0.5, -- dodge duration (seconds)
+	SlideDuration = 1.2, -- slide duration (seconds)
 	Cooldown = 0.8, -- seconds
 	
 	-- Velocity decay (for smooth slowdown)
