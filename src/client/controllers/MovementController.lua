@@ -812,15 +812,6 @@ function MovementController._TrySlide()
 		currentAnimationTrack = slideTrack
 		currentAnimationState = "Sliding"
 		print("[MovementController] ✓ Slide animation playing (add 'Slide' under ReplicatedStorage.animations)")
-	else
-		local fallback = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk")
-		if fallback then
-			fallback:AdjustSpeed(0.95)
-			fallback:Play()
-			currentAnimationTrack = fallback
-			currentAnimationState = "Sliding"
-			print("[MovementController] ⚠ Slide animation missing — using movement fallback")
-		end
 	end
 
 	-- Optimistic server validation: inform server of slide start (server may reject later)
@@ -1015,7 +1006,10 @@ function MovementController._Update(dt: number)
 	
 	-- Handle animation state transitions
 	local newAnimState = "Idle"
-	if moveDir.Magnitude > 0.5 then
+	-- Sliding should take animation priority
+	if isSliding then
+		newAnimState = "Sliding"
+	elseif moveDir.Magnitude > 0.5 then
 		newAnimState = wantsSprint and "Running" or "Walk"
 	end
 	
@@ -1043,19 +1037,38 @@ function MovementController._Update(dt: number)
 				print("[MovementController] ✓ Walk animation playing")
 			end
 		elseif newAnimState == "Running" then
-		-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
-		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running")
-		if currentAnimationTrack then
-			currentAnimationTrack:Play()
-			print("[MovementController] ✓ Running animation playing")
-		else
-			-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
+			-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
+			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running")
 			if currentAnimationTrack then
-				currentAnimationTrack:AdjustSpeed(1.15)
 				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Running animation missing — using Walk fallback")
+				print("[MovementController] ✓ Running animation playing")
+			else
+				-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
+				currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
+				if currentAnimationTrack then
+					currentAnimationTrack:AdjustSpeed(1.15)
+					currentAnimationTrack:Play()
+					print("[MovementController] ✓ Running animation missing — using Walk fallback")
+				end
 			end
+		elseif newAnimState == "Sliding" then
+			-- Slide animation (priority while sliding)
+			local slideTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
+			if slideTrack then
+				slideTrack.Looped = true
+				slideTrack:Play()
+				currentAnimationTrack = slideTrack
+				print("[MovementController] ✓ Slide animation playing")
+			else
+				-- Fallback to Running/Walk so player isn't visually empty
+				local fallback = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk")
+				if fallback then
+					fallback.Looped = true
+					fallback:AdjustSpeed(0.95)
+					fallback:Play()
+					currentAnimationTrack = fallback
+					print("[MovementController] ⚠ Slide animation missing — using movement fallback")
+				end
 			end
 		end
 		
