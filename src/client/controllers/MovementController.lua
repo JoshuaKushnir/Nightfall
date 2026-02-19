@@ -170,6 +170,9 @@ local function DrainBreath(amount: number): boolean
 	breathPool = math.max(0, breathPool - amount)
 	if breathPool <= 0 then
 		isBreathExhausted = true
+		-- Force to walk speed; block sprint while exhausted
+		speedModifiers["BreathExhaust"] = 0.5
+		sprintAllowed = false
 		print("[MovementController] ⚠ BREATH EXHAUSTED — stumble (TODO: play stumble anim when asset ready)")
 		return false
 	end
@@ -195,6 +198,8 @@ local function UpdateBreath(dt: number, onGround: boolean, moving: boolean)
 		breathPool = math.min(BREATH_POOL, breathPool + regenRate * dt)
 		if isBreathExhausted and breathPool > 5 then
 			isBreathExhausted = false
+			speedModifiers["BreathExhaust"] = nil  -- remove the penalty
+			print("[MovementController] Breath recovered")
 		end
 	end
 end
@@ -797,26 +802,28 @@ function MovementController._TrySlide()
 		print("[MovementController] BodyVelocity instance created")
 	end
 	
-	-- Set up slide trajectory
+	-- Set up slide trajectory — distance scales with momentum multiplier (#95)
+	local momentumScale = momentumMultiplier  -- 1.0 at rest, up to 3.0 at cap
+	local effectiveSlideSpeed = SLIDE_SPEED * momentumScale
 	local slideDirection = lastMoveDirection.Unit
-	local slideVelocity = slideDirection * SLIDE_SPEED
-	
+	local slideVelocity = slideDirection * effectiveSlideSpeed
+
 	BodyVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
 	BodyVelocityInstance.Velocity = slideVelocity
 	BodyVelocityInstance.P = 1500 -- Slightly softer P for sliding
-	
-	print("[MovementController] Slide momentum: " .. tostring(math.floor(SLIDE_SPEED)) .. " studs/s in direction " .. tostring(slideDirection))
-	
+
+	print(string.format("[MovementController] Slide %.0f studs/s (%.1f× momentum)", effectiveSlideSpeed, momentumScale))
+
 	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
 	task.spawn(function()
 		local slideStartTime = tick()
 		while isSliding and BodyVelocityInstance do
 			local elapsedTime = tick() - slideStartTime
 			local progress = math.min(1.0, elapsedTime / SLIDE_DURATION)
-			
+
 			-- Exponential.Out easing: 1 - (1 - progress)^3
 			local easeProgress = 1 - math.pow(1 - progress, 3)
-			local currentVelocityMagnitude = SLIDE_SPEED * (1 - easeProgress)
+			local currentVelocityMagnitude = effectiveSlideSpeed * (1 - easeProgress)
 			
 			if BodyVelocityInstance and currentVelocityMagnitude > 0.5 then
 				BodyVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
@@ -907,7 +914,13 @@ function MovementController._Update(dt: number)
 
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
-		targetSpeed = wantsSprint and SPRINT_SPEED or WALK_SPEED
+		if wantsSprint then
+			-- Momentum adds up to +20% sprint speed at cap (#95)
+			local momentumSpeedBonus = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0) * 0.20
+			targetSpeed = SPRINT_SPEED * (1 + momentumSpeedBonus)
+		else
+			targetSpeed = WALK_SPEED
+		end
 		lastMoveDirection = smoothedDirection
 	else
 		lastMoveDirection = Vector3.zero
