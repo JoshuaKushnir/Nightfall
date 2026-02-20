@@ -69,9 +69,22 @@
   8-stud burst now takes ~0.57 s instead of 1 s; feels snappier without being instant.
   File: `src/shared/modules/MovementConfig.lua`
 
-**Pattern learned:** When the character is flush to a wall surface (offset < scan distance), any forward-scanning probe fires from inside geometry. Always pull the character back by at least (probe_scan_distance - wall_offset) before calling downward probes near walls.
+- **Enhancement — grip fallback during climb:**
+  Added a secondary check in `ClimbState.Update` that preserves the existing
+  `_gripNormal` when the primary multi-height probe fails but a simple short ray
+  into the wall still detects a surface. This prevents the character from
+  instantly dropping out of the climb when `_detectGrip` misses due to
+  irregular geometry or being very close to the wall. Movement now continues
+  smoothly up the wall instead of immediately releasing.
+  File: `src/shared/movement/states/ClimbState.lua`
 
----
+- **Improvement — climb only starts from an airborne key press:**
+  Tracked the `Space` input itself with `UserInputService.InputBegan` and
+  ignored the duplicate `JumpRequest` event that fires when the humanoid
+  changes state on a ground jump.  As a result, breathing is no longer drained
+  by a floor‑press and climbs only initiate if the player was already in the
+  air when they hit jump.
+  File: `src/client/controllers/MovementController.lua`
 
 ## Previous Session ID: NF-031
 **Date:** February 20, 2026
@@ -98,6 +111,28 @@
 
 **Activation flow (Space airborne):**
 1. WallRunState.TryStart → 2. LedgeCatch.CanCatch (hang takes priority) → 3. ClimbState.TryStart → 4. WallBoostState.TryStart
+
+---
+
+## Session ID: NF-034 (Refinement)
+**Date:** February 21, 2026
+**Task:** NF-034 Ledge Catch & Pull-Up Reliability
+
+### Changes:
+- **Major Fix — LedgeCatchState.lua:** 
+  - Fixed a state-transition bug where `ClimbState.Exit` would unanchor the player effectively "dropping" them before they could hang. Added `Enter()` to re-assert anchoring.
+  - Robustified `_probeLedge` height range. It now detects ledges even if the player's RootPart has moved past the ledge level (common at the end of a climb burst).
+  - Improved "Auto PullUp" sensitivity: will now trigger if the player is within -1.55 studs of the ledge top, ensuring they don't "drop" into a hang if they are already high enough.
+  - Bypassed the 0.2s input-guard for automated transitions so the pull-up happens immediately.
+  - Increased `_probeLedge` reach slightly to catch ledges above the character's feet.
+- **Hotfix — MovementController.lua:**
+  - Restored `_OnJumpRequest` logic after a major dispatcher corruption.
+  - Re-bound `JumpRequest` to the centralized handler.
+  - Corrected `isOnGround` state check to include `Landed` and `PlatformStanding`.
+
+### Pending Tasks:
+- Verify pull-up height (currently +3.0) against different `HipHeight` characters.
+- Monitor Climb-to-Ledge transitions for any remaining "fall back" issues if the wall ends abruptly without a ledge.
 
 ---
 
@@ -1495,3 +1530,19 @@ Client Layer:
 
 ### Session NF-001: Genesis Init (February 12, 2026)
 **Deliverable:** Repository structure and foundational systems
+## NF-034: Priority & Dispatcher Ledge Catch Fix
+- **Status:** Fixing MovementController dispatcher crash and Ledge Catch priority.
+- **Changes:**
+  - Restored UserInputService.JumpRequest connection in MovementController:Start() (was accidentally deleted).
+  - Fixed variable scope for onGround and camera in MovementController.lua dispatcher.
+  - Relaxed LedgeCatchState probe window to catch ledges at chest/eye level (was too high).
+  - Confirmed priority: LedgeCatch > Vault > Climb (Burst).
+- **Blockers:** None. Testing dispatcher restoration.
+
+## NF-034: Pull-up Physics & Animation Fix
+- **Status:** Resolved pull-up fling and animation lock.
+- **Changes:**
+  - Added velocity reset (AssemblyLinearVelocity = 0) and explicit State change (Enum.HumanoidStateType.Landed) to LedgeCatchState.PullUp.
+  - Robustified isOnGround in MovementController.lua to recognize Landed/Running states as grounded.
+  - Cleaned up ClimbState and VaultState Exit functions to include physics neutralization.
+- **Blockers:** None.

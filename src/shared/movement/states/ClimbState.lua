@@ -77,8 +77,7 @@ function ClimbState.TryStart(ctx: any): boolean
 	if _isClimbing then return false end
 	if not ctx or not ctx.RootPart or not ctx.Humanoid then return false end
 
-	if ctx.OnGround
-		or ctx.Blackboard.IsVaulting
+	if ctx.Blackboard.IsVaulting
 		or ctx.Blackboard.IsWallRunning
 		or ctx.Blackboard.IsSliding
 		or ctx.Blackboard.IsLedgeCatching then
@@ -171,6 +170,22 @@ function ClimbState.Update(dt: number, ctx: any)
 
 	-- (1) Move character upward while wall is present
 	local grip = _detectGrip(ctx)
+	-- fall back to previous grip if detection misses but the wall is still
+	-- clearly there (common when the original multi-height scan briefly
+	-- fails due to uneven geometry or being very close to the surface).
+	if not grip and _gripNormal then
+		local params = RaycastParams.new()
+		params.FilterDescendantsInstances = { ctx.Character }
+		params.FilterType = Enum.RaycastFilterType.Exclude
+		-- cast a short straight ray into the wall using the cached normal
+		local hit = workspace:Raycast(root.Position, -_gripNormal.Unit * 1.0, params)
+		if hit and math.abs(hit.Normal.Y) < 0.3 then
+			grip = { point = hit.Position, normal = hit.Normal }
+			-- debug print could be enabled if needed
+			-- print("[ClimbState] grip fallback applied")
+		end
+	end
+
 	local newY: number
 	if grip then
 		newY = math.min(root.Position.Y + speed * dt, targetY)
@@ -233,7 +248,7 @@ function ClimbState.OnJumpRequest(ctx: any)
 	local capturedNormal = _gripNormal
 	ClimbState.Exit(ctx)
 	if _tryLedgeHandoff(ctx, capturedNormal) then
-		print("[ClimbState] Jump request \u2192 ledge hang (pull-back probe)")
+		print("[ClimbState] Jump request -> ledge hang (pull-back probe)")
 		return
 	end
 	if rootPart and capturedNormal then
@@ -253,8 +268,14 @@ function ClimbState.Exit(ctx: any)
 	_climbTarget   = nil
 	_startGripTime = 0
 	if ctx and ctx.Blackboard then ctx.Blackboard.IsClimbing = false end
-	if ctx and ctx.Humanoid   then ctx.Humanoid.PlatformStand = false end
-	if ctx and ctx.RootPart   then ctx.RootPart.Anchored = false end
+	if ctx and ctx.Humanoid   then 
+		ctx.Humanoid.PlatformStand = false 
+		ctx.Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	end
+	if ctx and ctx.RootPart   then 
+		ctx.RootPart.Anchored = false 
+		ctx.RootPart.AssemblyLinearVelocity = Vector3.zero
+	end
 	print("[ClimbState] Exited climb")
 end
 

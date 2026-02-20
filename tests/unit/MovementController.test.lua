@@ -89,8 +89,14 @@ return {
 				assert(type(LedgeCatch.TryStart) == "function")
 				assert(type(LedgeCatch.CanCatch) == "function")
 			end,
-		},
-		{
+		},		{
+		name = "LedgeCatch.TryStart returns boolean",
+		fn = function()
+			local LedgeCatch = require(ReplicatedStorage.Shared.movement.states.LedgeCatchState)
+			-- invalid context should safely return false
+			assert(LedgeCatch.TryStart({}) == false)
+		end,
+		},		{
 			name = "ClimbState scaffold exists",
 			fn = function()
 				local ClimbState = require(ReplicatedStorage.Shared.movement.states.ClimbState)

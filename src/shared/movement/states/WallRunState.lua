@@ -88,27 +88,74 @@ function WallRunState.Detect(dt: number, ctx: any)
 
 	-- ── Active wall-run maintenance ───────────────────────────────────
 	if _isWallRunning then
+		-- Check max duration
+		if tick() - _startTime > MAX_DURATION then
+			print("[WallRunState] Time limit reached")
+			_stopWallRun(ctx)
+			return
+		end
+
 		-- Drain Breath each frame
 		if not ctx.DrainBreath(BREATH_WALL_DRAIN * dt) then
 			_stopWallRun(ctx)
 			return
 		end
-		
+
 		-- Stick to wall and maintain momentum
 		local vel = rootPart.AssemblyLinearVelocity
 		local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-		
-		-- Calculate direction along the wall
+
+		-- Calculate direction along the wall based on Camera/Input instead of just velocity
+		-- This prevents "getting pulled back" if velocity accidentally flips or hits a snag
 		local wallRight = Vector3.new(0, 1, 0):Cross(_wallNormal).Unit
-		local moveDir = (vel:Dot(wallRight) > 0) and wallRight or -wallRight
+		local inputDir = ctx.MoveDir -- relative to camera
+		
+		-- Determine direction: favor input direction if active, otherwise preserve velocity momentum
+		local moveDir
+		if inputDir.Magnitude > 0.1 then
+			-- Project input onto wall plane
+			local inputProj = inputDir - inputDir:Dot(_wallNormal) * _wallNormal
+			if inputProj:Dot(wallRight) > 0 then
+				moveDir = wallRight
+			else
+				moveDir = -wallRight
+			end
+		else
+			-- Fallback to velocity preservation
+			moveDir = (vel:Dot(wallRight) > 0) and wallRight or -wallRight
+		end
+
+		-- Ensure we have a minimum speed to stay on the wall
+		local runSpeed = math.max(speed, MIN_ENTRY_SPEED * 0.8)
 		
 		-- Apply velocity: move along wall, push slightly into wall to stick, zero Y gravity
-		rootPart.AssemblyLinearVelocity = (moveDir * speed) + (-_wallNormal * 4)
+		rootPart.AssemblyLinearVelocity = (moveDir * runSpeed) + (-_wallNormal * 4)
+
+		-- Check if player is holding input towards the wall or maintaining forward movement
+		-- If user stops pressing keys or presses away from wall, detach
+		local inputDir = ctx.MoveDir -- relative to camera
+		-- simplified check: if input direction is strongly away from wall or speed is too low
+		local lateralInput = inputDir:Dot(_wallNormal)
+		if lateralInput > 0.5 then -- Pressing AWAY from wall
+			print("[WallRunState] Detach due to input away from wall")
+			_stopWallRun(ctx)
+		elseif runSpeed < MIN_ENTRY_SPEED * 0.5 then
+			print("[WallRunState] Too slow to wall run")
+			_stopWallRun(ctx)
+		end
 		
 		return
 	end
 
-	-- Detection (airborne, no active run) is now provided to callers via TryStart/CanStart.
+	-- Passive detection
+	if not _isWallRunning and not ctx.OnGround then
+		-- Only auto-wallrun if moving fast enough to warrant it
+		local vel = rootPart.AssemblyLinearVelocity
+		local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
+		if speed > MIN_ENTRY_SPEED then
+			WallRunState.TryStart(ctx)
+		end
+	end
 end
 
 --[[

@@ -42,7 +42,7 @@ local Blackboard = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
 -- return a no-op stub so the rest of the controller continues to function.
 -- The Blackboard flag for the dead state is never set, so it is simply skipped in
 -- _resolveActiveState and the player falls through to the next-priority state.
-local function safeRequire(moduleInstance: ModuleScript, name: string): any
+local function safeRequire(moduleInstance, name)
 	local ok, result = pcall(require, moduleInstance)
 	if ok then
 		return result
@@ -62,6 +62,7 @@ local function safeRequire(moduleInstance: ModuleScript, name: string): any
 		OnLand         = function() end,
 		-- Query helpers (LedgeCatchState)
 		CanCatch       = function(): (boolean, any) return false, nil end,
+		PullUp         = function() end,
 	}
 end
 
@@ -83,6 +84,7 @@ local Player: Player? = nil
 local Character: Model? = nil
 local Humanoid: Humanoid? = nil
 local RootPart: BasePart? = nil
+local camera: Camera? = nil
 local NetworkController: any = nil -- injected dependency (used to send slide requests to server)
 
 -- Movement config (from MovementConfig or fallback)
@@ -118,6 +120,9 @@ local currentSpeed = 0.0
 local smoothedDirection: Vector3 = Vector3.zero -- Smoothed input direction
 local coyoteTimeLeft = 0.0
 local jumpBufferLeft = 0.0
+-- flag set when the player physically presses Space while airborne; used to
+-- prevent climb from starting on the state-change duplicate JumpRequest.
+local lastJumpPressedInAir = false
 local lastWasOnGround = false
 local lastMoveDirection: Vector3 = Vector3.zero
 local isSprinting = false
@@ -436,7 +441,14 @@ local function canSprint(): boolean
 end
 
 local function isOnGround(h: Humanoid): boolean
-	return h.FloorMaterial ~= Enum.Material.Air
+	local m = h.FloorMaterial
+	if m ~= Enum.Material.Air then return true end
+	
+	-- Fallback for frame-perfect transitions (e.g., just landed or transitioning state)
+	local state = h:GetState()
+	return state == Enum.HumanoidStateType.Running 
+		or state == Enum.HumanoidStateType.Landed
+		or state == Enum.HumanoidStateType.PlatformStanding
 end
 
 -- Get move direction from WASD relative to camera (Roblox has no UserInputService:GetMoveDirection)
@@ -477,6 +489,7 @@ end
 function MovementController:Init(dependencies: {[string]: any}?)
 	print("[MovementController] Initializing...")
 	Player = Players.LocalPlayer
+	camera = workspace.CurrentCamera
 	if not Player then
 		error("[MovementController] LocalPlayer not found")
 	end
@@ -511,7 +524,6 @@ function MovementController:Start()
 	currentSpeed = (Humanoid :: Humanoid).WalkSpeed
 	
 	-- Initialize camera FOV
-	local camera = workspace.CurrentCamera
 	if camera then
 		camera.FieldOfView = DEFAULT_FOV
 		currentFOV = DEFAULT_FOV
@@ -526,11 +538,17 @@ function MovementController:Start()
 	UserInputService.JumpRequest:Connect(function()
 		MovementController._OnJumpRequest()
 	end)
-	
-		-- Double-tap W to 'prime' sprint for the next hold (not a persistent toggle)
+
+	-- track real keypresses so we can distinguish the user event from the
+	-- duplicate JumpRequest fired by the Humanoid state change.
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		if gameProcessed then return end
-		
+		if input.KeyCode == Enum.KeyCode.Space then
+			-- record whether the player was airborne when they pressed jump
+			lastJumpPressedInAir = not isOnGround(Humanoid :: Humanoid)
+		end
+
+		-- Double-tap W to 'prime' sprint for the next hold (not a persistent toggle)
 		if input.KeyCode == Enum.KeyCode.W then
 			local currentTime = tick()
 			if currentTime - lastWKeyPressTime < SPRINT_DOUBLE_TAP_WINDOW then
@@ -902,6 +920,9 @@ function MovementController._OnJumpRequest()
 	if now - _lastJumpRequestTime < 0.1 then return end
 	_lastJumpRequestTime = now
 
+	-- Determine grounded state early for context building
+	local onGround = isOnGround(humanoid)
+
 	-- Slide leap: delegate to SlideState which owns all slide physics
 	if Blackboard.IsSliding then
 		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
@@ -924,49 +945,59 @@ function MovementController._OnJumpRequest()
 
 	-- If player is climbing, jump off or pull up
 	if Blackboard.IsClimbing then
-		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+		local ctx = _buildCtx(lastMoveDirection, onGround, isSprinting)
 		if ClimbState.OnJumpRequest then
 			ClimbState.OnJumpRequest(ctx)
 		end
 		return
 	end
 
-	local onGround = isOnGround(humanoid)
-
-	-- AIRBORNE: explicit jump-press can START a wall-run or initiate a ledge-hang/pull-up
-	if not onGround then
-		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
-
-		-- Try to *start* a wall-run only when player presses Jump near a wall
-		if WallRunState.TryStart and WallRunState.TryStart(ctx) then
-			return
-		end
-
-		-- If already hanging, Jump again → PullUp
-		if Blackboard.IsLedgeCatching and LedgeCatchState.PullUp then
+	-- If player is already hanging on a ledge, jump again to pull up
+	if Blackboard.IsLedgeCatching then
+		local ctx = _buildCtx(lastMoveDirection, onGround, isSprinting)
+		if LedgeCatchState.PullUp then
 			LedgeCatchState.PullUp(ctx)
+		end
+		return
+	end
+
+	-- STATE-CHANGE TRIGGERS:
+	-- Explicit jump-press can START a ledge-hang, climb, wall-run, or wall-boost.
+	if not isMovementRestricted() then
+		local ctx = _buildCtx(lastMoveDirection, onGround, isSprinting)
+
+		-- 1. Ledge Catch (High Priority)
+		if LedgeCatchState.TryStart and LedgeCatchState.TryStart(ctx) then
 			return
 		end
 
-		-- If in position to catch a ledge, pressing Jump should start the hang (checked before
-		-- wall boost so a reachable ledge always takes priority over a wall burst).
-		local canCatch, _ = (LedgeCatchState.CanCatch and LedgeCatchState.CanCatch(ctx))
-		if canCatch then
-			LedgeCatchState.TryStart(ctx)
+		-- 2. Vaulting (Manual)
+		if VaultState.TryStart and VaultState.TryStart(ctx) then
 			return
 		end
 
-		-- Try to start a climb (manual Jump-driven grip). Falls back to ledge/hang if appropriate.
+		-- 3. Climbing (Burst)
 		if ClimbState.TryStart and ClimbState.TryStart(ctx) then
+			lastJumpPressedInAir = false
 			return
 		end
 
-		-- Wall boost: last-resort airborne burst off a nearby wall.
-		-- Checked AFTER ledge/climb so a catchable ledge always takes priority.
-		if WallBoostState.TryStart and WallBoostState.TryStart(ctx) then
-			return
+		-- AIRBORNE ONLY:
+		if not onGround then
+			-- 4. Wall Run
+			if WallRunState.TryStart and WallRunState.TryStart(ctx) then
+				return
+			end
+
+			-- 5. Wall Boost (Last Resort)
+			if WallBoostState.TryStart and WallBoostState.TryStart(ctx) then
+				return
+			end
 		end
 	end
+
+	-- Normal jump logic below
+	lastJumpPressedInAir = false
 
 	-- Apply momentum jump bonus (#95): scale JumpHeight at peak multiplier
 	if momentumMultiplier > 1.0 then
@@ -976,25 +1007,15 @@ function MovementController._OnJumpRequest()
 		task.defer(function()
 			if humanoid then humanoid.JumpHeight = base end
 		end)
-end
-
--- GROUND: pressing Jump should attempt a buffered vault first (makes vault timing forgiving)
-if onGround then
-	local ctx = _buildCtx(lastMoveDirection, true, isSprinting)
-	local vaultProbeDist = (MovementConfig.Vault and MovementConfig.Vault.ForwardDetectDistance or 2.5) + 1.0
-	if VaultState.TryStart and VaultState.TryStart(ctx, vaultProbeDist) then
-		return
 	end
-end
 
--- Default: perform a normal jump if on ground, otherwise queue in buffer
-if onGround then
-	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	jumpBufferLeft = 0
-else
-	jumpBufferLeft = JUMP_BUFFER_TIME
-end
-
+	-- Default: perform a normal jump if on ground, otherwise queue in buffer
+	if onGround then
+		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+		jumpBufferLeft = 0
+	else
+		jumpBufferLeft = JUMP_BUFFER_TIME
+	end
 end
 
 function MovementController:OnCharacterAdded(newCharacter: Model)

@@ -678,7 +678,7 @@ export type Mantra = {
 }
 ```
 
-**Mantra Execution Flow:**
+**Aspect Execution Flow:**
 1. **Validate State:** Check caster is in valid state
 2. **Validate Resources:** Check mana cost and cooldown
 3. **Validate Target:** Check range and line-of-sight

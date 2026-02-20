@@ -39,7 +39,6 @@
 ## 6. Issue Creation Standards
 - **Milestones/Phases:** Always assign the appropriate milestone corresponding to the project phase (Phase 1-5 as defined in the roadmap).
 - **Labels:** Apply relevant labels including:
-  - Phase label: `phase-1`, `phase-2`, `phase-3`, `phase-4`, or `phase-5`
   - Priority label: `critical`, `high`, `medium`, or `low`
   - Type label: `infrastructure`, `data`, `combat`, `magic`, `ui`, `networking`, `testing`, etc.
 - **Parents:** If the issue is a sub-issue or child of another, link it as 'blocked by' the parent issue using GitHub's linked issues.

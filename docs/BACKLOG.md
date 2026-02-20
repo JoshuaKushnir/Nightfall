@@ -9,7 +9,7 @@
 - **[GitHub Issue Board](https://github.com/JoshuaKushnir/Nightfall/issues)** - All active issues and tasks
 - **[Project Milestones](https://github.com/JoshuaKushnir/Nightfall/milestones)** - Phase tracking
 - **[Session Log](session-log.md)** - Development history and technical memory
-- **[Copilot Instructions](../.vscode/copilot-instructions.md)** - Engineering standards
+- **[Copilot Instructions](../.vscode/copilot-instructions.md)** or **[Copilot Instructions](.github/copilot-instructions.md)** - Engineering standards
 
 ---
 

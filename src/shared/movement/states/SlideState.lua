@@ -27,7 +27,7 @@ local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local SLIDE_SPEED     = (MovementConfig.Dodge and MovementConfig.Dodge.Speed)          or 50
-local SLIDE_DURATION  = (MovementConfig.Dodge and MovementConfig.Dodge.SlideDuration)  or 1.2
+local SLIDE_DURATION  = (MovementConfig.Dodge and MovementConfig.Dodge.SlideDuration)  or 0.9
 local SLIDE_COOLDOWN  = (MovementConfig.Dodge and MovementConfig.Dodge.Cooldown)       or 0.8
 local LEAP_FORWARD    = (MovementConfig.Dodge and MovementConfig.Dodge.LeapForwardForce) or 35
 local LEAP_UP         = (MovementConfig.Dodge and MovementConfig.Dodge.LeapUpForce)    or 28
@@ -91,9 +91,10 @@ function SlideState.TryStart(ctx: any)
 	_isSliding = true
 	_lastSlideTime = tick()
 	ctx.Blackboard.IsSliding = true
-
-	-- Flat Breath cost per slide
-	ctx.DrainBreath(BREATH_DASH_COST)
+	
+	-- Play slide animation (MovementController handles the main loop, but we trigger a burst here?)
+	-- Actually, let MovementController handle all state animations to avoid conflicts.
+	
 	-- Count as a momentum chain link
 	ctx.ChainAction()
 
@@ -112,15 +113,6 @@ function SlideState.TryStart(ctx: any)
 	bv.P         = 1500
 	bv.Parent    = rootPart
 	_bodyVelocity = bv
-
-	-- Slide animation (optional — artists add 'Slide' track when available)
-	if ctx.AnimationLoader and ctx.Humanoid then
-		local track = ctx.AnimationLoader.LoadTrack(ctx.Humanoid, "Slide")
-		if track then
-			track.Looped = true
-			track:Play()
-		end
-	end
 
 	-- Fire server validation (optimistic — server may reject)
 	if ctx.NetworkController and ctx.NetworkController.SendToServer then

@@ -153,6 +153,11 @@ function VaultState.Exit(ctx: any)
 		-- Forced exit: release platform stand if held
 		if ctx.Humanoid then
 			ctx.Humanoid.PlatformStand = false
+			ctx.Humanoid:ChangeState(Enum.HumanoidStateType.Running)
+		end
+		if ctx.RootPart then
+			ctx.RootPart.Anchored = false
+			ctx.RootPart.AssemblyLinearVelocity = Vector3.zero
 		end
 		_isVaulting = false
 		ctx.Blackboard.IsVaulting = false
