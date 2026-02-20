@@ -38,15 +38,42 @@ type PlayerState = PlayerData.PlayerState
 local Blackboard = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
 
 -- Movement state modules (Open/Closed mechanic decomposition)
-local IdleState       = require(ReplicatedStorage.Shared.movement.states.IdleState)
-local WalkState       = require(ReplicatedStorage.Shared.movement.states.WalkState)
-local SprintState     = require(ReplicatedStorage.Shared.movement.states.SprintState)
-local JumpState       = require(ReplicatedStorage.Shared.movement.states.JumpState)
-local SlideState      = require(ReplicatedStorage.Shared.movement.states.SlideState)
-local WallRunState    = require(ReplicatedStorage.Shared.movement.states.WallRunState)
-local VaultState      = require(ReplicatedStorage.Shared.movement.states.VaultState)
-local LedgeCatchState = require(ReplicatedStorage.Shared.movement.states.LedgeCatchState)
-local ClimbState     = require(ReplicatedStorage.Shared.movement.states.ClimbState)
+-- safeRequire: if a state module fails to load (syntax / runtime error at require-time),
+-- return a no-op stub so the rest of the controller continues to function.
+-- The Blackboard flag for the dead state is never set, so it is simply skipped in
+-- _resolveActiveState and the player falls through to the next-priority state.
+local function safeRequire(moduleInstance: ModuleScript, name: string): any
+	local ok, result = pcall(require, moduleInstance)
+	if ok then
+		return result
+	end
+	warn(("[MovementController] ⚠ State module '%s' failed to load — stubbed out. Error: %s"):format(name, tostring(result)))
+	-- Minimal stub: satisfies every call-site in MovementController.
+	return {
+		-- Dispatcher hooks
+		Enter          = function() end,
+		Update         = function() end,
+		Exit           = function() end,
+		-- Per-frame passive detect (WallRunState)
+		Detect         = function() end,
+		-- Input-driven triggers
+		TryStart       = function(): boolean return false end,
+		OnJumpRequest  = function() end,
+		OnLand         = function() end,
+		-- Query helpers (LedgeCatchState)
+		CanCatch       = function(): (boolean, any) return false, nil end,
+	}
+end
+
+local IdleState       = safeRequire(ReplicatedStorage.Shared.movement.states.IdleState,       "IdleState")
+local WalkState       = safeRequire(ReplicatedStorage.Shared.movement.states.WalkState,       "WalkState")
+local SprintState     = safeRequire(ReplicatedStorage.Shared.movement.states.SprintState,     "SprintState")
+local JumpState       = safeRequire(ReplicatedStorage.Shared.movement.states.JumpState,       "JumpState")
+local SlideState      = safeRequire(ReplicatedStorage.Shared.movement.states.SlideState,      "SlideState")
+local WallRunState    = safeRequire(ReplicatedStorage.Shared.movement.states.WallRunState,    "WallRunState")
+local VaultState      = safeRequire(ReplicatedStorage.Shared.movement.states.VaultState,      "VaultState")
+local LedgeCatchState = safeRequire(ReplicatedStorage.Shared.movement.states.LedgeCatchState, "LedgeCatchState")
+local ClimbState      = safeRequire(ReplicatedStorage.Shared.movement.states.ClimbState,      "ClimbState")
 
 local MovementController = {}
 

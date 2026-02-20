@@ -2,18 +2,19 @@
 
 ## Current Session ID: NF-028
 **Date:** February 20, 2026
-**Task:** Critical hotfix — ClimbState duplicate declarations killed all movement
+**Task:** Critical hotfix + future-proofing — ClimbState duplicate declarations killed all movement
 
 ### Session NF-028 Changes:
 
-- **Hotfix:** `ClimbState.lua` had `RunService`, `ReplicatedStorage`, and `MovementConfig` declared twice in the same module scope. With `--!strict`, Luau treats this as a compile-time error, causing the `require(ClimbState)` at the top of `MovementController.lua` to throw. Since that require is not wrapped in a pcall, the entire `MovementController` failed to load — breaking all movement (walk, sprint, slide, everything).
-  - Root cause: copy-paste leftover from an earlier draft left a second block of service declarations after `local ClimbState = {}`.
-  - Fix: merged into a single top-level block (`ReplicatedStorage`, `RunService`, `UserInputService`, `MovementConfig`).
-  - File fixed: `src/shared/movement/states/ClimbState.lua`
+- **Hotfix:** `ClimbState.lua` had `RunService`, `ReplicatedStorage`, and `MovementConfig` declared twice in the same module scope. With `--!strict`, this is a compile-time error. Since `MovementController` required it at the top level without pcall, the entire controller failed to load — breaking all movement.
+  - Fix: merged into a single top-level block.
+  - File: `src/shared/movement/states/ClimbState.lua`
 
-**Why:** One file with duplicate locals is sufficient to silence the entire movement system because `MovementController` requires all state modules at the module level (before any pcall protection).
+- **Future-proofing:** Replaced all 9 bare `require()` calls for state modules in `MovementController.lua` with a `safeRequire()` helper. If any state module fails to load (syntax or runtime error), a no-op stub is returned instead of propagating the error. The Blackboard flag for that state is never set, so the player falls through to the next-priority state automatically. The failure is `warn()`-logged so developers see it immediately in the Output window.
+  - No-op stub surface: `Enter`, `Update`, `Exit`, `Detect`, `TryStart` (→ false), `OnJumpRequest`, `OnLand`, `CanCatch` (→ false, nil).
+  - File: `src/client/controllers/MovementController.lua`
 
-**Tech Debt Note:** The top-level `require()` calls in `MovementController.lua` for state modules (lines 40-48) are still unprotected. Consider wrapping them in `pcall` or moving them into the safe-require table so a future bad module doesn't kill all movement again.
+**Why:** Prevent any single state module from silently destroying all movement. Players can now always walk/sprint/jump even if an advanced state (Climb, Vault, etc.) has a broken file.
 
 ---
 
@@ -1291,6 +1292,17 @@ Client Layer:
 ---
 
 ## Session History
+
+### Session NF-003: Movement Mechanics Refinement (February 20, 2026)
+**Deliverable:** Tuning and bugfixes for wall-run, slide, ledge catch, and climb behaviour
+
+- Implemented fault-tolerant `MovementController` with safe state pcall wrappers (#95)
+- Resolved `LedgeCatchState` syntax crash; increased hang offset and enforced Physics state
+- Rewrote `WallRunState` to use input-projected direction; added detachment logic
+- Fixed slide animation stutter and duplicate triggers
+- Added vertical boost to `ClimbState.TryStart` for jump‑reset climbing
+- Updated `ClimbState` to handle ledge transition and timed boost
+- Added new session log entry and prepared Git commit
 
 ### Session NF-002: Backlog Planning (February 12, 2026)
 **Deliverable:** `docs/BACKLOG.md` - Comprehensive development roadmap
