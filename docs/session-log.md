@@ -1,6 +1,127 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-023
+## Current Session ID: NF-026
+**Date:** February 19, 2026
+**Task:** Movement feel fixes (vault/ledge/wallrun) + ClimbState implementation + GitHub Issue #95 update
+
+### Session NF-026 Changes:
+
+**GitHub Issue #95** — added detailed comment documenting ClimbState implementation (config table, state machine integration, Studio test confirmation, future work).
+
+**ClimbState** (`src/shared/movement/states/ClimbState.lua`) — CREATED
+- Jump-activated wall grip: 3 raycasts at Y offsets (+0.6, +1.2, -0.4) forward
+- W/S moves vertically along wall at `ClimbSpeed`
+- Drains Breath at `DrainRate` units/sec; auto-exits on exhaustion or `MaxGripTime`
+- Studio-confirmed working: `[ClimbState] Grip acquired` and drain/exit loop both fire
+- Config at `MovementConfig.Climb`: `GripReach=2.2`, `ClimbSpeed=3.0`, `DrainRate=12`, `MaxGripTime=12`
+- `Blackboard.IsClimbing` added; dispatcher priority: LedgeCatch > Climb > Vault > WallRun
+
+**Bug fixes (from Studio test feedback):**
+
+- **VaultState** (`src/shared/movement/states/VaultState.lua`):
+  - Vaulting is no longer automatic; it now requires pressing Jump (Space) near an obstacle.
+  - `TryStart()` now `return true` after committing vault — previously returned nil, so the `_OnJumpRequest` guard `if VaultState.TryStart(ctx) then return end` never fired → default jump applied simultaneously with vault. Fixed.
+  - Improved vault target calculation: raycasts down to find the top of the obstacle and past it to find the landing spot.
+  - Prevents clipping through thick obstacles by landing on top of them, and lands past thin obstacles.
+
+- **WallRunState** (`src/shared/movement/states/WallRunState.lua`):
+  - Removed the fixed duration timeout; wall running now lasts until Breath is exhausted or the player jumps off.
+  - The number of allowed wall-run chains (`MAX_STEPS`) now scales with the player's momentum multiplier.
+  - Added a slight inward force (`-_wallNormal * 4`) to make the player stick to the wall and prevent drifting off.
+
+- **MovementConfig.LedgeCatch** (`src/shared/modules/MovementConfig.lua`):
+  - `HeightCheckOffset`: 2.5 → 6.0 (probe now starts 6.5 studs above root, well above any character-height ledge)
+  - `ReachWindow`: 3.0 → 5.0 (accepts ledges up to root+6.5, ~one full character height above head)
+  - Ledge catch now detectable when player is below the ledge by up to ~character height
+
+- **LedgeCatchState** (`src/shared/movement/states/LedgeCatchState.lua`):
+  - Lowered the hanging Y position to `ledgeY - 2.8` to prevent the character from sitting too high.
+  - Added a raycast to find the exact wall face at the hanging height, positioning the player exactly 1.1 studs away from the wall to prevent clipping.
+  - `PullUp` now uses the exact `ledgeY` to calculate the landing height, ensuring the player lands perfectly on top of the ledge.
+  - Auto-release timeout: `REACH_WINDOW + HANG_DURATION` (3.6s) → 30s safety-only fallback
+  - Player now hangs indefinitely until Space is pressed (via existing `_OnJumpRequest → PullUp()` path)
+  - Anchored the `RootPart` while hanging to prevent falling and losing breath.
+  - Modified `CanCatch` to allow catching ledges slightly below the player (`charTopY - 2.0`) to support climbing up to a ledge.
+
+- **ClimbState** (`src/shared/movement/states/ClimbState.lua`):
+  - Anchored the `RootPart` while climbing to prevent falling when not moving.
+  - Added `OnJumpRequest` to allow jumping off the wall or pulling up onto a ledge.
+  - Modified `Update` to check if grip is lost; if so, it checks if a ledge is catchable and transitions to `LedgeCatchState.TryStart(ctx)` (hanging) instead of automatically pulling up.
+
+**WallRun, Vault (earlier this session):**
+- Dual-height raycasts in WallRunState; entry speed 14→12; detect range 3.0→3.5
+- Vault probe 2.5→3.5 studs; HipHeight-based landing Y; ground safety raycast
+
+### Tech Debt Logged:
+- `HANG_DURATION` in `LedgeCatchState` is now unused (benign warning)
+- ClimbState: mantle animation + server-side validation still pending (Phase 2)
+- Stumble animation for Breath exhaust still placeholder (`-- TODO: play stumble anim`)
+
+## Current Session ID: NF-025
+**Date:** February 19, 2026
+**Task:** Movement — add fall / fall-damage & anti-cheat ideas to Issue #95
+
+### Session NF-025 Changes (Movement — fall/anti-cheat ideas):
+- Added proposed features & implementation notes to GitHub Issue #95:
+  - Play `Falling` animation when vertical drop > TBD
+  - Keep player elevation/state on `PlayerRemoving` if airborne (prevents fall-damage escape)
+  - Server-side fall-damage calculation + stagger/death thresholds
+  - Server validation for ground claims (lastAirTime / lastGroundTime checks)
+  - Unit/integration tests + telemetry (`fallDamageApplied`, `fallHeight`)
+- Files/areas to touch: `src/shared/modules/MovementBlackboard.lua`, `src/server/services/MovementService.lua`, `src/server/services/StateSyncService.lua`, tests in `tests/unit/`
+- Next: implement server-side checks, add fall damage math, and add unit tests
+
+## Current Session ID: NF-024
+**Date:** February 19, 2026
+**Task:** Movement system decomposition — Blackboard, state modules, input buffer
+
+### Session NF-024 Changes (Movement Architecture):
+
+✅ **MovementBlackboard** (`src/shared/modules/MovementBlackboard.lua`) — new
+- Flat shared table written every Heartbeat by `MovementController`
+- Readable by any client system without requiring `MovementController`
+- Fields: `IsGrounded`, `IsSprinting`, `IsSliding`, `IsWallRunning`, `IsVaulting`, `IsLedgeCatching`, `SlideJumped`, `WallRunNormal`, `CurrentSpeed`, `MoveDir`, `LastMoveDir`, `MomentumMultiplier`, `Breath`, `BreathExhausted`, `ActiveState`
+
+✅ **Sprint behavior** (`src/client/controllers/MovementController.lua`) — reverted to WW-only per user request
+- Sprint is double‑tap `W` prime **and hold** (no persistent toggle).
+- Reverted earlier toggle change and recorded user preference: sprint must be WW-only (do not add toggle behavior).
+- Files updated: `MovementController.lua`, unit test updated to reflect prime+hold behaviour.
+
+✅ **StateContext** (`src/shared/movement/StateContext.lua`) — new
+- Exported type used by all state module method signatures
+- Built per-frame by `_buildCtx()` in `MovementController`; never stored beyond call scope
+
+✅ **State modules** — 8 new files under `src/shared/movement/states/`:
+- `IdleState`, `WalkState`, `SprintState`, `JumpState` — extensibility-point shells with Enter/Update/Exit
+- `SlideState` — owns all slide vars (`_isSliding`, `_lastSlideTime`, `_bodyVelocity`), decay loop, `TryStart()`, `OnJumpRequest()`, `Exit()`
+- `WallRunState` — owns `_isWallRunning`, `_wallNormal`, `_stepsUsed`, `Detect(dt, ctx)`, `OnJumpRequest()`, `OnLand()`
+- `VaultState` — owns `_isVaulting`, `TryStart(ctx)` (raycast probe + Heartbeat lerp)
+- `LedgeCatchState` — owns `_isLedgeCatching`, `TryStart(ctx)` (probe + hang + pull-up)
+
+✅ **MovementController dispatcher** — wired into `_Update`:
+- `_stateModules` table maps state name → module
+- `_resolveActiveState()` priority: LedgeCatch > Vault > WallRun > Slide > Jump > Sprint > Walk > Idle
+- `_buildCtx()` helper assembles ctx from current module-level state
+- Removed ~270 lines of monolith code migrated to state modules (WallRun, Vault, LedgeCatch, Slide bodies)
+- Blackboard flushed each frame for speed, movement dir, breath, momentum
+
+✅ **ActionController stun input buffer** — `STUN_BUFFER_WINDOW = 0.5s`
+- `StateSyncController` injected via existing dependencies table (no runtime changes)
+- `StunBuffer` slot stores last Attack/Dodge attempted while Stunned
+- `StateChangedSignal` wired in `Start()`: drains buffer with `task.defer` on Stun exit
+- Prevents the "input lost during stagger" feel that made combat unresponsive
+
+**Architecture notes:**
+- State modules write to `Blackboard.*`; the monolith reads from there (one-way data flow)
+- All 8 state modules are Open/Closed: new mechanics (WallRide v2, Gale redirect) drop a file into `states/` without touching `MovementController.lua`
+- `BodyVelocityInstance` removed from monolith; `SlideState` owns its own `BodyVelocity`
+- `UpdateWallRun`, `TryVault`, `TryLedgeCatch`, full `_TrySlide` body removed from monolith
+
+**Next actions:** Run in-game test (spawn player → slide → slide-jump → wall-run); confirm Blackboard values show correctly in `PlayerHUDController`; add `MovementBlackboard` read to `PostureService` for posture-while-moving buff.
+
+---
+
+## Previous Session ID: NF-023
 **Date:** February 19, 2026
 **Task:** EOD — grouped commits & cleanup
 

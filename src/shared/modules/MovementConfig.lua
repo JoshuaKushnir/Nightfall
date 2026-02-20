@@ -120,6 +120,7 @@ MovementConfig.Breath = {
 -- Ramp curve is linear (ChainGainPerAction added per chained action).
 MovementConfig.Momentum = {
 	Cap = 3.0,                  -- confirmed maximum multiplier
+	CombatCap = 1.5,                -- separate cap for combat bonus (auto goes down when put in combat)
 	ChainGainPerAction = 0.4,   -- multiplier added per chained movement action
 	ChainWindowSec = 1.5,       -- seconds of inactivity before chain breaks
 	DecayRatePerSec = 2.0,      -- multiplier/sec lost after chain breaks
@@ -134,9 +135,9 @@ MovementConfig.Momentum = {
 -- 3 steps chosen from spec's "2–3". Each step = one wall attachment per air session.
 MovementConfig.WallRun = {
 	MaxSteps = 3,               -- max wall-run attachments per airborne phase
-	MinEntrySpeed = 14,         -- studs/s required (approx sprint speed)
+	MinEntrySpeed = 12,         -- studs/s required (lowered to be more forgiving)
 	MaxDuration = 1.8,          -- seconds before auto-detach
-	WallDetectDistance = 3.0,   -- studs lateral raycast range
+	WallDetectDistance = 3.5,   -- studs lateral raycast range (slightly longer)
 	JumpOffLateralForce = 22,   -- studs/s perpendicular kick on wall-jump
 	JumpOffUpForce = 30,        -- studs/s upward on wall-jump
 	-- Gravity is countered by zeroing downward AssemblyLinearVelocity Y each frame
@@ -146,8 +147,8 @@ MovementConfig.WallRun = {
 MovementConfig.Vault = {
 	MaxObstacleHeight = 5.5,       -- studs — tallest obstacle to vault
 	MinObstacleHeight = 1.5,       -- studs — ignore tiny bumps below this
-	ForwardDetectDistance = 2.5,   -- studs ahead to raycast
-	Duration = 0.35,               -- seconds for vault tween
+	ForwardDetectDistance = 3.5,   -- studs ahead to raycast (wider vault window)
+	Duration = 0.40,               -- seconds for vault tween (smoother)
 	MomentumPreservePct = 0.85,    -- fraction of sprint speed kept after vault
 	Cooldown = 1.0,                -- seconds before another vault can trigger
 }
@@ -155,12 +156,25 @@ MovementConfig.Vault = {
 -- Ledge catch (Issue #95)
 -- Auto-triggers when player is falling and near a ledge edge.
 MovementConfig.LedgeCatch = {
-	ForwardDetectDistance = 2.0,   -- studs ahead to probe
-	HeightCheckOffset = 2.5,       -- studs above root for ledge probe
-	HangDuration = 0.6,            -- seconds hanging before auto pull-up
+	ForwardDetectDistance = 2.8,   -- studs ahead to probe
+	-- Probe starts this many studs above the RootPart so it can detect ledges
+	-- that are up to a full character-height above the player.
+	HeightCheckOffset = 6.0,       -- was 2.5; raised so probe clears ledges above the head
+	HangDuration = 0.6,            -- seconds for internal timing (hang exits via Space only)
 	PullUpDuration = 0.4,          -- seconds for pull-up tween
-	TriggerFallSpeed = -8,         -- velocity.Y (negative = falling) to enable catch
-	ReachWindow = 2.5,             -- max height above root to detect ledge
+	TriggerFallSpeed = -6,         -- velocity.Y threshold (negative = falling)
+	-- Ledge must be within root+1.5 to root+1.5+ReachWindow studs.
+	-- 5.0 ≈ one full character height of reach above the head.
+	ReachWindow = 5.0,             -- was 3.0; wider vertical window for catching
+}
+
+-- Climbing (phase‑1 defaults)
+MovementConfig.Climb = {
+	Enabled = true,
+	GripReach = 2.2,      -- studs: how far ahead to detect a climbable surface
+	ClimbSpeed = 3.0,     -- studs/s climb movement
+	DrainRate = 12,       -- Breath units / sec drained while climbing
+	MaxGripTime = 12,     -- seconds maximum continuous grip before forced release
 }
 
 -- Particle effects

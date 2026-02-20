@@ -34,6 +34,20 @@ local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 type PlayerState = PlayerData.PlayerState
 
+-- Blackboard (shared physics state readable by all client systems)
+local Blackboard = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
+
+-- Movement state modules (Open/Closed mechanic decomposition)
+local IdleState       = require(ReplicatedStorage.Shared.movement.states.IdleState)
+local WalkState       = require(ReplicatedStorage.Shared.movement.states.WalkState)
+local SprintState     = require(ReplicatedStorage.Shared.movement.states.SprintState)
+local JumpState       = require(ReplicatedStorage.Shared.movement.states.JumpState)
+local SlideState      = require(ReplicatedStorage.Shared.movement.states.SlideState)
+local WallRunState    = require(ReplicatedStorage.Shared.movement.states.WallRunState)
+local VaultState      = require(ReplicatedStorage.Shared.movement.states.VaultState)
+local LedgeCatchState = require(ReplicatedStorage.Shared.movement.states.LedgeCatchState)
+local ClimbState     = require(ReplicatedStorage.Shared.movement.states.ClimbState)
+
 local MovementController = {}
 
 -- Refs (set in Init)
@@ -41,7 +55,6 @@ local Player: Player? = nil
 local Character: Model? = nil
 local Humanoid: Humanoid? = nil
 local RootPart: BasePart? = nil
-local BodyVelocityInstance: BodyVelocity? = nil
 local NetworkController: any = nil -- injected dependency (used to send slide requests to server)
 
 -- Movement config (from MovementConfig or fallback)
@@ -52,16 +65,9 @@ local DECELERATION = MovementConfig.Movement.Deceleration or 55
 local COYOTE_TIME = MovementConfig.Movement.CoyoteTime or 0.12
 local JUMP_BUFFER_TIME = MovementConfig.Movement.JumpBufferTime or 0.15
 
--- Slide mechanics
+-- Slide mechanics (slide-specific constants are owned by SlideState.lua)
 local SPRINT_DOUBLE_TAP_WINDOW = 0.3 -- seconds to detect double-tap
 local SLIDE_KEY = Enum.KeyCode.C
-local SLIDE_SPEED = MovementConfig.Dodge.Speed or 50 -- studs/s initial momentum
-local SLIDE_DURATION = MovementConfig.Dodge.SlideDuration or 1.2 -- seconds before decay
-local SLIDE_COOLDOWN = MovementConfig.Dodge.Cooldown or 0.8 -- seconds before next slide
-local SLIDE_DECAY_EASING = MovementConfig.Dodge.DecayEasing or Enum.EasingStyle.Exponential
-local SLIDE_DECAY_DIRECTION = MovementConfig.Dodge.DecayDirection or Enum.EasingDirection.Out
-local SLIDE_LEAP_FORWARD = MovementConfig.Dodge.LeapForwardForce or 35  -- horizontal launch on slide jump
-local SLIDE_LEAP_UP      = MovementConfig.Dodge.LeapUpForce      or 28  -- vertical launch on slide jump
 local LANDING_SPRINT_GRACE = (MovementConfig.Dodge and MovementConfig.Dodge.LandingSprintGraceWindow) or 0.15 -- seconds to resume sprint after slide-jump landing
 
 -- Breath resource (#95)
@@ -69,8 +75,7 @@ local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breat
 local BREATH_REGEN_STATIONARY  = (MovementConfig.Breath and MovementConfig.Breath.RegenRateStationary) or 25
 local BREATH_REGEN_MOVING      = (MovementConfig.Breath and MovementConfig.Breath.RegenRateMoving) or 12
 local BREATH_SPRINT_DRAIN      = (MovementConfig.Breath and MovementConfig.Breath.SprintDrainRate) or 10
-local BREATH_DASH_DRAIN        = (MovementConfig.Breath and MovementConfig.Breath.DashDrainFlat) or 15
-local BREATH_WALL_DRAIN        = (MovementConfig.Breath and MovementConfig.Breath.WallRunDrainRate) or 20
+-- BREATH_DASH_DRAIN moved to SlideState.lua | BREATH_WALL_DRAIN moved to WallRunState.lua
 
 -- Momentum (#95)
 local MOMENTUM_CAP          = (MovementConfig.Momentum and MovementConfig.Momentum.Cap) or 3.0
@@ -78,30 +83,7 @@ local MOMENTUM_GAIN         = (MovementConfig.Momentum and MovementConfig.Moment
 local MOMENTUM_CHAIN_WINDOW = (MovementConfig.Momentum and MovementConfig.Momentum.ChainWindowSec) or 1.5
 local MOMENTUM_DECAY        = (MovementConfig.Momentum and MovementConfig.Momentum.DecayRatePerSec) or 2.0
 local MOMENTUM_JUMP_BONUS   = (MovementConfig.Momentum and MovementConfig.Momentum.JumpHeightBonus) or 0.25
-
--- Wall-run (#95)
-local WALLRUN_MAX_STEPS      = (MovementConfig.WallRun and MovementConfig.WallRun.MaxSteps) or 3
-local WALLRUN_MIN_SPEED      = (MovementConfig.WallRun and MovementConfig.WallRun.MinEntrySpeed) or 14
-local WALLRUN_MAX_DURATION   = (MovementConfig.WallRun and MovementConfig.WallRun.MaxDuration) or 1.8
-local WALLRUN_DETECT_DIST    = (MovementConfig.WallRun and MovementConfig.WallRun.WallDetectDistance) or 3.0
-local WALLRUN_JUMP_LATERAL   = (MovementConfig.WallRun and MovementConfig.WallRun.JumpOffLateralForce) or 22
-local WALLRUN_JUMP_UP        = (MovementConfig.WallRun and MovementConfig.WallRun.JumpOffUpForce) or 30
-
--- Vault (#95)
-local VAULT_MAX_HEIGHT    = (MovementConfig.Vault and MovementConfig.Vault.MaxObstacleHeight) or 5.5
-local VAULT_MIN_HEIGHT    = (MovementConfig.Vault and MovementConfig.Vault.MinObstacleHeight) or 1.5
-local VAULT_FORWARD_DIST  = (MovementConfig.Vault and MovementConfig.Vault.ForwardDetectDistance) or 2.5
-local VAULT_DURATION      = (MovementConfig.Vault and MovementConfig.Vault.Duration) or 0.35
-local VAULT_MOMENTUM_KEEP = (MovementConfig.Vault and MovementConfig.Vault.MomentumPreservePct) or 0.85
-local VAULT_COOLDOWN      = (MovementConfig.Vault and MovementConfig.Vault.Cooldown) or 1.0
-
--- Ledge catch (#95)
-local LEDGE_FORWARD_DIST  = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.ForwardDetectDistance) or 2.0
-local LEDGE_HEIGHT_OFFSET = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HeightCheckOffset) or 2.5
-local LEDGE_HANG_DURATION = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HangDuration) or 0.6
-local LEDGE_PULL_DURATION = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.PullUpDuration) or 0.4
-local LEDGE_TRIGGER_SPEED = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.TriggerFallSpeed) or -8
-local LEDGE_REACH_WINDOW  = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.ReachWindow) or 2.5
+-- WallRun / Vault / LedgeCatch config constants moved to their respective state modules.
 
 -- State
 local currentSpeed = 0.0
@@ -116,10 +98,8 @@ local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
-local isSliding = false
-local slideJumped = false -- set when player performed slide->jump, handled on landing
-local lastSlideTime = 0 -- Track slide cooldown
 local landingSprintExpiry = 0 -- temporary sprint allowance after slide-jump landing (grace window)
+-- isSliding / slideJumped / lastSlideTime → owned by SlideState; exposed via Blackboard.
 
 -- Breath state (#95)
 local breathPool: number = BREATH_POOL
@@ -130,18 +110,7 @@ local momentumMultiplier: number = 1.0
 local lastChainActionTime: number = 0
 local chainTimerActive: boolean = false
 
--- Wall-run state (#95)
-local isWallRunning: boolean = false
-local wallRunNormal: Vector3 = Vector3.zero   -- surface normal of current wall
-local wallRunStepsUsed: number = 0            -- resets each time player lands
-local wallRunStartTime: number = 0
-
--- Vault state (#95)
-local isVaulting: boolean = false
-local lastVaultTime: number = 0
-
--- Ledge-catch state (#95)
-local isLedgeCatching: boolean = false
+-- IsWallRunning / IsVaulting / IsLedgeCatching → private to state modules; exposed via Blackboard.
 
 -- Speed Modifiers: combat systems can apply multipliers via SetModifier()
 -- Example: SetModifier("Attacking", 0.5) = 50% walk/sprint speed during attack
@@ -190,7 +159,7 @@ end
 	Sprint drain and wall-run drain are applied at their call sites.
 ]]
 local function UpdateBreath(dt: number, onGround: boolean, moving: boolean)
-	if isWallRunning then return end -- wall-run drain handled in UpdateWallRun
+	if Blackboard.IsWallRunning then return end -- wall-run Breath drain handled in WallRunState.Detect
 	if isSprinting and onGround then
 		DrainBreath(BREATH_SPRINT_DRAIN * dt)
 		return
@@ -240,256 +209,66 @@ local function UpdateMomentum(dt: number)
 end
 
 -- ============================================================
--- WALL-RUN  (#95)
--- Detected via lateral raycasts while airborne.
--- MaxSteps = 3 per air session (resets on landing).
--- Gravity countered by zeroing negative Y velocity each frame.
+-- STATE DISPATCHER
+-- Priority-ordered FSM: determines the active movement state every frame
+-- and delegates Enter / Exit / Update calls to state modules.
+-- State modules write physics flags to Blackboard; the monolith reads from there.
+-- Priority (high→low): LedgeCatch > Vault > WallRun > Slide > Jump > Sprint > Walk > Idle
 -- ============================================================
 
-local function StopWallRun()
-	if not isWallRunning then return end
-	isWallRunning = false
-	wallRunNormal = Vector3.zero
-	print("[MovementController] Wall-run ended")
+local _currentStateName: string = "Idle"
+local _stateModules: {[string]: any} = {
+	Idle       = IdleState,
+	Walk       = WalkState,
+	Sprint     = SprintState,
+	Jump       = JumpState,
+	Slide      = SlideState,
+	WallRun    = WallRunState,
+	Vault      = VaultState,
+	LedgeCatch = LedgeCatchState,
+	Climb      = ClimbState,
+}
+
+local function _resolveActiveState(
+	blackboard: any,
+	onGround: boolean,
+	wantsSpr: boolean,
+	moveDir: Vector3): string
+	if blackboard.IsLedgeCatching then return "LedgeCatch" end
+	if blackboard.IsClimbing      then return "Climb"      end
+	if blackboard.IsVaulting       then return "Vault"      end
+	if blackboard.IsWallRunning    then return "WallRun"    end
+	if blackboard.IsSliding        then return "Slide"      end
+	if blackboard.IsDodging        then return "Dodge"      end
+	if not onGround                then return "Jump"       end
+	if wantsSpr and moveDir.Magnitude > 0.5 then return "Sprint" end
+	if moveDir.Magnitude > 0.5     then return "Walk"       end
+	return "Idle"
 end
 
-local function StartWallRun(normal: Vector3)
-	if isWallRunning then return end
-	if wallRunStepsUsed >= WALLRUN_MAX_STEPS then return end
-	isWallRunning = true
-	wallRunNormal = normal
-	wallRunStepsUsed += 1
-	wallRunStartTime = tick()
-	ChainAction()
-	print(string.format("[MovementController] Wall-run started (step %d/%d)", wallRunStepsUsed, WALLRUN_MAX_STEPS))
+-- Builds the context table passed to all state module methods.
+-- Call with current-frame values so state modules always see fresh data.
+local function _buildCtx(moveDir: Vector3, onGround: boolean, wantsSpr: boolean): any
+	return {
+		Humanoid              = Humanoid :: Humanoid,
+		RootPart              = RootPart :: BasePart,
+		Character             = Character :: Model,
+		MoveDir               = moveDir,
+		OnGround              = onGround,
+		IsSprinting           = wantsSpr,
+		LastMoveDir           = lastMoveDirection,
+		Blackboard            = Blackboard,
+		ChainAction           = ChainAction,
+		DrainBreath           = DrainBreath,
+		GetMomentumMultiplier = MovementController.GetMomentumMultiplier,
+		AnimationLoader       = AnimationLoader,
+		NetworkController     = NetworkController,
+	}
 end
 
---[[
-	Called every frame from _Update.
-	Starts a wall-run when airborne, fast enough, and adjacent to a wall.
-	Maintains the active wall-run each frame (anti-gravity, duration check, Breath drain).
-]]
-local function UpdateWallRun(dt: number, onGround: boolean)
-	local rootPart = RootPart
-	local humanoid = Humanoid
-	if not rootPart or not humanoid then return end
+-- (Vault logic moved to VaultState.lua)
 
-	-- Reset step count on landing
-	if onGround then
-		if isWallRunning then
-			StopWallRun()
-		end
-		wallRunStepsUsed = 0
-		return
-	end
-
-	-- Maintain an active wall-run
-	if isWallRunning then
-		-- Drain Breath
-		if not DrainBreath(BREATH_WALL_DRAIN * dt) then
-			StopWallRun()
-			return
-		end
-		-- Timeout
-		if tick() - wallRunStartTime > WALLRUN_MAX_DURATION then
-			StopWallRun()
-			return
-		end
-		-- Counter gravity: clamp Y velocity so player doesn't fall during run
-		local vel = rootPart.AssemblyLinearVelocity
-		if vel.Y < 0 then
-			rootPart.AssemblyLinearVelocity = Vector3.new(vel.X, 0, vel.Z)
-		end
-		return
-	end
-
-	-- Don't start if no steps remaining
-	if wallRunStepsUsed >= WALLRUN_MAX_STEPS then return end
-	-- Don't start if moving too slow
-	local vel = rootPart.AssemblyLinearVelocity
-	local horzSpeed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-	if horzSpeed < WALLRUN_MIN_SPEED then return end
-
-	-- Raycast left and right to find a wall
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { Character :: Model }
-	params.FilterType = Enum.RaycastFilterType.Exclude
-
-	local rightDir = rootPart.CFrame.RightVector * Vector3.new(1, 0, 1)
-	local leftDir  = -rightDir
-
-	local hitRight = workspace:Raycast(rootPart.Position, rightDir * WALLRUN_DETECT_DIST, params)
-	local hitLeft  = workspace:Raycast(rootPart.Position, leftDir  * WALLRUN_DETECT_DIST, params)
-
-	if hitRight then
-		StartWallRun(hitRight.Normal)
-	elseif hitLeft then
-		StartWallRun(hitLeft.Normal)
-	end
-end
-
--- ============================================================
--- VAULT  (#95)
--- Detects low obstacles during sprint, auto-vaults if clearance exists.
--- ============================================================
-
-local function TryVault()
-	local humanoid = Humanoid
-	local rootPart = RootPart
-	if not humanoid or not rootPart or not Character then return end
-	if isVaulting or isLedgeCatching or isWallRunning then return end
-	if not isSprinting then return end
-	if humanoid.FloorMaterial == Enum.Material.Air then return end -- not on ground
-	if tick() - lastVaultTime < VAULT_COOLDOWN then return end
-
-	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
-	if lookDir.Magnitude < 0.01 then return end
-	lookDir = lookDir.Unit
-
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { Character :: Model }
-	params.FilterType = Enum.RaycastFilterType.Exclude
-
-	-- Cast forward at waist level to find obstacle face
-	local hitForward = workspace:Raycast(rootPart.Position, lookDir * VAULT_FORWARD_DIST, params)
-	if not hitForward then return end
-
-	-- Estimate obstacle height relative to ground
-	local groundY = rootPart.Position.Y - 2.5 -- approximate ground under character
-	local obstacleRelHeight = hitForward.Position.Y - groundY
-
-	if obstacleRelHeight < VAULT_MIN_HEIGHT or obstacleRelHeight > VAULT_MAX_HEIGHT then return end
-
-	-- Confirm clearance above the obstacle top (player head must fit)
-	local topCheck = hitForward.Position + Vector3.new(0, 0.5, 0) + lookDir * 0.5
-	local clearHit = workspace:Raycast(topCheck, Vector3.new(0, 6, 0), params)
-	if clearHit then return end -- no headroom
-
-	-- Vault!
-	isVaulting = true
-	lastVaultTime = tick()
-	print(string.format("[MovementController] Vault → obstacle %.1f studs", obstacleRelHeight))
-
-	local startCFrame = rootPart.CFrame
-	-- Target: on top of the obstacle, one step forward
-	local targetPos = Vector3.new(
-		hitForward.Position.X + lookDir.X * 1.5,
-		hitForward.Position.Y + 0.6,
-		hitForward.Position.Z + lookDir.Z * 1.5
-	)
-	local targetCFrame = CFrame.new(targetPos, targetPos + lookDir)
-
-	humanoid.PlatformStand = true
-	rootPart.AssemblyLinearVelocity = Vector3.zero
-
-	local vaultStart = tick()
-	local conn: RBXScriptConnection
-	conn = RunService.Heartbeat:Connect(function()
-		local t = math.min(1.0, (tick() - vaultStart) / VAULT_DURATION)
-		local easedT = 1 - math.pow(1 - t, 2) -- ease-out quad
-		if rootPart then
-			rootPart.CFrame = startCFrame:Lerp(targetCFrame, easedT)
-		end
-		if t >= 1.0 then
-			conn:Disconnect()
-			if humanoid then
-				humanoid.PlatformStand = false
-			end
-			-- Preserve forward momentum
-			if rootPart then
-				rootPart.AssemblyLinearVelocity = lookDir * (currentSpeed * VAULT_MOMENTUM_KEEP)
-			end
-			isVaulting = false
-			ChainAction()
-			print("[MovementController] Vault complete")
-		end
-	end)
-end
-
--- ============================================================
--- LEDGE CATCH  (#95)
--- Auto-triggers when falling and near a ledge edge above character.
--- Brief hang → auto pull-up.
--- ============================================================
-
-local function TryLedgeCatch()
-	local humanoid = Humanoid
-	local rootPart = RootPart
-	if not humanoid or not rootPart or not Character then return end
-	if isLedgeCatching or isVaulting or isWallRunning then return end
-	if humanoid.FloorMaterial ~= Enum.Material.Air then return end -- on ground, skip
-
-	-- Only trigger when falling at sufficient speed
-	local vel = rootPart.AssemblyLinearVelocity
-	if vel.Y > LEDGE_TRIGGER_SPEED then return end -- not falling fast enough
-
-	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
-	if lookDir.Magnitude < 0.01 then return end
-	lookDir = lookDir.Unit
-
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { Character :: Model }
-	params.FilterType = Enum.RaycastFilterType.Exclude
-
-	-- Cast downward from a point ahead of the character near head height
-	local probeOrigin = rootPart.Position + lookDir * LEDGE_FORWARD_DIST
-		+ Vector3.new(0, LEDGE_HEIGHT_OFFSET + 0.5, 0)
-	local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -(LEDGE_HEIGHT_OFFSET + 2), 0), params)
-	if not hitDown then return end
-
-	local ledgeY = hitDown.Position.Y
-	local charTopY = rootPart.Position.Y + 1.5 -- approximate top of character
-
-	-- Ledge must be just above the character's reach
-	if ledgeY < charTopY or ledgeY > charTopY + LEDGE_REACH_WINDOW then return end
-
-	-- Catch!
-	isLedgeCatching = true
-	print("[MovementController] Ledge catch triggered")
-
-	-- Snap character to hang position
-	humanoid.PlatformStand = true
-	local catchPos = Vector3.new(
-		hitDown.Position.X - lookDir.X * 0.6,
-		ledgeY - 2.0, -- root hangs below ledge surface
-		hitDown.Position.Z - lookDir.Z * 0.6
-	)
-	rootPart.CFrame = CFrame.new(catchPos, catchPos + lookDir)
-	rootPart.AssemblyLinearVelocity = Vector3.zero
-
-	-- Hang for HangDuration, then pull up
-	task.delay(LEDGE_HANG_DURATION, function()
-		if not isLedgeCatching then return end
-		print("[MovementController] Ledge pull-up")
-
-		local pullTarget = Vector3.new(
-			hitDown.Position.X + lookDir.X * 1.0,
-			ledgeY + 0.5,
-			hitDown.Position.Z + lookDir.Z * 1.0
-		)
-		local pullStart = rootPart and rootPart.Position or pullTarget
-		local startTime = tick()
-		local conn: RBXScriptConnection
-		conn = RunService.Heartbeat:Connect(function()
-			local t = math.min(1.0, (tick() - startTime) / LEDGE_PULL_DURATION)
-			if rootPart then
-				rootPart.CFrame = CFrame.new(
-					pullStart:Lerp(pullTarget, t),
-					pullTarget + lookDir
-				)
-			end
-			if t >= 1.0 then
-				conn:Disconnect()
-				if humanoid then
-					humanoid.PlatformStand = false
-				end
-				isLedgeCatching = false
-				ChainAction()
-				print("[MovementController] Ledge pull-up complete")
-			end
-		end)
-	end)
-end
+-- (LedgeCatch logic moved to LedgeCatchState.lua)
 
 --[[
 	Set a named speed modifier for this movement session.
@@ -756,126 +535,17 @@ function MovementController:Start()
 end
 
 --[[
-	Attempt to initiate a slide if conditions are met:
-	- Currently sprinting
-	- On ground
-	- Not in cooldown
-	- Move direction exists
-	
-	Uses LinearVelocity to preserve momentum with exponential decay.
+	Thin wrapper — delegates to SlideState.TryStart(ctx).
+	All slide mechanics (conditions, BodyVelocity, decay, animation) live in SlideState.lua.
 ]]
 function MovementController._TrySlide()
 	local humanoid = Humanoid
-	local rootPart = RootPart
-	if not humanoid or not rootPart or not Character or humanoid.Health <= 0 then
-		return
-	end
-	
-	-- Check conditions
-	if not isSprinting then
-		print("[MovementController] Cannot slide: not sprinting")
-		return
-	end
-	
-	if not isOnGround(humanoid) then
-		print("[MovementController] Cannot slide: not on ground")
-		return
-	end
-	
-	local currentTime = tick()
-	if currentTime - lastSlideTime < SLIDE_COOLDOWN then
-		local remaining = math.floor((SLIDE_COOLDOWN - (currentTime - lastSlideTime)) * 100) / 100
-		print("[MovementController] Slide on cooldown (" .. tostring(remaining) .. "s remaining)")
-		return
-	end
-	
-	if lastMoveDirection.Magnitude < 0.5 then
-		print("[MovementController] Cannot slide: no movement direction")
-		return
-	end
-	
-	-- Slide initiated
-	isSliding = true
-	lastSlideTime = currentTime
-	-- Clear any queued/buffered jump so a previous jump input doesn't trigger
-	-- a normal jump during the slide (we only allow slide‑leap while sliding).
+	if not humanoid then return end
+	-- Clear any buffered jump so it doesn't fire as a normal jump after slide starts.
+	-- SlideState.OnJumpRequest handles the slide-leap case explicitly.
 	jumpBufferLeft = 0
-	DrainBreath(BREATH_DASH_DRAIN) -- flat Breath cost per slide (#95)
-	ChainAction()                  -- count as a momentum chain link (#95)
-	print("[MovementController] ✓ SLIDE INITIATED")
-
-	-- Try to play Slide animation (fallbacks if missing)
-	local slideTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
-	if slideTrack then
-		slideTrack.Looped = true
-		slideTrack:Play()
-		currentAnimationTrack = slideTrack
-		currentAnimationState = "Sliding"
-		print("[MovementController] ✓ Slide animation playing (add 'Slide' under ReplicatedStorage.animations)")
-	end
-
-	-- Optimistic server validation: inform server of slide start (server may reject later)
-	if NetworkController and NetworkController.SendToServer then
-		NetworkController.SendToServer("RequestSlide", { Type = "Start", Timestamp = tick() })
-	end
-	
-	-- Create or reuse BodyVelocity for momentum
-	if not BodyVelocityInstance then
-		BodyVelocityInstance = Instance.new("BodyVelocity")
-		BodyVelocityInstance.Name = "SlideVelocity"
-		BodyVelocityInstance.Parent = rootPart
-		print("[MovementController] BodyVelocity instance created")
-	end
-	
-	-- Set up slide trajectory — distance scales with momentum multiplier (#95)
-	local momentumScale = momentumMultiplier  -- 1.0 at rest, up to 3.0 at cap
-	local effectiveSlideSpeed = SLIDE_SPEED * momentumScale
-	local slideDirection = lastMoveDirection.Unit
-	local slideVelocity = slideDirection * effectiveSlideSpeed
-
-	BodyVelocityInstance.MaxForce = Vector3.new(math.huge, 0, math.huge) -- Only horizontal momentum
-	BodyVelocityInstance.Velocity = slideVelocity
-	BodyVelocityInstance.P = 1500 -- Slightly softer P for sliding
-
-	print(string.format("[MovementController] Slide %.0f studs/s (%.1f× momentum)", effectiveSlideSpeed, momentumScale))
-
-	-- Decay the slide momentum using exponential easing over SLIDE_DURATION
-	task.spawn(function()
-		local slideStartTime = tick()
-		while isSliding and BodyVelocityInstance do
-			local elapsedTime = tick() - slideStartTime
-			local progress = math.min(1.0, elapsedTime / SLIDE_DURATION)
-
-			-- Exponential.Out easing: 1 - (1 - progress)^3
-			local easeProgress = 1 - math.pow(1 - progress, 3)
-			local currentVelocityMagnitude = effectiveSlideSpeed * (1 - easeProgress)
-			
-			if BodyVelocityInstance and currentVelocityMagnitude > 0.5 then
-				BodyVelocityInstance.Velocity = slideDirection * currentVelocityMagnitude
-			end
-			
-			if progress >= 1.0 then
-				break
-			end
-			
-			RunService.Heartbeat:Wait()
-		end
-		
-		-- Slide complete
-		if BodyVelocityInstance then
-			BodyVelocityInstance.MaxForce = Vector3.zero
-			print("[MovementController] Slide momentum fully decayed")
-		end
-		isSliding = false
-
-		-- Stop slide animation if still active
-		if currentAnimationState == "Sliding" and currentAnimationTrack then
-			currentAnimationTrack:Stop()
-			currentAnimationTrack = nil
-			currentAnimationState = nil
-			print("[MovementController] ✓ Slide animation stopped")
-		end
-	end)
+	local ctx = _buildCtx(lastMoveDirection, isOnGround(humanoid), isSprinting)
+	SlideState.TryStart(ctx)
 end
 
 --[[
@@ -901,14 +571,9 @@ function MovementController._Update(dt: number)
 	local onGround = isOnGround(humanoid)
 	local isMoving = moveDir.Magnitude > 0.1
 
-	-- #95 systems — run first so their output is available below
+	-- Shared subsystems (Breath/Momentum stay in MovementController)
 	UpdateBreath(dt, onGround, isMoving)
 	UpdateMomentum(dt)
-	UpdateWallRun(dt, onGround)
-	if not isMovementRestricted() then
-		TryVault()
-		TryLedgeCatch()
-	end
 	
 	-- Smooth direction transitions (lerp towards target direction)
 	if moveDir.Magnitude > 0.1 then
@@ -934,7 +599,7 @@ function MovementController._Update(dt: number)
 	-- during an active slide (only slide->jump allowed). Any buffered jump is
 	-- cleared on slide start to avoid accidental normal jumps.
 	if onGround then
-		if jumpBufferLeft > 0 and not isSliding then
+		if jumpBufferLeft > 0 and not Blackboard.IsSliding then
 			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 			jumpBufferLeft = 0
 		end
@@ -947,6 +612,30 @@ function MovementController._Update(dt: number)
 	local wantsSprint = (sprintAllowed or tick() < landingSprintExpiry) and canSprint() and moveDir.Magnitude > 0.5
 	-- Expose current sprinting state for ActionController
 	isSprinting = wantsSprint
+
+	-- ── State dispatcher ──────────────────────────────────────────────────────────────
+	do
+		local ctx = _buildCtx(moveDir, onGround, wantsSprint)
+		-- Passive auto-detect triggers (evaluated every frame when eligible)
+		WallRunState.Detect(dt, ctx)
+		if not isMovementRestricted() then
+			-- Vaulting is now manual (triggered via JumpRequest)
+			-- Ledge catch is now manual: requires Jump press (LedgeCatchState.CanCatch / TryStart)
+		end
+		-- Resolve highest-priority active state
+		local resolved = _resolveActiveState(Blackboard, onGround, wantsSprint, moveDir)
+		if resolved ~= _currentStateName then
+			local oldMod = _stateModules[_currentStateName]
+			if oldMod and oldMod.Exit then oldMod.Exit(ctx) end
+			_currentStateName = resolved
+			Blackboard.ActiveState = resolved
+			local newMod = _stateModules[resolved]
+			if newMod and newMod.Enter then newMod.Enter(ctx) end
+		end
+		local activeMod = _stateModules[_currentStateName]
+		if activeMod and activeMod.Update then activeMod.Update(dt, ctx) end
+	end
+	-- ── End dispatcher ──────────────────────────────────────────────────────────────
 
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
@@ -1006,9 +695,18 @@ function MovementController._Update(dt: number)
 	
 	-- Handle animation state transitions
 	local newAnimState = "Idle"
-	-- Sliding should take animation priority
-	if isSliding then
-		newAnimState = "Sliding"
+	if Blackboard.IsLedgeCatching then
+		newAnimState = Blackboard.IsPullingUp and "LedgeClimb" or "LedgeHold"
+	elseif Blackboard.IsVaulting then
+		newAnimState = "Vault"
+	elseif Blackboard.IsSliding then
+		newAnimState = "Slide"
+	elseif Blackboard.IsWallRunning then
+		newAnimState = "Running" -- Fallback until a dedicated WallRun animation is added
+	elseif Blackboard.IsClimbing then
+		newAnimState = "LedgeHold" -- Fallback until a dedicated Climb animation is added
+	elseif not onGround then
+		newAnimState = "Jump"
 	elseif moveDir.Magnitude > 0.5 then
 		newAnimState = wantsSprint and "Running" or "Walk"
 	end
@@ -1023,12 +721,22 @@ function MovementController._Update(dt: number)
 		end
 		
 		-- Play new animation
-		if newAnimState == "Idle" then
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Idle")
-			if currentAnimationTrack then
-				currentAnimationTrack.Looped = true
-				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Idle animation playing")
+		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, newAnimState)
+		if currentAnimationTrack then
+			-- Some animations should loop, others shouldn't
+			local loopedAnims = {
+				Idle = true,
+				Walk = true,
+				Running = true,
+				Slide = true,
+				LedgeHold = true,
+				Jump = true,
+			}
+			currentAnimationTrack.Looped = loopedAnims[newAnimState] or false
+			currentAnimationTrack:Play()
+			print("[MovementController] ✓ " .. newAnimState .. " animation playing")
+			
+			if newAnimState == "Idle" then
 				-- Safety: stop any other playing tracks that might cause perpetual walk/run visuals
 				local animator = (Humanoid and Humanoid:FindFirstChildOfClass("Animator"))
 				if animator then
@@ -1040,44 +748,22 @@ function MovementController._Update(dt: number)
 					end
 				end
 			end
-		elseif newAnimState == "Walk" then
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
-			if currentAnimationTrack then
-				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Walk animation playing")
-			end
-		elseif newAnimState == "Running" then
-			-- Prefer a dedicated Sprint animation; fall back to Walk if Sprint missing
-			currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running")
-			if currentAnimationTrack then
-				currentAnimationTrack:Play()
-				print("[MovementController] ✓ Running animation playing")
-			else
-				-- Fallback: reuse Walk animation (play slightly faster for visual feedback)
+		else
+			print("[MovementController] ⚠ " .. newAnimState .. " animation missing")
+			-- Fallbacks
+			if newAnimState == "Running" then
 				currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
 				if currentAnimationTrack then
+					currentAnimationTrack.Looped = true
 					currentAnimationTrack:AdjustSpeed(1.15)
 					currentAnimationTrack:Play()
-					print("[MovementController] ✓ Running animation missing — using Walk fallback")
 				end
-			end
-		elseif newAnimState == "Sliding" then
-			-- Slide animation (priority while sliding)
-			local slideTrack = AnimationLoader.LoadTrack(Humanoid, "Slide")
-			if slideTrack then
-				slideTrack.Looped = true
-				slideTrack:Play()
-				currentAnimationTrack = slideTrack
-				print("[MovementController] ✓ Slide animation playing")
-			else
-				-- Fallback to Running/Walk so player isn't visually empty
-				local fallback = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk")
-				if fallback then
-					fallback.Looped = true
-					fallback:AdjustSpeed(0.95)
-					fallback:Play()
-					currentAnimationTrack = fallback
-					print("[MovementController] ⚠ Slide animation missing — using movement fallback")
+			elseif newAnimState == "Slide" then
+				currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk")
+				if currentAnimationTrack then
+					currentAnimationTrack.Looped = true
+					currentAnimationTrack:AdjustSpeed(0.95)
+					currentAnimationTrack:Play()
 				end
 			end
 		end
@@ -1105,20 +791,20 @@ function MovementController._Update(dt: number)
 		print("[MovementController] LANDING EFFECT!")
 
 		-- Handle slide-jump landing recovery (roll + resume sprint if moving)
-		if slideJumped then
-			slideJumped = false
+		if Blackboard.SlideJumped then
+			Blackboard.SlideJumped = false
 			-- Choose landing/roll animation based on last move direction
 			local rollName = "Landing"
 			if lastMoveDirection.Magnitude > 0.1 and RootPart then
 				local localDir = RootPart.CFrame:VectorToObjectSpace(lastMoveDirection)
 				if localDir.Z > 0.5 then
-					rollName = "Front Roll"
+					rollName = "FrontRoll"
 				elseif localDir.Z < -0.5 then
-					rollName = "Back Roll"
+					rollName = "BackRoll"
 				elseif localDir.X > 0 then
-					rollName = "Right Roll"
+					rollName = "RightRoll"
 				else
-					rollName = "Left Roll"
+					rollName = "LeftRoll"
 				end
 			end
 
@@ -1153,11 +839,21 @@ function MovementController._Update(dt: number)
 				end
 			end
 		end)
-	end
+	end -- close: if not lastWasOnGround and onGround (landing effect)
+	-- Flush locomotion state to Blackboard each frame (readable by all client systems)
+	Blackboard.IsGrounded          = onGround
+	Blackboard.IsSprinting         = wantsSprint
+	Blackboard.CurrentSpeed        = currentSpeed
+	Blackboard.MoveDir             = moveDir
+	Blackboard.LastMoveDir         = lastMoveDirection
+	Blackboard.MomentumMultiplier  = momentumMultiplier
+	Blackboard.Breath              = breathPool
+	Blackboard.BreathExhausted     = isBreathExhausted
+	-- NOTE: IsSliding/IsWallRunning/IsVaulting/IsLedgeCatching/SlideJumped/WallRunNormal
+	--       are written directly by state modules; no re-flush needed here.
 end
 
 --[[
-	Internal: Handle jump request input.
 	
 	Implements coyote time (jump window after leaving ledge) and jump buffering
 	(queue jump before landing).
@@ -1168,79 +864,63 @@ function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
 
-	-- Slide leap: jump during a slide launches forward + upward
-	if isSliding then
-		local rootPart = RootPart
-		isSliding = false  -- break the slide decay loop
-		if BodyVelocityInstance then
-			BodyVelocityInstance.MaxForce = Vector3.zero
-		end
-
-		-- Stop any slide animation immediately (we're leaping)
+	-- Slide leap: delegate to SlideState which owns all slide physics
+	if Blackboard.IsSliding then
+		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+		SlideState.OnJumpRequest(ctx)
+		-- Clear the animation that was playing during slide
 		if currentAnimationState == "Sliding" and currentAnimationTrack then
 			currentAnimationTrack:Stop()
 			currentAnimationTrack = nil
 			currentAnimationState = nil
 		end
-
-		-- Play SlideJump animation if available (add 'SlideJump' under ReplicatedStorage.animations)
-		local slideJumpTrack = AnimationLoader.LoadTrack(Humanoid, "SlideJump")
-		if slideJumpTrack then
-			slideJumpTrack:Play()
-			currentAnimationTrack = slideJumpTrack
-			currentAnimationState = "Jumping"
-			print("[MovementController] ✓ SlideJump animation playing")
-		else
-			-- Fallback: use Running/Walk/Idle so there's always visual feedback while artists add the proper SlideJump asset
-			local fallback = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk") or AnimationLoader.LoadTrack(Humanoid, "Idle")
-			if fallback then
-				fallback:Play()
-				currentAnimationTrack = fallback
-				currentAnimationState = "Jumping"
-				print("[MovementController] ⚠ SlideJump missing — using fallback animation (add 'SlideJump' under ReplicatedStorage.animations)")
-			else
-				print("[MovementController] ⚠ SlideJump missing and no fallback available")
-			end
-		end
-
-		if rootPart then
-			local hor = lastMoveDirection.Magnitude > 0.1
-				and lastMoveDirection.Unit
-				or (rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)).Unit
-			rootPart.AssemblyLinearVelocity = Vector3.new(
-				hor.X * SLIDE_LEAP_FORWARD,
-				SLIDE_LEAP_UP,
-				hor.Z * SLIDE_LEAP_FORWARD
-			)
-		end
-		ChainAction()
-		slideJumped = true
-		print("[MovementController] Slide leap!")
-
-		-- Optimistic server validation (server may reject)
-		if NetworkController and NetworkController.SendToServer then
-			NetworkController.SendToServer("RequestSlide", { Type = "Leap", Timestamp = tick() })
-		end
-
 		return
 	end
 
-	-- Wall-jump: jump off current wall if wall-running (#95)
-	if isWallRunning then
-		local rootPart = RootPart
-		if rootPart then
-			-- Kick perpendicular from wall + upward
-			local kickLateral = Vector3.new(wallRunNormal.X, 0, wallRunNormal.Z).Unit
-			rootPart.AssemblyLinearVelocity = Vector3.new(
-				kickLateral.X * WALLRUN_JUMP_LATERAL,
-				WALLRUN_JUMP_UP,
-				kickLateral.Z * WALLRUN_JUMP_LATERAL
-			)
-		end
-		StopWallRun()
-		ChainAction()
-		print("[MovementController] Wall-jump!")
+	-- If player is already wall-running, jump off the wall
+	if Blackboard.IsWallRunning then
+		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+		WallRunState.OnJumpRequest(ctx)
 		return
+	end
+
+	-- If player is climbing, jump off or pull up
+	if Blackboard.IsClimbing then
+		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+		if ClimbState.OnJumpRequest then
+			ClimbState.OnJumpRequest(ctx)
+		end
+		return
+	end
+
+	local onGround = isOnGround(humanoid)
+
+	-- AIRBORNE: explicit jump-press can START a wall-run or initiate a ledge-hang/pull-up
+	if not onGround then
+		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+
+		-- Try to *start* a wall-run only when player presses Jump near a wall
+		if WallRunState.TryStart and WallRunState.TryStart(ctx) then
+			return
+		end
+
+		-- If already hanging, Jump again → PullUp
+		if Blackboard.IsLedgeCatching and LedgeCatchState.PullUp then
+			LedgeCatchState.PullUp(ctx)
+			return
+		end
+
+		-- If in position to catch a ledge, pressing Jump should start the hang
+		local canCatch, _ = (LedgeCatchState.CanCatch and LedgeCatchState.CanCatch(ctx))
+		if canCatch then
+			LedgeCatchState.TryStart(ctx)
+			return
+		end
+
+		-- Try to start a climb (manual Jump-driven grip). Falls back to ledge/hang if appropriate.
+		if ClimbState.TryStart and ClimbState.TryStart(ctx) then
+			return
+		end
 	end
 
 	-- Apply momentum jump bonus (#95): scale JumpHeight at peak multiplier
@@ -1251,28 +931,27 @@ function MovementController._OnJumpRequest()
 		task.defer(function()
 			if humanoid then humanoid.JumpHeight = base end
 		end)
-	end
+end
 
-	local onGround = isOnGround(humanoid)
-	if onGround then
-		-- Normal jump
-		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-	else
-		-- Buffer jump for when we land
-		if coyoteTimeLeft > 0 then
-			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-			coyoteTimeLeft = 0
-		else
-			jumpBufferLeft = JUMP_BUFFER_TIME
-		end
+-- GROUND: pressing Jump should attempt a buffered vault first (makes vault timing forgiving)
+if onGround then
+	local ctx = _buildCtx(lastMoveDirection, true, isSprinting)
+	local vaultProbeDist = (MovementConfig.Vault and MovementConfig.Vault.ForwardDetectDistance or 2.5) + 1.0
+	if VaultState.TryStart and VaultState.TryStart(ctx, vaultProbeDist) then
+		return
 	end
 end
 
---[[
-	Called when character respawns. Resets all movement state.
-	
-	@param newCharacter: Model - The respawned character model
-]]
+-- Default: perform a normal jump if on ground, otherwise queue in buffer
+if onGround then
+	humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	jumpBufferLeft = 0
+else
+	jumpBufferLeft = JUMP_BUFFER_TIME
+end
+
+end
+
 function MovementController:OnCharacterAdded(newCharacter: Model)
 	Character = newCharacter
 	local hum = newCharacter:WaitForChild("Humanoid", 5) :: Humanoid?
@@ -1289,7 +968,7 @@ function MovementController:OnCharacterAdded(newCharacter: Model)
 	coyoteTimeLeft = 0
 	jumpBufferLeft = 0
 	-- Clear slide/jump landing state
-	slideJumped = false
+	Blackboard.SlideJumped = false
 	landingSprintExpiry = 0
 	if Humanoid then
 		currentSpeed = Humanoid.WalkSpeed
@@ -1335,15 +1014,15 @@ function MovementController.GetMomentumMultiplier(): number
 end
 
 function MovementController.IsWallRunning(): boolean
-	return isWallRunning
+	return Blackboard.IsWallRunning
 end
 
 function MovementController.IsVaulting(): boolean
-	return isVaulting
+	return Blackboard.IsVaulting
 end
 
 function MovementController.IsLedgeCatching(): boolean
-	return isLedgeCatching
+	return Blackboard.IsLedgeCatching
 end
 
 -- ============================================================

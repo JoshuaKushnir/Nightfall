@@ -20,6 +20,7 @@ local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+local Blackboard     = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
 
 -- WeaponController is injected via dependencies in :Init() to avoid a
 -- circular-require (WeaponController is a client controller, not shared).
@@ -36,6 +37,7 @@ local Character: Model?
 local Humanoid: Humanoid?
 local AnimationController: Animator?
 local MovementController: any = nil
+local StateSyncController: any = nil -- injected; used for stun-buffer drain
 
 -- State
 local CurrentAction: Action?
@@ -43,6 +45,12 @@ local ActionQueue: {ActionConfig} = {}
 local ActionCooldowns: {[string]: number} = {}
 local LastActionTime = 0
 local LastLungeAttackTime = 0 -- Track lunge cooldown
+
+-- Input buffer: stores one Attack/Dodge action pressed during a Stun window.
+-- Drained (replayed) the moment the Stun state exits via StateChangedSignal.
+local STUN_BUFFER_WINDOW: number = 0.5 -- seconds before buffered action expires
+type StunBufferEntry = { config: ActionConfig, expiresAt: number }
+local StunBuffer: StunBufferEntry? = nil
 
 -- Combo State
 local ComboCount = 0
@@ -64,8 +72,9 @@ function ActionController:Init(dependencies: {[string]: any}?)
 
 	-- Store dependency references
 	if dependencies then
-		MovementController = dependencies.MovementController
-		WeaponController   = dependencies.WeaponController
+		MovementController  = dependencies.MovementController
+		WeaponController    = dependencies.WeaponController
+		StateSyncController = dependencies.StateSyncController
 	end
 
 	-- Wait for character
@@ -97,6 +106,30 @@ end
 ]]
 function ActionController:Start()
 	print("[ActionController] Starting...")
+
+	-- Wire StateChangedSignal to drain the stun buffer when Stun ends
+	if StateSyncController then
+		local sig = StateSyncController.GetStateChangedSignal()
+		if sig then
+			sig:Connect(function(oldState: string, newState: string)
+				if oldState ~= "Stunned" then return end
+				if newState == "Stunned" then return end
+				local buf = StunBuffer
+				StunBuffer = nil
+				if buf and tick() < buf.expiresAt then
+					print("[ActionController] Stun ended — draining buffer: " .. buf.config.Name)
+					-- task.defer lets the state fully settle before we re-enter PlayAction
+					task.defer(function()
+						ActionController.PlayAction(buf.config)
+					end)
+				else
+					if buf then
+						print("[ActionController] Stun buffer expired: " .. buf.config.Name)
+					end
+				end
+			end)
+		end
+	end
 
 	-- Bind input for testing
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -375,7 +408,21 @@ function ActionController.PlayAction(config: ActionConfig)
 			config.IsFinisher = false
 		end
 	end
-		-- Throttle rapid requests
+		-- ── Stun input buffer ────────────────────────────────────────────────────
+	-- If the player is Stunned, buffer Attack/Dodge actions instead of dropping them.
+	-- The buffer is a single slot (last pressed wins). It drains when Stun ends.
+	local currentState = StateSyncController and StateSyncController.GetCurrentState() or nil
+	if currentState == "Stunned" then
+		if config.Type == "Attack" or config.Type == "Dodge" then
+			StunBuffer = { config = config, expiresAt = tick() + STUN_BUFFER_WINDOW }
+			print(("[ActionController] Buffered '%s' during Stun (window %.1fs)"):format(
+				config.Name, STUN_BUFFER_WINDOW))
+		end
+		-- Always silently discard while Stunned — let the buffer handle replay.
+		return
+	end
+
+	-- Throttle rapid requests
 	if tick() - LastActionTime < MIN_ACTION_INTERVAL then
 		print(`[ActionController] Throttled - too soon`)
 		return
@@ -493,6 +540,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	}
 
 	CurrentAction = action
+
+	-- Track dodge in Blackboard (readable by MovementController dispatcher and VFX)
+	if config.Type == "Dodge" then
+		Blackboard.IsDodging = true
+	end
 
 	-- ── Movement modifier (attacks slow player slightly) ─────────────────
 	if config.Type == "Attack" and MovementController and MovementController.SetModifier then
@@ -773,6 +825,10 @@ function ActionController._UpdateAction(deltaTime: number)
 			if action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
 				MovementController.SetModifier("Attacking", 1.0)
 			end
+			-- Clear dodge Blackboard flag on early cancel
+			if action.Config.Type == "Dodge" then
+				Blackboard.IsDodging = false
+			end
 			-- Block fresh spam only during the brief transition gap (not the full per-swing cooldown,
 			-- which would prevent the next queued attack from being re-queued and skip combo hits)
 			if action.Config.Type == "Attack" then
@@ -800,6 +856,11 @@ function ActionController._UpdateAction(deltaTime: number)
 		print(`[ActionController] Action COMPLETE: {action.Config.Name}`)
 		action:Stop()
 		action:Cleanup()
+
+		-- Clear dodge Blackboard flag on action complete
+		if action.Config and action.Config.Type == "Dodge" then
+			Blackboard.IsDodging = false
+		end
 
 		-- If this was an attack, clear the movement slowdown modifier
 		if action.Config and action.Config.Type == "Attack" and MovementController and MovementController.SetModifier then

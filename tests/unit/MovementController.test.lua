@@ -31,12 +31,12 @@ return {
 			end,
 		},
 		{
-			name = "Double-tap toggles sprint on/off (ww)",
+			name = "Double-tap primes sprint (WW; hold to sprint)",
 			fn = function()
 				-- Verify API exists
 				assert(type(MovementController._isSprinting) == "function")
-				-- Integration test should simulate: double-tap W -> MovementController._isSprinting() == true
-				-- then double-tap W again -> MovementController._isSprinting() == false
+				-- Integration test should simulate: double-tap W -> hold W -> MovementController._isSprinting() == true
+				-- release W -> MovementController._isSprinting() == false
 			end,
 		},
 		{
@@ -71,7 +71,7 @@ return {
 			name = "Slide-jump landing resumes sprint when movement input held",
 			fn = function()
 				-- API surface check; integration tests should simulate slide->jump->land while holding movement key
-				assert(type(MovementController._OnJumpRequest) == "function")
+				assert(type(MovementController._OnJumpRequest) == "function", "_OnJumpRequest missing")
 			end,
 		},
 		{
@@ -80,6 +80,22 @@ return {
 				local cfg = require(ReplicatedStorage.Shared.modules.MovementConfig)
 				assert(type(cfg.Dodge.Cooldown) == "number")
 				assert(cfg.Dodge.Cooldown == 1.5)
+			end,
+		},
+		{
+			name = "LedgeCatch API present",
+			fn = function()
+				local LedgeCatch = require(ReplicatedStorage.Shared.movement.states.LedgeCatchState)
+				assert(type(LedgeCatch.TryStart) == "function")
+				assert(type(LedgeCatch.CanCatch) == "function")
+			end,
+		},
+		{
+			name = "ClimbState scaffold exists",
+			fn = function()
+				local ClimbState = require(ReplicatedStorage.Shared.movement.states.ClimbState)
+				assert(type(ClimbState.TryStart) == "function")
+				assert(type(ClimbState.Enter) == "function")
 			end,
 		},
 	},

@@ -4,6 +4,7 @@ about: Report a bug or issue
 title: "[BUG] "
 labels: bug
 assignees: ''
+parent: #n
 ---
 
 **Describe the Bug**
