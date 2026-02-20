@@ -653,26 +653,9 @@ function MovementController._Update(dt: number)
 		local ctx = _buildCtx(moveDir, onGround, wantsSprint)
 		-- Passive auto-detect triggers (evaluated every frame when eligible)
 		WallRunState.Detect(dt, ctx)
-
-		-- Passive W-to-climb: holding W while airborne against a wall starts a climb.
-		-- Ledge catch takes priority — if a catchable ledge is above, skip climb so the
-		-- player can press Space to hang instead.
-		if not onGround and not isMovementRestricted()
-			and not Blackboard.IsClimbing
-			and not Blackboard.IsWallRunning
-			and not Blackboard.IsVaulting
-			and not Blackboard.IsSliding
-			and not Blackboard.IsLedgeCatching
-			and UserInputService:IsKeyDown(Enum.KeyCode.W) then
-			local canCatch = LedgeCatchState.CanCatch and LedgeCatchState.CanCatch(ctx)
-			if not canCatch then
-				ClimbState.TryStart(ctx)
-			end
-		end
-
 		if not isMovementRestricted() then
 			-- Vaulting is now manual (triggered via JumpRequest)
-			-- Ledge catch is now manual: requires Jump press (LedgeCatchState.CanCatch / TryStart)
+			-- Ledge catch / climb are manual: triggered by Space press in _OnJumpRequest.
 		end
 		-- Resolve highest-priority active state
 		local resolved = _resolveActiveState(Blackboard, onGround, wantsSprint, moveDir)

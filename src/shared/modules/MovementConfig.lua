@@ -173,11 +173,12 @@ MovementConfig.LedgeCatch = {
 
 -- Climbing (phase‑1 defaults)
 MovementConfig.Climb = {
-	Enabled = true,
-	GripReach = 2.2,      -- studs: how far ahead to detect a climbable surface
-	ClimbSpeed = 3.0,     -- studs/s climb movement
-	DrainRate = 12,       -- Breath units / sec drained while climbing
-	MaxGripTime = 12,     -- seconds maximum continuous grip before forced release
+	Enabled       = true,
+	GripReach     = 2.2,    -- studs: forward raycast to detect a climbable wall
+	ClimbDistance = 8,      -- studs: fixed upward burst distance per Space press
+	ClimbSpeed    = 8,      -- studs/s: travel speed of the upward burst (~1 second for 8 studs)
+	DrainRate     = 12,     -- Breath units / sec drained while climbing
+	MaxGripTime   = 12,     -- seconds maximum before forced release (safety valve)
 }
 
 -- Wall Boost (one-shot airborne wall burst)

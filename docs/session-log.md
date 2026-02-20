@@ -1,6 +1,34 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-030
+## Current Session ID: NF-031
+**Date:** February 20, 2026
+**Task:** Redesign ClimbState as a Space-activated fixed-distance burst climb with auto-ledge
+
+### Session NF-031 Changes:
+
+- **Redesign — ClimbState.lua (burst climb model):**  
+  Replaced the continuous W/S wall-scroll with a single Space-activated burst:
+  - `TryStart`: records `_climbTarget = currentY + ClimbDistance (8 studs)`, snaps character flush to wall, anchors physics. Triggered only from `_OnJumpRequest` (after ledge-catch check), never passively.
+  - `Update`: per-frame checks in priority order — (1) `LedgeCatchMod.CanCatch` → auto-hang if ledge reachable mid-burst; (2) wall-lost check → release; (3) Breath drain; (4) slide character upward at `ClimbSpeed` (8 studs/s). On reaching target Y, applies small pop velocity (`normal + 0.5Y × 12`) and releases.
+  - `OnJumpRequest`: allows manual jump-off while climbing (0.25s anti-bounce), prefers ledge-hang over wall-jump when a ledge is reachable.
+  - `Exit`: now also clears `_climbTarget`.
+  - Removed: `UserInputService`, `RunService`, `MaxGripTime` loop, W/S direction input, incorrect minus-sign offset (fixed last session).
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Config — MovementConfig.Climb:**  
+  Added `ClimbDistance = 8` (studs per burst). Bumped `ClimbSpeed = 3 → 8` so the 8-stud burst takes ~1 second. Removed `MaxGripTime` reference (kept in config as safety valve but no longer drives movement).
+  File: `src/shared/modules/MovementConfig.lua`
+
+- **Hotfix — MovementController._Update:**  
+  Removed the passive per-frame W-to-climb trigger added in NF-030 (caused "sticking to wall on approach"). Climb is now 100% triggered by Space via `_OnJumpRequest`.
+  File: `src/client/controllers/MovementController.lua`
+
+**Activation flow (Space airborne):**
+1. WallRunState.TryStart → 2. LedgeCatch.CanCatch (hang takes priority) → 3. ClimbState.TryStart → 4. WallBoostState.TryStart
+
+---
+
+## Previous Session ID: NF-030
 **Date:** February 20, 2026
 **Task:** Fix three climbing bugs — W-while-airborne, character not moving on wall, climb overriding ledge hang
 
