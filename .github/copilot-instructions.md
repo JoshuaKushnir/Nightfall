@@ -47,10 +47,21 @@
 
 ## 7. Copilot / Automated Contributor Behavior
 - **Purpose:** Define expected behavior for automated assistance (GitHub Copilot / bots) while working on issues and pull requests.
-- **Frequent Issue Updates:** While actively working on an issue, Copilot must post progress updates to the GitHub issue:
-  - When a PR is opened or updated; after major commits; when tests are added/fixed; and at the end of each work session.
+- **Frequent Issue Updates:** While actively working on an issue, Copilot must post progress updates to the GitHub issue **immediately whenever a major change to the issue occurs**. "Major changes" include (but are not limited to):
+  - Checklist items added, checked, unchecked, or removed
+  - Linked sub-issues (linked/blocked/blocked-by) added, removed, or re-linked
+  - Acceptance criteria or checklist modifications
+  - Labels, priority, milestone, or assignee changes
+  - PR state changes (opened, draft → ready, merged, closed)
+  - Significant commits or tests that alter scope or behavior
+
+  For every major change, the update should:
+  - Briefly describe the change and why it was made
+  - Call out affected checklist items or linked sub-issues (with links)
+  - List next steps and any remaining blockers
+  - Link to related commits/PRs and session-log entries
+
   - For long-running tasks, leave a status comment at least every 48 hours.
-  - Each update should include a short summary of work done, remaining tasks, blockers (if any), and links to related commits/PRs.
 - **Commit & Push Frequency:**
   - Make small, atomic commits that implement a single logical change. Prefer frequent commits over monolithic ones.
   - Push commits to the feature branch after each self-contained change (function/feature completed, test added/fixed, refactor step) and at minimum at the end of each work session.
