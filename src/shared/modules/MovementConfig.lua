@@ -160,6 +160,9 @@ MovementConfig.LedgeCatch = {
 	-- Probe starts this many studs above the RootPart so it can detect ledges
 	-- that are up to a full character-height above the player.
 	HeightCheckOffset = 6.0,       -- was 2.5; raised so probe clears ledges above the head
+	-- Vertical offset from detected ledge Y to the character's hang/snap position.
+	-- Smaller values mean the character hangs higher (closer to the ledge).
+	HangOffset = 2.3,              -- tunable: default moved slightly up from 2.8 → 2.5
 	HangDuration = 0.6,            -- seconds for internal timing (hang exits via Space only)
 	PullUpDuration = 0.4,          -- seconds for pull-up tween
 	TriggerFallSpeed = -6,         -- velocity.Y threshold (negative = falling)
@@ -175,6 +178,16 @@ MovementConfig.Climb = {
 	ClimbSpeed = 3.0,     -- studs/s climb movement
 	DrainRate = 12,       -- Breath units / sec drained while climbing
 	MaxGripTime = 12,     -- seconds maximum continuous grip before forced release
+}
+
+-- Wall Boost (one-shot airborne wall burst)
+MovementConfig.WallBoost = {
+	Enabled            = true,
+	DetectDistance     = 2.5,   -- studs: max distance to wall for a boost to trigger
+	ImpulseSpeed       = 45,    -- studs/s magnitude of the launch vector
+	UpwardBias         = 1.5,   -- Y component added to wall normal before normalising
+	BreathCost         = 25,    -- Breath units drained per boost
+	BoostsPerGrounding = 1,     -- charges refilled on landing
 }
 
 -- Particle effects

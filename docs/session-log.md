@@ -1,6 +1,43 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-028
+## Current Session ID: NF-029
+**Date:** February 21, 2026  
+**Task:** Fix LedgeCatchState syntax corruption + ClimbState runtime errors; implement WallBoostState
+
+### Session NF-029 Changes:
+
+- **Bug fix — LedgeCatchState.lua (syntax error at line 105):**  
+  Two copy-paste corruptions found: (A) `TryStart` had a truncated `local wallH--` declaration with a zero-indented `if/else` block for the wall raycast; (B) `PullUp` had an unindented duplicate heartbeat `Connect` block with a stray `humanoid:ChangeState(GettingUp)` call. Rewritten the entire file with correct code.  
+  File: `src/shared/movement/states/LedgeCatchState.lua`
+
+- **Bug fix — ClimbState.lua (runtime require errors every Heartbeat):**  
+  `Update()` and `OnJumpRequest()` both called `require(script.Parent.LedgeCatchState)` inline (bare, no pcall). Since LedgeCatchState had a syntax error, these re-threw `"Requested module experienced an error while loading"` on every frame. Fixed by adding a module-level `pcall`-wrapped cached require (`LedgeCatchMod`) and nil-guarding both usage sites.  
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Feature — WallBoostState (one-shot airborne wall burst):**  
+  New state at `src/shared/movement/states/WallBoostState.lua`. Architecture:
+  - `TryStart(ctx)`: detects wall ≤2.5 studs forward (near-vertical surface guard), checks `WallBoostsAvailable > 0`, sets `Blackboard.IsWallBoosting = true`. Returns `true` to halt `_OnJumpRequest`.
+  - `Enter(ctx)`: applies `(wallNormal + Vector3.new(0,1.5,0)).Unit * 45` to `AssemblyLinearVelocity`, drains 25 Breath, decrements `WallBoostsAvailable`, immediately clears `IsWallBoosting` so the FSM drops back to "Jump" next frame. One-shot design — no persistent state.
+  - Landing resets `WallBoostsAvailable = 1` in `MovementController._Update`.
+  - Config: `MovementConfig.WallBoost` table added (`DetectDistance`, `ImpulseSpeed`, `UpwardBias`, `BreathCost`, `BoostsPerGrounding`).
+
+- **MovementBlackboard update:**  
+  Added `WallBoostsAvailable = 1 :: number` and `IsWallBoosting = false :: boolean`.  
+  File: `src/shared/modules/MovementBlackboard.lua`
+
+- **MovementController wiring:**  
+  - `safeRequire` for `WallBoostState` added after `ClimbState`.
+  - `WallBoost = WallBoostState` added to `_stateModules`.
+  - `_resolveActiveState`: `IsWallBoosting` check inserted between `LedgeCatch` and `Climb` priority levels.
+  - `_OnJumpRequest` airborne block: `WallBoostState.TryStart(ctx)` inserted after `WallRunState.TryStart` check.
+  - `_Update` landing detection: `Blackboard.WallBoostsAvailable = 1` reset when `not lastWasOnGround and onGround`.
+  File: `src/client/controllers/MovementController.lua`
+
+**Pattern learned:** `safeRequire` in the controller protects against load-time failures but cannot prevent runtime-require calls inside already-loaded modules. Any module that lazily requires a peer must also use pcall and nil-guard.
+
+---
+
+## Previous Session ID: NF-028
 **Date:** February 20, 2026
 **Task:** Critical hotfix + future-proofing — ClimbState duplicate declarations killed all movement
 

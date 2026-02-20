@@ -20,6 +20,14 @@ local UserInputService = game:GetService("UserInputService")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
+-- Cache LedgeCatchState safely at module load — it may have a syntax error during development.
+-- Usage sites nil-guard so climbing still works while LedgeCatch is broken.
+local _ledgeCatchOk, LedgeCatchMod = pcall(require, script.Parent.LedgeCatchState)
+if not _ledgeCatchOk then
+	warn("[ClimbState] LedgeCatchState failed to load — ledge transitions disabled")
+	LedgeCatchMod = nil
+end
+
 local ClimbState = {}
 
 local _isClimbing = false
@@ -82,12 +90,13 @@ function ClimbState.Update(dt: number, ctx: any)
 	local grip = _detectGrip(ctx)
 	if not grip then
 		-- We lost grip. Are we at a ledge?
-		local LedgeCatchState = require(script.Parent.LedgeCatchState)
-		local canCatch, probe = LedgeCatchState.CanCatch(ctx)
-		if canCatch then
-			ClimbState.Exit(ctx)
-			LedgeCatchState.TryStart(ctx)
-			return
+		if LedgeCatchMod then
+			local canCatch, _ = LedgeCatchMod.CanCatch(ctx)
+			if canCatch then
+				ClimbState.Exit(ctx)
+				LedgeCatchMod.TryStart(ctx)
+				return
+			end
 		end
 		
 		-- Otherwise, just fall
@@ -133,12 +142,13 @@ function ClimbState.OnJumpRequest(ctx: any)
 	if not rootPart then return end
 	
 	-- Check if we can pull up onto a ledge
-	local LedgeCatchState = require(script.Parent.LedgeCatchState)
-	local canCatch, probe = LedgeCatchState.CanCatch(ctx)
-	if canCatch then
-		ClimbState.Exit(ctx)
-		LedgeCatchState.TryStart(ctx)
-		return
+	if LedgeCatchMod then
+		local canCatch, _ = LedgeCatchMod.CanCatch(ctx)
+		if canCatch then
+			ClimbState.Exit(ctx)
+			LedgeCatchMod.TryStart(ctx)
+			return
+		end
 	end
 	
 	-- Otherwise, jump off the wall

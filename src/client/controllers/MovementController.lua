@@ -74,6 +74,7 @@ local WallRunState    = safeRequire(ReplicatedStorage.Shared.movement.states.Wal
 local VaultState      = safeRequire(ReplicatedStorage.Shared.movement.states.VaultState,      "VaultState")
 local LedgeCatchState = safeRequire(ReplicatedStorage.Shared.movement.states.LedgeCatchState, "LedgeCatchState")
 local ClimbState      = safeRequire(ReplicatedStorage.Shared.movement.states.ClimbState,      "ClimbState")
+local WallBoostState  = safeRequire(ReplicatedStorage.Shared.movement.states.WallBoostState,  "WallBoostState")
 
 local MovementController = {}
 
@@ -254,6 +255,7 @@ local _stateModules: {[string]: any} = {
 	Vault      = VaultState,
 	LedgeCatch = LedgeCatchState,
 	Climb      = ClimbState,
+	WallBoost  = WallBoostState,
 }
 
 local function _resolveActiveState(
@@ -262,6 +264,7 @@ local function _resolveActiveState(
 	wantsSpr: boolean,
 	moveDir: Vector3): string
 	if blackboard.IsLedgeCatching then return "LedgeCatch" end
+	if blackboard.IsWallBoosting   then return "WallBoost"  end
 	if blackboard.IsClimbing      then return "Climb"      end
 	if blackboard.IsVaulting       then return "Vault"      end
 	if blackboard.IsWallRunning    then return "WallRun"    end
@@ -619,6 +622,10 @@ function MovementController._Update(dt: number)
 	if not onGround then
 		coyoteTimeLeft = math.max(0, coyoteTimeLeft - dt)
 	end
+	-- Landing: reset wall boost charges
+	if not lastWasOnGround and onGround then
+		Blackboard.WallBoostsAvailable = 1
+	end
 	lastWasOnGround = onGround
 
 	-- Jump buffer: count down when on ground and consume
@@ -928,6 +935,11 @@ function MovementController._OnJumpRequest()
 
 		-- Try to *start* a wall-run only when player presses Jump near a wall
 		if WallRunState.TryStart and WallRunState.TryStart(ctx) then
+			return
+		end
+
+		-- Wall boost: one-shot airborne burst off a nearby wall
+		if WallBoostState.TryStart and WallBoostState.TryStart(ctx) then
 			return
 		end
 

@@ -55,6 +55,13 @@ local MovementBlackboard = {
 	-- ── Slide-jump flag ───────────────────────────────────────────
 	-- Set by SlideState.OnJumpRequest; cleared on landing in _Update.
 	SlideJumped = false :: boolean,
+
+	-- ── Wall Boost ────────────────────────────────────────────────
+	-- Charges available for the airborne wall-burst (reset to 1 on landing).
+	WallBoostsAvailable = 1 :: number,
+	-- Momentary flag: set true by WallBoostState.TryStart, cleared in Enter after
+	-- the impulse is applied so the FSM falls back to Jump next frame.
+	IsWallBoosting = false :: boolean,
 }
 
 return MovementBlackboard
