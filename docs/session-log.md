@@ -1,6 +1,30 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-029
+## Current Session ID: NF-030
+**Date:** February 20, 2026
+**Task:** Fix three climbing bugs — W-while-airborne, character not moving on wall, climb overriding ledge hang
+
+### Session NF-030 Changes:
+
+- **Bug fix — ClimbState.TryStart missing `IsLedgeCatching` guard:**  
+  `TryStart` blocked climbing during `IsVaulting`, `IsWallRunning`, `IsSliding`, but NOT `IsLedgeCatching`. If a passive W trigger fires while the player is hanging, the climb state would steal physics from the hang. Added `or ctx.Blackboard.IsLedgeCatching` to the guard.  
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Bug fix — ClimbState.Update wrong horizontal offset sign:**  
+  `Update()` computed `gripPoint.XZ - gripNormal * 0.6` to keep the character in front of the wall. The wall normal points TOWARD the player (away from surface), so subtracting it pushed the character INTO the wall. On the second frame `_detectGrip` found no wall (ray origin was inside geometry) and immediately exited climb — explaining both "goes nowhere" and premature exit. Fixed to `+ horizontalOffset` so the character stays 0.6 studs in front of the surface.  
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Feature — Passive W-to-climb trigger in MovementController._Update:**  
+  `ClimbState.TryStart` was previously only reachable via a Space (JumpRequest) press. Pressing W while airborne against a wall had no effect. Added a per-frame check after `WallRunState.Detect`: when airborne, W is held, and no conflicting state is active, call `LedgeCatchState.CanCatch` first — if a ledge is accessible above, skip climb so the player can use Space to hang instead. Only when there is no catchable ledge does the check call `ClimbState.TryStart`.  
+  File: `src/client/controllers/MovementController.lua`
+
+**Priority order enforced (high → low):** LedgeCatch (Space) > W-passive climb (no ledge above) > WallBoost (Space, last resort)
+
+**Pattern learned:** Always include every mutually-exclusive Blackboard flag in `TryStart` guards. A missing guard on one flag is enough to let a lower-priority state steal physics from a higher-priority one.
+
+---
+
+## Previous Session ID: NF-029
 **Date:** February 21, 2026  
 **Task:** Fix LedgeCatchState syntax corruption + ClimbState runtime errors; implement WallBoostState
 

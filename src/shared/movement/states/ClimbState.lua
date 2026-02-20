@@ -63,8 +63,12 @@ function ClimbState.TryStart(ctx: any): boolean
 	if not MovementConfig.Climb.Enabled then return false end
 	if _isClimbing then return false end
 	if not ctx or not ctx.RootPart or not ctx.Humanoid then return false end
-	-- Don't start while grounded or during restricted states
-	if ctx.OnGround or ctx.Blackboard.IsVaulting or ctx.Blackboard.IsWallRunning or ctx.Blackboard.IsSliding then return false end
+	-- Don't start while grounded or during restricted states (including an active ledge hang)
+	if ctx.OnGround
+		or ctx.Blackboard.IsVaulting
+		or ctx.Blackboard.IsWallRunning
+		or ctx.Blackboard.IsSliding
+		or ctx.Blackboard.IsLedgeCatching then return false end
 
 	local grip = _detectGrip(ctx)
 	if not grip then return false end
@@ -131,9 +135,10 @@ function ClimbState.Update(dt: number, ctx: any)
 		local root = ctx.RootPart
 		-- Project a vertical move along world Y but keep horizontal offset from wall
 		local targetPos = root.Position + Vector3.new(0, climbVel * dt, 0)
-		-- Keep a small offset from the wall so the player doesn't intersect geometry
+		-- Keep a small offset from the wall: wall normal points TOWARD the player,
+		-- so adding the normal moves the character AWAY from the wall surface.
 		local horizontalOffset = (_gripNormal and (_gripNormal.Unit * 0.6)) or Vector3.new(0,0,0)
-		targetPos = Vector3.new(_gripPoint.X, targetPos.Y, _gripPoint.Z) - horizontalOffset
+		targetPos = Vector3.new(_gripPoint.X, targetPos.Y, _gripPoint.Z) + horizontalOffset
 		root.CFrame = CFrame.new(targetPos, targetPos + (root.CFrame.LookVector * Vector3.new(1,0,1)))
 	end
 
