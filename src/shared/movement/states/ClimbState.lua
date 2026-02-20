@@ -137,7 +137,11 @@ end
 
 function ClimbState.OnJumpRequest(ctx: any)
 	if not _isClimbing then return end
-	
+
+	-- Prevent the same keypress that triggered TryStart from immediately jumping off.
+	-- JumpRequest can fire more than once per press (Roblox fires it on PlatformStand changes).
+	if tick() - _startGripTime < 0.25 then return end
+
 	local rootPart = ctx.RootPart
 	if not rootPart then return end
 	

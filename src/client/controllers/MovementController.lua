@@ -127,6 +127,7 @@ local currentAnimationTrack: AnimationTrack? = nil
 local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
 local lastWKeyPressTime = 0 -- Time of last W key press
 local landingSprintExpiry = 0 -- temporary sprint allowance after slide-jump landing (grace window)
+local _lastJumpRequestTime = 0 -- debounce: swallow duplicate JumpRequest fires within 0.1s
 -- isSliding / slideJumped / lastSlideTime → owned by SlideState; exposed via Blackboard.
 
 -- Breath state (#95)
@@ -893,6 +894,13 @@ end
 function MovementController._OnJumpRequest()
 	local humanoid = Humanoid
 	if not humanoid then return end
+
+	-- Debounce: Roblox's JumpRequest can fire multiple times per keypress
+	-- (once from UserInputService, again when Humanoid/PlatformStand state changes).
+	-- Swallow any repeat within 0.1s of the last handled request.
+	local now = tick()
+	if now - _lastJumpRequestTime < 0.1 then return end
+	_lastJumpRequestTime = now
 
 	-- Slide leap: delegate to SlideState which owns all slide physics
 	if Blackboard.IsSliding then
