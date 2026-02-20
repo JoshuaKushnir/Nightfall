@@ -45,6 +45,8 @@ local _catchTime: number = 0
 local LedgeCatchState = {}
 
 -- Probe for a ledge edge above and ahead of the character.
+-- Scans at several forward distances so the detection works whether the player
+-- is 0.8 or 2.5 studs from the wall (single-point probes miss too often).
 -- Returns { hit, lookDir, ledgeY } or nil.
 local function _probeLedge(ctx: any)
 local humanoid = ctx.Humanoid
@@ -59,16 +61,23 @@ local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)
 if lookDir.Magnitude < 0.01 then return nil end
 lookDir = lookDir.Unit
 
-local probeOrigin = rootPart.Position + lookDir * FORWARD_DIST + Vector3.new(0, HEIGHT_OFFSET + 0.5, 0)
-local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -(HEIGHT_OFFSET + 2), 0), params)
-if not hitDown then return nil end
-
-local ledgeY = hitDown.Position.Y
 local charTopY = rootPart.Position.Y + 1.5
--- Allow catching if ledge is slightly below charTopY (e.g. they climbed up to it)
-if ledgeY < charTopY - 2.0 or ledgeY > charTopY + REACH_WINDOW then return nil end
+local probeUp = HEIGHT_OFFSET + 0.5
+local probeDown = HEIGHT_OFFSET + 2
 
-return { hit = hitDown, lookDir = lookDir, ledgeY = ledgeY }
+-- Scan from close-in to far to catch ledges at varying wall distances.
+local scanDistances = { 0.8, 1.2, 1.6, 2.0, 2.4 }
+for _, dist in ipairs(scanDistances) do
+	local probeOrigin = rootPart.Position + lookDir * dist + Vector3.new(0, probeUp, 0)
+	local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -probeDown, 0), params)
+	if hitDown then
+		local ledgeY = hitDown.Position.Y
+		if ledgeY >= charTopY - 2.0 and ledgeY <= charTopY + REACH_WINDOW then
+			return { hit = hitDown, lookDir = lookDir, ledgeY = ledgeY }
+		end
+	end
+end
+return nil
 end
 
 --[[

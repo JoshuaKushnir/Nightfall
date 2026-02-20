@@ -76,7 +76,16 @@ function ClimbState.TryStart(ctx: any): boolean
 	_startGripTime = tick()
 	if ctx.Blackboard then ctx.Blackboard.IsClimbing = true end
 	if ctx.Humanoid then ctx.Humanoid.PlatformStand = true end
-	if ctx.RootPart then ctx.RootPart.Anchored = true end
+	if ctx.RootPart then
+		ctx.RootPart.Anchored = true
+		-- Zero any stored velocity so it doesn't resume (as a downward force) on release.
+		ctx.RootPart.AssemblyLinearVelocity = Vector3.zero
+		-- Orient to face the wall so W/S movement is consistent from the first frame.
+		local wallFacing = Vector3.new(-grip.normal.X, 0, -grip.normal.Z)
+		if wallFacing.Magnitude > 0.01 then
+			ctx.RootPart.CFrame = CFrame.new(ctx.RootPart.Position, ctx.RootPart.Position + wallFacing.Unit)
+		end
+	end
 	print("[ClimbState] Grip acquired — entering climb")
 	return true
 end
@@ -144,7 +153,7 @@ function ClimbState.OnJumpRequest(ctx: any)
 
 	local rootPart = ctx.RootPart
 	if not rootPart then return end
-	
+
 	-- Check if we can pull up onto a ledge
 	if LedgeCatchMod then
 		local canCatch, _ = LedgeCatchMod.CanCatch(ctx)
@@ -154,14 +163,15 @@ function ClimbState.OnJumpRequest(ctx: any)
 			return
 		end
 	end
-	
-	-- Otherwise, jump off the wall
-	if _gripNormal then
-		local jumpDir = _gripNormal + Vector3.new(0, 1.5, 0)
+
+	-- Capture grip normal before Exit clears it.
+	-- Apply velocity AFTER Exit (which sets Anchored=false) so Roblox actually honours it.
+	local capturedNormal = _gripNormal
+	ClimbState.Exit(ctx)
+	if rootPart and capturedNormal then
+		local jumpDir = capturedNormal + Vector3.new(0, 1.5, 0)
 		rootPart.AssemblyLinearVelocity = jumpDir.Unit * 45
 	end
-	
-	ClimbState.Exit(ctx)
 	if ctx.ChainAction then ctx.ChainAction() end
 	print("[ClimbState] Jumped off wall")
 end
