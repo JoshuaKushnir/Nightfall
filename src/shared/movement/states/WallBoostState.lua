@@ -29,14 +29,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
 -- Config (safe fallbacks if section missing)
-local CFG_ENABLED      = (MovementConfig.WallBoost and MovementConfig.WallBoost.Enabled)            ~= false
-local CFG_DETECT_DIST  = (MovementConfig.WallBoost and MovementConfig.WallBoost.DetectDistance)      or 2.5
-local CFG_SPEED        = (MovementConfig.WallBoost and MovementConfig.WallBoost.ImpulseSpeed)        or 45
-local CFG_UPWARD_BIAS  = (MovementConfig.WallBoost and MovementConfig.WallBoost.UpwardBias)          or 1.5
-local CFG_BREATH_COST  = (MovementConfig.WallBoost and MovementConfig.WallBoost.BreathCost)          or 25
+local CFG_ENABLED       = (MovementConfig.WallBoost and MovementConfig.WallBoost.Enabled)       ~= false
+local CFG_DETECT_DIST   = (MovementConfig.WallBoost and MovementConfig.WallBoost.DetectDistance)  or 2.5
+local CFG_SPEED         = (MovementConfig.WallBoost and MovementConfig.WallBoost.ImpulseSpeed)    or 45
+local CFG_UPWARD_BIAS   = (MovementConfig.WallBoost and MovementConfig.WallBoost.UpwardBias)      or 1.5
+local CFG_BREATH_COST   = (MovementConfig.WallBoost and MovementConfig.WallBoost.BreathCost)      or 25
+local CFG_BOOST_DURATION = (MovementConfig.WallBoost and MovementConfig.WallBoost.BoostDuration)  or 0.35
 
--- Module-private: wall normal captured in TryStart, applied in Enter.
+-- Module-private state
 local _pendingWallNormal: Vector3? = nil
+local _boostTimeLeft: number = 0
 
 local WallBoostState = {}
 
@@ -75,14 +77,15 @@ function WallBoostState.TryStart(ctx: any): boolean
 
 	-- Arm the boost
 	_pendingWallNormal = hit.Normal
+	_boostTimeLeft = CFG_BOOST_DURATION
 	bb.IsWallBoosting = true
 	print("[WallBoostState] Boost armed — wall normal:", hit.Normal)
 	return true
 end
 
 --[[
-	Enter — FSM transition hook. Apply the impulse and immediately retire the state.
-	This makes WallBoost a one-frame state that drops back to Jump automatically.
+	Enter — FSM transition hook. Applies the impulse; does NOT retire the state.
+	Update() counts down BoostDuration and clears IsWallBoosting when expired.
 ]]
 function WallBoostState.Enter(ctx: any)
 	local rootPart = ctx.RootPart
@@ -109,14 +112,27 @@ function WallBoostState.Enter(ctx: any)
 	-- Consume charge
 	bb.WallBoostsAvailable = math.max(0, bb.WallBoostsAvailable - 1)
 
-	-- Immediately retire so _resolveActiveState falls through next frame
-	bb.IsWallBoosting = false
-
+	-- IsWallBoosting stays true; Update() clears it after BoostDuration elapses
+	-- so the Climb animation has time to play before the state retires to "Jump".
 	print(("[WallBoostState] Boost applied — charges left: %d"):format(bb.WallBoostsAvailable))
 end
 
-function WallBoostState.Update(_dt: number, _ctx: any) end
-function WallBoostState.Exit(_ctx: any) end
+function WallBoostState.Update(dt: number, ctx: any)
+	-- Count down; when expired, retire the state so _resolveActiveState falls to "Jump".
+	_boostTimeLeft = _boostTimeLeft - dt
+	if _boostTimeLeft <= 0 and ctx and ctx.Blackboard then
+		ctx.Blackboard.IsWallBoosting = false
+	end
+end
+
+function WallBoostState.Exit(ctx: any)
+	-- Force-clear in case of external state preemption.
+	if ctx and ctx.Blackboard then
+		ctx.Blackboard.IsWallBoosting = false
+	end
+	_boostTimeLeft = 0
+end
+
 function WallBoostState.OnLand(_ctx: any) end
 
 return WallBoostState

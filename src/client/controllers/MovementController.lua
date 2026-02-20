@@ -737,8 +737,8 @@ function MovementController._Update(dt: number)
 		newAnimState = "Slide"
 	elseif Blackboard.IsWallRunning then
 		newAnimState = "Running" -- Fallback until a dedicated WallRun animation is added
-	elseif Blackboard.IsClimbing then
-		newAnimState = "LedgeHold" -- Fallback until a dedicated Climb animation is added
+	elseif Blackboard.IsClimbing or Blackboard.IsWallBoosting then
+		newAnimState = "Climb"
 	elseif not onGround then
 		newAnimState = "Jump"
 	elseif moveDir.Magnitude > 0.5 then
@@ -759,12 +759,8 @@ function MovementController._Update(dt: number)
 		if currentAnimationTrack then
 			-- Some animations should loop, others shouldn't
 			local loopedAnims = {
-				Idle = true,
-				Walk = true,
-				Running = true,
-				Slide = true,
-				LedgeHold = true,
-				Jump = true,
+				Idle = true, Walk = true, Running = true,
+				Slide = true, LedgeHold = true, Jump = true, Climb = true,
 			}
 			currentAnimationTrack.Looped = loopedAnims[newAnimState] or false
 			currentAnimationTrack:Play()
@@ -938,18 +934,14 @@ function MovementController._OnJumpRequest()
 			return
 		end
 
-		-- Wall boost: one-shot airborne burst off a nearby wall
-		if WallBoostState.TryStart and WallBoostState.TryStart(ctx) then
-			return
-		end
-
 		-- If already hanging, Jump again → PullUp
 		if Blackboard.IsLedgeCatching and LedgeCatchState.PullUp then
 			LedgeCatchState.PullUp(ctx)
 			return
 		end
 
-		-- If in position to catch a ledge, pressing Jump should start the hang
+		-- If in position to catch a ledge, pressing Jump should start the hang (checked before
+		-- wall boost so a reachable ledge always takes priority over a wall burst).
 		local canCatch, _ = (LedgeCatchState.CanCatch and LedgeCatchState.CanCatch(ctx))
 		if canCatch then
 			LedgeCatchState.TryStart(ctx)
@@ -958,6 +950,12 @@ function MovementController._OnJumpRequest()
 
 		-- Try to start a climb (manual Jump-driven grip). Falls back to ledge/hang if appropriate.
 		if ClimbState.TryStart and ClimbState.TryStart(ctx) then
+			return
+		end
+
+		-- Wall boost: last-resort airborne burst off a nearby wall.
+		-- Checked AFTER ledge/climb so a catchable ledge always takes priority.
+		if WallBoostState.TryStart and WallBoostState.TryStart(ctx) then
 			return
 		end
 	end

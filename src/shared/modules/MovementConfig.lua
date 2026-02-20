@@ -188,6 +188,7 @@ MovementConfig.WallBoost = {
 	UpwardBias         = 1.5,   -- Y component added to wall normal before normalising
 	BreathCost         = 25,    -- Breath units drained per boost
 	BoostsPerGrounding = 1,     -- charges refilled on landing
+	BoostDuration      = 0.35,  -- seconds the state stays active (allows animation to play)
 }
 
 -- Particle effects
