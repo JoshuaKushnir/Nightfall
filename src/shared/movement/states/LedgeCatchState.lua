@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
 Class: LedgeCatchState
 Description: Owns all ledge-catch state and physics. Replaces the monolithic TryLedgeCatch body.
@@ -66,16 +66,24 @@ local probeUp = HEIGHT_OFFSET + 0.5
 local probeDown = HEIGHT_OFFSET + 2
 
 -- Scan from close-in to far to catch ledges at varying wall distances.
-local scanDistances = { 0.8, 1.2, 1.6, 2.0, 2.4 }
+-- Scan starts closer (0.4) to catch ledges when hugged against a wall.
+local scanDistances = { 0.4, 0.8, 1.2, 1.6, 2.0, 2.4 }
 for _, dist in ipairs(scanDistances) do
-	local probeOrigin = rootPart.Position + lookDir * dist + Vector3.new(0, probeUp, 0)
-	local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -probeDown, 0), params)
-	if hitDown then
-		local ledgeY = hitDown.Position.Y
-		if ledgeY >= charTopY - 2.0 and ledgeY <= charTopY + REACH_WINDOW then
-			return { hit = hitDown, lookDir = lookDir, ledgeY = ledgeY }
-		end
-	end
+    local probeOrigin = rootPart.Position + lookDir * dist + Vector3.new(0, probeUp, 0)
+
+    -- If the probe origin is likely inside a wall, step it back slightly
+    local wallHit = workspace:Raycast(rootPart.Position, lookDir * dist, params)
+    if wallHit and wallHit.Distance < dist * 0.9 then
+        probeOrigin = wallHit.Position - lookDir * 0.2 + Vector3.new(0, probeUp, 0)
+    end
+
+    local hitDown = workspace:Raycast(probeOrigin, Vector3.new(0, -probeDown, 0), params)
+    if hitDown then
+        local ledgeY = hitDown.Position.Y
+        if ledgeY >= charTopY - 2.0 and ledgeY <= charTopY + REACH_WINDOW then
+            return { hit = hitDown, lookDir = lookDir, ledgeY = ledgeY }
+        end
+    end
 end
 return nil
 end
@@ -93,7 +101,9 @@ if ctx.OnGround then return end
 if ctx.Blackboard.IsVaulting or ctx.Blackboard.IsWallRunning or ctx.Blackboard.IsSliding then return end
 
 local probe = _probeLedge(ctx)
-if not probe then return end
+if not probe then
+    return false
+end
 
 -- Catch!
 _isLedgeCatching = true
@@ -101,6 +111,9 @@ ctx.Blackboard.IsLedgeCatching = true
 _currentLedgeY = probe.ledgeY
 _catchTime = tick()
 print("[LedgeCatchState] Ledge catch triggered")
+
+-- signal success so callers (eg. MovementController) can early-return
+return true
 
 humanoid.PlatformStand = true
 rootPart.Anchored = true

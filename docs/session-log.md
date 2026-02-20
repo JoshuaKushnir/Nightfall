@@ -1,6 +1,28 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-033
+## Current Session ID: NF-034
+**Date:** February 20, 2026  
+**Task:** Prioritize LedgeCatch over Climb; fix logic fall-through in Controller; refine ledge probe
+
+### Session NF-034 Changes:
+
+- **Bug fix — MovementController logic fall-through:**  
+  In `_OnJumpRequest`, the `canCatch` check for the airborne phase was starting the ledge-catch but lacked a `return`. This allowed the code to fall through and immediately attempt `ClimbState.TryStart` on the same frame, causing climb to frequently override or interfere with the ledge catch. Fixed by adding the missing `return`.  
+  File: `src/client/controllers/MovementController.lua`
+
+- **Architecture — Ledge over Climb priority:**  
+  Inserted an explicit `LedgeCatchMod.CanCatch` check at the top of `ClimbState.TryStart`. This ensures that even if called from another system, climbing will never initiate if a catchable ledge is detected. Enforcement of "climbing is secondary to ledge catching" is now guaranteed in two layers (Controller + State module).  
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Bug fix — LedgeCatchState probe logic refined:**  
+  Removed a "backOffset" logic in `_probeLedge` that was intended to avoid wall geometry but was pulling the probe origin behind the player root when hugging a wall, causing ledge detection to miss thin platforms or walls entirely. Replaced with a more robust check that starts scanning at 0.4 studs and only nudges the probe origin back if a wall hit is actually detected at that distance.  
+  File: `src/shared/movement/states/LedgeCatchState.lua`
+
+**Pattern learned:** Logic fall-through in state transitions is a common source of "janky" prioritisation. Always `return` immediately upon successful entry into a mutually exclusive state.
+
+---
+
+## Previous Session ID: NF-033
 **Date:** February 20, 2026
 **Task:** Fix climb bounce/jitter caused by per-frame character nudge
 

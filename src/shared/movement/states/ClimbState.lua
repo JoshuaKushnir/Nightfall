@@ -85,6 +85,12 @@ function ClimbState.TryStart(ctx: any): boolean
 		return false
 	end
 
+	-- Ledge catch always takes priority over climbing.
+	-- This is the secondary check (primary is in MovementController).
+	if LedgeCatchMod and LedgeCatchMod.CanCatch and LedgeCatchMod.CanCatch(ctx) then
+		return false
+	end
+
 	local grip = _detectGrip(ctx)
 	if not grip then return false end
 
