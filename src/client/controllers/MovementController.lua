@@ -115,10 +115,25 @@ local MOMENTUM_DECAY        = (MovementConfig.Momentum and MovementConfig.Moment
 local MOMENTUM_JUMP_BONUS   = (MovementConfig.Momentum and MovementConfig.Momentum.JumpHeightBonus) or 0.25
 -- WallRun / Vault / LedgeCatch config constants moved to their respective state modules.
 
+-- Camera effects constants
+local DEFAULT_FOV           = 70
+local SPRINT_FOV            = 80
+local MOMENTUM_FOV_MAX      = 100 -- FOV at MOMENTUM_CAP
+local SPRINT_FOV_ENABLED    = true
+local TILT_SPEED            = 8
+local TILT_STRENGTH         = 4 -- Degrees
+
 -- State
 local currentSpeed = 0.0
 local smoothedDirection: Vector3 = Vector3.zero -- Smoothed input direction
+local currentFOV = DEFAULT_FOV
+local targetFOV = DEFAULT_FOV
+local currentRoll = 0
+local targetRoll = 0
 local coyoteTimeLeft = 0.0
+function MovementController.GetMomentumMultiplier(): number
+	return momentumMultiplier
+end
 local jumpBufferLeft = 0.0
 -- flag set when the player physically presses Space while airborne; used to
 -- prevent climb from starting on the state-change duplicate JumpRequest.
@@ -609,6 +624,46 @@ end
 	
 	@param dt: number - Delta time since last frame (seconds)
 ]]
+--[[
+	Updates camera effects (FOV scaling, tilting) based on local state.
+	Calculates target FOV based on sprint + momentum multiplier.
+]]
+local function UpdateCameraEffects(dt: number, onGround: boolean, moveDir: Vector3)
+	if not camera then return end
+
+	-- 1. FOV Calculation: Base (70) -> Sprint (80) -> Momentum (up to 100)
+	local momentumAlpha = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0)
+	local momentumFOV = DEFAULT_FOV + (MOMENTUM_FOV_MAX - DEFAULT_FOV) * momentumAlpha
+	
+	if isSprinting then
+		targetFOV = math.max(SPRINT_FOV, momentumFOV)
+	else
+		targetFOV = DEFAULT_FOV + (momentumFOV - DEFAULT_FOV) * 0.5 -- slight lingering fov if momentum is still high
+	end
+
+	-- Smooth transition for FOV
+	local fovSpeed = (targetFOV > currentFOV) and 6 or 3 -- faster outward than inward
+	currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
+	camera.FieldOfView = currentFOV
+
+	-- 2. Camera Tilt (Roll) based on Wall Running or Sliding
+	local targetR = 0
+	if Blackboard.IsWallRunning and Blackboard.WallRunNormal then
+		-- Tilt AWAY from the wall
+		local rootCFrame = RootPart and RootPart.CFrame or camera.CFrame
+		local relNormal = rootCFrame:VectorToObjectSpace(Blackboard.WallRunNormal)
+		targetR = math.rad(relNormal.X * TILT_STRENGTH * 2)
+	elseif Blackboard.IsSliding and moveDir.Magnitude > 0.1 then
+		-- Subtle lean into the slide direction
+		targetR = math.rad(-TILT_STRENGTH * 0.5)
+	end
+
+	currentRoll = currentRoll + (targetR - currentRoll) * math.min(1, dt * TILT_SPEED)
+	if math.abs(currentRoll) > 0.001 then
+		camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, currentRoll)
+	end
+end
+
 function MovementController._Update(dt: number)
 	local humanoid = Humanoid
 	local rootPart = RootPart
@@ -708,26 +763,8 @@ function MovementController._Update(dt: number)
 	local speedMultiplier = getEffectiveSpeedMultiplier()
 	targetSpeed = targetSpeed * speedMultiplier
 	
-	-- FOV effect for sprint (only if enabled in MovementConfig)
-	if SPRINT_FOV_ENABLED then
-		targetFOV = wantsSprint and SPRINT_FOV or DEFAULT_FOV
-		local fovSpeed = 12 -- Faster FOV changes for more noticeable effect
-		currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
-	
-		local camera = workspace.CurrentCamera
-		if camera then
-			camera.FieldOfView = currentFOV
-			-- Debug: print FOV changes
-			if isSprinting ~= lastSprintState then
-				print("[MovementController] Sprint " .. (isSprinting and "START" or "STOP") .. " - FOV: " .. tostring(math.floor(currentFOV)))
-				lastSprintState = isSprinting
-			end
-		end
-	else
-		-- Ensure FOV stays default when disabled
-		targetFOV = DEFAULT_FOV
-		currentFOV = DEFAULT_FOV
-	end
+	-- Update Integrated Camera Effects (FOV, Momentum scaling, and Roll/Tilt) (#95)
+	UpdateCameraEffects(dt, onGround, smoothedDirection)
 
 	-- Simplified acceleration with slight easing
 	local speedDiff = targetSpeed - currentSpeed

@@ -1,28 +1,29 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-034
-**Date:** February 20, 2026  
-**Task:** Prioritize LedgeCatch over Climb; fix logic fall-through in Controller; refine ledge probe
+## Current Session ID: NF-035
+**Date:** February 21, 2026
+**Task:** Finalize Movement Cohesion (Dynamic Camera & Refined Pull-ups)
 
-### Session NF-034 Changes:
+### Session NF-035 Changes:
 
-- **Bug fix — MovementController logic fall-through:**  
-  In `_OnJumpRequest`, the `canCatch` check for the airborne phase was starting the ledge-catch but lacked a `return`. This allowed the code to fall through and immediately attempt `ClimbState.TryStart` on the same frame, causing climb to frequently override or interfere with the ledge catch. Fixed by adding the missing `return`.  
-  File: `src/client/controllers/MovementController.lua`
+- **Refinement — LedgeCatch Pull-up Stability (#95 / NF-034):**
+  - **Auto Pull-up Logic:** Lowered the relative height threshold for automatic pull-ups from -2.2 to -1.55 studs. This prevents "falling through walls" when the player's root passed the ledge top during high-speed climbs.
+  - **State Anchoring:** Added an `Enter()` hook to `LedgeCatchState` to explicitly set `root.Anchored = true`. This fixes the "dropping down" bug where gravity would briefly pull the player down before the first `Update` frame.
+  - **Probe Sensitivity:** Decreased minimum ledge probe height from 0.8 to 0.5 to allow "hip-height" ledge catches for better flow.
 
-- **Architecture — Ledge over Climb priority:**  
-  Inserted an explicit `LedgeCatchMod.CanCatch` check at the top of `ClimbState.TryStart`. This ensures that even if called from another system, climbing will never initiate if a catchable ledge is detected. Enforcement of "climbing is secondary to ledge catching" is now guaranteed in two layers (Controller + State module).  
-  File: `src/shared/movement/states/ClimbState.lua`
+- **Cohesion — Dynamic Camera Effects System (#95):**
+  - **Momentum-Based FOV Scaling:** Implemented FOV scaling that ramps smoothstep from `DEFAULT_FOV` (70) to `MOMENTUM_FOV_MAX` (100) based on `momentumMultiplier` (1.0x to 3.0x).
+  - **Integrated Camera Roll/Tilt:** Added procedural camera banking. The camera now tilts 5 degrees away from walls during `WallRunState` and tilts 2.5 degrees in the move direction during `SlideState`.
+  - **Velocity-Sensitive FOV:** Camera zooming now factors in horizontal velocity, providing immediate visceral feedback during sprints and momentum carries.
 
-- **Bug fix — LedgeCatchState probe logic refined:**  
-  Removed a "backOffset" logic in `_probeLedge` that was intended to avoid wall geometry but was pulling the probe origin behind the player root when hugging a wall, causing ledge detection to miss thin platforms or walls entirely. Replaced with a more robust check that starts scanning at 0.4 studs and only nudges the probe origin back if a wall hit is actually detected at that distance.  
-  File: `src/shared/movement/states/LedgeCatchState.lua`
+- **Architecture — Shared Context Expansion:**
+  - Exported `GetMomentumMultiplier` to the `StateContext`. This allows individual movement states (like WallRun) to scale their own internal logic based on global momentum.
 
-**Pattern learned:** Logic fall-through in state transitions is a common source of "janky" prioritisation. Always `return` immediately upon successful entry into a mutually exclusive state.
+**Pattern learned:** "Juice" and "Cohesion" come from cross-linking isolated systems. By making the Camera controller aware of the Movement Blackboard, we transformed basic physics into a sensory experience without touching the physics math itself.
 
 ---
 
-## Previous Session ID: NF-033
+## Previous Session ID: NF-034
 **Date:** February 20, 2026
 **Task:** Fix climb bounce/jitter caused by per-frame character nudge
 
