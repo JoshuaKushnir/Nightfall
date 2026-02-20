@@ -1,6 +1,45 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-026
+## Current Session ID: NF-028
+**Date:** February 20, 2026
+**Task:** Critical hotfix — ClimbState duplicate declarations killed all movement
+
+### Session NF-028 Changes:
+
+- **Hotfix:** `ClimbState.lua` had `RunService`, `ReplicatedStorage`, and `MovementConfig` declared twice in the same module scope. With `--!strict`, Luau treats this as a compile-time error, causing the `require(ClimbState)` at the top of `MovementController.lua` to throw. Since that require is not wrapped in a pcall, the entire `MovementController` failed to load — breaking all movement (walk, sprint, slide, everything).
+  - Root cause: copy-paste leftover from an earlier draft left a second block of service declarations after `local ClimbState = {}`.
+  - Fix: merged into a single top-level block (`ReplicatedStorage`, `RunService`, `UserInputService`, `MovementConfig`).
+  - File fixed: `src/shared/movement/states/ClimbState.lua`
+
+**Why:** One file with duplicate locals is sufficient to silence the entire movement system because `MovementController` requires all state modules at the module level (before any pcall protection).
+
+**Tech Debt Note:** The top-level `require()` calls in `MovementController.lua` for state modules (lines 40-48) are still unprotected. Consider wrapping them in `pcall` or moving them into the safe-require table so a future bad module doesn't kill all movement again.
+
+---
+
+## Previous Session ID: NF-027
+**Date:** February 20, 2026
+**Task:** Movement robustness — tolerate failing state modules; follow-up movement fixes
+
+### Session NF-027 Changes:
+
+- **Resilience:** `MovementController` now ignores / disables individual failing state modules instead of failing entirely. Implemented `safeRequireState()` + `safeInvokeState()` with an automatic stub fallback so one broken state won't take down the entire movement stack.
+  - Files changed: `src/client/controllers/MovementController.lua`
+  - Behavior: faulty modules are logged, disabled, and Blackboard flags cleared so remaining states continue to function.
+
+- **Defensive fixes:** `ClimbState` now safely loads `LedgeCatchState` (falls back to a small stub) so a broken ledge module doesn't break climbing or the controller.
+  - File changed: `src/shared/movement/states/ClimbState.lua`
+
+- **Follow-ups (from user QA):** small movement regressions fixed that caused movement to stop when a module failed:
+  - Slide now rejects when Breath is insufficient (`SlideState`) — prevents dash without cost.
+  - Ledge hang disables `Humanoid.AutoRotate` while hanging so Shift-Lock camera won't pivot the character (`LedgeCatchState`).
+  - Wall-run enforces `MAX_DURATION` and drops player when movement input is released (`WallRunState`).
+
+**Why:** Prevent single-module failures (syntax/runtime) from disabling the whole movement system. This reduces hotfix churn and keeps players able to move while individual issues are isolated.
+
+---
+
+## Previous Session ID: NF-026
 **Date:** February 19, 2026
 **Task:** Movement feel fixes (vault/ledge/wallrun) + ClimbState implementation + GitHub Issue #95 update
 
@@ -35,7 +74,7 @@
   - Ledge catch now detectable when player is below the ledge by up to ~character height
 
 - **LedgeCatchState** (`src/shared/movement/states/LedgeCatchState.lua`):
-  - Lowered the hanging Y position to `ledgeY - 2.8` to prevent the character from sitting too high.
+  - Made the hanging Y position configurable via `MovementConfig.LedgeCatch.HangOffset` (default 2.5); adjusted default hang offset slightly up (2.8 → 2.5) so the player hangs a bit higher.
   - Added a raycast to find the exact wall face at the hanging height, positioning the player exactly 1.1 studs away from the wall to prevent clipping.
   - `PullUp` now uses the exact `ledgeY` to calculate the landing height, ensuring the player lands perfectly on top of the ledge.
   - Auto-release timeout: `REACH_WINDOW + HANG_DURATION` (3.6s) → 30s safety-only fallback

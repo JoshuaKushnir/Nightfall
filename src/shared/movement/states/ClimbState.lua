@@ -16,6 +16,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
@@ -25,11 +26,6 @@ local _isClimbing = false
 local _gripPoint: Vector3? = nil
 local _gripNormal: Vector3? = nil
 local _startGripTime = 0
-
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
 local function _detectGrip(ctx: any)
 	local rootPart = ctx.RootPart
