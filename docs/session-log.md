@@ -1,6 +1,36 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-031
+## Current Session ID: NF-032
+**Date:** February 20, 2026
+**Task:** Fix ledge-catch never triggering from climb + faster climb speed
+
+### Session NF-032 Changes:
+
+- **Root-cause fix — Probe origin inside wall geometry:**  
+  `LedgeCatchState._probeLedge` fires its downward ray from `rootPart.Position + lookDir * dist + (0, 6.5, 0)`, with `dist` ranging 0.8–2.4 studs. During climbing the character sits only 0.6 studs from the wall, so all probe origins are 0.2–1.8 studs inside the wall mesh. A downward ray from inside a convex solid never exits through the top face — so `CanCatch` always returned false during and after climbing.
+
+- **Fix — `_tryLedgeHandoff` helper in ClimbState:**  
+  New local function `_tryLedgeHandoff(ctx, capturedNormal)` temporarily offsets the character 1.5 studs backward (in wall-normal direction) before calling `LedgeCatchMod.CanCatch + TryStart`. This moves the probe origin into open air so the downward cast finds the wall's top surface. If no ledge is found, the nudge is reversed and false is returned. Used by:
+  - `Update` — wall-gone branch (wall ended before burst distance)
+  - `Update` — burst-complete branch (8 studs travelled, top of wall reached)
+  - `Update` — mid-climb check (also uses pull-back to probe safely)
+  - `OnJumpRequest` — Space press while climbing (falls through to wall-jump on failure)
+  File: `src/shared/movement/states/ClimbState.lua`
+
+- **Fix — Update reordered to move character before ledge probe:**  
+  Old order: (1) ledge probe at stale position → (2) wall check → (3) breath → (4) move.  
+  New order: (1) move to new position → (2) wall-check + ledge attempt if done → (3) mid-climb ledge probe → (4) breath drain.  
+  The probe now always fires at the up-to-date position.
+
+- **Config — ClimbSpeed 8 → 14 studs/s:**  
+  8-stud burst now takes ~0.57 s instead of 1 s; feels snappier without being instant.
+  File: `src/shared/modules/MovementConfig.lua`
+
+**Pattern learned:** When the character is flush to a wall surface (offset < scan distance), any forward-scanning probe fires from inside geometry. Always pull the character back by at least (probe_scan_distance - wall_offset) before calling downward probes near walls.
+
+---
+
+## Previous Session ID: NF-031
 **Date:** February 20, 2026
 **Task:** Redesign ClimbState as a Space-activated fixed-distance burst climb with auto-ledge
 

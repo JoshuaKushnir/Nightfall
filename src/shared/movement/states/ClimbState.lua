@@ -117,61 +117,105 @@ end
 function ClimbState.Enter(_ctx: any) end
 
 -- ──────────────────────────────────────────────────────────────────────────────
+-- _tryLedgeHandoff: pull the character 1.5 studs away from the wall so that
+-- LedgeCatchState._probeLedge fires its ray from OUTSIDE the wall geometry
+-- (not inside it), then call TryStart.  Returns true if the hang succeeded.
+-- ──────────────────────────────────────────────────────────────────────────────
+local function _tryLedgeHandoff(ctx: any, capturedNormal: Vector3?): boolean
+	if not LedgeCatchMod or not LedgeCatchMod.TryStart then return false end
+	local root = ctx.RootPart
+	if not root then return false end
+
+	-- Temporarily nudge the character back from the wall so the downward probe
+	-- origin is in open air rather than inside the wall mesh.
+	if capturedNormal then
+		root.CFrame = root.CFrame + capturedNormal.Unit * 1.5
+	end
+
+	-- Quick feasibility check (uses current – now pulled-back – position).
+	local canCatch = LedgeCatchMod.CanCatch and LedgeCatchMod.CanCatch(ctx)
+	if not canCatch then
+		-- No ledge found; put character back and signal failure.
+		if capturedNormal then
+			root.CFrame = root.CFrame - capturedNormal.Unit * 1.5
+		end
+		return false
+	end
+
+	LedgeCatchMod.TryStart(ctx)
+	return true
+end
+
+-- ──────────────────────────────────────────────────────────────────────────────
 -- Update: per-frame upward travel.
 -- Priority each frame:
---   (1) Ledge found mid-climb   → auto-hang (LedgeCatchState.TryStart)
---   (2) Wall disappeared        → release (character falls)
---   (3) Breath drained          → release
---   (4) Move upward / at target → tiny pop + release
+--   (1) Move upward toward target
+--   (2) Re-confirm wall still exists
+--   (3) Wall gone / burst complete → try ledge hand-off → else pop/fall
+--   (4) Mid-climb ledge check (character still on wall)
+--   (5) Breath drain
 -- ──────────────────────────────────────────────────────────────────────────────
 function ClimbState.Update(dt: number, ctx: any)
 	if not _isClimbing or not ctx or not ctx.RootPart or not ctx.Humanoid then return end
 
-	local root = ctx.RootPart
+	local root         = ctx.RootPart
+	local targetY      = (_climbTarget and _climbTarget.Y) or (root.Position.Y + 8)
+	local speed        = MovementConfig.Climb.ClimbSpeed or 14
 
-	-- (1) Auto-hang if a ledge becomes reachable during the upward burst
-	if LedgeCatchMod and LedgeCatchMod.CanCatch then
-		local canCatch = LedgeCatchMod.CanCatch(ctx)
-		if canCatch then
-			print("[ClimbState] Ledge reached mid-climb — handing off to LedgeCatchState")
-			ClimbState.Exit(ctx)
-			LedgeCatchMod.TryStart(ctx)
-			return
-		end
-	end
-
-	-- (2) Re-confirm the wall is still there
+	-- (1) Move character upward first so the ledge probe sees the updated position
 	local grip = _detectGrip(ctx)
-	if not grip then
-		print("[ClimbState] Wall lost — releasing")
-		ClimbState.Exit(ctx)
-		return
+	local newY: number
+	if grip then
+		newY = math.min(root.Position.Y + speed * dt, targetY)
+		local offset = grip.normal.Unit * 0.6
+		local newPos = Vector3.new(grip.point.X, newY, grip.point.Z) + offset
+		local facing = Vector3.new(-grip.normal.X, 0, -grip.normal.Z)
+		root.CFrame  = CFrame.new(newPos, newPos + facing.Unit)
+	else
+		newY = root.Position.Y
 	end
 
-	-- (3) Breath drain
-	if not ctx.DrainBreath((MovementConfig.Climb.DrainRate or 12) * dt) then
-		ClimbState.Exit(ctx)
-		return
-	end
+	-- (2) Wall gone OR burst distance reached — attempt ledge hand-off.
+	--     Pull back from wall before probing so the ray origin isn't inside geometry.
+	local wallGone  = (grip == nil)
+	local atTarget  = (newY >= targetY - 0.05)
 
-	-- (4) Slide upward toward target
-	local targetY = (_climbTarget and _climbTarget.Y) or (root.Position.Y + 8)
-	local speed   = MovementConfig.Climb.ClimbSpeed or 8
-	local newY    = math.min(root.Position.Y + speed * dt, targetY)
-	local offset  = grip.normal.Unit * 0.6
-	local newPos  = Vector3.new(grip.point.X, newY, grip.point.Z) + offset
-	local facing  = Vector3.new(-grip.normal.X, 0, -grip.normal.Z)
-
-	root.CFrame = CFrame.new(newPos, newPos + facing.Unit)
-
-	-- Reached the burst target — tiny pop upward and release
-	if newY >= targetY - 0.05 then
+	if wallGone or atTarget then
 		local capturedNormal = _gripNormal
 		ClimbState.Exit(ctx)
+		if _tryLedgeHandoff(ctx, capturedNormal) then
+			print("[ClimbState] " .. (wallGone and "Wall ended" or "Burst complete") .. " → ledge hang")
+			return
+		end
+		-- No ledge — tiny outward pop so character clears the top
 		if root and capturedNormal then
 			root.AssemblyLinearVelocity = (capturedNormal + Vector3.new(0, 0.5, 0)).Unit * 12
 		end
-		print("[ClimbState] Burst complete")
+		print("[ClimbState] " .. (wallGone and "Wall lost" or "Burst complete") .. " — released")
+		return
+	end
+
+	-- (3) Mid-climb ledge check: probe from current (on-wall) position.
+	--     Uses the pull-back helper for the same geometry reason.
+	do
+		local capturedNormal = _gripNormal
+		-- Temporarily back off to probe, then re-snap if no ledge.
+		if capturedNormal then root.CFrame = root.CFrame + capturedNormal.Unit * 1.5 end
+		local canCatch = LedgeCatchMod and LedgeCatchMod.CanCatch and LedgeCatchMod.CanCatch(ctx)
+		if canCatch then
+			ClimbState.Exit(ctx)
+			LedgeCatchMod.TryStart(ctx)
+			print("[ClimbState] Ledge detected mid-climb → hang")
+			return
+		end
+		-- Restore flush position
+		if capturedNormal then root.CFrame = root.CFrame - capturedNormal.Unit * 1.5 end
+	end
+
+	-- (4) Breath drain
+	if not ctx.DrainBreath((MovementConfig.Climb.DrainRate or 12) * dt) then
+		ClimbState.Exit(ctx)
+		return
 	end
 end
 
@@ -198,6 +242,10 @@ function ClimbState.OnJumpRequest(ctx: any)
 
 	local capturedNormal = _gripNormal
 	ClimbState.Exit(ctx)
+	if _tryLedgeHandoff(ctx, capturedNormal) then
+		print("[ClimbState] Jump request \u2192 ledge hang (pull-back probe)")
+		return
+	end
 	if rootPart and capturedNormal then
 		rootPart.AssemblyLinearVelocity = (capturedNormal + Vector3.new(0, 1.5, 0)).Unit * 45
 	end
