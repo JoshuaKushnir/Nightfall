@@ -1,6 +1,27 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-032
+## Current Session ID: NF-033
+**Date:** February 20, 2026
+**Task:** Fix climb bounce/jitter caused by per-frame character nudge
+
+### Session NF-033 Changes:
+
+- **Root cause — per-frame CFrame nudge in `ClimbState.Update`:**  
+  The mid-climb ledge check (NF-032) physically moved the character 1.5 studs away from the wall every frame via `root.CFrame = root.CFrame + normal * 1.5`, probed, then moved it back. With `Anchored = true`, Roblox accepts the CFrame but the visual/physics result is the character visibly oscillating 1.5 studs per-frame — exactly the "bouncing off" the player reported.
+
+- **Fix — removed per-frame nudge loop from `ClimbState.Update`:**  
+  The mid-climb `do...end` probe block (step 3) has been removed entirely. Ledge detection now only fires in the two already-correct paths:
+  - **Wall surface ends** (`_detectGrip` → nil): the wall physically ran out, meaning the character is at or above the wall top. `_tryLedgeHandoff` fires (already uses pull-back probe).
+  - **Burst distance reached** (atTarget): 8 studs climbed. `_tryLedgeHandoff` fires with the same pull-back probe.
+  
+  Both paths are the *right* times to probe: the wall top has been reached. Mid-climb probing (while still on the wall face) was both incorrect and caused visible jitter.
+  File: `src/shared/movement/states/ClimbState.lua`
+
+**Pattern learned:** Never physically move an anchored character as a probe side-effect inside an Update loop — even with an immediate restore, it's one frame of displacement per probe call, which is visible at 60 fps.
+
+---
+
+## Previous Session ID: NF-032
 **Date:** February 20, 2026
 **Task:** Fix ledge-catch never triggering from climb + faster climb speed
 
