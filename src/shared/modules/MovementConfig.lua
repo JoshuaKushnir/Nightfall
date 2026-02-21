@@ -132,15 +132,22 @@ MovementConfig.Momentum = {
 }
 
 -- Wall-run (Issue #95)
--- 3 steps chosen from spec's "2–3". Each step = one wall attachment per air session.
+-- Overhauled for speed and verticality (Session NF-035)
 MovementConfig.WallRun = {
-	MaxSteps = 3,               -- max wall-run attachments per airborne phase
-	MinEntrySpeed = 12,         -- studs/s required (lowered to be more forgiving)
-	MaxDuration = 1.8,          -- seconds before auto-detach
-	WallDetectDistance = 3.5,   -- studs lateral raycast range (slightly longer)
-	JumpOffLateralForce = 22,   -- studs/s perpendicular kick on wall-jump
-	JumpOffUpForce = 30,        -- studs/s upward on wall-jump
-	-- Gravity is countered by zeroing downward AssemblyLinearVelocity Y each frame
+	MaxSteps = 5,               
+	MinEntrySpeed = 8,          -- Lowered from 12: more lenient entry speed
+	MaxDuration = 5.0,          
+	WallDetectDistance = 5.5,
+	-- temporarily disable wall-running for repro/testing
+	DisableWallRun = false,   -- Increased from 4.5: wider catch window
+	GravityScale = 0.12,        
+	SpeedMultiplier = 1.05,
+	
+		-- NF-038: Polish & Prevention 
+	ReentryCooldown  = 0.4,     -- seconds before player can wall-run again (prevents upward spamming)
+	NormalLerpSpeed  = 10,      -- speed for smoothing wall normals (prevents screen shake)
+	MaxStuds         = 30,      -- absolute cap on wall-run distance
+	GroundedGrace    = 0.15,    -- seconds to ignore OnGround after starting (prevents initial dropout)
 }
 
 -- Vault (Issue #95)
@@ -175,8 +182,9 @@ MovementConfig.LedgeCatch = {
 MovementConfig.Climb = {
 	Enabled       = true,
 	GripReach     = 2.2,    -- studs: forward raycast to detect a climbable wall
-	ClimbDistance = 8,      -- studs: fixed upward burst distance per Space press
-	ClimbSpeed    = 14,     -- studs/s: travel speed of the upward burst (~0.57 s for 8 studs)
+	-- increased height & velocity per user request
+	ClimbDistance = 12,     -- studs: fixed upward burst distance per Space press (was 8)
+	ClimbSpeed    = 20,     -- studs/s: travel speed of the upward burst (~0.6 s for 12 studs)
 	DrainRate     = 12,     -- Breath units / sec drained while climbing
 	MaxGripTime   = 12,     -- seconds maximum before forced release (safety valve)
 }
@@ -185,11 +193,11 @@ MovementConfig.Climb = {
 MovementConfig.WallBoost = {
 	Enabled            = true,
 	DetectDistance     = 2.5,   -- studs: max distance to wall for a boost to trigger
-	ImpulseSpeed       = 45,    -- studs/s magnitude of the launch vector
-	UpwardBias         = 1.5,   -- Y component added to wall normal before normalising
+	ImpulseSpeed       = 32,    -- tuned down from 45 (reduced "fling" effect)
+	UpwardBias         = 1.4,   -- slightly less vertical launch
 	BreathCost         = 25,    -- Breath units drained per boost
 	BoostsPerGrounding = 1,     -- charges refilled on landing
-	BoostDuration      = 0.35,  -- seconds the state stays active (allows animation to play)
+	BoostDuration      = 0.30,  -- tuned down from 0.35s
 }
 
 -- Particle effects

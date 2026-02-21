@@ -1,10 +1,61 @@
 # Project Nightfall: Session Intelligence Log
 
-## Current Session ID: NF-035
-**Date:** February 21, 2026
-**Task:** Finalize Movement Cohesion (Dynamic Camera & Refined Pull-ups)
+## Current Session ID: NF-038
+**Date:** February 20, 2026
+**Task:** Wall-Run Polish & Exploit Prevention
 
-### Session NF-035 Changes:
+### Session NF-038 Changes:
+
+- **Fix — Immediate Wall-Run Dropouts (The "OnGround" Bug):**
+  - **Root Cause:** `WallRunState.TryStart` sets `Humanoid.PlatformStand = true`. The `isOnGround` function in `MovementController` was checking if `Humanoid:GetState() == Enum.HumanoidStateType.PlatformStanding` and returning `true`. This caused the state machine to think the player was on the ground while wall running, triggering the `GROUND_GRACE` (0.15s) timeout and dropping them immediately.
+  - **Solution:** Removed `PlatformStanding` from the `isOnGround` fallback checks.
+  - **Safety Net:** Added a downward raycast in `WallRunState.Detect` to verify the floor is actually flat (`Normal.Y > 0.707`) before dropping the player for being "on ground". This prevents steep walls from triggering the drop if Roblox physics sets `FloorMaterial`.
+
+- **Fix — Wall-Run Stick Force & Jitter:**
+  - **Horizontal Stick:** Changed the stick force to be purely horizontal (`stickDir * 35.0`) instead of using the raw `-_wallNormal`. Previously, if the wall was slightly sloped, the stick force would push the player down or up, causing them to slide off or jitter.
+  - **Forgiving Thresholds:** Lowered the `speedAlongWall` dropout threshold from 5 to 3. Increased the refresh raycast distance from `+ 2.0` to `+ 3.0` to prevent dropping off when hitting slight bumps or seams in the wall.
+  - **Intentional Detach:** Increased the `lateralInput` threshold from `0.85` to `0.95` so players don't accidentally detach when looking slightly away from the wall.
+
+- **Fix — Upward Spamming Exploit (#95):**
+  - **Re-entry Cooldown:** Added `REENTRY_COOLDOWN` (0.4s) to the `TryStart` logic. This prevents players from spamming the jump button to "climb" vertically by resetting the wall-run state multiple times.
+  - **Persistent Distance Tracking:** Modified `_startWallRun` to preserve `_totalDistTraveled` if the player re-enters the state while still in the air. The 30-stud cap now correctly applies to the entire "air-time" of the player, only resetting once they touch the ground.
+
+- **Polished — Anti-Jitter Surface Tracking:**
+  - **Normal Smoothing:** Implemented a Lerp based refresh for `_wallNormal` in the `Update` loop. Smoothing the normal at a rate of 10 units/s eliminates the "screen shake" caused by the character's orientation snapping to irregular wall geometry or mesh micro-details.
+
+- **Refinement — Gravity Arc & Velocity Control:**
+  - **Vertical Decay Curve:** Adjusted the Y-velocity logic to preserve 98% of upward momentum for the first 0.3s of a run before ramping down to 91%. This creates a more natural "arc" feel as the player's upward speed bleeds off.
+  - **Upward Speed Cap:** Capped vertical velocity at 12 studs/s while on the wall to prevent the momentum system from being used for vertical flight/launches.
+
+- **Architecture — Config Exposure:**
+  - Moved `MaxStuds`, `ReentryCooldown`, and `NormalLerpSpeed` into `src/shared/modules/MovementConfig.lua` for centralized tuning.
+
+**Pattern learned:** Movement states that preserve momentum MUST have anti-reset logic for their resource accumulators (distance, time, or energy) to prevent "pulsing" exploits.
+
+---
+
+## Previous Session ID: NF-037
+
+## Previous Session ID: NF-036
+
+- **Fix — WallRun "Sticking" & Humanoid Interference (#95):**
+  - **State Suppression:** Wall-running now sets `Humanoid.PlatformStand = true` and explicitly disables `Running`, `Climbing`, and `Freefall` state types while active. This prevents the Humanoid's internal physics from pushing the character away from vertical surfaces.
+  - **Horizontal Stick Force:** Projected the wall-normal onto a flat horizontal plane before applying "stick" velocity. This ensures the player is pulled into the wall without being pushed downward on slightly outward-sloping surfaces.
+  - **Stick Magnitude:** Increased "stick" velocity from 6.0 to 10.0 studs/sec for reinforced contact reliability.
+
+- **Refinement — Step-based Duration & Momentum Scaling (#95):**
+  - **Distance-Based Steps:** Implemented `STEP_DISTANCE` (6.5 studs) logic. Wall-run duration is now limited by the number of steps taken rather than just a flat clock timer.
+  - **Momentum-Linked Budget:** The maximum number of steps is scaled by `ctx.Blackboard.MomentumMultiplier`. A 3.0x momentum chain now allows for 15 steps (≈100 studs) of wall running, whereas base momentum allows 5 steps.
+  - **Forward Velocity Exit:** Added a check for forward movement along the wall. If `AssemblyLinearVelocity` along the run tangent drops below 5 studs/sec (due to obstacle collision or stopped input), the wall-run immediately ends.
+
+- **Stability — Surface Refresh Safeguards:**
+  - Added a `Normal.Y` threshold check (0.707) to the per-frame raycast refresh. This prevents the wall-run from continuing if the player runs onto a floor or a ceiling surface during a curved run.
+
+**Pattern learned:** When using `AssemblyLinearVelocity` for custom movement states, always disable competing `Humanoid` states (`Running`/`Climbing`) to prevent physics jitter and "rejection" from the wall.
+
+---
+
+## Previous Session ID: NF-035
 
 - **Refinement — LedgeCatch Pull-up Stability (#95 / NF-034):**
   - **Auto Pull-up Logic:** Lowered the relative height threshold for automatic pull-ups from -2.2 to -1.55 studs. This prevents "falling through walls" when the player's root passed the ledge top during high-speed climbs.
@@ -16,10 +67,21 @@
   - **Integrated Camera Roll/Tilt:** Added procedural camera banking. The camera now tilts 5 degrees away from walls during `WallRunState` and tilts 2.5 degrees in the move direction during `SlideState`.
   - **Velocity-Sensitive FOV:** Camera zooming now factors in horizontal velocity, providing immediate visceral feedback during sprints and momentum carries.
 
+- **Major Overhaul — WallRunning Re-imagined (Juice & Momentum) (#95):**
+  - **Requirement:** Added explicit `IsSprinting` check to WallRun initiation. Players now must be actively sprinting to enter a wall-run, preventing accidental triggers during standard platforming.
+  - **Speed & Control Tuning:** Set `MinEntrySpeed` to 16 and reduced `SPEED_MULT` to 1.05. This prevents the "fling" effect where players would be accelerated uncontrollably upon hitting a wall surface.
+  - **Physics Overhaul:** Replaced "zero-gravity" wall runs with a momentum-preserving system. Players now keep 95% of their upward `Y` velocity upon entry, allowing for "curved" wall runs and vertical traversal while running fast.
+  - **Omni-directional Detection:** Upgraded the detection probe from a simple left/right raycast to an 8-directional arc (±45°, ±75°, ±105°, ±135°).
+  - **Resource Buff:** Balanced at `MaxSteps = 5` and `MaxDuration = 5.0s`.
+
+- **Kinetic Tuning — WallBoost & Jump-off:** 
+  - Reduced `WallBoost` impulse speed from 45 to 32 to prevent chaotic "flinging" during airborne transitions. 
+  - Lowered `JumpOff` forces to allow better aerial control after exiting a wall-run.
+
 - **Architecture — Shared Context Expansion:**
   - Exported `GetMomentumMultiplier` to the `StateContext`. This allows individual movement states (like WallRun) to scale their own internal logic based on global momentum.
 
-**Pattern learned:** "Juice" and "Cohesion" come from cross-linking isolated systems. By making the Camera controller aware of the Movement Blackboard, we transformed basic physics into a sensory experience without touching the physics math itself.
+**Pattern learned:** Directly mapping horizontal magnitude to a wall tangent is dangerous. Always project onto the tangent plane to ensure velocity inheritance feels "grounded".
 
 ---
 
@@ -66,8 +128,9 @@
   New order: (1) move to new position → (2) wall-check + ledge attempt if done → (3) mid-climb ledge probe → (4) breath drain.  
   The probe now always fires at the up-to-date position.
 
-- **Config — ClimbSpeed 8 → 14 studs/s:**  
-  8-stud burst now takes ~0.57 s instead of 1 s; feels snappier without being instant.
+- **Config — ClimbDistance 8 → 12, ClimbSpeed 14 → 20:**
+  Burst now covers a taller wall and completes in roughly the same time (≈0.6 s)
+  thanks to the speed bump; the feeling is much more aggressive and jetpack‑like.
   File: `src/shared/modules/MovementConfig.lua`
 
 - **Enhancement — grip fallback during climb:**

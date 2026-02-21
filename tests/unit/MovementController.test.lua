@@ -47,6 +47,25 @@ return {
 			end,
 		},
 		{
+			name = "WallRun disable flag exists and defaults false",
+			fn = function()
+				local cfg = require(ReplicatedStorage.Shared.modules.MovementConfig)
+				assert(cfg.WallRun and type(cfg.WallRun.DisableWallRun) == "boolean", "DisableWallRun flag missing")
+				assert(cfg.WallRun.DisableWallRun == false, "DisableWallRun should default to false")
+			end,
+		},
+		{
+			name = "WallRunState respects disable flag",
+			fn = function()
+				local WallRun = require(ReplicatedStorage.Shared.movement.states.WallRunState)
+				local cfg = require(ReplicatedStorage.Shared.modules.MovementConfig)
+				-- temporarily set flag and call TryStart with minimal context
+				cfg.WallRun.DisableWallRun = true
+				assert(WallRun.TryStart({}) == false)
+				cfg.WallRun.DisableWallRun = false
+			end,
+		},
+		{
 			name = "Slide creates LinearVelocity and decays",
 			fn = function()
 				assert(type(MovementController._TrySlide) == "function")

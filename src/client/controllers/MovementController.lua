@@ -463,7 +463,6 @@ local function isOnGround(h: Humanoid): boolean
 	local state = h:GetState()
 	return state == Enum.HumanoidStateType.Running 
 		or state == Enum.HumanoidStateType.Landed
-		or state == Enum.HumanoidStateType.PlatformStanding
 end
 
 -- Get move direction from WASD relative to camera (Roblox has no UserInputService:GetMoveDirection)
@@ -725,7 +724,9 @@ function MovementController._Update(dt: number)
 	do
 		local ctx = _buildCtx(moveDir, onGround, wantsSprint)
 		-- Passive auto-detect triggers (evaluated every frame when eligible)
-		WallRunState.Detect(dt, ctx)
+		if not MovementConfig.DisableWallRun then
+			WallRunState.Detect(dt, ctx)
+		end
 		if not isMovementRestricted() then
 			-- Vaulting is now manual (triggered via JumpRequest)
 			-- Ledge catch / climb are manual: triggered by Space press in _OnJumpRequest.
