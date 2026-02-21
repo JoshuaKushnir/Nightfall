@@ -32,6 +32,8 @@ local Players = game:GetService("Players")
 local PlayerData = require(ReplicatedStorage.Shared.types.PlayerData)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
+local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 type PlayerState = PlayerData.PlayerState
 
 -- Blackboard (shared physics state readable by all client systems)
@@ -100,12 +102,31 @@ local SPRINT_DOUBLE_TAP_WINDOW = 0.3 -- seconds to detect double-tap
 local SLIDE_KEY = Enum.KeyCode.C
 local LANDING_SPRINT_GRACE = (MovementConfig.Dodge and MovementConfig.Dodge.LandingSprintGraceWindow) or 0.15 -- seconds to resume sprint after slide-jump landing
 
--- Breath resource (#95)
-local BREATH_POOL              = (MovementConfig.Breath and MovementConfig.Breath.Pool) or 100
-local BREATH_REGEN_STATIONARY  = (MovementConfig.Breath and MovementConfig.Breath.RegenRateStationary) or 25
-local BREATH_REGEN_MOVING      = (MovementConfig.Breath and MovementConfig.Breath.RegenRateMoving) or 12
-local BREATH_SPRINT_DRAIN      = (MovementConfig.Breath and MovementConfig.Breath.SprintDrainRate) or 10
+-- Breath resource (#95) – dynamically adjusted by discipline
+local BREATH_POOL              = 100
+local BREATH_REGEN_STATIONARY  = 25
+local BREATH_REGEN_MOVING      = 12
+local BREATH_SPRINT_DRAIN      = 10
 -- BREATH_DASH_DRAIN moved to SlideState.lua | BREATH_WALL_DRAIN moved to WallRunState.lua
+
+local function _getDiscCfg(): any
+	if not Player then return DisciplineConfig.Get("Wayward") end
+	local data = StateService:GetPlayerData(Player)
+	if data and data.DisciplineId then
+		return DisciplineConfig.Get(data.DisciplineId)
+	end
+	return DisciplineConfig.Get("Wayward")
+end
+
+local function _applyDiscBreath()
+	local cfg = _getDiscCfg()
+	if cfg then
+		BREATH_POOL = cfg.BreathPool or BREATH_POOL
+		BREATH_REGEN_STATIONARY = cfg.BreathRegenGround or BREATH_REGEN_STATIONARY
+		-- moving regen remains from config or constant
+		BREATH_SPRINT_DRAIN = cfg.SprintDrain or BREATH_SPRINT_DRAIN
+	end
+end
 
 -- Momentum (#95)
 local MOMENTUM_CAP          = (MovementConfig.Momentum and MovementConfig.Momentum.Cap) or 3.0
@@ -134,6 +155,11 @@ local coyoteTimeLeft = 0.0
 function MovementController.GetMomentumMultiplier(): number
 	return momentumMultiplier
 end
+
+function MovementController.GetBreathPool(): number
+	return breathPool
+end
+
 local jumpBufferLeft = 0.0
 -- flag set when the player physically presses Space while airborne; used to
 -- prevent climb from starting on the state-change duplicate JumpRequest.
@@ -534,6 +560,8 @@ end
 ]]
 function MovementController:Start()
 	print("[MovementController] Starting...")
+	-- apply discipline-specific breath parameters
+	_applyDiscBreath()
 	lastWasOnGround = isOnGround(Humanoid :: Humanoid)
 	currentSpeed = (Humanoid :: Humanoid).WalkSpeed
 	

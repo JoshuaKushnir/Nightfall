@@ -19,6 +19,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+local StateService = require(ReplicatedStorage.Shared.modules.StateService)
+local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
 local WeaponService = {}
 
@@ -243,6 +245,19 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 	if not WeaponRegistry.Has(weaponId) then
 		warn(`[WeaponService] Unknown weapon id "{weaponId}" requested by {player.Name}`)
 		return
+	end
+
+	-- Discipline restriction
+	local config = WeaponRegistry.Get(weaponId)
+	if config and config.WeightClass then
+		local playerData = StateService:GetPlayerData(player)
+		local discCfg = playerData and DisciplineConfig.Get(playerData.DisciplineId)
+		if discCfg and discCfg.WeightClasses then
+			if not table.find(discCfg.WeightClasses, config.WeightClass) then
+				warn(`[WeaponService] Equip denied for {player.Name} — {config.WeightClass} not allowed for discipline {playerData and playerData.DisciplineId}`)
+				return
+			end
+		end
 	end
 
 	-- Store

@@ -65,6 +65,9 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 	Intelligence = 5,
 	Willpower = 5,
 	Charisma = 5,
+
+	-- Discipline
+	DisciplineId = "Wayward",
 	
 	-- Components
 	Health = {

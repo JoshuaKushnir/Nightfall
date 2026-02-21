@@ -36,11 +36,21 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 
 -- ─── Constants ────────────────────────────────────────────────────────────────
 
-local POSTURE_MAX          = 100  -- full posture bar
-local REGEN_RATE           = 8    -- posture pts / second (passive)
-local REGEN_RATE_BLOCKING  = 3    -- pts / second while actively blocking
-local REGEN_PAUSE_WINDOW   = 1.8  -- seconds with no hit before regen resumes
-local STAGGER_DURATION     = 0.8  -- seconds in Stagger state
+-- discipline-influenced constants will be resolved per-player
+local DEFAULT_POSTURE_MAX          = 100  -- fallback
+local DEFAULT_REGEN_RATE           = 8    -- passive
+local DEFAULT_REGEN_RATE_BLOCKING  = 3    -- while blocking
+local REGEN_PAUSE_WINDOW           = 1.8  -- seconds with no hit before regen resumes
+-- STAGGER_DURATION replaced by per-player lookup
+
+-- helper to obtain discipline config for a player
+local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
+
+local function _getDiscConfig(player: Player)
+	local data = StateService:GetPlayerData(player)
+	local id = data and data.DisciplineId or "Wayward"
+	return DisciplineConfig.Get(id)
+end
 local BREAK_DAMAGE         = 45   -- flat HP damage on a successful Break
 
 -- Drain per-hit source
@@ -90,9 +100,12 @@ end
 local function _getOrCreate(player: Player): PostureState
 	local uid = player.UserId
 	if not _postures[uid] then
+		-- determine max posture from discipline
+		local cfg = _getDiscConfig(player)
+		local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
 		_postures[uid] = {
-			Current     = POSTURE_MAX,
-			Max         = POSTURE_MAX,
+			Current     = maxVal,
+			Max         = maxVal,
 			LastHitTime = 0,
 			Staggered   = false,
 			StaggerEnd  = 0,
@@ -150,6 +163,13 @@ function PostureService.DrainPosture(player: Player, amount: number?, source: st
 	else
 		drain = DRAIN_UNGUARDED_HIT  -- "Unguarded" or unknown
 	end
+	-- apply discipline-specific multiplier for blocked hits
+	if source == "Blocked" then
+		local cfg = _getDiscConfig(player)
+		if cfg and cfg.BlockDrainMultiplier then
+			drain = drain * cfg.BlockDrainMultiplier
+		end
+	end
 
 	state.LastHitTime = tick()
 	state.Current = math.max(0, state.Current - drain)
@@ -179,14 +199,16 @@ end
 ]]
 function PostureService.ResetPosture(player: Player)
 	local uid = player.UserId
+	local cfg = _getDiscConfig(player)
+	local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
 	_postures[uid] = {
-		Current     = POSTURE_MAX,
-		Max         = POSTURE_MAX,
+		Current     = maxVal,
+		Max         = maxVal,
 		LastHitTime = 0,
 		Staggered   = false,
 		StaggerEnd  = 0,
 	}
-	_broadcast("PostureChanged", uid, POSTURE_MAX, POSTURE_MAX)
+	_broadcast("PostureChanged", uid, maxVal, maxVal)
 end
 
 --[[
@@ -198,8 +220,11 @@ function PostureService.TriggerStagger(player: Player)
 	local state = _getOrCreate(player)
 	if state.Staggered then return end
 
+	local cfg = _getDiscConfig(player)
+	local dur = cfg and cfg.StaggerDuration or 0.8
+
 	state.Staggered = true
-	state.StaggerEnd = tick() + STAGGER_DURATION
+	state.StaggerEnd = tick() + dur
 	state.Current = 0
 
 	-- Track via character attribute so broken-posture can be detected without
@@ -339,10 +364,23 @@ function PostureService:Start()
 
 			-- Determine regen rate (slower while blocking)
 			local player = Players:GetPlayerByUserId(uid)
-			local rate = REGEN_RATE
-			if player then
-				local playerData = StateService:GetPlayerData(player)
+local rate
+				local cfg
+				if player then
+					local playerData = StateService:GetPlayerData(player)
+					if playerData then
+						cfg = _getDiscConfig(player)
+					end
+				end
+				if cfg then
+					rate = cfg.PostureRegen or DEFAULT_REGEN_RATE
+				else
+					rate = DEFAULT_REGEN_RATE
+				end
 				if playerData and playerData.State == "Blocking" then
+					if cfg and cfg.PostureRegenBlocking then
+						rate = cfg.PostureRegenBlocking
+					else
 					rate = REGEN_RATE_BLOCKING
 				end
 			end
