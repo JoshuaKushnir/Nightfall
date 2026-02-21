@@ -91,6 +91,7 @@ local dependencies = {
 	StateSyncController = controllers.StateSyncController,
 	MovementController  = controllers.MovementController,
 	WeaponController    = controllers.WeaponController,
+	CombatController    = controllers.CombatController,
 }
 
 for name, controller in controllers do
@@ -123,6 +124,7 @@ local startOrder = {
 	"MovementController",  -- Epic #56: smooth movement (coyote, jump buffer, sprint)
 	"WeaponController",    -- #69: equip state must be ready before ActionController
 	"ActionController",
+	"CombatController",      -- new combat state machine
 	"PlayerHUDController",
 	"CombatFeedbackUI",
 }

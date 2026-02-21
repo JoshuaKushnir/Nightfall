@@ -83,6 +83,14 @@ function CombatFeedbackUI:Start()
 		end)
 	end
 
+	-- Clash feedback (bonus opportunity)
+	local clashEvent = NetworkProvider:GetRemoteEvent("ClashOccurred")
+	if clashEvent then
+		clashEvent.OnClientEvent:Connect(function(attacker, defender, window)
+			CombatFeedbackUI.ShowClashFeedback(attacker, defender, window)
+		end)
+	end
+
 	-- ── Posture bar (local player only) ────────────────────────────────────
 	local postureBar = CombatFeedbackUI._BuildPostureBar()
 
@@ -442,6 +450,37 @@ function CombatFeedbackUI.ShowParryFeedback(player: Player?, attacker: Player?)
 		end
 		part:Destroy()
 	end)
+end
+
+--[[
+	Show clash feedback (visual cue when two attacks collide)
+	@param attacker The player who initiated one of the attacks
+	@param defender The other player involved in the clash
+	@param window Follow-up window length (seconds)
+]]
+function CombatFeedbackUI.ShowClashFeedback(attacker: Player?, defender: Player?, window: number?)
+	-- simple text indicator above defender for now
+	if defender and defender.Character then
+		local rootPart = Utils.GetRootPart(defender)
+		if rootPart then
+			local billboard = Instance.new("BillboardGui")
+			billboard.Size = UDim2.new(0, 100, 0, 40)
+			billboard.StudsOffset = Vector3.new(0, 3, 0)
+			billboard.AlwaysOnTop = true
+			local label = Instance.new("TextLabel")
+			label.Size = UDim2.new(1, 0, 1, 0)
+			label.BackgroundTransparency = 1
+			label.Text = "CLASH!"
+			label.TextColor3 = Color3.new(1, 0, 0)
+			label.TextScaled = true
+			label.Parent = billboard
+			billboard.Parent = rootPart
+			-- fade out
+			task.delay(0.5, function()
+				billboard:Destroy()
+			end)
+		end
+	end
 end
 
 --[[

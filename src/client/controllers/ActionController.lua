@@ -38,6 +38,7 @@ local Humanoid: Humanoid?
 local AnimationController: Animator?
 local MovementController: any = nil
 local StateSyncController: any = nil -- injected; used for stun-buffer drain
+local CombatController: any = nil -- will be injected to track combat state
 
 -- State
 local CurrentAction: Action?
@@ -75,6 +76,7 @@ function ActionController:Init(dependencies: {[string]: any}?)
 		MovementController  = dependencies.MovementController
 		WeaponController    = dependencies.WeaponController
 		StateSyncController = dependencies.StateSyncController
+		CombatController    = dependencies.CombatController
 	end
 
 	-- Wait for character
@@ -474,6 +476,10 @@ function ActionController.PlayAction(config: ActionConfig)
 		end
 	else
 		print(`[ActionController] Playing action locally: {config.Name}`)
+		-- notify combat controller of start
+		if CombatController then
+			CombatController.NotifyActionStarted(config)
+		end
 		ActionController._PlayActionLocal(config)
 
 		-- Notify server
@@ -535,6 +541,10 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			if self.Hitbox then
 				HitboxService.RemoveHitbox(self.Hitbox)
 				self.Hitbox = nil
+			end
+			-- inform combat controller that the action finished
+			if CombatController and self.Config then
+				CombatController.NotifyActionEnded(self.Config)
 			end
 		end,
 	}

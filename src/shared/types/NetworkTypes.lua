@@ -33,6 +33,7 @@ export type NetworkEvent =
 	| "HitConfirmed"
 	| "BlockFeedback"
 	| "ParryFeedback"
+	| "ClashOccurred"  -- new advanced combat event
 	
 	-- Abilities/Mantras
 	| "MantraCast"
@@ -124,6 +125,18 @@ export type PostureDamagePacket = {
 
 export type PostureBrokenPacket = {
 	Target: Player,
+}
+
+-- Advanced combat packets
+export type ClashOccurredPacket = {
+	Attacker: Player,
+	Defender: Player,
+	FollowupWindow: number, -- seconds the target has to input a follow-up
+}
+
+export type CondemnedStatusPacket = {
+	Target: Player,
+	IsCondemned: boolean,
 }
 
 export type PostureChangedPacket = {
@@ -289,6 +302,8 @@ export type NetworkPacket =
 	| HitConfirmedPacket
 	| BlockFeedbackPacket
 	| ParryFeedbackPacket
+	| ClashOccurredPacket         -- advanced combat
+	| CondemnedStatusPacket      -- advanced combat
 	| MantraCastPacket
 	| MantraHitPacket
 	| CooldownUpdatePacket
@@ -428,6 +443,18 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Show parry feedback UI",
+	},
+	ClashOccurred = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify clients that a clash occurred between two players",
+	},
+	CondemnedStatus = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify client when a player gains/loses Condemned status",
 	},
 
 	-- Dev/Debug dummies
