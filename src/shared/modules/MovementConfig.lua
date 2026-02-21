@@ -189,6 +189,16 @@ MovementConfig.Climb = {
 	MaxGripTime   = 12,     -- seconds maximum before forced release (safety valve)
 }
 
+-- Combat constants (Clash system tolerance, etc.)
+MovementConfig.Combat = {
+    -- near-simultaneous attack window for server-side Clash detection.
+    -- 100ms chosen as a middle ground: wider than a single physics step (16ms)
+    -- to account for typical 50-150ms RTTs, but narrow enough to avoid
+    -- false positives when players are clearly not facing each other.
+    -- (±100ms means two clients can be up to 200ms apart and still Clash.)
+    CLASH_TOLERANCE_MS = 100,
+}
+
 -- Wall Boost (one-shot airborne wall burst)
 MovementConfig.WallBoost = {
 	Enabled            = true,

@@ -33,7 +33,11 @@ export type NetworkEvent =
 	| "HitConfirmed"
 	| "BlockFeedback"
 	| "ParryFeedback"
-	| "ClashOccurred"  -- new advanced combat event
+	| "ClashOccurred"         -- server broadcast when a Clash begins
+	| "AttackInitiated"       -- client→server: player attempted an attack
+	| "ClashStart"            -- server→client: individual player enters clash state
+	| "ClashFollowup"         -- client→server: follow-up input during clash window
+	| "ClashOutcome"          -- server→clients near event: result of clash
 	
 	-- Abilities/Mantras
 	| "MantraCast"
@@ -132,6 +136,49 @@ export type ClashOccurredPacket = {
 	Attacker: Player,
 	Defender: Player,
 	FollowupWindow: number, -- seconds the target has to input a follow-up
+}
+
+-- Packet sent when a client tells the server an attack has been initiated.
+--
+-- Clash detection flow (see Section 4 of discipline spec):
+-- 1. Player A issues an attack; client fires "AttackInitiated" with a local
+--    timestamp.
+-- 2. Server records T_A. If another "AttackInitiated" from Player B arrives
+--    within CLASH_TOLERANCE_MS of T_A, a clash is triggered.
+-- 3. Server enters CLASHING state for both players and sends them individual
+--    "ClashStart" packets.  This state locks normal actions briefly.
+-- 4. Server begins the 0.5s CLASH_WINDOW. Clients may choose a follow-up and
+--    send "ClashFollowup" with the chosen input and timestamp.
+-- 5. Server evaluates follow-ups:
+--       SUCCESS -> apply discipline-specific effects, transition to
+--                  CLASH_FOLLOW_SUCCESS, broadcast "ClashOutcome" to nearby
+--                  players for VFX/SFX.
+--       MISS    -> transition to CLASH_FOLLOW_MISS, player becomes exposed,
+--                  also broadcast "ClashOutcome".
+-- 6. After resolution, players exit clash states and combat resumes normally.
+--
+-- The events defined below correspond to these steps.
+export type AttackInitiatedPacket = {
+	Timestamp: number, -- os.time() or tick() value from client when input occurred
+}
+
+-- Server notifies a specific player that they have entered the CLASHING state.
+export type ClashStartPacket = {
+	Partner: Player, -- opposing player
+	Window: number,  -- duration of follow-up window (0.5s)
+}
+
+-- Follow-up input packet sent from client during CLASH_WINDOW.
+export type ClashFollowupPacket = {
+	InputType: "Parry" | "Counter" | "Dash" | "Other", -- based on discipline
+	Timestamp: number,
+}
+
+-- Outcome broadcast when a clash resolves, for nearby clients to play SFX/VFX.
+export type ClashOutcomePacket = {
+	Winner: Player?, -- nil if both miss
+	Loser: Player?,
+	Success: boolean,
 }
 
 export type CondemnedStatusPacket = {

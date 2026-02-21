@@ -47,6 +47,20 @@ export type StateHistoryEntry = {
 
 local PlayerStateHistory: {[Player]: {StateHistoryEntry}} = {}
 
+-- Clash state semantics (added Section 4c):
+--   Clashing            : both players have triggered a near-simultaneous
+--                          attack. Entry triggered server-side when two
+--                          AttackInitiated timestamps fall within tolerance.
+--                          Movement/attacking inputs are locked; very short.
+--   ClashWindow         : 0.5s follow-up window. Player may choose a
+--                          discipline-specific follow-up (parry/counter/dash).
+--                          Inputs for other actions are suspended.
+--   ClashFollowSuccess  : follow-up executed correctly; grants posture
+--                          damage bonus and brief stagger on opponent. Short
+--                          exit back to normal states (idle/walking).
+--   ClashFollowMiss     : follow-up missed; player is briefly stunned/exposed.
+--                          Transitions to Stunned and then resumes.
+--
 -- State transition validation matrix
 -- Maps: CurrentState -> { AllowedNextStates }
 local VALID_TRANSITIONS: {[PlayerState]: {[PlayerState]: boolean}} = {
@@ -134,6 +148,29 @@ local VALID_TRANSITIONS: {[PlayerState]: {[PlayerState]: boolean}} = {
 	},
 	Dead = {
 		-- Dead is a terminal state - only admin ForceState can change it
+	},
+
+	-- Clash-specific transitions (Section 4c)
+	Clashing = {
+		ClashWindow = true,
+		Dead = true,
+	},
+	ClashWindow = {
+		ClashFollowSuccess = true,
+		ClashFollowMiss = true,
+		Dead = true,
+	},
+	ClashFollowSuccess = {
+		Idle = true,
+		Walking = true,
+		-- may also transition to Stunned if follow-up causes stagger
+		Stunned = true,
+		Dead = true,
+	},
+	ClashFollowMiss = {
+		Stunned = true,
+		Idle = true,
+		Dead = true,
 	},
 }
 

@@ -38,6 +38,10 @@ export type PlayerState =
 	| "Ragdolled" 
 	| "Casting"
 	| "Dead"
+	| "Clashing"           -- initial push-apart state
+	| "ClashWindow"       -- awaiting follow-up input
+	| "ClashFollowSuccess"-- successfully executed follow-up
+	| "ClashFollowMiss"   -- failed/missed follow-up
 
 -- Mantra Definition
 export type Mantra = {

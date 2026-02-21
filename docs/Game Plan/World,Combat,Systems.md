@@ -204,6 +204,18 @@ When two attacks connect within the same frame, a brief Clash moment fires. Both
 
 Clash moments are the game's most dramatic beat and the highest expression of skill in combat. Novice players experience them as sudden interruptions in their intended sequence. Skilled players start playing *toward* them intentionally — reading opponent timing, deliberately matching attack frames to force a Clash at a moment they're ready for and the opponent isn't.
 
+#### Follow-up Options by Discipline
+| Follow-up Type | Wayward | Ironclad | Silhouette | Resonant |
+|---------------|---------|----------|------------|----------|
+| Parry extension | brief extra parry window (+10 posture drain, tiny i‑frames) | same but +20 posture at Tier2+ (Tempered bonus) | same | same (multiplied by current Tempo)
+| Counter-strike | standard posture punch | +10% posture at Tier2, Tier3 can instantly Break if Posture ≤25% | same | posture multiplied by Tempo (up to 2×)
+| Dash cancel | resets to neutral stance with slight displacement | same | same + Ghoststep gives +100ms extra response time (clash window bonus) | same
+
+Ghoststep interaction: Silhouette's reduced recovery makes entry into CLASH_WINDOW more frequent; she also receives an additional 0.1s on the window timer (Section 2b).
+
+Tempered Stance interaction: At Tier2 the Ironclad's counter strikes during CLASH_WINDOW deal 10% extra posture; at Tier3 a successful counter can immediately trigger a Break if the target's posture is low enough.
+
+
 Learning to use Clashes is the difference between a good PvP player and a great one.
 
 ### PvP Systems
