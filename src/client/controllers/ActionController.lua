@@ -62,7 +62,7 @@ local COMBO_FINISH_COOLDOWN = 0.6 -- Cooldown after completing 5-hit combo
 -- Constants
 local MIN_ACTION_INTERVAL = 0.1
 local BETWEEN_ATTACK_DELAY = 0.08 -- Brief pause between chained attacks (weight/impact feel)
-local PER_SWING_COOLDOWN   = 0.22 -- Minimum gap between any two swings (covers BETWEEN_ATTACK_DELAY + small buffer)
+local PER_SWING_COOLDOWN   = 0.6  -- base minimum gap between swings (weapon speed will reduce this)
 local MAX_QUEUE_SIZE = 1 -- Limit action queue to prevent spam stacking
 
 --[[
@@ -358,6 +358,11 @@ function ActionController.PlayAction(config: ActionConfig)
 		-- Animations.Combo table.  Fall back to bare-hands punch N on no weapon.
 		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
 		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
+		-- attack speed multiplier from the weapon (1.0 = baseline)
+		local speed = 1
+		if weaponCfg and weaponCfg.AttackSpeed and weaponCfg.AttackSpeed > 0 then
+			speed = weaponCfg.AttackSpeed
+		end
 
 		local maxCombo: number
 		if weaponCfg and weaponCfg.Animations and weaponCfg.Animations.Combo and #weaponCfg.Animations.Combo > 0 then
@@ -880,12 +885,15 @@ function ActionController._UpdateAction(deltaTime: number)
 
 		-- Apply cooldown: finisher gets the long pause, every other swing gets the short one
 		if action.Config.Type == "Attack" then
-			if action.Config.IsFinisher then
-				ActionCooldowns[action.Config.Id] = tick() + COMBO_FINISH_COOLDOWN
-				print(`[ActionController] Finisher complete — cooldown set: {COMBO_FINISH_COOLDOWN}s`)
-			else
-				ActionCooldowns[action.Config.Id] = tick() + PER_SWING_COOLDOWN
-			end
+            -- speed variable defined earlier at top of PlayAction
+            if action.Config.IsFinisher then
+                local cd = COMBO_FINISH_COOLDOWN / speed
+                ActionCooldowns[action.Config.Id] = tick() + cd
+                print(`[ActionController] Finisher complete — cooldown set: {cd}s (speed {speed})`)
+            else
+                local cd = PER_SWING_COOLDOWN / speed
+                ActionCooldowns[action.Config.Id] = tick() + cd
+            end
 		end
 
 		CurrentAction = nil
@@ -895,8 +903,15 @@ function ActionController._UpdateAction(deltaTime: number)
 			local nextAction = table.remove(ActionQueue, 1)
 			print(`[ActionController] Processing queued action: {nextAction.Name}`)
 			if nextAction.Type == "Attack" then
-				-- Brief pause for impact weight
-				task.delay(BETWEEN_ATTACK_DELAY, function()
+				-- compute speed here as well (same logic as PlayAction)
+				local speedLocal = 1
+				local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+				local wcfg: any? = wid and WeaponRegistry.Has(wid) and WeaponRegistry.Get(wid) or nil
+				if wcfg and wcfg.AttackSpeed and wcfg.AttackSpeed > 0 then
+					speedLocal = wcfg.AttackSpeed
+				end
+				-- Brief pause for impact weight; scale by weapon speed
+				task.delay(BETWEEN_ATTACK_DELAY / speedLocal, function()
 					if not CurrentAction then
 						ActionController._PlayActionLocal(nextAction)
 					end
