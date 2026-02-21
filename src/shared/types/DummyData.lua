@@ -5,7 +5,16 @@
 	Dependencies: None
 ]]
 
-export type DummyState = "Normal" | "Blocking" | "Staggered"
+export type DummyState = 
+    "Normal" 
+    | "Blocking" 
+    | "Staggered"
+    | "Idle" 
+    | "Attacking" 
+    | "Clashing" 
+    | "ClashWindow" 
+    | "ClashFollowSuccess" 
+    | "ClashFollowMiss"
 
 export type DummyData = {
 	Id: string,

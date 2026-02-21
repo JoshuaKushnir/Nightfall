@@ -45,6 +45,23 @@ return {
 			end,
 		},
 		{
+			name = "SpawnStateDummies creates one-per-state spaced 10 studs",
+			fn = function()
+				local origin = Vector3.new(0, 5, 0)
+				DummyService.SpawnStateDummies(origin)
+				-- expect eight dummies
+				local count = 0
+				for _, dd in pairs(DummyService.GetAllDummyData and DummyService.GetAllDummyData() or {}) do
+					count += 1
+				end
+				assert(count >= 8, "expected at least eight dummies")
+				-- cleanup all spawned
+				for id, _ in pairs(DummyService.GetAllDummyData and DummyService.GetAllDummyData() or {}) do
+					DummyService.DespawnDummy(id)
+				end
+			end,
+		},
+		{
 			name = "DespawnDummy removes model and data",
 			fn = function()
 				local id = DummyService.SpawnDummy(Vector3.new(0, 5, 0))

@@ -51,9 +51,15 @@ local STATE_CHANGED_EVENT_NAME = "DummyStateChanged"
 
 -- Per-state tint applied to all body parts
 local STATE_COLORS: {[DummyState]: BrickColor} = {
-Normal    = BrickColor.new("Medium stone grey"),
-Blocking  = BrickColor.new("Bright blue"),
-Staggered = BrickColor.new("Bright orange"),
+Normal            = BrickColor.new("Medium stone grey"),
+Blocking          = BrickColor.new("Bright blue"),
+Staggered         = BrickColor.new("Bright orange"),
+Idle              = BrickColor.new("White"),
+Attacking         = BrickColor.new("Really red"),
+Clashing          = BrickColor.new("Bright yellow"),
+ClashWindow       = BrickColor.new("Bright green"),
+ClashFollowSuccess= BrickColor.new("Lime green"),
+ClashFollowMiss   = BrickColor.new("Bright violet"),
 }
 
 -- ──────────────────────────────────────────────────────────────────────────
@@ -198,13 +204,44 @@ humanoid.WalkSpeed   = 0
 humanoid.JumpPower   = 0
 humanoid.Parent      = model
 
-model.PrimaryPart = root
+    -- Billboard HUD with state name + health/posture bars
+    local hud = Instance.new("BillboardGui")
+    hud.Name = "StateHud"
+    hud.Adornee = head
+    hud.Size = UDim2.new(0, 120, 0, 60)
+    hud.StudsOffset = Vector3.new(0, 3, 0)
+    hud.AlwaysOnTop = true
+    hud.Parent = model
 
--- BillboardGui: state label above the head
-local billboard = Instance.new("BillboardGui")
-billboard.Name        = "StateLabel"
-billboard.Size        = UDim2.new(4, 0, 1, 0)
-billboard.StudsOffset = Vector3.new(0, 1.5, 0)
+    local function makeBar(name, yOffset, color)
+        local frame = Instance.new("Frame")
+        frame.Name = name
+        frame.BackgroundColor3 = color
+        frame.BorderSizePixel = 1
+        frame.Size = UDim2.new(1, 0, 0.2, 0)
+        frame.Position = UDim2.new(0, 0, yOffset, 0)
+        frame.Parent = hud
+        return frame
+    end
+
+    local stateLabel = Instance.new("TextLabel")
+    stateLabel.Name = "StateLabel"
+    stateLabel.Size = UDim2.new(1,0,0.4,0)
+    stateLabel.Position = UDim2.new(0,0,0,0)
+    stateLabel.BackgroundTransparency = 1
+    stateLabel.TextScaled = true
+    stateLabel.Text = dummyData.State
+    stateLabel.Parent = hud
+
+    local healthBar = makeBar("HealthBar", 0.4, Color3.fromRGB(200,50,50))
+    local postureBar = makeBar("PostureBar", 0.6, Color3.fromRGB(50,50,200))
+
+    -- store references for later updates
+    dummyData._Hud = {
+        StateLabel = stateLabel,
+        HealthBar = healthBar,
+        PostureBar = postureBar,
+    }
 billboard.AlwaysOnTop = false
 billboard.Adornee     = head
 billboard.Parent      = head
@@ -251,8 +288,20 @@ end
 
 local humanoid = model:FindFirstChildOfClass("Humanoid")
 if humanoid then
-humanoid.Health    = dummyData.Health
-humanoid.MaxHealth = dummyData.MaxHealth
+	humanoid.Health    = dummyData.Health
+	humanoid.MaxHealth = dummyData.MaxHealth
+end
+
+-- update HUD bars if present
+if dummyData._Hud then
+	local hb = dummyData._Hud.HealthBar
+	local pb = dummyData._Hud.PostureBar
+	if hb then
+		hb.Size = UDim2.new(dummyData.Health/dummyData.MaxHealth, 0, 0.2, 0)
+	end
+	if pb and dummyData.Posture and dummyData.MaxPosture then
+		pb.Size = UDim2.new(dummyData.Posture/dummyData.MaxPosture, 0, 0.2, 0)
+	end
 end
 end
 
@@ -407,6 +456,49 @@ end
 Remove a dummy from the world.
 ]]
 function DummyService.DespawnDummy(dummyId: string)
+
+--[[
+    SpawnStateDummies(origin: Vector3) -> nil
+
+    Development helper that places one dummy for each player-visible state in a
+    row, 10 studs apart.  Each dummy is created with the appropriate state so
+    you can visually inspect state transitions, posture/health bars, etc.
+    Currently invoked manually from server code; a console command or remote
+    event can be added later if desired.
+]]
+function DummyService.SpawnStateDummies(origin: Vector3)
+    local states: {DummyState} = {
+        "Idle",
+        "Attacking",
+        "Blocking",
+        "Clashing",
+        "ClashWindow",
+        "ClashFollowSuccess",
+        "ClashFollowMiss",
+        "Staggered",
+    }
+
+    for i, st in ipairs(states) do
+        local pos = origin + Vector3.new((i - 1) * 10, 0, 0)
+        local dummyId = Utils.GenerateId()
+        local dd: DummyData = {
+            Id = dummyId,
+            State = st,
+            Position = pos,
+            Health = DUMMY_HEALTH,
+            MaxHealth = DUMMY_HEALTH,
+            Posture = DUMMY_POSTURE,
+            MaxPosture = DUMMY_POSTURE,
+            IsActive = true,   -- keep dummy considered alive
+        }
+        ActiveDummies[dummyId] = dd
+        local model = DummyService._CreateDummyModel(dd)
+        if model then
+            DummyModels[dummyId] = model
+            model.Parent = Workspace
+        end
+    end
+end
 local dummyData = ActiveDummies[dummyId]
 if not dummyData then
 print(`[DummyService] Dummy not found: {dummyId}`)
@@ -487,6 +579,14 @@ end
 Return data for a dummy by ID.
 ]]
 function DummyService.GetDummyData(dummyId: string): DummyData?
+
+-- debug helper returns all active dummy data (not to be used in gameplay)
+function DummyService.GetAllDummyData(): {[string]: DummyData}
+    -- shallow copy to avoid external mutation
+    local copy: {[string]: DummyData} = {}
+    for k,v in pairs(ActiveDummies) do copy[k] = v end
+    return copy
+end
 return ActiveDummies[dummyId]
 end
 
@@ -509,4 +609,4 @@ DummyService.DespawnDummy(dummyId)
 end
 end
 
-return DummyService
+return DummyService s
