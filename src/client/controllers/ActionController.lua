@@ -147,8 +147,12 @@ function ActionController:Start()
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			print("[ActionController INPUT] LIGHT ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
-		-- Right click to heavy attack
+		-- Right click acts as a feint/cancel for current attack or dodge
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			print("[ActionController INPUT] FEINT/CANCEL triggered")
+			ActionController.CancelCurrentAction()
+		-- Middle click or R key performs heavy attack
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.R then
 			print("[ActionController INPUT] HEAVY ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_HEAVY)
 		-- Q to dodge
@@ -502,6 +506,36 @@ function ActionController.PlayAction(config: ActionConfig)
 end
 
 --[[
+    Cancel the current action (feint).  Stops animation, clears hitbox/movement
+    modifiers, and applies a small cooldown so the player cannot abuse it to
+    bypass weapon speed.  Queued follow-ups are also cleared.
+]]
+function ActionController.CancelCurrentAction()
+    if not CurrentAction then
+        return
+    end
+
+    print("[ActionController] Cancelling current action: " .. CurrentAction.Config.Name)
+
+    -- stop and cleanup like a normal completion
+    CurrentAction:Stop()
+    CurrentAction:Cleanup()
+
+    if CurrentAction.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+        MovementController.SetModifier("Attacking", 1.0)
+    end
+    if CurrentAction.Config.Type == "Dodge" then
+        Blackboard.IsDodging = false
+    end
+
+    -- small cooldown prevents cancel‑spam
+    ActionCooldowns[CurrentAction.Config.Id] = tick() + 0.2
+    -- drop queued actions, since feint interrupts the combo
+    ActionQueue = {}
+    CurrentAction = nil
+end
+
+--[[
 	Play an action locally (client-side prediction)
 	@param config The action configuration
 ]]
@@ -605,14 +639,18 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	end
 
 	-- ── Attack: small forward nudge to make swings feel aggressive ────────
+	-- Impulse should follow the *punch direction*, not arbitrary camera look when
+	-- the user is free‑looking.  Only when shift‑lock is active do we use the
+	-- camera vector (they're basically the same in that mode anyway).
 	if config.Type == "Attack" and config.Id ~= "atk_lunge"
 		and config.AttackImpulse and config.AttackImpulse > 0
 		and MovementController and MovementController.ApplyImpulse then
 		local rootPart = Utils.GetRootPart(Player)
 		if rootPart then
 			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
+			-- override with camera only while shift‑locked (MouseBehavior LockCenter)
 			local cam = workspace.CurrentCamera
-			if cam then
+			if cam and UserInputService.MouseBehavior == Enum.MouseBehavior.LockCenter then
 				local look = cam.CFrame.LookVector
 				local cf = Vector3.new(look.X, 0, look.Z)
 				if cf.Magnitude > 0.1 then forward = cf.Unit end
