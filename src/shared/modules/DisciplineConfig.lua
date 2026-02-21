@@ -29,9 +29,28 @@ local DisciplineConfig: {[string]: any} = {
         -- Weapon access ---------------------------------------------------
         weaponClasses = {"Light", "Medium"}, -- balanced toolbox
 
+        -- Wayward passive: Steady Ground -----------------------------------
+        -- Composure builds passively during any active engagement and only
+        -- affects penalty states.  It is invisible during normal play but
+        -- subtly reduces the pain of being pushed around.
+        steadyGround = {
+            accumulationRate = 1,      -- composure points per second in combat
+            cap = 20,                  -- maximum composure stored
+            combatTimeout = 5,         -- seconds of no combat before reset begins
+            decayRate = 2,             -- composure points lost per second out of combat
+            effects = {
+                staggerDurationReductionPer = 0.01, -- 1% shorter stagger per point
+                staggerDrainReductionPer = 0.01,    -- 1% less posture drain per point
+                shardLossReductionPer = 1,          -- 1 less shard lost on death per point
+                dimmingDurationReductionPer = 0.02, -- 2% shorter Dimming debuff per point
+            },
+            visualState = "SteadyGroundActive", -- faint aura state broadcast when >0
+        },
+
         -- Aspect scaling (shape reserve; populated later by Aspect team)
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
     },
+
 
     Ironclad = {
         -- Breath ----------------------------------------------------------------
