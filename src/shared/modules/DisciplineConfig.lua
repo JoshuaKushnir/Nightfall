@@ -118,6 +118,22 @@ local DisciplineConfig: {[string]: any} = {
         -- Weapon access -------------------------------------------------------
         weaponClasses = {"Light"}, -- speed‑oriented gear only
 
+        -- Ghoststep passive ----------------------------------------------------
+        -- Silhouette dashes have reduced recovery and can chain; the core of
+        -- her Clash pressure.  See Section 2b design for details.
+        ghoststep = {
+            baseRecoveryFrames = 18,          -- ~0.30s at 60fps
+            reductionPerDash = {8, 6, 4},     -- frames removed for dash 1/2/3
+            chainCap = 3,                     -- after 3 dashes passive pauses
+            cooldownAfterCap = 1.0,           -- seconds before Ghoststep returns
+            clashWindowBonus = 0.1,           -- +100ms extra time to react inside
+                                               -- CLASH_WINDOW for Silhouette
+            crossTrain = {
+                reductionFrames = 4,         -- only first dash gets -4 frames
+                appliesTo = 1,               -- does not sustain through chains
+            },
+        },
+
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
     },
 
