@@ -62,7 +62,7 @@ local COMBO_FINISH_COOLDOWN = 0.6 -- Cooldown after completing 5-hit combo
 -- Constants
 local MIN_ACTION_INTERVAL = 0.1
 local BETWEEN_ATTACK_DELAY = 0.08 -- Brief pause between chained attacks (weight/impact feel)
-local PER_SWING_COOLDOWN   = 0.6  -- base minimum gap between swings (weapon speed will reduce this)
+-- local PER_SWING_COOLDOWN   = 0.6  -- (Removed: Cooldown is now driven by ActionTypes.Duration and CancelFrame)
 local MAX_QUEUE_SIZE = 1 -- Limit action queue to prevent spam stacking
 
 --[[
@@ -898,7 +898,9 @@ function ActionController._UpdateAction(deltaTime: number)
                 ActionCooldowns[action.Config.Id] = tick() + cd
                 print(`[ActionController] Finisher complete — cooldown set: {cd}s (speed {speedLocal})`)
             else
-                local cd = PER_SWING_COOLDOWN / speedLocal
+                -- The action has fully completed (Duration has passed).
+                -- We only need a tiny transition gap so they can attack again immediately.
+                local cd = BETWEEN_ATTACK_DELAY / speedLocal
                 ActionCooldowns[action.Config.Id] = tick() + cd
             end
 		end
