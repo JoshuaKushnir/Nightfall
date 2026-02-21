@@ -191,6 +191,8 @@ Combat centers on two distinct health states that interact with each other in wa
 
 **Posture** is your structural integrity in a fight. It depletes when you block hits, take unguarded strikes, or absorb Aspect abilities. When Posture falls to zero, you stagger briefly — and a staggered target is open for a **Break**, a deliberate powerful strike that deals heavy HP damage and has distinct visual and audio signatures that other players nearby can hear.
 
+A Break's damage uses a hybrid formula: **flat base + overflow bonus × discipline modifier**.  Overflow is the amount of posture damage dealt beyond zero before the Break lands, rewarding aggressive posture stripping.  Ironclad deals slightly less baseline Break damage to stay balanced with their high posture pool; Silhouette deals slightly more to reward speed.  The server locks the target for ~0.7s during the Break animation and broadcasts a `States.BREAK_EXECUTING` flag to clients within 20 studs so they can play the unique VFX/SFX.
+
 The tension this creates is layered. You can sustain Posture damage while keeping HP high, then get Broken and suffer a HP consequence for what felt like absorbing the fight well. Alternatively, you can focus on stripping Posture quickly to force Break windows without engaging HP at all. Neither is universally correct. Build, matchup, and terrain all influence which approach is correct in a given fight.
 
 Aspect abilities generally affect Posture more than HP. They're used to create Break windows rather than deal direct damage — with exceptions in deep Expression builds. This means Aspect users are Posture pressure specialists whose value is in enabling Break conditions, either for themselves or for allies.

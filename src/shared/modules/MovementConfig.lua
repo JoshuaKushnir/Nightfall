@@ -197,6 +197,23 @@ MovementConfig.Combat = {
     -- false positives when players are clearly not facing each other.
     -- (±100ms means two clients can be up to 200ms apart and still Clash.)
     CLASH_TOLERANCE_MS = 100,
+
+    -- Break damage formula parameters (Section 5):
+    -- The chosen formula is a hybrid of flat base damage, posture overflow
+    -- bonus, and discipline-specific scaling.  It rewards building up posture
+    -- before breaking and gives each discipline a distinct feel.
+    Break = {
+        BaseFlat = 50,              -- flat HP damage applied on every Break
+        OverflowMultiplier = 0.5,   -- additional HP per point of posture overflow
+        DisciplineModifier = {
+            Wayward = 1.0,
+            Ironclad = 0.9,   -- harder hitting but less reward from overflow
+            Silhouette = 1.1, -- faster Breaks deal slightly more
+            Resonant = 1.0,
+        },
+        AnimationLock = 0.7,        -- seconds the target is locked in Break animation
+        BroadcastRadius = 20,       -- studs radius for nearby players to hear/see
+    },
 }
 
 -- Wall Boost (one-shot airborne wall burst)
