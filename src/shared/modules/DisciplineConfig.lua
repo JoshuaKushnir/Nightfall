@@ -52,6 +52,52 @@ local DisciplineConfig: {[string]: any} = {
         weaponClasses = {"Light","Medium","Heavy"},
 
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
+
+        -- Tempered Stance passive ------------------------------------------------
+        -- Ironclad builds up 'Poise' as a fight drags on. Poise grants HP
+        -- damage reduction and makes it harder to be staggered/lose posture
+        -- when blocking.  See Section 2a design docs for complete rules.
+        temperedStance = {
+            accumulation = {
+                perHit = 1,         -- points gained on every hit received (blocked or not)
+                perBlock = 2,       -- additional points for successfully blocking a hit
+                cap = 30,           -- maximum stored Poise across a single engagement
+                decayDelay = 10,    -- seconds out of combat before Poise begins to fall
+                decayRate = 1,      -- points per second once decay starts
+            },
+            tiers = {
+                {
+                    threshold = 10,            -- Tier 1 when Poise >= 10
+                    hpDamageReduction = 0.05,  -- 5% less HP damage taken
+                    blockDrainReduction = 0.10,-- 10% less posture drained when blocking
+                    state = "Tempered1",      -- StateService enum to broadcast
+                },
+                {
+                    threshold = 20,            -- Tier 2
+                    hpDamageReduction = 0.10,
+                    blockDrainReduction = 0.20,
+                    state = "Tempered2",
+                },
+                {
+                    threshold = 30,            -- Tier 3 (maxed)
+                    hpDamageReduction = 0.15,
+                    blockDrainReduction = 0.30,
+                    state = "Tempered3",
+                },
+            },
+            reset = {
+                onStaggerDropTiers = 1, -- losing a stagger removes one tier (subtract
+                                        -- corresponding threshold points)
+                onBreak = "full",     -- fully resets Poise and tiers on Break or death
+                onDeath = "full",
+            },
+            clash = {
+                tier2CounterBonus = 0.10, -- during CLASH_WINDOW, Tier2+ counter-strike
+                                           -- deals +10% posture damage
+                tier3InstantBreak = true, -- at Tier3 a successful counter can immediately
+                                           -- trigger a Break (posture permitting)
+            },
+        },
     },
 
     Silhouette = {
