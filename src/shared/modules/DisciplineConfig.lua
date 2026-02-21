@@ -174,6 +174,33 @@ local DisciplineConfig: {[string]: any} = {
         -- Weapon access -------------------------------------------------------
         weaponClasses = {"Light","Medium"},
 
+        -- Resonant passive: Cadence Strike -----------------------------------
+        -- Tempo builds when attacks land cleanly; breaking rhythm costs tempo.
+        -- Tempo only affects posture damage (no HP boost).  Full tempo
+        -- allows Resonant to open Break windows as efficiently as Ironclad.
+        cadenceStrike = {
+            accumulation = {
+                perHit = 5,       -- points gained per successful posture-hitting attack
+                cap = 100,        -- maximum tempo
+                breakPenalty = 50,-- tempo lost instantly when cadence is broken
+                decayRate = 10,   -- tempo points lost per second after a break
+            },
+            multiplierAtFull = 2.0, -- posture damage multiplier when tempo == cap
+            tiers = {25, 50, 75, 100}, -- breakpoints for visual states
+            visualStates = {"Cadence0","Cadence1","Cadence2","Cadence3"},
+            clash = {
+                -- counters while at full tempo apply the same multiplier;
+                -- this is how Resonant "creates Break windows as efficiently as
+                -- an Ironclad".
+                fullTempoCounterMult = 2.0,
+            },
+            crossTrain = {
+                perHit = 2.5,          -- slower build
+                cap = 50,              -- lower ceiling
+                multiplierAtFull = 1.25,-- mild posture bonus only
+            },
+        },
+
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
     },
 }
