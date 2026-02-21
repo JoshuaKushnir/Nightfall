@@ -18,10 +18,10 @@ return {
 				-- stub WeaponRegistry
 				local origHas = WeaponRegistry.Has
 				local origGet = WeaponRegistry.Get
-				WeaponRegistry.Has = function(id) return id == "heavy_sword" end
-				WeaponRegistry.Get = function(id)
-					if id == "heavy_sword" then
-						return {Id = id, WeightClass = "Heavy", Name = "Heavy Sword"}
+WeaponRegistry.Has = function(id) return id == "breaker_hammer" end
+			WeaponRegistry.Get = function(id)
+				if id == "breaker_hammer" then
+					return {Id = id, WeightClass = "Breaker", Name = "Breaker Hammer"}
 					end
 				end
 
