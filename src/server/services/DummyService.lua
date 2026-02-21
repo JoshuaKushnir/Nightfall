@@ -242,19 +242,6 @@ humanoid.Parent      = model
         HealthBar = healthBar,
         PostureBar = postureBar,
     }
-billboard.AlwaysOnTop = false
-billboard.Adornee     = head
-billboard.Parent      = head
-
-local label = Instance.new("TextLabel")
-label.Name                   = "Label"
-label.Size                   = UDim2.new(1, 0, 1, 0)
-label.BackgroundTransparency = 1
-label.TextColor3             = Color3.new(1, 1, 1)
-label.TextScaled             = true
-label.Font                   = Enum.Font.GothamBold
-label.Text                   = dummyData.State
-label.Parent                 = billboard
 
 model.Parent = Workspace
 return model
@@ -609,4 +596,4 @@ DummyService.DespawnDummy(dummyId)
 end
 end
 
-return DummyService s
+return DummyService
