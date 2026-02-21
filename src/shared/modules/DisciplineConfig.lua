@@ -4,65 +4,97 @@
 -- Accessible from server and client; lightweight lookups only.
 
 local DisciplineConfig: {[string]: any} = {
-	Wayward = {
-		BreathPool           = 100,
-		SprintDrain          = 10,
-		DashDrain            = 15,
-		WallRunDrain         = 20,
-		BreathRegenGround    = 30,
-		PosturePool          = 100,
-		PostureRegen         = 6,
-		PostureRegenBlocking = 3,
-		BlockDrainMultiplier = 1.0,
-		StaggerDuration      = 0.80,
-		WeightClasses        = {"Light","Medium"},
-		AspectCoeff          = 1.0,
-	},
+    --
+    -- Each Discipline table defines the *base numeric values* that drive all of
+    -- the combat subsystems.  Values here are the single source of truth; no
+    -- other module should hardcode numbers.  All numbers are proposed (✏️) and
+    -- remain open for tuning.
+    --
 
-	Ironclad = {
-		BreathPool           = 110,
-		SprintDrain          = 12,
-		DashDrain            = 18,
-		WallRunDrain         = 22,
-		BreathRegenGround    = 25,
-		PosturePool          = 120,
-		PostureRegen         = 8,
-		PostureRegenBlocking = 4,
-		BlockDrainMultiplier = 0.75,
-		StaggerDuration      = 0.90,
-		WeightClasses        = {"Light","Medium","Heavy"},
-		AspectCoeff          = 1.0,
-	},
+    Wayward = {
+        -- Breath system ----------------------------------------------------
+        breathPool = 100,          -- medium pool, ✏️ keeps the 0-100 scale familiar
+        breathDrainSprint = 10,    -- average drain rate while sprinting
+        breathDrainDash = 15,      -- standard cost per dash
+        breathDrainWallRun = 20,   -- moderate cost; Wayward uses wallrun some
+                                   -- but not as often as Silhouette
+        breathRegenGrounded = 30,  -- average regen when standing still
 
-	Silhouette = {
-		BreathPool           = 90,
-		SprintDrain          = 9,
-		DashDrain            = 12,
-		WallRunDrain         = 18,
-		BreathRegenGround    = 35,
-		PosturePool          = 80,
-		PostureRegen         = 5,
-		PostureRegenBlocking = 2.5,
-		BlockDrainMultiplier = 1.25,
-		StaggerDuration      = 0.60,
-		WeightClasses        = {"Light"},
-		AspectCoeff          = 1.0,
-	},
+        -- Posture system --------------------------------------------------
+        postureMax = 100,          -- medium posture ceiling
+        postureRecovery = 6,       -- average points recovered/sec when not staggered
+        postureBlockMultiplier = 1.0, -- baseline block efficiency (no bonus/penalty)
+        staggerDuration = 0.8,     -- medium stagger lock (seconds)
 
-	Resonant = {
-		BreathPool           = 100,
-		SprintDrain          = 11,
-		DashDrain            = 16,
-		WallRunDrain         = 20,
-		BreathRegenGround    = 30,
-		PosturePool          = 90,
-		PostureRegen         = 6,
-		PostureRegenBlocking = 3,
-		BlockDrainMultiplier = 1.0,
-		StaggerDuration      = 0.80,
-		WeightClasses        = {"Light","Medium"},
-		AspectCoeff          = 1.0,
-	},
+        -- Weapon access ---------------------------------------------------
+        weaponClasses = {"Light", "Medium"}, -- balanced toolbox
+
+        -- Aspect scaling (shape reserve; populated later by Aspect team)
+        -- aspectScaling = { expression = nil, form = nil, communion = nil },
+    },
+
+    Ironclad = {
+        -- Breath ----------------------------------------------------------------
+        breathPool = 90,           -- low-end pool, Ironclad plods through breath
+        breathDrainSprint = 12,    -- worst efficiency to punish mobility abuse
+        breathDrainDash = 18,
+        breathDrainWallRun = 22,
+        breathRegenGrounded = 25,  -- slow regen; encourages deliberate play
+
+        -- Posture ----------------------------------------------------------------
+        postureMax = 120,          -- high posture cap representing endurance
+        postureRecovery = 5,       -- slower recovery; Tempered Stance is the real
+                                   -- recovery mechanic
+        postureBlockMultiplier = 0.75, -- 25% drain reduction when holding block
+        staggerDuration = 0.9,     -- long lock; compensated by passive below
+
+        -- Weapon access -------------------------------------------------------
+        weaponClasses = {"Light","Medium","Heavy"},
+
+        -- aspectScaling = { expression = nil, form = nil, communion = nil },
+    },
+
+    Silhouette = {
+        -- Breath ----------------------------------------------------------------
+        breathPool = 110,          -- highest breath reservoir for dash heavy play
+        breathDrainSprint = 8,     -- best efficiency to reward constant motion
+        breathDrainDash = 12,
+        breathDrainWallRun = 16,
+        breathRegenGrounded = 35,  -- fastest regen of the four disciplines
+
+        -- Posture ----------------------------------------------------------------
+        postureMax = 80,           -- low posture makes avoiding hits critical
+        postureRecovery = 7,       -- fastest recovery rate to bounce back quickly
+        postureBlockMultiplier = 1.25, -- penalty on blocked damage to discourage
+                                       -- passive walls
+        staggerDuration = 0.6,     -- short window to reset the rhythm
+
+        -- Weapon access -------------------------------------------------------
+        weaponClasses = {"Light"}, -- speed‑oriented gear only
+
+        -- aspectScaling = { expression = nil, form = nil, communion = nil },
+    },
+
+    Resonant = {
+        -- Breath ----------------------------------------------------------------
+        breathPool = 95,           -- medium‑low pool; Resonant leans on precision
+        breathDrainSprint = 11,    -- average efficiency
+        breathDrainDash = 16,
+        breathDrainWallRun = 20,
+        breathRegenGrounded = 30,  -- middling regen rate
+
+        -- Posture ----------------------------------------------------------------
+        postureMax = 90,           -- low‑medium cap to reflect lower physical
+                                   -- sturdiness
+        postureRecovery = 6,       -- average recovery
+        postureBlockMultiplier = 1.0,-- neutral; no bonus or penalty
+        staggerDuration = 0.8,     -- medium lock duration
+
+        -- Weapon access -------------------------------------------------------
+        weaponClasses = {"Light","Medium"},
+
+        -- aspectScaling = { expression = nil, form = nil, communion = nil },
+    },
 }
 
 -- fallback accessor
