@@ -16,6 +16,8 @@
   - **Forgiving Thresholds:** Lowered the `speedAlongWall` dropout threshold from 5 to 3. Increased the refresh raycast distance from `+ 2.0` to `+ 3.0` to prevent dropping off when hitting slight bumps or seams in the wall.
   - **Intentional Detach:** Increased the `lateralInput` threshold from `0.85` to `0.95` so players don't accidentally detach when looking slightly away from the wall.
 
+- **Temporary disable:** Wall-running is currently turned off via `MovementConfig.WallRun.DisableWallRun` at the user's request; feature to be re-evaluated later.
+
 - **Fix — Upward Spamming Exploit (#95):**
   - **Re-entry Cooldown:** Added `REENTRY_COOLDOWN` (0.4s) to the `TryStart` logic. This prevents players from spamming the jump button to "climb" vertically by resetting the wall-run state multiple times.
   - **Persistent Distance Tracking:** Modified `_startWallRun` to preserve `_totalDistTraveled` if the player re-enters the state while still in the air. The 30-stud cap now correctly applies to the entire "air-time" of the player, only resetting once they touch the ground.
