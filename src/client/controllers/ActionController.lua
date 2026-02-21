@@ -814,6 +814,14 @@ function ActionController._UpdateAction(deltaTime: number)
 
 	local action = CurrentAction
 
+	-- compute weapon speed for any timing adjustments (mirrors PlayAction)
+	local speedLocal = 1
+	local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+	local wcfg: any? = wid and WeaponRegistry.Has(wid) and WeaponRegistry.Get(wid) or nil
+	if wcfg and wcfg.AttackSpeed and wcfg.AttackSpeed > 0 then
+		speedLocal = wcfg.AttackSpeed
+	end
+
 	-- ── Early cancel window ────────────────────────────────────────────────
 	-- Once the current action passes its CancelFrame fraction, allow a queued
 	-- action to interrupt — this is the core of fluid combo chaining.
@@ -885,13 +893,12 @@ function ActionController._UpdateAction(deltaTime: number)
 
 		-- Apply cooldown: finisher gets the long pause, every other swing gets the short one
 		if action.Config.Type == "Attack" then
-            -- speed variable defined earlier at top of PlayAction
             if action.Config.IsFinisher then
-                local cd = COMBO_FINISH_COOLDOWN / speed
+                local cd = COMBO_FINISH_COOLDOWN / speedLocal
                 ActionCooldowns[action.Config.Id] = tick() + cd
-                print(`[ActionController] Finisher complete — cooldown set: {cd}s (speed {speed})`)
+                print(`[ActionController] Finisher complete — cooldown set: {cd}s (speed {speedLocal})`)
             else
-                local cd = PER_SWING_COOLDOWN / speed
+                local cd = PER_SWING_COOLDOWN / speedLocal
                 ActionCooldowns[action.Config.Id] = tick() + cd
             end
 		end
