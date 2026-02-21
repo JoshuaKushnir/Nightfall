@@ -45,6 +45,16 @@ local DisciplineConfig: {[string]: any} = {
                 dimmingDurationReductionPer = 0.02, -- 2% shorter Dimming debuff per point
             },
             visualState = "SteadyGroundActive", -- faint aura state broadcast when >0
+            crossTrain = {
+                accumulationRate = 0.5,  -- slower earn rate
+                cap = 10,                -- lower maximum
+                effects = {
+                    staggerDurationReductionPer = 0.005,
+                    staggerDrainReductionPer = 0.005,
+                    shardLossReductionPer = 0.5,
+                    dimmingDurationReductionPer = 0.01,
+                },
+            },
         },
 
         -- Aspect scaling (shape reserve; populated later by Aspect team)
@@ -116,6 +126,11 @@ local DisciplineConfig: {[string]: any} = {
                 tier3InstantBreak = true, -- at Tier3 a successful counter can immediately
                                            -- trigger a Break (posture permitting)
             },
+            crossTrain = {
+                -- Cross-training grants the first tier only: a small flat stagger
+                -- resistance bonus (5%) with no accumulation mechanic.
+                flatStaggerReduction = 0.05,
+            },
         },
     },
 
@@ -154,6 +169,15 @@ local DisciplineConfig: {[string]: any} = {
         },
 
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
+    },
+
+    -- Global cross-training penalties applied when a player uses a weapon
+    -- outside their primary Discipline (Section 6c).
+    crossTrainPenalty = {
+        hpDamageMult = 0.85,      -- 15% less HP damage with cross-trained weapons
+        postureDamageMult = 0.9,  -- 10% less posture damage
+        breathCostMult = 1.15,    -- 15% more breath cost
+        attackSpeedMult = 0.95,   -- slightly slower swings
     },
 
     Resonant = {
