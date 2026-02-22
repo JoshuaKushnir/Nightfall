@@ -19,6 +19,7 @@ local Players = game:GetService("Players")
 
 local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
+local Logger = require(ReplicatedStorage.Shared.modules.Logger)
 
 local DebugInput = {}
 
@@ -33,15 +34,15 @@ function DebugInput:Init()
 		return
 	end
 	
-	print("[DebugInput] Debug input handler initialized")
-	print("[DebugInput] Press L to toggle hitbox visualization")
-	print("[DebugInput] Press K to toggle state labels")
-	print("[DebugInput] Press M to cycle slow-motion speed")
-	print("[DebugInput] Press H to spawn test hitbox")
-	print("[DebugInput] Press J to spawn combat dummy")
-	print("[DebugInput] Press Ctrl+Shift+J to admin-spawn a dummy (dev only)")
-	print("[DebugInput] Press / to open local command prompt (commands are NOT broadcast to chat)")
-	print("[DebugInput] Press Ctrl+Shift+D to list all settings")
+	Logger.Log("DebugInput", "Debug input handler initialized")
+	Logger.Log("DebugInput", "Press L to toggle hitbox visualization")
+	Logger.Log("DebugInput", "Press K to toggle state labels")
+	Logger.Log("DebugInput", "Press M to cycle slow-motion speed")
+	Logger.Log("DebugInput", "Press H to spawn test hitbox")
+	Logger.Log("DebugInput", "Press J to spawn combat dummy")
+	Logger.Log("DebugInput", "Press Ctrl+Shift+J to admin-spawn a dummy (dev only)")
+	Logger.Log("DebugInput", "Press / to open local command prompt (commands are NOT broadcast to chat)")
+	Logger.Log("DebugInput", "Press Ctrl+Shift+D to list all settings")
 
 	-- Listen for admin/debug responses from server (DebugInfo)
 	local networkFolder = ReplicatedStorage:FindFirstChild("NetworkEvents")
@@ -50,7 +51,7 @@ function DebugInput:Init()
 		if debugEvent and debugEvent:IsA("RemoteEvent") then
 			debugEvent.OnClientEvent:Connect(function(packet)
 				if packet and packet.Category == "AdminCommand" then
-					print(`[DebugInput] AdminCommand response: {tostring(packet.Data.Result or packet.Data.Error)}`)
+					Logger.Log("DebugInput", "AdminCommand response: %s", tostring(packet.Data.Result or packet.Data.Error))
 				end
 			end)
 		end
@@ -126,7 +127,7 @@ function DebugInput._SpawnTestHitbox()
 		return
 	end
 	
-	print("[DebugInput] Spawning test hitbox...")
+	Logger.Log("DebugInput", "Spawning test hitbox...")
 	DebugSettings.Set("ShowHitboxes", true)
 	
 	local testHitbox = HitboxService.CreateHitbox({
@@ -137,11 +138,11 @@ function DebugInput._SpawnTestHitbox()
 		Damage = 10,
 		LifeTime = 5, -- Show for 5 seconds
 		OnHit = function(target, hitData)
-			print(`[DebugInput] Test hitbox hit {target.Name}`)
+			Logger.Log("DebugInput", "Test hitbox hit {target.Name}")
 		end,
 	})
 	
-	print(`[DebugInput] Test hitbox spawned: {testHitbox.Id}`)
+	Logger.Log("DebugInput", "Test hitbox spawned: {testHitbox.Id}")
 end
 
 --[[
@@ -189,7 +190,7 @@ function DebugInput._SendAdminCommand(packet: { Command: string, Args: {string}?
 
 	-- Fire server-only admin command (server will validate permissions)
 	adminEvent:FireServer(packet)
-	print(`[DebugInput] AdminCommand sent: {packet.Command} ({table.concat(packet.Args or {}, " ")})`)
+	Logger.Log("DebugInput", "AdminCommand sent: %s (%s)", packet.Command, table.concat(packet.Args or {}, " "))
 end
 
 --[[
@@ -262,6 +263,16 @@ function DebugInput._HandleCommand(text: string)
 	end
 
 	local cmdRoot = string.lower(tokens[1])
+	if cmdRoot == "/log" or cmdRoot == "log" then
+		local module = tokens[2]
+		if module then
+			Logger.Log("DebugInput", "toggling logging for module {module}")
+			DebugSettings.ToggleLogging(module)
+		else
+			Logger.Log("DebugInput", "usage: /log <moduleName>")
+		end
+		return
+	end
 	if cmdRoot == "/admin" or cmdRoot == "admin" then
 		local sub = tokens[2] and string.lower(tokens[2]) or ""
 		if sub == "spawn_dummy" then
@@ -295,7 +306,7 @@ function DebugInput._HandleCommand(text: string)
 		end
 	end
 
-	print("[DebugInput] Unknown command: " .. text)
+	Logger.Log("DebugInput", "Unknown command: {text}")
 end
 
 return DebugInput

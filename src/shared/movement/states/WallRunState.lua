@@ -23,6 +23,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local Logger = require(ReplicatedStorage.Shared.modules.Logger)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local MAX_STEPS         = (MovementConfig.WallRun and MovementConfig.WallRun.MaxSteps)           or 5
@@ -73,7 +74,7 @@ local function _stopWallRun(ctx: any, reason: string?)
 		ctx.Humanoid:ChangeState(Enum.HumanoidStateType.Freefall)
 	end
 	
-	print(("[WallRunState] Wall-run ended%s"):format(reason and (" (Reason: " .. reason .. ")") or ""))
+	Logger.Log("WallRunState", "Wall-run ended%s", reason and (" (Reason: " .. reason .. ")") or "")
 end
 
 local function _startWallRun(normal: Vector3, ctx: any)
@@ -107,7 +108,7 @@ local function _startWallRun(normal: Vector3, ctx: any)
 	end
 	
 	ctx.ChainAction()
-	print(("[WallRunState] Wall-run started (step %d/%d)"):format(_stepsUsed, maxSteps))
+	Logger.Log("WallRunState", "Wall-run started (step %d/%d)", _stepsUsed, maxSteps)
 end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
@@ -143,7 +144,7 @@ function WallRunState.Detect(dt: number, ctx: any)
 
 		if isActuallyOnFlatGround then
 			if _isWallRunning and (tick() - _startTime) > GROUND_GRACE then
-				print(("[WallRunState] Dropped because OnGround was true (Flat floor). Time since start: %.2f"):format(tick() - _startTime))
+				Logger.Log("WallRunState", "Dropped because OnGround was true (Flat floor). Time since start: %.2f", tick() - _startTime)
 				_stopWallRun(ctx, "On Ground")
 			elseif not _isWallRunning then
 				_stepsUsed = 0
@@ -207,7 +208,7 @@ function WallRunState.Update(dt: number, ctx: any)
 		ctx.Blackboard.WallRunNormal = _wallNormal
 	else
 		-- Lost the wall or surface too sloped, stop running
-		print(("[WallRunState] Lost wall. Hit: %s"):format(tostring(refreshHit ~= nil)))
+		Logger.Log("WallRunState", "Lost wall. Hit: %s", tostring(refreshHit ~= nil))
 		_stopWallRun(ctx, "Lost Wall / Slope")
 		return
 	end
@@ -242,7 +243,7 @@ function WallRunState.Update(dt: number, ctx: any)
 	if _distAccum >= STEP_DISTANCE then
 		_stepsUsed += 1
 		_distAccum -= STEP_DISTANCE
-		print(("[WallRunState] Step taken (%d/%d)"):format(_stepsUsed, maxSteps))
+		Logger.Log("WallRunState", "Step taken (%d/%d)", _stepsUsed, maxSteps)
 	end
 
 	-- End run if steps exceeded
@@ -282,7 +283,7 @@ function WallRunState.Update(dt: number, ctx: any)
 		local speedAlongWall = rootPart.AssemblyLinearVelocity:Dot(moveDir)
 		if speedAlongWall < 3 then
 			-- NF-038 Debug: Print why we dropped for low speed
-			print(("[WallRunState] Dropped for low speed. Speed along wall: %.2f"):format(speedAlongWall))
+			Logger.Log("WallRunState", "Dropped for low speed. Speed along wall: %.2f", speedAlongWall)
 			_stopWallRun(ctx, "Low Speed")
 			return
 		end
@@ -313,7 +314,7 @@ function WallRunState.Update(dt: number, ctx: any)
 	-- Check if player is holding input towards the wall
 	local lateralInput = inputDir:Dot(_wallNormal)
 	if lateralInput > 0.95 then -- Intentional detach (made stricter to prevent accidental detach)
-		print("[WallRunState] Intentional detach triggered")
+		Logger.Log("WallRunState", "Intentional detach triggered")
 		_stopWallRun(ctx, "Intentional Detach")
 	end
 end
@@ -432,7 +433,7 @@ function WallRunState.OnJumpRequest(ctx: any)
 	end
 	_stopWallRun(ctx)
 	ctx.ChainAction()
-	print("[WallRunState] Wall-jump!")
+	Logger.Log("WallRunState", "Wall-jump!")
 end
 
 --[[
@@ -452,7 +453,7 @@ end
 function WallRunState.Exit(ctx: any)
 	if _isWallRunning then
 		_stopWallRun(ctx)
-		print("[WallRunState] Forcibly exited")
+		Logger.Log("WallRunState", "Forcibly exited")
 	end
 end
 

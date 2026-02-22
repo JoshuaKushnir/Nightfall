@@ -36,6 +36,31 @@
 
 ---
 
+
+- **Task:** Create new issues for modular logging control and admin command framework.
+  - Issue 1: Add per-module logging toggle system (console output control).
+  - Issue 2: Build generic admin command infrastructure plus commands to flip logging flags.
+
+- **Feature NF-104:** Implemented per-module logging toggles and a Logger utility.
+  - Added `DebugSettings.Logging` table with enable/disable/toggle helpers.
+  - Created `Logger` module that checks debug flags before printing.
+  - Converted debug prints in `WallRunState`, `SlideState`, `LedgeCatchState`, and `DebugInput` to use Logger.
+  - Added `/log <module>` command in DebugInput to toggle logging at runtime.
+  - Added unit tests (`Logger.test.lua`) covering default-off state and logging behavior.
+  - Updated DebugInput to route client debug messages through Logger where appropriate.
+
+- **Enhance DummyService spawn order (#104):** three dummies now come up with unique "preferred" states:
+  1. Idle (normal)
+  2. Always Blocking
+  3. Always Attacking
+  These roles are locked by a new `PreferredState` field that ensures hits or state cycles
+  cannot move them away; the value even survives death+respawn.
+  - Spawn loop in `DummyService:Start` collects IDs of the three auto-spawns and assigns
+    persistent states accordingly.
+  - `SetDummyState` enforces `PreferredState` whenever present.
+  - Respawning logic in `ApplyDamage` preserves the preferred state on kill.
+  - Unit tests added to confirm persistence and blocking immunity.
+
 ## Previous Session ID: NF-037
 
 ## Previous Session ID: NF-036
@@ -1612,3 +1637,8 @@ Client Layer:
   - Robustified isOnGround in MovementController.lua to recognize Landed/Running states as grounded.
   - Cleaned up ClimbState and VaultState Exit functions to include physics neutralization.
 - **Blockers:** None.
+- Adjusted attack-feel and input mappings (Feb 21 2026):
+  * Right-click now performs a feint/cancel of current attack or dodge (new helper and small cooldown).
+  * Heavy attack moved to middle-click and R key.
+  * Attack impulse vector fixed to use character facing during free-look; camera override only when shift-locked.
+  * Added unit test ensuring feint helper exists.

@@ -34,6 +34,13 @@ local HIT_COOLDOWN_MIN = 0.05 -- Minimum 50ms between hits per player
 
 -- Constants
 local BASE_DAMAGE_VARIANCE = 0.1 -- ±10% damage variance
+
+-- Advanced combat constants
+local CLASH_WINDOW = 0.05           -- seconds within reciprocal hits count as a clash
+local CLASH_FOLLOWUP_WINDOW = 0.5   -- seconds for follow-up input after a clash
+
+-- Recent hit timestamps used for clash detection; weak tables to avoid leaks
+local RecentHits: {[Player]: {[Player]: number}} = setmetatable({}, {__mode = "k"})
 local CRITICAL_CHANCE = 0.15 -- 15% critical hit chance
 local CRITICAL_MULTIPLIER = 1.5 -- 1.5x damage on crit
 local BREAK_HIT_DAMAGE = 45   -- HP damage dealt on a successful Break (mirrors PostureService.BREAK_DAMAGE)
@@ -70,6 +77,42 @@ function CombatService:Start()
 	-- in the server runtime. This Start is here for consistency with other services.
 	
 	print("[CombatService] Started successfully")
+end
+
+--[[
+	Internal helper: register a hit timestamp for clash detection
+]]
+function CombatService._RegisterHit(attacker: Player, target: Player, time: number)
+	if not attacker or not target then return end
+	RecentHits[attacker] = RecentHits[attacker] or {}
+	RecentHits[attacker][target] = time
+end
+
+--[[
+	Check whether a reciprocal hit occurred within CLASH_WINDOW
+	Returns true if a clash should trigger.
+]]
+function CombatService._DidClash(attacker: Player, target: Player, time: number): boolean
+	local otherTimes = RecentHits[target]
+	if otherTimes and otherTimes[attacker] then
+		local thenTime = otherTimes[attacker]
+		if math.abs(time - thenTime) <= CLASH_WINDOW then
+			return true
+		end
+	end
+	return false
+end
+
+--[[
+	Handle clash logic once detected (broadcast event, apply bonuses).
+]]
+function CombatService._HandleClash(attacker: Player, target: Player)
+	print(`[CombatService] 🥊 Clash detected between {attacker.Name} and {target.Name}`)
+	local clashEvent = NetworkProvider:GetRemoteEvent("ClashOccurred")
+	if clashEvent then
+		clashEvent:FireAllClients(attacker, target, CLASH_FOLLOWUP_WINDOW)
+	end
+	-- TODO: apply posture bonus/damage reduction etc.
 end
 
 --[[
@@ -149,6 +192,16 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	if not isDummy and attacker == targetPlayer then
 		print("[CombatService] ✗ Self-hit attempted")
 		return false, 0
+	end
+
+	-- Advanced combat: check for clash with reciprocal hit
+	if not isDummy and targetPlayer then
+		local now = tick()
+		if CombatService._DidClash(attacker, targetPlayer, now) then
+			CombatService._HandleClash(attacker, targetPlayer)
+		end
+		-- record this hit for future clash checks
+		CombatService._RegisterHit(attacker, targetPlayer, now)
 	end
 	
 	-- Get target data

@@ -154,7 +154,7 @@ Crafting uses materials gathered across Rings — darker Ring materials are dram
 
 ## MOVEMENT
 
-> **Status:** 🔧 PARTIAL — Sprint, dash, lunge exist. Wall-run, ledge catch, vault, slide are unimplemented.
+> **Status:** 🔧 PARTIAL — Sprint, dash, lunge, ledge catch, vault, slide exist. Wall-run is unimplemented.
 > **Impl files:** `MovementController.lua`, `MovementConfig.lua`
 > **Spec gaps (❓ UNSPECCED):**
 >   - Breath drain rates per action (sprint / dash / wall-run) — no numbers

@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local Logger = require(ReplicatedStorage.Shared.modules.Logger)
 
 -- Config constants
 local HEIGHT_OFFSET = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HeightCheckOffset) or 6.0
@@ -108,7 +109,7 @@ function LedgeCatchState.TryStart(ctx: any): boolean
 	_catchTime = tick()
 	_lookDir = probe.lookDir
 	
-	print("[LedgeCatchState] Catch success at Y=" .. tostring(math.floor(_currentLedgeY)))
+	Logger.Log("LedgeCatchState", "Catch success at Y=%d", math.floor(_currentLedgeY))
 
 	-- Stop physics and snap
 	rootPart.Anchored = true
@@ -126,7 +127,7 @@ function LedgeCatchState.TryStart(ctx: any): boolean
 	-- trigger an automatic pull-up immediately instead of hanging and dropping the player.
 	local currentY = rootPart.Position.Y
 	if currentY > _currentLedgeY - 1.55 then
-		print("[LedgeCatchState] Hand-off high -> Auto PullUp (Y=" .. tostring(currentY) .. ")")
+		Logger.Log("LedgeCatchState", "Hand-off high -> Auto PullUp (Y=%d)", currentY)
 		-- Position at the ledge but don't drop the Y as much to keep it smooth
 		local catchPos = Vector3.new(catchXZ.X, math.max(currentY, _currentLedgeY - 1.1), catchXZ.Z)
 		rootPart.CFrame = CFrame.new(catchPos, catchPos + _lookDir)
@@ -211,7 +212,7 @@ function LedgeCatchState.PullUp(ctx: any, force: boolean?)
 		ctx.Blackboard.IsLedgeCatching = false
 		ctx.Blackboard.IsPullingUp = false
 		ctx.ChainAction() -- Successful climb-up grants momentum
-		print("[LedgeCatchState] Pull-up complete")
+		Logger.Log("LedgeCatchState", "Pull-up complete")
 	end)
 end
 

@@ -21,12 +21,15 @@
 local DebugSettings = {}
 
 -- Settings storage
-local Settings: {[string]: boolean | number | string} = {
+local Settings: {[string]: any} = {
 	ShowHitboxes = false,
 	ShowStateLabels = false,
 	ShowNetworkEvents = false,
 	SlowMotion = false,
 	SlowMotionSpeed = 0.5,
+
+	-- per-module logging toggles (default off)
+	Logging = {},
 }
 
 -- Change signals for reactive systems
@@ -143,6 +146,47 @@ function DebugSettings.ListSettings()
 		local valueStr = if type(value) == "boolean" then (if value then "✓" else "✗") else tostring(value)
 		print(`  {name}: {valueStr}`)
 	end
+	-- also list logging modules
+	if next(Settings.Logging) then
+		print("[DebugSettings] Logging toggles:")
+		for modName, enabled in Settings.Logging do
+			print(`  {modName}: {(enabled and "✓" or "✗")}`)
+		end
+	end
+end
+
+--[[
+	Logging-specific helpers
+]]
+
+-- Enable logging for a given module
+function DebugSettings.EnableLogging(moduleName: string): boolean
+	Settings.Logging[moduleName] = true
+	DebugSettings._NotifyChange("Logging." .. moduleName, true)
+	print(`[DebugSettings] Logging enabled for {moduleName}`)
+	return true
+end
+
+-- Disable logging for a given module
+function DebugSettings.DisableLogging(moduleName: string): boolean
+	Settings.Logging[moduleName] = false
+	DebugSettings._NotifyChange("Logging." .. moduleName, false)
+	print(`[DebugSettings] Logging disabled for {moduleName}`)
+	return false
+end
+
+-- Toggle logging on/off, returns new value
+function DebugSettings.ToggleLogging(moduleName: string): boolean
+	if DebugSettings.IsLoggingEnabled(moduleName) then
+		return DebugSettings.DisableLogging(moduleName)
+	else
+		return DebugSettings.EnableLogging(moduleName)
+	end
+end
+
+-- Check if logging is enabled (default false)
+function DebugSettings.IsLoggingEnabled(moduleName: string): boolean
+	return Settings.Logging[moduleName] == true
 end
 
 return DebugSettings

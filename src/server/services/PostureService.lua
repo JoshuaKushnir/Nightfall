@@ -73,6 +73,28 @@ type PostureState = {
 -- Keyed by Player.UserId.  Populated on CharacterAdded, cleared on leave.
 local _postures: {[number]: PostureState} = {}
 
+-- Poise tracking for Ironclad Tempered Stance
+local _poises: {[number]: number} = {}
+
+-- Helper to read discipline config
+local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
+
+local function _getDiscCfg(player: Player)
+	local data = StateService:GetPlayerData(player)
+	local id = data and data.DisciplineId or "Wayward"
+	return DisciplineConfig.Get(id)
+end
+
+-- Poise accessors
+function PostureService.GetPoise(player: Player): number
+	if not player then return 0 end
+	return _poises[player.UserId] or 0
+end
+
+function PostureService.ResetPoise(player: Player)
+	if player then _poises[player.UserId] = 0 end
+end
+
 -- Lazy-required at :Start() to avoid circular require
 local CombatService: any = nil
 
@@ -101,7 +123,7 @@ local function _getOrCreate(player: Player): PostureState
 	local uid = player.UserId
 	if not _postures[uid] then
 		-- determine max posture from discipline
-		local cfg = _getDiscConfig(player)
+		local cfg = _getDiscCfg(player)
 		local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
 		_postures[uid] = {
 			Current     = maxVal,
@@ -169,6 +191,12 @@ function PostureService.DrainPosture(player: Player, amount: number?, source: st
 		if cfg and cfg.BlockDrainMultiplier then
 			drain = drain * cfg.BlockDrainMultiplier
 		end
+		-- for Ironclad also accumulate Poise
+		local playerData = StateService:GetPlayerData(player)
+		if playerData and playerData.DisciplineId == "Ironclad" then
+			local uid = player.UserId
+			_pois​es[uid] = math.min(cfg.temperedStance.maxPoise, (_poises[uid] or 0) + (cfg.temperedStance.perBlocked or 0))
+		end
 	end
 
 	state.LastHitTime = tick()
@@ -199,7 +227,7 @@ end
 ]]
 function PostureService.ResetPosture(player: Player)
 	local uid = player.UserId
-	local cfg = _getDiscConfig(player)
+	local cfg = _getDiscCfg(player)
 	local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
 	_postures[uid] = {
 		Current     = maxVal,
@@ -208,6 +236,8 @@ function PostureService.ResetPosture(player: Player)
 		Staggered   = false,
 		StaggerEnd  = 0,
 	}
+	-- also reset poise for Ironclad
+	_pois​es[uid] = 0
 	_broadcast("PostureChanged", uid, maxVal, maxVal)
 end
 

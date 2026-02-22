@@ -24,6 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService          = game:GetService("RunService")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local Logger = require(ReplicatedStorage.Shared.modules.Logger)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local SLIDE_SPEED     = (MovementConfig.Dodge and MovementConfig.Dodge.Speed)          or 50
@@ -66,24 +67,24 @@ function SlideState.TryStart(ctx: any)
 	if not humanoid or not rootPart then return end
 	if humanoid.Health <= 0 then return end
 	if not ctx.IsSprinting then
-		print("[SlideState] Rejected: not sprinting")
+		Logger.Log("SlideState", "Rejected: not sprinting")
 		return
 	end
 	if not ctx.OnGround then
-		print("[SlideState] Rejected: airborne")
+		Logger.Log("SlideState", "Rejected: airborne")
 		return
 	end
 	if tick() - _lastSlideTime < SLIDE_COOLDOWN then
 		local remaining = math.floor((SLIDE_COOLDOWN - (tick() - _lastSlideTime)) * 100) / 100
-		print(("[SlideState] On cooldown (%.2fs)"):format(remaining))
+		Logger.Log("SlideState", "On cooldown (%.2fs)", remaining)
 		return
 	end
 	if ctx.LastMoveDir.Magnitude < 0.5 then
-		print("[SlideState] Rejected: no move direction")
+		Logger.Log("SlideState", "Rejected: no move direction")
 		return
 	end
 	if _isSliding then
-		print("[SlideState] Already sliding")
+		Logger.Log("SlideState", "Already sliding")
 		return
 	end
 
@@ -98,7 +99,7 @@ function SlideState.TryStart(ctx: any)
 	-- Count as a momentum chain link
 	ctx.ChainAction()
 
-	print("[SlideState] Slide started")
+	Logger.Log("SlideState", "Slide started")
 
 	-- Scale slide distance by momentum multiplier (1× at rest, up to 3× at cap)
 	local momentumScale  = ctx.GetMomentumMultiplier()
@@ -186,7 +187,7 @@ function SlideState.OnJumpRequest(ctx: any)
 
 	ctx.ChainAction()
 	ctx.Blackboard.SlideJumped = true
-	print("[SlideState] Slide leap!")
+	Logger.Log("SlideState", "Slide leap!")
 
 	-- Slide-jump animation
 	if ctx.AnimationLoader and ctx.Humanoid then
@@ -211,7 +212,7 @@ end
 function SlideState.Exit(ctx: any)
 	if _isSliding then
 		_stopSlide(ctx)
-		print("[SlideState] Forcibly exited")
+		Logger.Log("SlideState", "Forcibly exited")
 	end
 end
 

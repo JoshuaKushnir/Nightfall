@@ -1,0 +1,29 @@
+﻿*** Begin Patch
+*** Update File: src/server/services/DummyService.lua
+@@
+ local cf = root.CFrame
+ local offsets = {
+ Vector3.new(-6, 0, -12),
+ Vector3.new( 0, 0, -15),
+ Vector3.new( 6, 0, -12),
+ }
++local preferredStates = { "Idle", "Blocking", "Attacking" }
+@@
+-for _, offset in offsets do
++for idx, offset in ipairs(offsets) do
+@@
+-local ok, err = pcall(DummyService.SpawnDummy, worldPos)
+-if not ok then
+-warn("[DummyService] SpawnDummy failed: " .. tostring(err))
+-end
++local id = DummyService.SpawnDummy(worldPos)
++if not id then
++warn("[DummyService] SpawnDummy failed at index " .. tostring(idx))
++else
++local pref = preferredStates[idx]
++if pref then
++ActiveDummies[id].PreferredState = pref
++DummyService.SetDummyState(id, pref)
++end
++end
+*** End Patch
