@@ -59,6 +59,9 @@ local LastComboTime = 0
 local COMBO_TIMEOUT = 1.5 -- Reset combo if no attack within 1.5 seconds
 local COMBO_FINISH_COOLDOWN = 0.6 -- Cooldown after completing 5-hit combo
 
+-- Feint tracking
+local FeintCooldownEnd = 0      -- global timestamp until which feinting is blocked
+
 -- Constants
 local MIN_ACTION_INTERVAL = 0.1
 local BETWEEN_ATTACK_DELAY = 0.08 -- Brief pause between chained attacks (weight/impact feel)
@@ -536,6 +539,12 @@ function ActionController.CancelCurrentAction()
         return
     end
 
+    -- global feint cooldown prevents immediate retries
+    if tick() < FeintCooldownEnd then
+        print("[ActionController] Feint still on cooldown")
+        return
+    end
+
     if CurrentAction.TargetHit then
         print("[ActionController] Cannot feint – hit already registered")
         return
@@ -561,7 +570,9 @@ function ActionController.CancelCurrentAction()
     if wcfg and wcfg.FeintCooldown and wcfg.FeintCooldown > 0 then
         feintCd = wcfg.FeintCooldown
     end
+    -- apply both per-action and global cooldown
     ActionCooldowns[CurrentAction.Config.Id] = tick() + feintCd
+    FeintCooldownEnd = tick() + feintCd
 
     CurrentAction = nil
 end
