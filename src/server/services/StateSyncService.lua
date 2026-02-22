@@ -95,6 +95,7 @@ local function sendProfileToClient(player: Player, isInitialLoad: boolean)
 		MaxMana = profileData.Mana.Max,
 		CurrentPosture = profileData.Posture.Current,
 		MaxPosture = profileData.Posture.Max,
+		Luminance = profileData.Luminance or 0,
 		EquippedMantras = profileData.EquippedMantras,
 		Class = profileData.Class,
 		Coins = 0, -- TODO: Add coins to PlayerData

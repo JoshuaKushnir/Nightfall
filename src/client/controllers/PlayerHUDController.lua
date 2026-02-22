@@ -41,6 +41,8 @@ local screenGui: ScreenGui
 local hudFrame: Frame
 local healthBar: Frame
 local manaBar: Frame
+local postureBar: Frame
+local luminanceBar: Frame
 local levelLabel: TextLabel
 local stateLabel: TextLabel
 local coinsLabel: TextLabel
@@ -385,11 +387,17 @@ local function createHUD()
 	local _, mana = createStatBar("Mana", UDim2.new(0, 20, 0, 75), Color3.fromRGB(50, 100, 200))
 	manaBar = mana
 	
-	-- Create info labels
-	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 20, 0, 110), "Level: 1")
-	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 135), "State: Loading...")
-	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 160), "Coins: 0")
-	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 185), "EXP: 0/100")
+	local _, posture = createStatBar("Posture", UDim2.new(0, 20, 0, 110), Color3.fromRGB(180, 160, 50))
+	postureBar = posture
+	
+	local _, lumin = createStatBar("Luminance", UDim2.new(0, 20, 0, 145), Color3.fromRGB(240, 240, 200))
+	luminanceBar = lumin
+	
+	-- Create info labels (shifted down)
+	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 20, 0, 180), "Level: 1")
+	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 205), "State: Loading...")
+	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 230), "Coins: 0")
+	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 255), "EXP: 0/100")
 end
 
 --------------------------------------------------------------------------------
@@ -423,6 +431,30 @@ local function setupBindings()
 	UIBinding.BindText(manaBar.Parent.ManaLabel, function()
 		if not profile then return "Mana: --/--" end
 		return string.format("Mana: %d/%d", profile.CurrentMana, profile.MaxMana)
+	end, profileSignal)
+
+	-- Bind posture bar
+	UIBinding.BindProgress(postureBar, function()
+		if not profile then return 0 end
+		return profile.CurrentPosture / profile.MaxPosture
+	end, profileSignal)
+	
+	UIBinding.BindText(postureBar.Parent.PostureLabel, function()
+		if not profile then return "Posture: --/--" end
+		return string.format("Posture: %d/%d", profile.CurrentPosture, profile.MaxPosture)
+	end, profileSignal)
+
+	-- Bind luminance bar
+	UIBinding.BindProgress(luminanceBar, function()
+		if not profile then return 0 end
+		local lum = profile.Luminance or 0
+		-- assume a 0-100 cap until mechanic is implemented
+		return math.clamp(lum / 100, 0, 1)
+	end, profileSignal)
+	
+	UIBinding.BindText(luminanceBar.Parent.LuminanceLabel, function()
+		if not profile then return "Luminance: --" end
+		return string.format("Luminance: %d", profile.Luminance or 0)
 	end, profileSignal)
 	
 	-- Bind level

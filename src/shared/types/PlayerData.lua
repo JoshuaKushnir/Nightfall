@@ -76,4 +76,32 @@ export type PlayerData = {
 	Experience: number,
 }
 
+--[[
+	PlayerProfile is the slimmed-down version of PlayerData that is sent
+	over the network. It contains only the fields the client needs to render
+
+the HUD or make decisions and uses simple numeric values rather than
+	nested components. Adding Luminance here allows the HUD to show the
+	player's current light level, defaulting to 0 until the mechanic exists.
+]]
+export type PlayerProfile = {
+	UserId: number,
+	Username: string?,
+	DisplayName: string,
+
+	-- Stats exposed to client
+	Level: number,
+	Experience: number,
+	CurrentHealth: number,
+	MaxHealth: number,
+	CurrentMana: number,
+	MaxMana: number,
+	CurrentPosture: number,
+	MaxPosture: number,
+	Luminance: number?,
+	Coins: number,
+	Class: string,
+	EquippedMantras: {Mantra}?,
+}
+
 return {}
