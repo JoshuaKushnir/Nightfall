@@ -362,11 +362,11 @@ local function createHUD()
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = playerGui
 	
-	-- HUD Frame (top-center panel reminiscent of Deepwoken)
+	-- HUD Frame (bottom-center vertical stack – posture bar lowest)
 	hudFrame = Instance.new("Frame")
 	hudFrame.Name = "HUDFrame"
-	hudFrame.Size = UDim2.new(0, 500, 0, 48) -- wider, shallow bar
-	hudFrame.Position = UDim2.new(0.5, -250, 0, 12)
+	hudFrame.Size = UDim2.new(0, 260, 0, 200)
+	hudFrame.Position = UDim2.new(0.5, -130, 1, -220) -- leave some margin above bottom
 	hudFrame.AnchorPoint = Vector2.new(0, 0)
 	hudFrame.BackgroundTransparency = 0.5
 	hudFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
@@ -389,40 +389,44 @@ local function createHUD()
 	title.Font = Enum.Font.GothamBold
 	title.Parent = hudFrame
 	
-	-- Create stat bar container with horizontal layout
+	-- Create stat bar container with vertical layout; posture will be last element
 	local barContainer = Instance.new("Frame")
 	barContainer.Name = "BarContainer"
-	barContainer.Size = UDim2.new(1, -40, 1, -16)
-	barContainer.Position = UDim2.new(0, 20, 0, 10)
+	barContainer.Size = UDim2.new(1, -20, 1, -20)
+	barContainer.Position = UDim2.new(0, 10, 0, 10)
 	barContainer.BackgroundTransparency = 1
 	barContainer.Parent = hudFrame
 	local layout = Instance.new("UIListLayout")
-	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.FillDirection = Enum.FillDirection.Vertical
 	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Padding = UDim.new(0, 8)
+	layout.Padding = UDim.new(0, 6)
 	layout.Parent = barContainer
 
-	local _, health = createStatBar("Health", UDim2.new(0, 0, 1, 0), Color3.fromRGB(200, 50, 50))
+	local _, health = createStatBar("Health", UDim2.new(1, 0, 0, 24), Color3.fromRGB(200, 50, 50))
 	healthBar = health
+	healthBar.LayoutOrder = 1
 	healthBar.Parent = barContainer
 
-	local _, posture = createStatBar("Posture", UDim2.new(0, 0, 1, 0), Color3.fromRGB(180, 160, 50))
-	postureBar = posture
-	postureBar.Parent = barContainer
-
-	local _, mana = createStatBar("Mana", UDim2.new(0, 0, 1, 0), Color3.fromRGB(50, 100, 200))
+	local _, mana = createStatBar("Mana", UDim2.new(1, 0, 0, 24), Color3.fromRGB(50, 100, 200))
 	manaBar = mana
+	manaBar.LayoutOrder = 2
 	manaBar.Parent = barContainer
 
-	local _, lumin = createStatBar("Luminance", UDim2.new(0, 0, 1, 0), Color3.fromRGB(240, 240, 200))
+	local _, lumin = createStatBar("Luminance", UDim2.new(1, 0, 0, 24), Color3.fromRGB(240, 240, 200))
 	luminanceBar = lumin
+	luminanceBar.LayoutOrder = 3
 	luminanceBar.Parent = barContainer
 
-	-- Reposition info labels to top-right
-	levelLabel = createInfoLabel("LevelLabel", UDim2.new(1, -220, 0, 8), "Level: 1")
-	stateLabel = createInfoLabel("StateLabel", UDim2.new(1, -220, 0, 26), "State: Loading...")
-	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(1, -220, 0, 44), "Coins: 0")
-	expLabel = createInfoLabel("ExpLabel", UDim2.new(1, -220, 0, 62), "EXP: 0/100")
+	local _, posture = createStatBar("Posture", UDim2.new(1, 0, 0, 24), Color3.fromRGB(180, 160, 50))
+	postureBar = posture
+	postureBar.LayoutOrder = 4 -- ensures it's lowest
+	postureBar.Parent = barContainer
+
+	-- Info labels tucked above bar container on the left
+	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 10, 0, -18), "Level: 1")
+	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 10, 0, 0), "State: Loading...")
+	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 10, 0, 18), "Coins: 0")
+	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 10, 0, 36), "EXP: 0/100")
 end
 
 --------------------------------------------------------------------------------

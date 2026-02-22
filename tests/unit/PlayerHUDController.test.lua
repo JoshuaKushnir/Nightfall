@@ -37,12 +37,14 @@ return {
                 local hud = playerGui:WaitForChild("PlayerHUD", 5)
                 assert(hud, "PlayerHUD ScreenGui not created")
                 local frame = hud:WaitForChild("HUDFrame", 5)
-                assert(frame.Position == UDim2.new(0.5, -250, 0, 12), "HUDFrame not top-center")
+                assert(frame.Position == UDim2.new(0.5, -130, 1, -220), "HUDFrame not bottom-center")
                 local barContainer = frame:FindFirstChild("BarContainer")
                 assert(barContainer, "BarContainer missing")
-                -- ensure bars exist inside container
+                -- ensure bars exist and posture is last
                 assert(barContainer:FindFirstChild("HealthContainer"))
-                assert(barContainer:FindFirstChild("LuminanceContainer"))
+                assert(barContainer:FindFirstChild("PostureContainer"))
+                local last = barContainer:GetChildren()
+                assert(last[#last].Name == "PostureContainer", "Posture must be lowest bar")
 
                 -- cleanup
                 PlayerHUDController:Shutdown()
