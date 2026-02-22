@@ -42,6 +42,10 @@ local IronSword: WeaponConfig = {
 	KnockbackPower = 1.0,
 	Weight         = 1.2,       -- applied as a speed modifier: player moves at 1/1.2 ≈ 83% speed
 
+	-- Feint and parry cooldowns (seconds)
+	FeintCooldown  = 0.25,
+	ParryCooldown  = 0.6,
+
 	-- ── Animations ────────────────────────────────────────────────────────────
 	-- Folder names reference folders under ReplicatedStorage.animations
 	-- Asset names reference individual AnimSaves within those folders

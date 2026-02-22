@@ -133,6 +133,16 @@ function ActionController:Start()
 		end
 	end
 
+	-- Hook hit confirmation so we can disable feints after a successful hit
+	local hitEvent = NetworkProvider:GetRemoteEvent("HitConfirmed")
+	if hitEvent then
+		hitEvent.OnClientEvent:Connect(function(packet)
+			if packet.Attacker == Player and CurrentAction and CurrentAction.Config.Type == "Attack" then
+				CurrentAction.TargetHit = packet.Target
+			end
+		end)
+	end
+
 	-- Bind input for testing
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		print(`[ActionController INPUT] Key: {input.KeyCode}, MouseButton: {input.UserInputType}, GameProcessed: {gameProcessed}`)
@@ -439,6 +449,17 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
+	-- special parry spam limit (weapon override)
+	if config.Id == "parry" then
+		local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+		local wcfg: any? = wid and WeaponRegistry.Has(wid) and WeaponRegistry.Get(wid) or nil
+		local parryCd = config.Cooldown or 0.3
+		if wcfg and wcfg.ParryCooldown and wcfg.ParryCooldown > 0 then
+			parryCd = wcfg.ParryCooldown
+		end
+		ActionCooldowns[config.Id] = tick() + parryCd
+	end
+
 	-- Check cooldown
 	if ActionCooldowns[config.Id] and tick() < ActionCooldowns[config.Id] then
 		print(`[ActionController] Action on cooldown: {config.Id}`)
@@ -507,11 +528,16 @@ end
 
 --[[
     Cancel the current action (feint).  Stops animation, clears hitbox/movement
-    modifiers, and applies a small cooldown so the player cannot abuse it to
-    bypass weapon speed.  Queued follow-ups are also cleared.
+    modifiers, and applies a cooldown (weapon‑specific if available).  Cannot
+    be called after the attack has already hit a target.
 ]]
 function ActionController.CancelCurrentAction()
     if not CurrentAction then
+        return
+    end
+
+    if CurrentAction.TargetHit then
+        print("[ActionController] Cannot feint – hit already registered")
         return
     end
 
@@ -528,10 +554,15 @@ function ActionController.CancelCurrentAction()
         Blackboard.IsDodging = false
     end
 
-    -- small cooldown prevents cancel‑spam
-    ActionCooldowns[CurrentAction.Config.Id] = tick() + 0.2
-    -- drop queued actions, since feint interrupts the combo
-    ActionQueue = {}
+    -- compute feint cooldown: weapon override or default 0.2
+    local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+    local wcfg: any? = wid and WeaponRegistry.Has(wid) and WeaponRegistry.Get(wid) or nil
+    local feintCd = 0.2
+    if wcfg and wcfg.FeintCooldown and wcfg.FeintCooldown > 0 then
+        feintCd = wcfg.FeintCooldown
+    end
+    ActionCooldowns[CurrentAction.Config.Id] = tick() + feintCd
+
     CurrentAction = nil
 end
 

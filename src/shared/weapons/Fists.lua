@@ -37,10 +37,14 @@ local Fists: WeaponConfig = {
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 6,
-	AttackSpeed    = 1.0,   -- baseline speed; other weapons are relative to this
+	AttackSpeed    = 1.3,   -- baseline speed; other weapons are relative to this
 	Range          = 3.5,   -- shorter reach than any bladed weapon
 	KnockbackPower = 0.5,
 	Weight         = 0.1,   -- near-zero; no meaningful movement penalty
+
+	-- Feint & parry spam control (seconds)
+	FeintCooldown  = 0.2,   -- pause after cancelling an attack
+	ParryCooldown  = 0.5,   -- minimum interval between parry attempts
 
 	-- ── Animations ────────────────────────────────────────────────────────────
 	-- Reuses the existing punch 1-5 animation assets already in the project.
