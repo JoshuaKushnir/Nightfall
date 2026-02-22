@@ -556,6 +556,11 @@ function ActionController.CancelCurrentAction()
         return
     end
 
+    if not CurrentAction.CanFeint then
+        print("[ActionController] Cannot feint – hitbox already active")
+        return
+    end
+
     -- Prevent feinting dodges
     if CurrentAction.Config.Type == "Dodge" then
         print("[ActionController] Cannot feint dodges")
@@ -612,12 +617,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		EndTime = tick() + config.Duration,
 		IsActive = true,
 		TargetHit = nil,
-		AnimationTrack = nil,
-		Hitbox = nil,
-
-		Play = function(self: Action)
-			if self.AnimationTrack then
-				self.AnimationTrack:Play()
+                CanFeint = true,          -- start life allowing a feint
 			end
 		end,
 
@@ -833,6 +833,9 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			if CurrentAction ~= action or not action.IsActive or not Character then return end
 			local rootPart = Utils.GetRootPart(Player)
 			if not rootPart then return end
+
+			-- once the hitbox goes out the swing is locked; no more feints
+			action.CanFeint = false
 
 			local hitboxConfig = {
 				Shape   = "Sphere",

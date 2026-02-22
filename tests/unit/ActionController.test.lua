@@ -38,5 +38,51 @@ return {
                 assert(type(fists.ParryCooldown) == "number", "ParryCooldown missing on fists")
             end,
         },
+        {
+            name = "Cannot feint once hitbox has spawned",
+            fn = function()
+                -- simulate an in-progress attack
+                ActionController.CurrentAction = {
+                    Config = { Type = "Attack", Name = "test", Id = "atk1" },
+                    TargetHit = nil,
+                    CanFeint = false,        -- hitbox spawned already
+                    IsActive = true,
+                    Stop = function() error("should not be called") end,
+                    Cleanup = function() error("should not be called") end,
+                }
+
+                ActionController.CancelCurrentAction()
+                -- action should remain intact because feint was disallowed
+                assert(ActionController.CurrentAction and ActionController.CurrentAction.Config.Id == "atk1", "Action was cancelled even though hitbox spawned")
+
+                -- cleanup for other tests
+                ActionController.CurrentAction = nil
+            end,
+        },
+        {
+            name = "Feint cooldown prevents starting new attack",
+            fn = function()
+                -- set cooldown into the future and attempt to play an attack
+                ActionController.FeintCooldownEnd = tick() + 1
+                local dummy = { Id = "atk_dummy", Type = "Attack", Name = "dummy" }
+                -- capture printed output via stubbed print
+                local oldPrint = print
+                local blocked = false
+                print = function(msg)
+                    if string.find(msg, "Cannot attack - feint cooldown active") then
+                        blocked = true
+                    end
+                end
+
+                ActionController.PlayAction(dummy)
+
+                -- restore print
+                print = oldPrint
+
+                assert(blocked, "PlayAction did not block despite feint cooldown")
+                -- reset state
+                ActionController.FeintCooldownEnd = 0
+            end,
+        },
     },
 }
