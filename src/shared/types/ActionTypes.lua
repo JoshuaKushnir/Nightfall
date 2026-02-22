@@ -16,6 +16,9 @@ export type ActionConfig = {
 	Name: string,
 	Type: ActionType,
 
+	-- whether this action may be performed with no weapon equipped (fists/unarmed)
+	UnarmedAllowed?: boolean,
+
 	-- Animation (use project folder when set; otherwise AnimationId)
 	AnimationId: string,
 	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Front Roll")
@@ -75,6 +78,7 @@ local ATTACK_LIGHT: ActionConfig = {
 	Id = "atk_light",
 	Name = "Light Attack",
 	Type = "Attack",
+	UnarmedAllowed = true,
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 1",
@@ -94,6 +98,7 @@ local ATTACK_HEAVY: ActionConfig = {
 	Id = "atk_heavy",
 	Name = "Heavy Attack",
 	Type = "Attack",
+	UnarmedAllowed = true,
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 5",
@@ -159,6 +164,7 @@ local LUNGE_ATTACK: ActionConfig = {
 	Id = "atk_lunge",
 	Name = "Lunge Attack",
 	Type = "Attack",
+	UnarmedAllowed = true,
 	AnimationId = "",
 	AnimationName = "Fists",
 	AnimationAssetName = "punch 2",

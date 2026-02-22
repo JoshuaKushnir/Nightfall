@@ -81,6 +81,32 @@ return {
             end,
         },
         {
+            name = "Unarmed attacks permitted without weapon",
+            fn = function()
+                -- install dummy weapon controller returning nil
+                ActionController:Init({ WeaponController = { GetEquipped = function() return nil end } })
+                local ActionTypes = require(ReplicatedStorage.Shared.types.ActionTypes)
+                -- light attack is unarmed-allowed
+                ActionController.CurrentAction = nil
+                ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
+                assert(ActionController.CurrentAction, "Unarmed light attack was blocked")
+                ActionController.CurrentAction = nil
+
+                -- create custom config that forbids unarmed
+                local cfg = { Id = "foo", Name = "Bar", Type = "Attack", Duration = 0.1, UnarmedAllowed = false }
+                local oldPrint = print
+                local blocked = false
+                print = function(msg)
+                    if string.find(msg, "no weapon equipped") then
+                        blocked = true
+                    end
+                end
+                ActionController.PlayAction(cfg)
+                print = oldPrint
+                assert(blocked, "Action without UnarmedAllowed was not blocked")
+            end,
+        },
+        {
             name = "OnCharacterAdded clears feint cooldown",
             fn = function()
                 ActionController.FeintCooldownEnd = tick() + 5

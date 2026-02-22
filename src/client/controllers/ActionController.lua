@@ -281,10 +281,14 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
-	-- Gate attack actions: require an equipped weapon (fists counts).
-	if (config.Type == "Attack") and WeaponController and not WeaponController.GetEquipped() then
-		print("[ActionController] ✗ Cannot attack — no weapon equipped")
-		return
+	-- Gate attack actions: require an equipped weapon unless the action
+	-- explicitly allows unarmed use (fists / bare hands).
+	if config.Type == "Attack" and WeaponController and not WeaponController.GetEquipped() then
+		-- allow through if config.UnarmedAllowed = true
+		if not config.UnarmedAllowed then
+			print("[ActionController] ✗ Cannot attack — no weapon equipped")
+			return
+		end
 	end
 
 	-- For dodge actions, determine roll direction based on current input (real-time)
