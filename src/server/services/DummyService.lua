@@ -10,6 +10,13 @@ States:
   Blocking  - takes 50% damage; cycles automatically every ~8s for 3s
   Staggered - entered after any hit; lasts 1.5s then reverts to Normal
 
+Persistent state support:
+  Dummies can optionally have a `PreferredState` field set which will lock
+  their plotted state (used by the player-facing spawn logic to make the
+  three auto‑spawned dummies remain Idle, Blocking, or Attacking).  Any
+  subsequent calls to change state (e.g. stagger on hit) are ignored for
+  those dummies.
+
 Issue #64: Spawnable test dummies for attack testing
 ]]
 
@@ -91,18 +98,32 @@ Players.PlayerAdded:Connect(function(player)
 			Vector3.new( 0, 0, -15),
 			Vector3.new( 6, 0, -12),
 		}
-		for _, offset in offsets do
-				local worldPos = (cf * CFrame.new(offset)).Position
-				-- Raycast down to find the actual floor so dummies don't float
-				local rayOrigin = Vector3.new(worldPos.X, worldPos.Y + 50, worldPos.Z)
-				local rayResult = Workspace:Raycast(rayOrigin, Vector3.new(0, -100, 0))
-				local groundY = rayResult and rayResult.Position.Y or 0
-				-- Dummy legs bottom = rootY - 2, so rootY = groundY + 2
-				worldPos = Vector3.new(worldPos.X, groundY + 2, worldPos.Z)
-			local ok, err = pcall(DummyService.SpawnDummy, worldPos)
-			if not ok then
-				warn("[DummyService] SpawnDummy failed: " .. tostring(err))
-			end
+		        local preferredStates = { "Idle", "Blocking", "Attacking" }
+        local spawnedIds = {}
+        for idx, offset in ipairs(offsets) do
+                local worldPos = (cf * CFrame.new(offset)).Position
+                -- Raycast down to find the actual floor so dummies don't float
+                local rayOrigin = Vector3.new(worldPos.X, worldPos.Y + 50, worldPos.Z)
+                local rayResult = Workspace:Raycast(rayOrigin, Vector3.new(0, -100, 0))
+                local groundY = rayResult and rayResult.Position.Y or 0
+                -- Dummy legs bottom = rootY - 2, so rootY = groundY + 2
+                worldPos = Vector3.new(worldPos.X, groundY + 2, worldPos.Z)
+            local id = DummyService.SpawnDummy(worldPos)
+            if not id then
+                warn("[DummyService] SpawnDummy failed at index " .. tostring(idx))
+            else
+                table.insert(spawnedIds,id)
+            end
+        end
+        -- assign distinct states and mark them preferred so they stick
+        local statesToAssign = { "Idle", "Blocking", "Attacking" }
+        for idx,id in ipairs(spawnedIds) do
+            local st = statesToAssign[idx]
+            if st and ActiveDummies[id] then
+                ActiveDummies[id].PreferredState = st
+                DummyService.SetDummyState(id, st)
+            end
+        end
 		end
 	end)
 	-- Re-send any already-active dummies to the joining client once they init
@@ -299,6 +320,11 @@ Staggered auto-recovers to Normal after STAGGER_DURATION seconds.
 function DummyService.SetDummyState(dummyId: string, state: DummyState)
 local dummyData = ActiveDummies[dummyId]
 if not dummyData or not dummyData.IsActive then return end
+
+-- enforce preferred state if one is set (keeps certain dummies locked)
+if dummyData.PreferredState then
+	state = dummyData.PreferredState
+end
 
 dummyData.State = state
 DummyService._UpdateVisuals(dummyId)
@@ -542,14 +568,19 @@ DummyService._UpdateVisuals(dummyId)
 end
 
 if dummyData.Health <= 0 then
-print(`[DummyService] Dummy defeated: {dummyId}`)
-local respawnPos = dummyData.Position  -- save before DespawnDummy clears it
-DummyService.DespawnDummy(dummyId)
-task.delay(RESPAWN_DELAY, function()
-print(`[DummyService] Respawning dummy at {respawnPos}`)
-DummyService.SpawnDummy(respawnPos)
-end)
-return false
+    print(`[DummyService] Dummy defeated: {dummyId}`)
+    local respawnPos = dummyData.Position  -- save before DespawnDummy clears it
+    local preferred = dummyData.PreferredState
+    DummyService.DespawnDummy(dummyId)
+    task.delay(RESPAWN_DELAY, function()
+        print(`[DummyService] Respawning dummy at {respawnPos}`)
+        local newId = DummyService.SpawnDummy(respawnPos)
+        if newId and preferred then
+            ActiveDummies[newId].PreferredState = preferred
+            DummyService.SetDummyState(newId, preferred)
+        end
+    end)
+    return false
 end
 
 print(`[DummyService] Dummy hit: {dummyId} ({effectiveDamage} dmg, {dummyData.Health}/{dummyData.MaxHealth} HP)`)

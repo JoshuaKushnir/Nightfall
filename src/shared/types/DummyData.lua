@@ -26,6 +26,9 @@ export type DummyData = {
 	State: DummyState,
 	IsActive: boolean,
 	SpawnTime: number,
+
+	-- optional field that locks the dummy into a specific state
+	PreferredState?: DummyState,
 }
 
 return {}

@@ -70,5 +70,46 @@ return {
 				assert(Workspace:FindFirstChild(`Dummy_{id}`) == nil)
 			end,
 		},
+		{
+			name = "PreferredState prevents stagger transitions",
+			fn = function()
+				local id = DummyService.SpawnDummy(Vector3.new(0, 5, 0))
+				assert(id)
+				local data = DummyService.GetDummyData(id)
+				assert(data)
+				-- lock state to Blocking
+				data.PreferredState = "Blocking"
+				DummyService.SetDummyState(id, "Blocking")
+				assert(DummyService.GetDummyState(id) == "Blocking")
+				-- hit the dummy; it should remain Blocking rather than Staggered
+				DummyService.ApplyDamage(id, 10)
+				assert(DummyService.GetDummyState(id) == "Blocking")
+			end,
+		},
+		{
+			name = "PreferredState survives death/respawn",
+			fn = function()
+				local id = DummyService.SpawnDummy(Vector3.new(0, 5, 0))
+				assert(id)
+				local data = DummyService.GetDummyData(id)
+				assert(data)
+				data.PreferredState = "Attacking"
+				DummyService.SetDummyState(id, "Attacking")
+				-- kill the dummy
+				DummyService.ApplyDamage(id, data.MaxHealth + 1)
+				-- wait long enough for respawn (4s configured plus buffer)
+				task.wait(5)
+				-- find a new dummy close to original position
+				local all = DummyService.GetAllDummyData()
+				local found = false
+				for _, d in pairs(all) do
+					if d.PreferredState == "Attacking" then
+						found = true
+						break
+					end
+				end
+				assert(found, "respawned dummy did not keep Attacking state")
+			end,
+		},
 	},
 }
