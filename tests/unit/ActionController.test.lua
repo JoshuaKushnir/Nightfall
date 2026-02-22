@@ -84,5 +84,13 @@ return {
                 ActionController.FeintCooldownEnd = 0
             end,
         },
+        {
+            name = "OnCharacterAdded clears feint cooldown",
+            fn = function()
+                ActionController.FeintCooldownEnd = tick() + 5
+                ActionController:OnCharacterAdded({})
+                assert(ActionController.FeintCooldownEnd == 0, "FeintCooldownEnd not reset on respawn")
+            end,
+        },
     },
 }

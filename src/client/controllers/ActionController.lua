@@ -1139,6 +1139,7 @@ function ActionController:OnCharacterAdded(newCharacter: Model)
 	-- Clear queue and cooldowns
 	ActionQueue = {}
 	ActionCooldowns = {}
+	FeintCooldownEnd = 0
 
 	-- Reinitialize
 	Character = newCharacter
