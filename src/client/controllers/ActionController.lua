@@ -452,6 +452,12 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
+	-- Block new attacks if we just feinted
+	if config.Type == "Attack" and tick() < FeintCooldownEnd then
+		print(`[ActionController] Cannot attack - feint cooldown active`)
+		return
+	end
+
 	-- special parry spam limit (weapon override)
 	if config.Id == "parry" then
 		local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
@@ -550,6 +556,12 @@ function ActionController.CancelCurrentAction()
         return
     end
 
+    -- Prevent feinting dodges
+    if CurrentAction.Config.Type == "Dodge" then
+        print("[ActionController] Cannot feint dodges")
+        return
+    end
+
     print("[ActionController] Cancelling current action: " .. CurrentAction.Config.Name)
 
     -- stop and cleanup like a normal completion
@@ -570,11 +582,15 @@ function ActionController.CancelCurrentAction()
     if wcfg and wcfg.FeintCooldown and wcfg.FeintCooldown > 0 then
         feintCd = wcfg.FeintCooldown
     end
+    
     -- apply both per-action and global cooldown
     ActionCooldowns[CurrentAction.Config.Id] = tick() + feintCd
     FeintCooldownEnd = tick() + feintCd
 
     CurrentAction = nil
+    
+    -- Clear the action queue so buffered attacks don't immediately fire
+    ActionQueue = {}
 end
 
 --[[
