@@ -529,6 +529,15 @@ function PlayerHUDController:Start()
 	-- Set up reactive bindings
 	setupBindings()
 	
+	-- Input for toggling HUD visibility
+	local UserInput = game:GetService("UserInputService")
+	UserInput.InputBegan:Connect(function(input, gameProcessed)
+		if gameProcessed then return end
+		if input.KeyCode == Enum.KeyCode.H then
+			PlayerHUDController:SetVisible(not PlayerHUDController:IsVisible())
+		end
+	end)
+
 	-- Get initial state if available
 	profile = StateSyncController.GetCurrentProfile()
 	currentState = StateSyncController.GetCurrentState()
@@ -554,6 +563,20 @@ function PlayerHUDController:Shutdown()
 	UIBinding.DisconnectAll(hudFrame)
 
 	print("[PlayerHUDController] Shutdown complete")
+end
+
+--[[
+	Public utilities for other systems
+]]
+
+function PlayerHUDController:SetVisible(visible: boolean)
+	if hudFrame then
+		hudFrame.Visible = visible
+	end
+end
+
+function PlayerHUDController:IsVisible(): boolean
+	return hudFrame and hudFrame.Visible or false
 end
 
 return PlayerHUDController
