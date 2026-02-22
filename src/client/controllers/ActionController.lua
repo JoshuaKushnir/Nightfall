@@ -50,6 +50,9 @@ local LastComboTime = 0
 local COMBO_TIMEOUT = 1.5 -- Reset combo if no attack within 1.5 seconds
 local COMBO_FINISH_COOLDOWN = 0.6 -- Cooldown after completing 5-hit combo
 
+-- Feint tracking (global per-client cooldown)
+local FeintCooldownEnd = 0
+
 -- Constants
 local MIN_ACTION_INTERVAL = 0.1
 local MAX_QUEUE_SIZE = 1 -- Limit action queue to prevent spam stacking
@@ -110,8 +113,12 @@ function ActionController:Start()
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			print("[ActionController INPUT] LIGHT ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
-		-- Right click to heavy attack
+		-- Right click acts as feint/cancel
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			print("[ActionController INPUT] FEINT/CANCEL triggered")
+			ActionController.CancelCurrentAction()
+		-- Middle click or R key performs heavy attack
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.R then
 			print("[ActionController INPUT] HEAVY ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_HEAVY)
 		-- Q to dodge
@@ -147,6 +154,16 @@ function ActionController:Start()
 			end
 		end
 	end)
+
+	-- Hook hit confirmation so we can disable feints after a successful hit
+	local hitEvent = NetworkProvider:GetRemoteEvent("HitConfirmed")
+	if hitEvent then
+		hitEvent.OnClientEvent:Connect(function(packet)
+			if packet.Attacker == Player and CurrentAction and CurrentAction.Config.Type == "Attack" then
+				CurrentAction.TargetHit = packet.Target
+			end
+		end)
+	end
 
 	-- Update loop
 	local lastUpdate = tick()
@@ -442,6 +459,60 @@ function ActionController.PlayAction(config: ActionConfig)
 end
 
 --[[
+    Cancel the current action (feint).  Stops animation, clears hitbox/movement
+    modifiers, and applies a short cooldown.  Cannot be called after the attack
+    has already hit a target or once the hitbox exists.
+]]
+function ActionController.CancelCurrentAction()
+    if not CurrentAction then
+        return
+    end
+
+    -- global feint cooldown prevents immediate retries
+    if tick() < FeintCooldownEnd then
+        print("[ActionController] Feint still on cooldown")
+        return
+    end
+
+    if CurrentAction.TargetHit then
+        print("[ActionController] Cannot feint – hit already registered")
+        return
+    end
+
+    if not CurrentAction.CanFeint then
+        print("[ActionController] Cannot feint – hitbox already spawned")
+        return
+    end
+
+    print("[ActionController] Cancelling current action: " .. CurrentAction.Config.Name)
+
+    -- stop and cleanup like a normal completion
+    CurrentAction:Stop()
+    CurrentAction:Cleanup()
+
+    if CurrentAction.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+        MovementController.SetModifier("Attacking", 1.0)
+    end
+    if CurrentAction.Config.Type == "Dodge" then
+        Blackboard.IsDodging = false
+    end
+
+    -- compute feint cooldown
+    local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+    local wcfg: any? = wid and WeaponRegistry.Has(wid) and WeaponRegistry.Get(wid) or nil
+    local feintCd = 0.2
+    if wcfg and wcfg.FeintCooldown and wcfg.FeintCooldown > 0 then
+        feintCd = wcfg.FeintCooldown
+    end
+
+    ActionCooldowns[CurrentAction.Config.Id] = tick() + feintCd
+    FeintCooldownEnd = tick() + feintCd
+
+    CurrentAction = nil
+    ActionQueue = {}
+end
+
+--[[
 	Play an action locally (client-side prediction)
 	@param config The action configuration
 ]]
@@ -461,12 +532,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		EndTime = tick() + config.Duration,
 		IsActive = true,
 		TargetHit = nil,
-		AnimationTrack = nil,
-		Hitbox = nil,
-
-		Play = function(self: Action)
-			if self.AnimationTrack then
-				self.AnimationTrack:Play()
+			CanFeint = true,          -- allowed until hitbox spawns
 			end
 			print(`[ActionController] Playing animation: {self.Config.Name}`)
 		end,
@@ -759,6 +825,8 @@ end
 		task.delay(hitTime, function()
 			print(`[ActionController] Hitbox creation callback fired for {config.Name}`)
 			if CurrentAction == action and action.IsActive and Character then
+				-- once the hitbox appears the swing is locked
+				action.CanFeint = false
 				local rootPart = Utils.GetRootPart(Player)
 				if rootPart then
 					print(`[ActionController] Creating hitbox at {rootPart.Position}`)
@@ -782,6 +850,8 @@ end
 							end
 
 							print(`[ActionController] ✓ Hit {targetName} with {config.Name}`)
+					-- mark hit so feint is disabled
+					action.TargetHit = targetName or target
 
 						-- Apply knockback on finisher (5th punch)
 						if config.IsFinisher and typeof(target) == "Instance" then
