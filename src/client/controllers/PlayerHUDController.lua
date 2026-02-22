@@ -43,10 +43,6 @@ local healthBar: Frame
 local manaBar: Frame
 local postureBar: Frame
 local luminanceBar: Frame
-local levelLabel: TextLabel
-local stateLabel: TextLabel
-local coinsLabel: TextLabel
-local expLabel: TextLabel
 
 -- Movement HUD elements (#95)
 local movementGui: ScreenGui
@@ -378,16 +374,6 @@ local function createHUD()
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = hudFrame
 	
-	-- Title
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "NIGHTFALL"
-	title.TextColor3 = Color3.fromRGB(200, 150, 255)
-	title.TextSize = 18
-	title.Font = Enum.Font.GothamBold
-	title.Parent = hudFrame
 	
 	-- Create stat bar container with vertical layout; posture will be last element
 	local barContainer = Instance.new("Frame")
@@ -422,11 +408,6 @@ local function createHUD()
 	postureBar.LayoutOrder = 4 -- ensures it's lowest
 	postureBar.Parent = barContainer
 
-	-- Info labels tucked above bar container on the left
-	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 10, 0, -18), "Level: 1")
-	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 10, 0, 0), "State: Loading...")
-	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 10, 0, 18), "Coins: 0")
-	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 10, 0, 36), "EXP: 0/100")
 end
 
 --------------------------------------------------------------------------------
@@ -485,32 +466,7 @@ local function setupBindings()
 		if not profile then return "Luminance: --" end
 		return string.format("Luminance: %d", profile.Luminance or 0)
 	end, profileSignal)
-	
-	-- Bind level
-	UIBinding.BindText(levelLabel, function()
-		if not profile then return "Level: --" end
-		return string.format("Level: %d", profile.Level)
-	end, profileSignal)
-	
-	-- Bind state
-	UIBinding.BindText(stateLabel, function()
-		if not currentState then return "State: Loading..." end
-		return string.format("State: %s", currentState)
-	end, stateSignal)
-	
-	-- Bind coins
-	UIBinding.BindText(coinsLabel, function()
-		if not profile then return "Coins: --" end
-		return string.format("Coins: %d", profile.Coins)
-	end, profileSignal)
-	
-	-- Bind experience
-	UIBinding.BindText(expLabel, function()
-		if not profile then return "EXP: --/--" end
-		local expNeeded = profile.Level * 100 -- Simple calculation
-		return string.format("EXP: %d/%d", profile.Experience, expNeeded)
-	end, profileSignal)
-end
+	end
 
 --[[
 	Handles profile loaded event
