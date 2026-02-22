@@ -60,27 +60,23 @@ return {
             end,
         },
         {
-            name = "Feint cooldown prevents starting new attack",
+            name = "Attack starts during feint cooldown but cannot be cancelled",
             fn = function()
-                -- set cooldown into the future and attempt to play an attack
+                -- simulate global cooldown active
                 ActionController.FeintCooldownEnd = tick() + 1
                 local dummy = { Id = "atk_dummy", Type = "Attack", Name = "dummy" }
-                -- capture printed output via stubbed print
-                local oldPrint = print
-                local blocked = false
-                print = function(msg)
-                    if string.find(msg, "Cannot attack - feint cooldown active") then
-                        blocked = true
-                    end
-                end
 
+                -- playing should still work
+                ActionController.CurrentAction = nil
                 ActionController.PlayAction(dummy)
+                assert(ActionController.CurrentAction and ActionController.CurrentAction.Config.Id == "atk_dummy", "Attack failed to start during feint cooldown")
 
-                -- restore print
-                print = oldPrint
+                -- but cancelling immediately should be blocked by the global timer
+                ActionController.CancelCurrentAction()
+                assert(ActionController.CurrentAction and ActionController.CurrentAction.Config.Id == "atk_dummy", "Attack was cancelled despite cooldown")
 
-                assert(blocked, "PlayAction did not block despite feint cooldown")
-                -- reset state
+                -- cleanup and reset
+                ActionController.CurrentAction = nil
                 ActionController.FeintCooldownEnd = 0
             end,
         },

@@ -452,11 +452,11 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
-	-- Block new attacks if we just feinted
-	if config.Type == "Attack" and tick() < FeintCooldownEnd then
-		print(`[ActionController] Cannot attack - feint cooldown active`)
-		return
-	end
+	-- Note: we no longer prevent starting a new attack after a feint.
+	-- Global cooldown only blocks *cancelling* (feinting) itself.  This lets
+	-- players chain swings naturally while still discouraging repeat cancels.
+	-- The old check was overly restrictive and triggered feedback like
+	-- "i can't attack now" when the cooldown was still in effect.
 
 	-- special parry spam limit (weapon override)
 	if config.Id == "parry" then
