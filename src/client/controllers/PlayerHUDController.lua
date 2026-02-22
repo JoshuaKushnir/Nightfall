@@ -291,9 +291,17 @@ local function createStatBar(name: string, position: UDim2, barColor: Color3): (
 	container.Size = UDim2.new(0, 200, 0, 25)
 	container.Position = position
 	container.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-	container.BorderSizePixel = 2
-	container.BorderColor3 = Color3.fromRGB(100, 100, 100)
+	container.BorderSizePixel = 1
+	container.BorderColor3 = Color3.fromRGB(60, 60, 60)
+	container.BackgroundTransparency = 0.3
+	container.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 	container.Parent = hudFrame
+
+	-- subtle gradient on the bar itself
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new(Color3.new(1,1,1)*0.9, Color3.new(1,1,1)*0.7)
+	grad.Rotation = 90
+	grad.Parent = bar
 	
 	local bar = Instance.new("Frame")
 	bar.Name = name .. "Bar"
@@ -354,13 +362,14 @@ local function createHUD()
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.Parent = playerGui
 	
-	-- HUD Frame
+	-- HUD Frame (top-center panel reminiscent of Deepwoken)
 	hudFrame = Instance.new("Frame")
 	hudFrame.Name = "HUDFrame"
-	hudFrame.Size = UDim2.new(0, 250, 0, 200)
-	hudFrame.Position = UDim2.new(0, 20, 0, 20)
-	hudFrame.BackgroundTransparency = 0.3
-	hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	hudFrame.Size = UDim2.new(0, 500, 0, 48) -- wider, shallow bar
+	hudFrame.Position = UDim2.new(0.5, -250, 0, 12)
+	hudFrame.AnchorPoint = Vector2.new(0, 0)
+	hudFrame.BackgroundTransparency = 0.5
+	hudFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 	hudFrame.BorderSizePixel = 0
 	hudFrame.Parent = screenGui
 	
@@ -380,24 +389,40 @@ local function createHUD()
 	title.Font = Enum.Font.GothamBold
 	title.Parent = hudFrame
 	
-	-- Create stat bars
-	local _, health = createStatBar("Health", UDim2.new(0, 20, 0, 40), Color3.fromRGB(200, 50, 50))
+	-- Create stat bar container with horizontal layout
+	local barContainer = Instance.new("Frame")
+	barContainer.Name = "BarContainer"
+	barContainer.Size = UDim2.new(1, -40, 1, -16)
+	barContainer.Position = UDim2.new(0, 20, 0, 10)
+	barContainer.BackgroundTransparency = 1
+	barContainer.Parent = hudFrame
+	local layout = Instance.new("UIListLayout")
+	layout.FillDirection = Enum.FillDirection.Horizontal
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Padding = UDim.new(0, 8)
+	layout.Parent = barContainer
+
+	local _, health = createStatBar("Health", UDim2.new(0, 0, 1, 0), Color3.fromRGB(200, 50, 50))
 	healthBar = health
-	
-	local _, mana = createStatBar("Mana", UDim2.new(0, 20, 0, 75), Color3.fromRGB(50, 100, 200))
-	manaBar = mana
-	
-	local _, posture = createStatBar("Posture", UDim2.new(0, 20, 0, 110), Color3.fromRGB(180, 160, 50))
+	healthBar.Parent = barContainer
+
+	local _, posture = createStatBar("Posture", UDim2.new(0, 0, 1, 0), Color3.fromRGB(180, 160, 50))
 	postureBar = posture
-	
-	local _, lumin = createStatBar("Luminance", UDim2.new(0, 20, 0, 145), Color3.fromRGB(240, 240, 200))
+	postureBar.Parent = barContainer
+
+	local _, mana = createStatBar("Mana", UDim2.new(0, 0, 1, 0), Color3.fromRGB(50, 100, 200))
+	manaBar = mana
+	manaBar.Parent = barContainer
+
+	local _, lumin = createStatBar("Luminance", UDim2.new(0, 0, 1, 0), Color3.fromRGB(240, 240, 200))
 	luminanceBar = lumin
-	
-	-- Create info labels (shifted down)
-	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 20, 0, 180), "Level: 1")
-	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 205), "State: Loading...")
-	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 230), "Coins: 0")
-	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 255), "EXP: 0/100")
+	luminanceBar.Parent = barContainer
+
+	-- Reposition info labels to top-right
+	levelLabel = createInfoLabel("LevelLabel", UDim2.new(1, -220, 0, 8), "Level: 1")
+	stateLabel = createInfoLabel("StateLabel", UDim2.new(1, -220, 0, 26), "State: Loading...")
+	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(1, -220, 0, 44), "Coins: 0")
+	expLabel = createInfoLabel("ExpLabel", UDim2.new(1, -220, 0, 62), "EXP: 0/100")
 end
 
 --------------------------------------------------------------------------------
