@@ -92,6 +92,9 @@ export type WeaponConfig = {
 	KnockbackPower: number?,
 	-- Movement speed modifier applied via MovementController while equipped.
 	Weight: number?,
+	-- cooldowns associated with this weapon (seconds)
+	FeintCooldown: number?,  -- cooldown applied to feint actions
+	HeavyCooldown: number?,  -- cooldown applied to the heavy attack action
 
 	-- ── Animations (required) ────────────────────────────────────────────────
 	Animations: {

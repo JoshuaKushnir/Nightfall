@@ -26,6 +26,10 @@ local DisciplineConfig: {[string]: any} = {
         postureBlockMultiplier = 1.0, -- baseline block efficiency (no bonus/penalty)
         staggerDuration = 0.8,     -- medium stagger lock (seconds)
 
+        -- Break damage modifiers ------------------------------------------
+        breakBase = 45,            -- base HP damage on a Break
+        breakOverflowMult = 1.0,   -- extra HP per overflow posture point
+
         -- Weapon access ---------------------------------------------------
         weaponClasses = {"Light", "Medium"}, -- balanced toolbox
 
@@ -77,12 +81,14 @@ local DisciplineConfig: {[string]: any} = {
         postureBlockMultiplier = 0.75, -- 25% drain reduction when holding block
         staggerDuration = 0.9,     -- long lock; compensated by passive below
 
+        -- Break modifiers ----------------------------------------------------
+        breakBase = 40,            -- slightly lower base damage
+        breakOverflowMult = 0.9,   -- Ironclad overflow less effective
+
         -- Weapon access -------------------------------------------------------
         weaponClasses = {"Light","Medium","Heavy"},
 
         -- aspectScaling = { expression = nil, form = nil, communion = nil },
-
-        -- Tempered Stance passive ------------------------------------------------
         -- Ironclad builds up 'Poise' as a fight drags on. Poise grants HP
         -- damage reduction and makes it harder to be staggered/lose posture
         -- when blocking.  See Section 2a design docs for complete rules.
@@ -149,6 +155,10 @@ local DisciplineConfig: {[string]: any} = {
                                        -- passive walls
         staggerDuration = 0.6,     -- short window to reset the rhythm
 
+        -- Break modifiers ----------------------------------------------------
+        breakBase = 50,            -- high baseline to reward speed
+        breakOverflowMult = 1.1,   -- bigger bonus from overflow
+
         -- Weapon access -------------------------------------------------------
         weaponClasses = {"Light"}, -- speed‑oriented gear only
 
@@ -194,6 +204,10 @@ local DisciplineConfig: {[string]: any} = {
         postureRecovery = 6,       -- average recovery
         postureBlockMultiplier = 1.0,-- neutral; no bonus or penalty
         staggerDuration = 0.8,     -- medium lock duration
+
+        -- Break modifiers ----------------------------------------------------
+        breakBase = 45,            -- standard base value
+        breakOverflowMult = 1.0,   -- no special bonus
 
         -- Weapon access -------------------------------------------------------
         weaponClasses = {"Light","Medium"},

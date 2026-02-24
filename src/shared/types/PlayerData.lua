@@ -71,6 +71,9 @@ export type PlayerData = {
 	Mantras: {Mantra},
 	ActiveCooldowns: {[string]: number}, -- Mantra name -> cooldown end time
 	
+	-- Discipline
+	DisciplineId: string,
+	
 	-- Metadata
 	Level: number,
 	Experience: number,

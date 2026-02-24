@@ -1,5 +1,9 @@
 # Project Nightfall: Session Intelligence Log
 
+> **PMO Subsystem:** `session_tracker.sh` and `issue_manager.sh` drive the
+> chat→issue pipeline. See `docs/PMO_README.md` for details.
+
+
 ## Current Session ID: NF-038
 **Date:** February 20, 2026
 **Task:** Wall-Run Polish & Exploit Prevention
@@ -33,6 +37,15 @@
   - Moved `MaxStuds`, `ReentryCooldown`, and `NormalLerpSpeed` into `src/shared/modules/MovementConfig.lua` for centralized tuning.
 
 **Pattern learned:** Movement states that preserve momentum MUST have anti-reset logic for their resource accumulators (distance, time, or energy) to prevent "pulsing" exploits.
+
+- **Next actions:** Apply discipline stats to combat damage calculations, expose cross-training penalties, and flesh out passive mechanics as per design spec. Implemented:
+  * Break damage now computed via discipline config with overflow and cross‑train modifiers.
+  * Cross-training penalty applied to HP damage and weapon equip warnings allow off-discipline use.
+  * PostureService.DrainPosture returns overflow and uses proper config keys; regen rates fixed.
+  * Updated tests for CombatService, PostureService, WeaponService, MovementController.
+  * **Anti‑spam:** Attack cooldown applied on request and early-cancel no longer shortens it; queueing respects cooldown. Added ActionController unit test to catch regressions.
+  * **Heavy attacks:** New separate configs/cooldowns for heavy swings; cannot queue light and heavy simultaneously (debounce). Heavy now bound to middle mouse and R. Added corresponding unit test.
+
 
 ---
 
@@ -632,6 +645,16 @@ while giving defenders a recoverable resource to protect.
 
 ### Session NF-014 Changes (Epic #56):
 ✅ **Created** Epic #56: "Phase 2: Smooth Movement System (Deepwoken-style / Hardcore RPG)"
+
+✅ **Feature**: Added Deepwoken-style feinting mechanic
+  - Heavy-button (M2/R) press during a swing wind‑up cancels into a short feint action
+  - Holding heavy before/during an attack automatically converts the next swing into a feint
+  - Introduced `ActionTypes.FEINT`, new client logic in `ActionController.lua`, and corresponding unit tests
+  - Fixed right-click detection (MouseButton2) and added debug output for feint-window checks
+  - Made feint & heavy cooldown configurable per-weapon; updated `WeaponConfig` and added default values to Fists
+  - Added feint cooldown check inside _PerformFeint to actually block repeated uses
+  - Exposed methods for heavy-press/release and added tests for window logic
+  - Documentation added to combat design docs
 ✅ **Created** sub-issues: #57 (Coyote time & jump buffer), #58 (MovementController core), #59 (State integration), #60 (Sprint & slope)
 ✅ **Created** `src/client/controllers/MovementController.lua`
   - Smoothed acceleration/deceleration (ACCELERATION 45, DECELERATION 55); WalkSpeed driven per frame

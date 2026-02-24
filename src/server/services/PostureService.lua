@@ -102,7 +102,7 @@ local function _getOrCreate(player: Player): PostureState
 	if not _postures[uid] then
 		-- determine max posture from discipline
 		local cfg = _getDiscConfig(player)
-		local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
+		local maxVal = cfg and cfg.postureMax or DEFAULT_POSTURE_MAX
 		_postures[uid] = {
 			Current     = maxVal,
 			Max         = maxVal,
@@ -144,12 +144,12 @@ end
 	                Ignored if `amount` is provided directly.
 	@return didBreak : boolean
 ]]
-function PostureService.DrainPosture(player: Player, amount: number?, source: string?): boolean
+function PostureService.DrainPosture(player: Player, amount: number?, source: string?): (boolean, number)
 	local state = _getOrCreate(player)
 
 	if state.Staggered then
 		-- Already staggered; don't double-drain
-		return false
+		return false, 0
 	end
 
 	-- Determine drain amount from source lookup when caller doesn't specify
@@ -171,6 +171,10 @@ function PostureService.DrainPosture(player: Player, amount: number?, source: st
 		end
 	end
 
+	-- compute overflow (amount beyond 0)
+	local prev = state.Current
+	local overflow = math.max(0, drain - prev)
+
 	state.LastHitTime = tick()
 	state.Current = math.max(0, state.Current - drain)
 
@@ -179,9 +183,9 @@ function PostureService.DrainPosture(player: Player, amount: number?, source: st
 	-- Trigger Stagger when posture reaches 0
 	if state.Current <= 0 then
 		PostureService.TriggerStagger(player)
-		return true
+		return true, overflow
 	end
-	return false
+	return false, overflow
 end
 
 --[[
@@ -200,7 +204,7 @@ end
 function PostureService.ResetPosture(player: Player)
 	local uid = player.UserId
 	local cfg = _getDiscConfig(player)
-	local maxVal = cfg and cfg.PosturePool or DEFAULT_POSTURE_MAX
+	local maxVal = cfg and cfg.postureMax or DEFAULT_POSTURE_MAX
 	_postures[uid] = {
 		Current     = maxVal,
 		Max         = maxVal,
@@ -277,7 +281,8 @@ end
 	@param target    The Staggered player.
 	@return success : boolean
 ]]
-function PostureService.ExecuteBreak(attacker: Player, target: Player): boolean
+function PostureService.ExecuteBreak(attacker: Player, target: Player, damage: number?): boolean
+	-- `damage` is optional; when provided it overrides the default BREAK_DAMAGE
 	if not PostureService.IsStaggered(target) then
 		warn(("[PostureService] Break attempt failed — %s is not staggered"):format(target.Name))
 		return false
@@ -287,15 +292,17 @@ function PostureService.ExecuteBreak(attacker: Player, target: Player): boolean
 	local state = _getOrCreate(target)
 	state.Staggered = false
 
+	local dmg = damage or BREAK_DAMAGE
+
 	-- Apply Break HP damage via CombatService
 	if CombatService then
-		CombatService.ApplyBreakDamage(target, BREAK_DAMAGE)
+		CombatService.ApplyBreakDamage(target, dmg)
 	else
 		-- Fallback: directly damage humanoid health
 		local character = target.Character
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		if humanoid then
-			humanoid.Health = math.max(0, humanoid.Health - BREAK_DAMAGE)
+			humanoid.Health = math.max(0, humanoid.Health - dmg)
 		end
 	end
 
@@ -310,10 +317,10 @@ function PostureService.ExecuteBreak(attacker: Player, target: Player): boolean
 	end
 
 	-- Broadcast Break event
-	_broadcast("BreakExecuted", attacker.UserId, target.UserId, BREAK_DAMAGE)
+	_broadcast("BreakExecuted", attacker.UserId, target.UserId, dmg)
 
 	print(("[PostureService] 💥 Break! %s → %s (%d HP damage)"):format(
-		attacker.Name, target.Name, BREAK_DAMAGE))
+		attacker.Name, target.Name, dmg))
 	return true
 end
 
@@ -373,18 +380,17 @@ local rate
 					end
 				end
 				if cfg then
-					rate = cfg.PostureRegen or DEFAULT_REGEN_RATE
+				rate = cfg.postureRecovery or DEFAULT_REGEN_RATE
+			else
+				rate = DEFAULT_REGEN_RATE
+			end
+			if playerData and playerData.State == "Blocking" then
+				if cfg and cfg.postureRegenBlocking then
+					rate = cfg.postureRegenBlocking
 				else
-					rate = DEFAULT_REGEN_RATE
-				end
-				if playerData and playerData.State == "Blocking" then
-					if cfg and cfg.PostureRegenBlocking then
-						rate = cfg.PostureRegenBlocking
-					else
 					rate = REGEN_RATE_BLOCKING
 				end
 			end
-
 			local prev = state.Current
 			state.Current = math.min(state.Max, state.Current + rate * dt)
 

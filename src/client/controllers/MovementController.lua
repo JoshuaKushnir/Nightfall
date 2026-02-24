@@ -121,10 +121,11 @@ end
 local function _applyDiscBreath()
 	local cfg = _getDiscCfg()
 	if cfg then
-		BREATH_POOL = cfg.BreathPool or BREATH_POOL
-		BREATH_REGEN_STATIONARY = cfg.BreathRegenGround or BREATH_REGEN_STATIONARY
-		-- moving regen remains from config or constant
-		BREATH_SPRINT_DRAIN = cfg.SprintDrain or BREATH_SPRINT_DRAIN
+		BREATH_POOL = cfg.breathPool or BREATH_POOL
+		BREATH_REGEN_STATIONARY = cfg.breathRegenGrounded or BREATH_REGEN_STATIONARY
+		-- moving regen remains from config or constant (can optionally use cfg.breathRegenMoving)
+		BREATH_SPRINT_DRAIN = cfg.breathDrainSprint or BREATH_SPRINT_DRAIN
+		-- cross-training penalty could be applied here once exposed from server
 	end
 end
 
@@ -152,13 +153,6 @@ local targetFOV = DEFAULT_FOV
 local currentRoll = 0
 local targetRoll = 0
 local coyoteTimeLeft = 0.0
-function MovementController.GetMomentumMultiplier(): number
-	return momentumMultiplier
-end
-
-function MovementController.GetBreathPool(): number
-	return breathPool
-end
 
 local jumpBufferLeft = 0.0
 -- flag set when the player physically presses Space while airborne; used to

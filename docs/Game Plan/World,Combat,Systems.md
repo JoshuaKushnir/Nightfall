@@ -1,40 +1,6 @@
 # NIGHTBOUND — WORLD, COMBAT & SYSTEMS
 ### Design Expansion Document
 
-<!--
-COPILOT CONTEXT
-================
-This is the deep-design expansion for World, Combat, and Systems.
-Impl files: MovementController.lua, MovementConfig.lua, CombatService.lua,
-            ActionController.lua, PostureService.lua, DefenseService.lua,
-            HitboxService.lua, NetworkService.lua, PlayerHUDController.lua,
-            DataService.lua, PlayerData.lua, StateSyncService.lua
-
-SPEC GAPS IN THIS FILE:
-  MOVEMENT:
-    - Breath drain rates per action: unspecced (needs numbers in MovementConfig)
-    - Momentum ramp curve: capped at 3x, but ramp function undefined
-    - Wall-run step count ("2-3 steps"): needs exact value + implementation
-    - Stumble animation: asset not defined
-  COMBAT:
-    - Clash System: zero implementation; frame-perfect detection approach unspecced
-    - Break damage formula: unspecced
-    - Posture drain per attack type: no numeric table
-    - Witnessing system: range, dwell duration, Codex entry data structure all unspecced
-  DEATH:
-    - The Between: revival range and UX flow unspecced
-    - Ember Point: count limit, persistence (DataStore vs session), placement UX unspecced
-    - Dimming debuff duration: described as "short" with no value
-    - Shard loss-on-death formula: no values
-  WORLD:
-    - Server-wide Luminance tracking: data structure and update frequency unspecced
-    - Drift Gate: activation sequence, cooldown, ownership data unspecced
-    - Dimming Cycle: server-side scheduling, duration in real minutes, cadence unspecced
-  FACTIONS:
-    - NPC quest system: entirely undesigned
-    - Faction switching mechanic: qualitative only
-    - Unmarked "Unbound" stat bonus: no numbers
--->
 
 ---
 
@@ -199,8 +165,8 @@ Aspect abilities generally affect Posture more than HP. They're used to create B
 
 ### The Clash System
 
-> **Status:** 📐 DESIGNED — Not implemented.
-> **❓ SPEC GAP:** "Same frame" detection in Roblox requires a server-side approach (compare attack timestamps within a tolerance window, e.g. ±50ms). Spec the tolerance and the server event flow before implementing.
+> **Status:** � PARTIAL — helper detection logic exists and is covered by unit tests; full clash window handling and follow‑up actions remain to be wired into gameplay.
+> **❓ SPEC GAP:** refine tolerance and define follow-up input mapping before frontend implementation.
 
 When two attacks connect within the same frame, a brief Clash moment fires. Both players push apart. There's a half-second window for a follow-up input — parry extension, counter-strike, or dash cancel. Successfully executing the follow-up deals bonus Posture damage and briefly staggers the opponent. Missing leaves you open.
 
@@ -219,6 +185,23 @@ Tempered Stance interaction: At Tier2 the Ironclad's counter strikes during CLAS
 
 
 Learning to use Clashes is the difference between a good PvP player and a great one.
+
+### Feinting & Mind Games
+
+Feints are a core deception tool borrowed directly from Deepwoken's combat vocabulary. A feint cancels an attack during its wind‑up and replaces it with a short, harmless motion that still has a tiny end‑lag. The objective is to bait a block or roll so you can punish the recovery or to simply break the opponent's rhythm. In high‑level play the strongest feints are the ones your opponent *cannot predict*.
+
+Mechanics:
+
+* **Right‑click / M2 during an active swing** (any attack type) while the weapon is still pulling back. Instead of the original attack, your character immediately performs a feint. The window now lasts through the cancel frame (roughly the point where you could chain another attack), giving players a more generous timing even though hitboxes still spawn at the configured hit frame.
+
+  Feint and heavy cooldown values are now defined per weapon (see WeaponConfig.FeintCooldown / HeavyCooldown). This allows different weapon classes to feel distinct (e.g. quick daggers have short heavy cooldown, greatswords longer).
+
+  Hitboxes are now scheduled to spawn *after* the feint window (jumping to the cancel frame plus a small margin). This ensures a player who feints **cannot** ever inadvertently trigger the hitbox while cancelling.
+* **Holding the heavy button** prior to or during a swing automatically converts the next light (or other) attack into a feint at the earliest possible moment. This lets players keep their hand on M2 instead of timing a separate click.
+* **Running attacks and uppercuts** can be feinted by casting a Mantra just before the strike lands. Conversely, **Mantras themselves can be feinted** by pressing M2 during their cast. Casting a Mantra while your arm is winding back will cancel the swing into the spell. These layered interactions enable complex rock‑paper‑scissors mind games between melee and magic.
+* An ad‑hoc “feint” is to simply whiff an attack; you take no cooldown penalty but you also forfeit the feint recovery. This is a high‑risk gambit with a slightly faster outcome.
+
+Feint actions are implemented as a special attack config with no hitbox and a generous (1 second) cooldown. The client tracks heavy‑button state and will queue or convert actions appropriately; the server does not need to validate anything beyond the usual attack gating because feints never generate hits. When a feint occurs it **resets the cooldown of the attack you just cancelled**, effectively refunding you while still imposing the feint’s own cooldown. There is a tiny movement penalty and feints count toward your combo/cancel system, but they do not add posture or damage.
 
 ### PvP Systems
 

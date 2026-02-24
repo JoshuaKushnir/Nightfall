@@ -25,8 +25,49 @@ local AbilitySystem: any = nil
 local WeaponService: any = nil
 local PostureService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
+
+-- Constants needed by helpers
+local BREAK_HIT_DAMAGE = 45   -- HP damage dealt on a successful Break (mirrors PostureService.BREAK_DAMAGE)
 
 local CombatService = {}
+
+-- helper: determine if attacker is using a weapon outside their primary discipline
+local function _isCrossTrained(player: Player): boolean
+	if not player then return false end
+	local data = StateService:GetPlayerData(player)
+	if not data then return false end
+	local discCfg = DisciplineConfig.Get(data.DisciplineId)
+	if not discCfg or not discCfg.weaponClasses then return false end
+	local weaponId = WeaponService and WeaponService.GetEquipped(player)
+	if not weaponId then return false end
+	local wcfg = WeaponRegistry.Get(weaponId)
+	if not wcfg or not wcfg.WeightClass then return false end
+	return not table.find(discCfg.weaponClasses, wcfg.WeightClass)
+end
+
+-- calculate Break damage given overflow posture amount (or 0)
+function CombatService.CalculateBreakDamage(attacker: Player, overflow: number): number
+	overflow = overflow or 0
+	local base = BREAK_HIT_DAMAGE
+	local mult = 1.0
+	local data = attacker and StateService:GetPlayerData(attacker)
+	if data then
+		local cfg = DisciplineConfig.Get(data.DisciplineId)
+		if cfg then
+			base = cfg.breakBase or base
+			mult = cfg.breakOverflowMult or mult
+		end
+	end
+	local dmg = base + overflow * mult
+	if _isCrossTrained(attacker) then
+		local pen = DisciplineConfig.crossTrainPenalty and DisciplineConfig.crossTrainPenalty.hpDamageMult
+		if pen and pen < 1 then
+			dmg = dmg * pen
+		end
+	end
+	return math.floor(dmg)
+end
 
 -- Rate limiting per player (prevent spam)
 local HitCooldowns: {[Player]: number} = {}
@@ -36,7 +77,6 @@ local HIT_COOLDOWN_MIN = 0.05 -- Minimum 50ms between hits per player
 local BASE_DAMAGE_VARIANCE = 0.1 -- ±10% damage variance
 local CRITICAL_CHANCE = 0.15 -- 15% critical hit chance
 local CRITICAL_MULTIPLIER = 1.5 -- 1.5x damage on crit
-local BREAK_HIT_DAMAGE = 45   -- HP damage dealt on a successful Break (mirrors PostureService.BREAK_DAMAGE)
 local CONFIRM_HIT_EVENT_NAME = "HitConfirmed"
 local BLOCK_FEEDBACK_EVENT_NAME = "BlockFeedback"
 local PARRY_FEEDBACK_EVENT_NAME = "ParryFeedback"
@@ -135,7 +175,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	
 	if targetPlayer and Utils.IsValidPlayer(targetPlayer) then
 		-- Target is a player
-		target = targetPlayer
+		-- (no local `target` variable needed)
 	elseif DummyService.GetDummyData(targetName) then
 		-- Target is a dummy
 		targetDummy = DummyService.GetDummyData(targetName)
@@ -206,6 +246,15 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	else
 		finalDamage = math.floor(finalDamage)
 	end
+
+	-- apply cross-training penalty if attacker is using off-discipline weapon
+	if _isCrossTrained(attacker) then
+		local pen = DisciplineConfig.crossTrainPenalty and DisciplineConfig.crossTrainPenalty.hpDamageMult
+		if pen and pen < 1 then
+			finalDamage = math.floor(finalDamage * pen)
+			print(`[CombatService] ⚠ Cross-train penalty applied, damage -> {finalDamage}`)
+		end
+	end
 	
 	-- Check defense (block/parry) - only for players
 	local wasBlocked = false
@@ -255,26 +304,25 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			-- (Blocked hits already returned 0 finalDamage above so this block is
 			-- only reached for unblocked / unguarded hits.)
 
-			-- Check for Break opportunity — if target is in PostureService Stagger window,
-			-- execute a Break instead of a normal hit (more damage, special event).
-			if PostureService and PostureService.IsStaggered(targetPlayer) then
-				local success = PostureService.ExecuteBreak(attacker, targetPlayer)
-				if success then
-					print(`[CombatService] 💥 Break executed on {targetPlayer.Name}`)
-					-- Break handled posture + HP, so skip normal damage below
-					return true, BREAK_HIT_DAMAGE
-				end
-			end
-
-			targetData.Health = math.max(0, targetData.Health - finalDamage)
-
-			-- Drain posture from unguarded hit
+-- Before applying HP, handle posture drain and potential Breaks
+		local preStagger = PostureService and PostureService.IsStaggered(targetPlayer)
+		local broke, overflow = false, 0
+		if PostureService then
+			broke, overflow = PostureService.DrainPosture(targetPlayer, nil, "Unguarded")
+		end
+		if preStagger or broke then
+			local breakDmg = CombatService.CalculateBreakDamage(attacker, overflow)
+			print(`[CombatService] 💥 Break executed on {targetPlayer.Name} (overflow {overflow})`)
 			if PostureService then
-				local broke = PostureService.DrainPosture(targetPlayer, nil, "Unguarded")
-				if broke then
-					print(`[CombatService] ⚡ {targetPlayer.Name}'s posture broken by unguarded hit!`)
-				end
+				PostureService.ExecuteBreak(attacker, targetPlayer, breakDmg)
+			else
+				CombatService.ApplyBreakDamage(targetPlayer, breakDmg)
 			end
+			return true, breakDmg
+		end
+
+			-- Normal HP hit
+			targetData.Health = math.max(0, targetData.Health - finalDamage)
 
 			-- Check if target died
 			if targetData.Health <= 0 then

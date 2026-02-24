@@ -1,23 +1,6 @@
 # NIGHTBOUND — PROGRESSION & THE THREE PILLARS
 ### Design Expansion Document
 
-<!--
-COPILOT CONTEXT
-================
-This is the deep-design expansion for the progression systems summarised in Main.md.
-Impl files: DataService.lua, PlayerData.lua, AbilitySystem.lua, AbilityRegistry.lua,
-            WeaponService.lua, WeaponRegistry.lua, WeaponTypes.lua, StateService.lua
-
-SPEC GAPS IN THIS FILE:
-  - Resonance Shard loss-on-death formula: no numbers
-  - Groove depth thresholds (Whisper/Resonant/Soulbind): no use-count or time targets
-  - Discipline stat differences: all qualitative, no numeric tables
-  - Cross-training Resonance cost: percentage anchor exists, no baseline Shard total
-  - Aspect branch unlock costs: no Resonance cost table
-  - Omen accumulation rates per trigger: no values
-  - Omen cleansing cost curve: "escalating" with no numbers
-  - Aspect cross-synergy bonuses: named and described, no numeric values
--->
 
 ---
 
@@ -248,8 +231,8 @@ This is deliberate. Aspect should feel like a costume you live in, not a menu yo
 
 ## PILLAR TWO — DISCIPLINE
 
-> **Status:** 📐 DESIGNED
-> **Impl files (target):** `PlayerData.lua` (disciplineId field), new discipline-check functions in `WeaponService.lua`
+> **Status:** � PARTIAL (core discipline mechanics implemented with config, breath pools, posture integration, and cross-train penalties; numeric tables remain to be filled)
+> **Impl files (target):** `PlayerData.lua` (disciplineId field), `WeaponService.lua` (discipline checks), `PostureService.lua` (discipline scaling), `MovementController.lua` (breath pools)
 > **❓ SPEC GAP — no numeric stat tables. Each Discipline needs:**
 >   - Base Breath pool
 >   - Breath drain multiplier (sprint/dash/wall-run)

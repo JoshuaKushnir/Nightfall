@@ -247,15 +247,16 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 		return
 	end
 
-	-- Discipline restriction
+	-- Discipline restriction / cross-training warning
 	local config = WeaponRegistry.Get(weaponId)
 	if config and config.WeightClass then
 		local playerData = StateService:GetPlayerData(player)
 		local discCfg = playerData and DisciplineConfig.Get(playerData.DisciplineId)
-		if discCfg and discCfg.WeightClasses then
-			if not table.find(discCfg.WeightClasses, config.WeightClass) then
-				warn(`[WeaponService] Equip denied for {player.Name} — {config.WeightClass} not allowed for discipline {playerData and playerData.DisciplineId}`)
-				return
+		if discCfg and discCfg.weaponClasses then
+			if not table.find(discCfg.weaponClasses, config.WeightClass) then
+				-- cross-training: weapon outside primary discipline
+				warn(`[WeaponService] {player.Name} is cross-training with {config.WeightClass} weapon (primary discipline={playerData and playerData.DisciplineId})`)
+				-- allowed, penalties applied elsewhere
 			end
 		end
 	end

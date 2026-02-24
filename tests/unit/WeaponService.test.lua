@@ -1,49 +1,46 @@
 --!strict
--- WeaponService discipline restriction tests
+-- WeaponService discipline/cross-training tests
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local WeaponService = require(ReplicatedStorage.Server.services.WeaponService)
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
-local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 
 return {
 	name = "WeaponService Unit Tests",
 	tests = {
 		{
-			name = "cannot equip weapon outside discipline weight class",
+			name = "equipping works and allows cross-training",
 			fn = function()
-				local fakePlayer = {UserId = 42, Name = "Tester", Character = {}}
-				-- stub WeaponRegistry
+				-- create a fake player with a simple humanoid stub to satisfy validation
+				local fakePlayer = {
+					UserId = 42,
+					Name = "Tester",
+					Character = {
+						FindFirstChildOfClass = function(_)
+							return {Health = 100}
+						end,
+					},
+				}
+
+				-- stub registry so any weapon is valid
 				local origHas = WeaponRegistry.Has
 				local origGet = WeaponRegistry.Get
-WeaponRegistry.Has = function(id) return id == "breaker_hammer" end
-			WeaponRegistry.Get = function(id)
-				if id == "breaker_hammer" then
-					return {Id = id, WeightClass = "Breaker", Name = "Breaker Hammer"}
-					end
+				WeaponRegistry.Has = function() return true end
+				WeaponRegistry.Get = function(id)
+					return {Id = id, WeightClass = "Heavy"}
 				end
 
-				-- stub StateService to return Wayward discipline
+				-- stub player to Wayward discipline (Heavy not in their allowed list)
 				local origState = StateService.GetPlayerData
-				StateService.GetPlayerData = function(_)
+				StateService.GetPlayerData = function()
 					return {DisciplineId = "Wayward"}
 				end
 
-				-- attempt to equip
+				-- attempt to equip; cross-training should warn but allow
 				WeaponService.EquipWeapon(fakePlayer, "heavy_sword")
-				-- since equip simply returns (no error), we inspect EquippedWeapons table via debug
-				local equipExists = debug.getupvalue(WeaponService.EquipWeapon, 1)
-				-- easier: rely on print side-effects not feasible; instead just assert that
-				-- fakePlayer.UserId is not present in EquippedWeapons
-				-- hack: use pcall to read global table defined earlier
-				local equipped = nil
-				for uid, id in pairs(_G) do
-					-- ignore
-				end
-				-- easier: call WeaponService.GetEquipped which returns surprise nil when not equipped
-				assert(WeaponService.GetEquipped(fakePlayer) == nil)
+				assert(WeaponService.GetEquipped(fakePlayer) == "heavy_sword")
 
 				-- restore stubs
 				WeaponRegistry.Has = origHas

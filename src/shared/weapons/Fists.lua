@@ -37,10 +37,13 @@ local Fists: WeaponConfig = {
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 6,
-	AttackSpeed    = 1.0,   -- baseline speed; other weapons are relative to this
+	AttackSpeed    = 1.2,   -- baseline speed; other weapons are relative to this
 	Range          = 3.5,   -- shorter reach than any bladed weapon
 	KnockbackPower = 0.5,
 	Weight         = 0.1,   -- near-zero; no meaningful movement penalty
+	-- per-weapon cooldowns
+	FeintCooldown   = 1.0,   -- matches global default; overridden per-weapon if needed
+	HeavyCooldown   = 1.0,   -- shorter heavy cd for fists
 
 	-- ── Animations ────────────────────────────────────────────────────────────
 	-- Reuses the existing punch 1-5 animation assets already in the project.
@@ -52,11 +55,11 @@ local Fists: WeaponConfig = {
 
 		-- 5-hit combo — matches legacy "punch N" names ActionController used
 		Combo = {
-			{ Folder = "Fists", Asset = "punch 1", HitFrame = 0.40 },
-			{ Folder = "Fists", Asset = "punch 2", HitFrame = 0.40 },
-			{ Folder = "Fists", Asset = "punch 3", HitFrame = 0.40 },
-			{ Folder = "Fists", Asset = "punch 4", HitFrame = 0.40 },
-			{ Folder = "Fists", Asset = "punch 5", HitFrame = 0.35 },
+			{ Folder = "Fists", Asset = "punch 1", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 2", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 3", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 4", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 5", HitFrame = 0.60 },
 		},
 
 		LungeAttack = { Folder = "Fists", Asset = "punch 2", HitFrame = 0.45 },

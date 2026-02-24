@@ -22,7 +22,7 @@ return {
 				-- call helper directly
 				MovementController:Init({})
 				MovementController:Start()
-				assert(MovementController.GetBreathPool() == DisciplineConfig.Get("Silhouette").BreathPool)
+				assert(MovementController.GetBreathPool() == DisciplineConfig.Get("Silhouette").breathPool)
 
 				StateService.GetPlayerData = orig
 			end,
