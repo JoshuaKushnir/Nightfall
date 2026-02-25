@@ -44,7 +44,12 @@ export type AspectMoveItem = ItemBase & {
 }
 
 -- Union of all item types; currently only AspectMoveItem.
-export type Item = AspectMoveItem -- future expansions will add other unions
+export type WeaponItem = ItemBase & {
+    Category: "Weapons",
+    WeaponId: string,
+}
+
+export type Item = AspectMoveItem | WeaponItem -- future expansions will add other unions
 
 -- runtime aliases to satisfy require() calls without building real objects
 local _exports: any = {}

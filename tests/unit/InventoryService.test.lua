@@ -133,7 +133,15 @@ return {
                 -- trigger join
                 InventoryService._onPlayerAdded(fakePlayer)
                 local profile = DataService:GetProfile(fakePlayer)
-                assert(#profile.Inventory == 2, "Expected two starter moves")
+                -- should have two moves plus fists
+                assert(#profile.Inventory == 3, "Expected two moves and fists")
+                local foundFists = false
+                for _, v in ipairs(profile.Inventory) do
+                    if v.Id == "weapon_fists" then
+                        foundFists = true
+                    end
+                end
+                assert(foundFists, "Fists item should be granted")
             end,
         },
         {
@@ -146,12 +154,13 @@ return {
                 }
                 InventoryService._onPlayerAdded(fakePlayer)
                 local profile = DataService:GetProfile(fakePlayer)
-                local foundQuick, foundStrong = false, false
+                local foundQuick, foundStrong, foundFists = false, false, false
                 for _, v in ipairs(profile.Inventory) do
                     if v.Id == "move_Test_Move_Quick" then foundQuick = true end
                     if v.Id == "move_Test_Move_Strong" then foundStrong = true end
+                    if v.Id == "weapon_fists" then foundFists = true end
                 end
-                assert(foundQuick and foundStrong, "Both test moves should be present")
+                assert(foundQuick and foundStrong and foundFists, "Starter moves and fists should be present")
             end,
         },
     },

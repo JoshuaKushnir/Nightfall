@@ -58,14 +58,31 @@ return {
             end,
         },
         {
-            name = "Hotbar shows equipped slots",
+            name = "Hotbar shows equipped slots when open",
             fn = function()
                 fakeAspect._equipped = { ["1"] = {Name="Quick"}, ["3"]={Name="Strong"} }
+                InventoryController._isOpen = true
                 InventoryController:RefreshUI()
                 local player = game:GetService("Players").LocalPlayer
                 local pg = player:WaitForChild("PlayerGui")
                 local hotbar = pg.InventoryUI:FindFirstChild("HotbarRoot")
-                assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots")
+                assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots when open")
+            end,
+        },
+        {
+            name = "Hotbar hides empties when closed",
+            fn = function()
+                fakeAspect._equipped = { ["1"] = {Name="Quick"}, ["3"]={Name="Strong"} }
+                InventoryController._isOpen = false
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local pg = player:WaitForChild("PlayerGui")
+                local hotbar = pg.InventoryUI:FindFirstChild("HotbarRoot")
+                local children = hotbar:GetChildren()
+                -- should only have two buttons because two items
+                local count=0
+                for _,c in ipairs(children) do if c:IsA("TextButton") then count+=1 end end
+                assert(count == 2, "Hotbar closed should only show filled slots")
             end,
         },
         {

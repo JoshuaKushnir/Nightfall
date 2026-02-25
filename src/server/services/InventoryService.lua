@@ -155,11 +155,14 @@ local function _onPlayerAdded(player)
         profile.Inventory = profile.Inventory or {}
         -- ensure both test moves exist (add if missing)
         local hasQuick, hasStrong = false, false
+        local hasFists = false
         for _, v in ipairs(profile.Inventory) do
             if v.Id == "move_Test_Move_Quick" then
                 hasQuick = true
             elseif v.Id == "move_Test_Move_Strong" then
                 hasStrong = true
+            elseif v.Id == "weapon_fists" then
+                hasFists = true
             end
         end
         if not hasQuick or not hasStrong then
@@ -170,6 +173,16 @@ local function _onPlayerAdded(player)
                     if move.Id == "move_Test_Move_Strong" then hasStrong = true end
                 end
             end
+        end
+        -- grant fists weapon if missing
+        if not hasFists then
+            table.insert(profile.Inventory, {
+                Id = "weapon_fists",
+                Name = "Fists",
+                Description = "Your bare hands.",
+                Category = "Weapons",
+                Rarity = "Common",
+            })
         end
     end
     _syncInventory(player)
