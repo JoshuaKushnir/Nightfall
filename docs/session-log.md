@@ -30,6 +30,36 @@ Phase 3 Epic can be closed in GitHub.
 **Next Steps:** migrate to testing, flesh out ability implementations once
 design numbers come in, and begin Phase 4 planning.
 
+### Session NF-040 Preview:
+- **Kick-off:** Begin implementation of interchangeable Aspect moves as inventory items. Added `ItemTypes` and extended `AspectRegistry` to support `AspectMoveItem`. PlayerData now tracks inventory/equipment. Unit tests added for new types.
+
+### Session NF-040 Changes:
+
+- **Service creation:** Added `InventoryService` responsible for giving/removing/equipping/using items. Registered in server bootstrap and added network handlers for `EquipItem`, `UnequipItem`, `UseItem`.
+- **Test data:** Inserted two explicit abilities (`Test_Move_Quick`, `Test_Move_Strong`) and resultant move items for easy experimentation; unit tests verify their presence.
+- **Bugfix:** Corrected `ItemTypes` require path to avoid nil ancestor errors in studio load (module now uses ReplicatedStorage.Shared reference).
+- **Network fix:** Added metadata entry for `AbilityDataSync` so the corresponding RemoteEvent is created; InventoryService now uses `NetworkService:SendToClient` instead of nonexistent `FireClient` method.
+- **Convenience:** new players are automatically given the two test moves (`Quick` & `Strong`) when their inventory is empty. This guarantees visible items during early experimentation.
+- **UI:** Added `InventoryController` which creates a full inventory window with collapsible categories, search box, color‑coding by category/rarity, and button filtering. This now behaves more like a Deepwoken‑style inventory; future work will polish icons and settings.
+- **Network types:** Extended `NetworkTypes.lua` with `InventorySync` event and corresponding packet; imported `ItemTypes` for type reuse.
+- **Inventory tests:** Created `tests/unit/InventoryService.test.lua` verifying core operations and AspectMove usage.
+- **Bootstrap update:** Included `InventoryService` in dependency table and start order.
+
+**Next Steps:**
+1. Populate `AspectRegistry.MoveItems` with items derived from abilities on server start (helper function or build-time script).
+2. Implement client hotbar/UI handling of item slots and swaps; register for `InventorySync` events.
+3. Continue writing integration tests and polish inventory validation.  
+   - **Change:** equipping a move now immediately uses it; item doesn’t persist in slot (weapon remains in hand).
+4. Begin introducing other item categories (weapons/consumables).
+
+### Session NF-041 Changes:
+
+- **UI polish:** Added open/close animation for inventory window with `I` key; panel now slides off-screen and a top-right hint appears when closed. Stats area added showing item count and equipped count.
+- **Callback wiring:** AspectController gained `OnInventoryChanged` listener support; InventoryController subscribes and refreshes immediately on `InventorySync` instead of polling.
+- **Tests updated:** Expanded `InventoryController` unit tests to validate sync callback and toggle behavior.
+- **Minor fixes:** removed heartbeat polling code; cleaned up GUI layout.
+- **Next:** ensure equip/unequip server handler remains robust and run integration scenario.
+
 ### Session NF-038 Changes:
 
 - **Fix — Immediate Wall-Run Dropouts (The "OnGround" Bug):**
