@@ -30,7 +30,10 @@ local function _syncInventory(player: Player)
     if not profile then
         return
     end
-    NetworkService:SendToClient(player, "InventorySync", {Inventory = profile.Inventory or {}})
+    NetworkService:SendToClient(player, "InventorySync", {
+        Inventory = profile.Inventory or {},
+        Equipped = profile.EquippedItems or {},
+    })
 end
 
 -- give an item to a player, returns true if added
@@ -149,13 +152,22 @@ end
 local function _onPlayerAdded(player)
     local profile = DataService:GetProfile(player)
     if profile then
-        -- if inventory empty, give the two explicit test moves for convenience
         profile.Inventory = profile.Inventory or {}
-        if #profile.Inventory == 0 then
-            -- use AspectRegistry's generated move items
+        -- ensure both test moves exist (add if missing)
+        local hasQuick, hasStrong = false, false
+        for _, v in ipairs(profile.Inventory) do
+            if v.Id == "move_Test_Move_Quick" then
+                hasQuick = true
+            elseif v.Id == "move_Test_Move_Strong" then
+                hasStrong = true
+            end
+        end
+        if not hasQuick or not hasStrong then
             for _, move in pairs(AspectRegistry.MoveItems) do
-                if move.Id == "move_Test_Move_Quick" or move.Id == "move_Test_Move_Strong" then
+                if (not hasQuick and move.Id == "move_Test_Move_Quick") or (not hasStrong and move.Id == "move_Test_Move_Strong") then
                     table.insert(profile.Inventory, move)
+                    if move.Id == "move_Test_Move_Quick" then hasQuick = true end
+                    if move.Id == "move_Test_Move_Strong" then hasStrong = true end
                 end
             end
         end

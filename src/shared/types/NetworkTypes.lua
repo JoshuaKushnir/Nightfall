@@ -323,6 +323,7 @@ export type UseItemPacket = {
 
 export type InventoryPacket = {
 	Inventory: {ItemTypes.Item},
+	Equipped: {[string]: ItemTypes.Item?},
 }
 
 export type DialogueStartPacket = {

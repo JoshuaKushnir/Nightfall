@@ -33,6 +33,7 @@ AspectController._cooldowns = {} -- abilityId -> expiry tick
 -- typed via cast rather than annotation to avoid parser error
 AspectController._aspectData = nil :: AspectTypes.PlayerAspectData?
 AspectController._inventory = {} :: {ItemTypes.Item}
+AspectController._equipped = {} :: {[string]: ItemTypes.Item?}
 AspectController._keybinds = {} :: {[Enum.KeyCode]: string?}
 AspectController._keybinds = {
     [Enum.KeyCode.Z] = nil,
@@ -90,9 +91,13 @@ local function _registerHandlers()
 
     NetworkController:RegisterHandler("InventorySync", function(packet)
         AspectController._inventory = packet.Inventory or {}
+        AspectController._equipped = packet.Equipped or {}
         warn("[AspectController] InventorySync received", #AspectController._inventory)
         for i, item in ipairs(AspectController._inventory) do
-            warn(`   slot {i}: {item.Id}`)
+            warn(`   inv {i}: {item.Id}`)
+        end
+        for slot, item in pairs(AspectController._equipped) do
+            warn(`   eq {slot}: {item and item.Id or "<empty>"}`)
         end
     end)
 
