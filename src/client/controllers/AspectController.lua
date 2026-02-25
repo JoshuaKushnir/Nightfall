@@ -28,9 +28,7 @@ local AspectController = {}
 AspectController._cooldowns = {} -- abilityId -> expiry tick
 -- typed via cast rather than annotation to avoid parser error
 AspectController._aspectData = nil :: AspectTypes.PlayerAspectData?
-AspectController._keybinds: {[Enum.KeyCode]: string?} = {}
-
--- default keybinds (Z,X,C,V)
+AspectController._keybinds = {} :: {[Enum.KeyCode]: string?}
 AspectController._keybinds = {
     [Enum.KeyCode.Z] = nil,
     [Enum.KeyCode.X] = nil,
