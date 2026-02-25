@@ -122,5 +122,19 @@ return {
                 assert(success == true)
             end,
         },
+        {
+            name = "New player receives test moves automatically",
+            fn = function()
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {}, EquippedItems = {}}
+                }
+                -- trigger join
+                InventoryService._onPlayerAdded(fakePlayer)
+                local profile = DataService:GetProfile(fakePlayer)
+                assert(#profile.Inventory == 2, "Expected two starter moves")
+            end,
+        },
     },
 }

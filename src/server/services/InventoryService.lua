@@ -147,6 +147,19 @@ local function _onUseRequest(player, packet)
 end
 
 local function _onPlayerAdded(player)
+    local profile = DataService:GetProfile(player)
+    if profile then
+        -- if inventory empty, give the two explicit test moves for convenience
+        profile.Inventory = profile.Inventory or {}
+        if #profile.Inventory == 0 then
+            -- use AspectRegistry's generated move items
+            for _, move in pairs(AspectRegistry.MoveItems) do
+                if move.Id == "move_Test_Move_Quick" or move.Id == "move_Test_Move_Strong" then
+                    table.insert(profile.Inventory, move)
+                end
+            end
+        end
+    end
     _syncInventory(player)
 end
 
