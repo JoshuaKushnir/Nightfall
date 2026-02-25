@@ -4,9 +4,13 @@
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
 
-## Current Session ID: NF-038
-**Date:** February 20, 2026
-**Task:** Wall-Run Polish & Exploit Prevention
+## Current Session ID: NF-039
+**Date:** February 24, 2026
+**Task:** Begin Phase 3 Aspect System Implementation
+
+### Session NF-039 Changes:
+
+- **Started Aspect System — Types defined:** Created `src/shared/types/AspectTypes.lua` with all required Aspect-related type definitions. Committed under #11.
 
 ### Session NF-038 Changes:
 
