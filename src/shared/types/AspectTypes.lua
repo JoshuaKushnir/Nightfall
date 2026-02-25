@@ -8,7 +8,10 @@
 export type AspectId = "Ash" | "Tide" | "Ember" | "Gale" | "Void" | "Marrow"
 export type BranchId = "Expression" | "Form" | "Communion"
 
-export type BranchDepth = 1 | 2 | 3
+---
+--- BranchDepth represents investment tiers; runtime logic enforces values 1–3.
+--- Using plain number type because Luau does not support numeric literal unions.
+export type BranchDepth = number
 
 export type AspectBranchState = {
     Depth: number, -- 0 = no investment
