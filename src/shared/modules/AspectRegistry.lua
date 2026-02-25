@@ -160,7 +160,8 @@ end
 -- no abilities for Marrow yet (locked)
 
 -- cross-aspect synergies data
-Registry.Synergies: {AspectTypes.AspectSynergy} = {
+Registry.Synergies = {} :: {AspectTypes.AspectSynergy}
+Registry.Synergies = {
     {
         AspectA = "Ash",
         AspectB = "Void",
