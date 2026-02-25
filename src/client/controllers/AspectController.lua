@@ -53,7 +53,7 @@ end
 
 -- handle network events
 NetworkProvider:RegisterClientEvent("AbilityDataSync", function(packet: NetworkTypes.AbilityDataSyncPacket)
-    AspectController._cooldowns = packet.Cooldowns or {}
+    AspectController._cooldowns = packet or {}
 end)
 
 NetworkProvider:RegisterClientEvent("AbilityCastResult", function(success, reason, abilityId, targetPos)
@@ -83,7 +83,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             if not AspectController:IsOnCooldown(abilityId) then
                 local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse()
                 local pos = mouse and mouse.Hit and mouse.Hit.p
-                NetworkProvider:FireServer("AbilityCastRequest", abilityId, pos)
+                NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = pos})
             end
         end
     end
