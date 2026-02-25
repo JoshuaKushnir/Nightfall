@@ -17,7 +17,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local DataService = require(ReplicatedStorage.Shared.services.DataService)
+-- DataService is a sibling module under Server.services; load via relative path
+local DataService = require(script.Parent.DataService)
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local CombatService = require(script.Parent.CombatService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
