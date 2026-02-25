@@ -85,7 +85,8 @@ local function _ensureGui()
     local root = Instance.new("Frame")
     root.Name = "InventoryRoot"
     root.Size = UDim2.new(0, 300, 0, 400)
-    root.Position = UDim2.new(0, 10, 0.1, 0)  -- left side
+    -- place on right side, away from debug UI
+    root.Position = UDim2.new(1, -310, 0.1, 0)  -- right side with 10px margin
     root.BackgroundTransparency = 0.2
     root.BackgroundColor3 = Color3.fromRGB(50,50,50)
     root.Parent = screenGui
@@ -116,14 +117,15 @@ local function _ensureGui()
     scroll.ScrollBarThickness = 6
     scroll.Parent = root
 
-    -- hotbar beneath inventory
+    -- hotbar is separate so it stays visible when inventory is closed
     local hotbar = Instance.new("Frame")
     hotbar.Name = "HotbarRoot"
-    hotbar.Size = UDim2.new(1, 0, 0, 40)
-    hotbar.Position = UDim2.new(0, 0, 1, -45)
+    hotbar.Size = UDim2.new(0, 360, 0, 40) -- 8 slots ×45
+    hotbar.Position = UDim2.new(1, -370, 1, -50)
+    hotbar.AnchorPoint = Vector2.new(0, 0) -- top-left remains relative to screen
     hotbar.BackgroundTransparency = 0.3
     hotbar.BackgroundColor3 = Color3.fromRGB(30,30,30)
-    hotbar.Parent = root
+    hotbar.Parent = screenGui
 
     InventoryController._hotbarFrame = hotbar
 
@@ -144,7 +146,7 @@ local function _ensureGui()
     hint.Name = "Hint"
     hint.Size = UDim2.new(0, 200, 0, 50)
     hint.Position = UDim2.new(1, -210, 0, 10)
-    hint.Text = "Press I to open inventory"
+    hint.Text = "Press ` to toggle inventory"
     hint.BackgroundTransparency = 0.5
     hint.TextColor3 = Color3.new(1,1,1)
     hint.TextScaled = true
@@ -239,8 +241,8 @@ function InventoryController:RefreshUI()
     end
     scroll.CanvasSize = UDim2.new(0,0,y)
 
-    -- build hotbar (no change)
-    local hotbar = gui.InventoryRoot:FindFirstChild("HotbarRoot")
+    -- build hotbar (always visible, separate frame)
+    local hotbar = gui:FindFirstChild("HotbarRoot")
     if hotbar then
         for _, child in ipairs(hotbar:GetChildren()) do
             if child:IsA("TextButton") then child:Destroy() end
@@ -290,7 +292,7 @@ function InventoryController:Init(dependencies: {[string]: any}?)
     local UserInputService = game:GetService("UserInputService")
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.I then
+        if input.KeyCode == Enum.KeyCode.BackQuote then
             self:ToggleOpen()
         end
     end)
@@ -310,7 +312,8 @@ function InventoryController:ToggleOpen()
     local gui = _ensureGui()
     local root = gui:FindFirstChild("InventoryRoot")
     if root then
-        local target = self._isOpen and UDim2.new(0,10,0.1,0) or UDim2.new(-1,0,0.1,0)
+        -- slide off to the right when closed
+        local target = self._isOpen and UDim2.new(1, -310, 0.1, 0) or UDim2.new(1, 10, 0.1, 0)
         local tween = game:GetService("TweenService"):Create(root, TweenInfo.new(0.25), {Position = target})
         tween:Play()
     end

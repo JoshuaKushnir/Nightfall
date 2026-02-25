@@ -64,7 +64,7 @@ return {
                 InventoryController:RefreshUI()
                 local player = game:GetService("Players").LocalPlayer
                 local pg = player:WaitForChild("PlayerGui")
-                local hotbar = pg.InventoryUI.InventoryRoot.HotbarRoot
+                local hotbar = pg.InventoryUI:FindFirstChild("HotbarRoot")
                 assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots")
             end,
         },
@@ -73,7 +73,8 @@ return {
             fn = function()
                 -- clear
                 local player = game:GetService("Players").LocalPlayer
-                player.PlayerGui:FindFirstChild("InventoryUI")?.Destroy()
+                local inv = player.PlayerGui:FindFirstChild("InventoryUI")
+                if inv then inv:Destroy() end
 
                 -- initial inventory empty
                 fakeAspect._inventory = {}
@@ -95,14 +96,25 @@ return {
                 InventoryController:RefreshUI()
                 local gui = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI
                 local root = gui.InventoryRoot
-                local initialPos = root.Position
                 InventoryController:ToggleOpen()
                 wait(0.3)
                 assert(InventoryController._isOpen == false, "should be closed")
-                assert(root.Position.X.Scale < 0, "root should have moved offscreen")
+                assert(root.Position.X.Scale == 1 and root.Position.X.Offset > 0, "root should move right offscreen")
+                -- hotbar still exists after closing
+                local hotbar = gui:FindFirstChild("HotbarRoot")
+                assert(hotbar, "hotbar should persist when inventory is closed")
                 InventoryController:ToggleOpen()
                 wait(0.3)
                 assert(InventoryController._isOpen == true, "should be open")
+            end,
+        },
+        {
+            name = "Hint text mentions backquote key",
+            fn = function()
+                InventoryController:RefreshUI()
+                local gui = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI
+                local hint = gui:FindFirstChild("Hint")
+                assert(hint and string.find(hint.Text, "`"), "hint should mention backquote")
             end,
         },
     },
