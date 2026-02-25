@@ -92,6 +92,7 @@ local dependencies = {
 	MovementController  = controllers.MovementController,
 	WeaponController    = controllers.WeaponController,
 	CombatController    = controllers.CombatController,
+	AspectController    = controllers.AspectController,
 }
 
 for name, controller in controllers do
@@ -125,6 +126,7 @@ local startOrder = {
 	"WeaponController",    -- #69: equip state must be ready before ActionController
 	"ActionController",
 	"CombatController",      -- new combat state machine
+	"AspectController",      -- handles Aspect ability input
 	"PlayerHUDController",
 	"CombatFeedbackUI",
 }
