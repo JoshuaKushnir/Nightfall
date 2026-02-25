@@ -12,6 +12,9 @@
 	across server and client implementations.
 ]]
 
+-- import shared type modules that may be referenced in packet definitions
+local ItemTypes = require(game:GetService("ReplicatedStorage").Shared.types.ItemTypes) :: any
+
 -- Network Event Registry (enum-based)
 export type NetworkEvent =
 	-- State Management
@@ -52,7 +55,8 @@ export type NetworkEvent =
 	| "UnequipWeapon"
 	| "WeaponEquipped"
 	| "WeaponUnequipped"
-	
+	| "InventorySync"          -- server → client: send full inventory
+
 	-- Dialogue/Quests
 	| "DialogueStart"
 	| "DialogueChoice"
@@ -315,6 +319,10 @@ export type UnequipItemPacket = {
 export type UseItemPacket = {
 	ItemId: string,
 	Target: Player?,
+}
+
+export type InventoryPacket = {
+	Inventory: {ItemTypes.Item},
 }
 
 export type DialogueStartPacket = {
@@ -628,6 +636,12 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 5,
 		RequiresValidation = true,
 		Description = "Client requests to use item",
+	},
+	InventorySync = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Send full inventory to client",
 	},
 	
 	-- Dialogue/Quests

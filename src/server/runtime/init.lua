@@ -58,6 +58,7 @@ local dependencies = {
 	DataService = services.DataService,
 	StateSyncService = services.StateSyncService,
 	AspectService = services.AspectService,
+	InventoryService = services.InventoryService,
 }
 
 for name, service in services do
@@ -89,6 +90,7 @@ local startOrder = {
 	"StateSyncService",    -- Depends on NetworkService
 	"DataService",
 	"AspectService",       -- new Aspect system logic
+	"InventoryService",    -- handles inventory & item usage
 	"WeaponService",       -- #69: equip system (after NetworkService)
 	"DefenseService",      -- Defense mechanics
 	"CombatService",       -- Combat validation and damage application
