@@ -70,11 +70,30 @@ function InventoryService.SetEquipped(player: Player, slot: string, itemId: stri
     if not profile then
         return false
     end
+    -- auto-use moves rather than persist them on slots
+    if itemId then
+        -- detect item in inventory
+        local item
+        if profile.Inventory then
+            for _, v in ipairs(profile.Inventory) do
+                if v.Id == itemId then
+                    item = v
+                    break
+                end
+            end
+        end
+        if item and item.Category == "AspectMove" then
+            -- trigger use immediately and do not equip
+            InventoryService.UseItem(player, itemId)
+            return true
+        end
+    end
+
     profile.EquippedItems = profile.EquippedItems or {}
     if itemId == nil then
         profile.EquippedItems[slot] = nil
     else
-        -- find object in inventory
+        -- find object in inventory and store reference
         profile.EquippedItems[slot] = nil
         if profile.Inventory then
             for _, v in ipairs(profile.Inventory) do

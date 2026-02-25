@@ -61,6 +61,28 @@ return {
             end,
         },
         {
+            name = "Equipping AspectMove triggers use and does not populate slot",
+            fn = function()
+                local called = false
+                -- stub AspectService.ExecuteAbility
+                AspectService.ExecuteAbility = function(p, abilityId, tp)
+                    called = true
+                    return true
+                end
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {}, EquippedItems = {}}
+                }
+                local moveItem = {Id = "move1", Name="m", Description="", Category="AspectMove", AbilityId="a1", AspectId="Ash"}
+                InventoryService.GiveItem(fakePlayer, moveItem)
+                assert(InventoryService.SetEquipped(fakePlayer, "hotbar2", "move1") == true)
+                assert(called == true, "AspectService should have been invoked")
+                local profile = DataService:GetProfile(fakePlayer)
+                assert(profile.EquippedItems.hotbar2 == nil, "AspectMove should not stay equipped")
+            end,
+        },
+        {
             name = "Using AspectMove forwards to AspectService",
             fn = function()
                 local fakePlayer = {}
