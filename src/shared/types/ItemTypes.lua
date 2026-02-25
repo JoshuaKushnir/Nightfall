@@ -6,7 +6,8 @@
     Dependencies: AspectTypes (for AspectId)
 ]]
 
-local AspectTypes = require(script:FindFirstAncestor("shared"):WaitForChild("types"):WaitForChild("AspectTypes"))
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes) :: any
 
 export type ItemId = string
 export type ItemCategory = "AspectMove" | "Weapon" | "Armor" | "Accessory" | "Consumable" | "Quest"
