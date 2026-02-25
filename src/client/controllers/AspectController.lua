@@ -24,6 +24,9 @@ local NetworkTypes = require(ReplicatedStorage.Shared.types.NetworkTypes)
 
 local localPlayer = Players.LocalPlayer
 
+-- dependency references (filled in Init)
+local NetworkController: any = nil
+
 local AspectController = {}
 AspectController._cooldowns = {} -- abilityId -> expiry tick
 -- typed via cast rather than annotation to avoid parser error
@@ -51,33 +54,37 @@ function AspectController:IsOnCooldown(abilityId: string)
     return expiry and expiry > tick() or false
 end
 
--- handle network events via NetworkController
-local NetworkController = require(ReplicatedStorage.Shared.controllers.NetworkController) -- assuming path
+-- network event handlers will be registered during Init when dependencies arrive
 
-NetworkController:RegisterHandler("AbilityDataSync", function(packet)
+-- we declare local functions so they can be used after Init
+local function _registerHandlers()
+    if not NetworkController then return end
+
+    NetworkController:RegisterHandler("AbilityDataSync", function(packet)
     AspectController._cooldowns = packet or {}
 end)
 
-NetworkController:RegisterHandler("AbilityCastResult", function(packet)
-    local success = packet.Success
-    local reason = packet.Reason
-    local abilityId = packet.AbilityId
-    local targetPos = packet.TargetPosition
-    if not success then
-        warn("Ability cast failed:", reason)
-    end
-    if success and abilityId then
-        local ability = AspectRegistry.Abilities[abilityId]
-        if ability then
-            AspectController._cooldowns[abilityId] = tick() + ability.Cooldown
+    NetworkController:RegisterHandler("AbilityCastResult", function(packet)
+        local success = packet.Success
+        local reason = packet.Reason
+        local abilityId = packet.AbilityId
+        local targetPos = packet.TargetPosition
+        if not success then
+            warn("Ability cast failed:", reason)
         end
-    end
-end)
+        if success and abilityId then
+            local ability = AspectRegistry.Abilities[abilityId]
+            if ability then
+                AspectController._cooldowns[abilityId] = tick() + ability.Cooldown
+            end
+        end
+    end)
 
-NetworkController:RegisterHandler("AspectAssigned", function(packet)
-    local aspectId = packet
-    AspectController._aspectData = {AspectId = aspectId, IsUnlocked = true, Branches = {Expression={Depth=0,ShardsInvested=0},Form={Depth=0,ShardsInvested=0},Communion={Depth=0,ShardsInvested=0}}, TotalShardsInvested=0}
-end)
+    NetworkController:RegisterHandler("AspectAssigned", function(packet)
+        local aspectId = packet
+        AspectController._aspectData = {AspectId = aspectId, IsUnlocked = true, Branches = {Expression={Depth=0,ShardsInvested=0},Form={Depth=0,ShardsInvested=0},Communion={Depth=0,ShardsInvested=0}}, TotalShardsInvested=0}
+    end)
+end
 
 -- input binding
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
@@ -95,7 +102,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- project initialization functions
-function AspectController:Init()
+function AspectController:Init(dependencies: {[string]: any}?)
+    print("[AspectController] Initializing...")
+    if dependencies then
+        NetworkController = dependencies.NetworkController
+    end
+    _registerHandlers()
     print("[AspectController] Initialized")
     -- could read user settings for keybinds later
 end
