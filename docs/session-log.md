@@ -54,8 +54,9 @@ design numbers come in, and begin Phase 4 planning.
 
 ### Session NF-041 Changes:
 
-- **UI polish:** Added open/close animation for inventory window with backquote key; panel now slides off-screen to the right and hint text updated. Inventory moved to right‑hand side to avoid debug UI; hotbar pulled out into a persistent frame so it remains visible even when the bag is closed. Stats area continues to show item/equipped counts. Hotbar now centers horizontally and displays only filled slots when the bag is closed, while showing all eight slots when open.
-- **Inventory defaults:** Added a generic fists weapon item to new players' inventories so they always have something to equip/use. ItemTypes expanded with `WeaponItem` union.
+- **UI polish:** Added grid layout for inventory items – each item is a square and multiple columns appear instead of full‑width rows. Inventory buttons now sized 40×40 and wrap after five columns.
+- **Hotbar & toggle:** Added I key fallback for toggling the bag (backquote still works where recognized) and solved crash; hotbar behavior unchanged.
+- **Weapon integration:** InventoryController now sends both `EquipItem` and `EquipWeapon` network events when a weapon is clicked, and receives `EquipWeapon` on server to mark profile equipped. This makes clicking fists equip the actual Tool. Added server handler to InventoryService for `EquipWeapon` to keep UI sync. Tests updated accordingly.
 - **Tests updated:** Expanded `InventoryController` unit tests to validate sync callback, toggle behavior, hint text, and independent hotbar.
 - **Minor fixes:** removed heartbeat polling code; cleaned up GUI layout.
 - **Next:** ensure equip/unequip server handler remains robust and run integration scenario.
