@@ -16,6 +16,7 @@
 - **NetworkTypes extended:** Added six Aspect-related events and packet definitions. Committed under #12.
 - **AspectController:** Added `src/client/controllers/AspectController.lua` handling keybinds, syncing cooldowns, and sending requests. Committed under #12.
 - **Bootstrap wiring:** Registered `AspectService` in server runtime and added `AspectController` to client bootstrap start order. Committed under #13.
+- **Cooldown & Mana regen:** Implemented cooldown storage on player data, sync event, and heartbeat-based mana regeneration in `AspectService`. Committed under #13 and closing issue #13.
 
 ### Session NF-038 Changes:
 
