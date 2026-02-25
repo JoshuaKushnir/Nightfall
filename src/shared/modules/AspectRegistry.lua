@@ -75,8 +75,8 @@ Registry.Aspects = {
 }
 
 -- Ability and passive tables
-Registry.Abilities: {[string]: AspectTypes.AspectAbility} = {}
-Registry.Passives: {[string]: AspectTypes.AspectPassive} = {}
+Registry.Abilities = {} :: {[string]: AspectTypes.AspectAbility}
+Registry.Passives = {} :: {[string]: AspectTypes.AspectPassive}
 
 local function makeAbility(params: AspectTypes.AspectAbility)
     Registry.Abilities[params.Id] = params
