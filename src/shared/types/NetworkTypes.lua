@@ -72,6 +72,14 @@ export type NetworkEvent =
 	-- Abilities
 	| "UseAbility"
 
+	-- Aspect System Events
+	| "AspectAssigned"         -- Server → Client: tell client their Aspect was set
+	| "AspectInvestRequest"    -- Client → Server: request to invest Shards in a branch
+	| "AspectInvestResult"     -- Server → Client: success/failure result
+	| "AbilityCastRequest"     -- Client → Server: request to cast an ability
+	| "AbilityCastResult"      -- Server → Client: success/failure + target info
+	| "AbilityDataSync"        -- Server → Client: sync current cooldowns on join
+
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
 
@@ -184,6 +192,38 @@ export type ClashOutcomePacket = {
 export type CondemnedStatusPacket = {
 	Target: Player,
 	IsCondemned: boolean,
+}
+
+-- Aspect system packets
+export type AspectAssignedPacket = {
+	AspectId: string,
+}
+
+export type AspectInvestRequestPacket = {
+	AspectId: string,
+	Branch: string,
+	Amount: number,
+}
+
+export type AspectInvestResultPacket = {
+	Success: boolean,
+	Reason: string?,
+}
+
+export type AbilityCastRequestPacket = {
+	AbilityId: string,
+	TargetPosition: Vector3?,
+}
+
+export type AbilityCastResultPacket = {
+	Success: boolean,
+	Reason: string?,
+	AbilityId: string?,
+	TargetPosition: Vector3?,
+}
+
+export type AbilityDataSyncPacket = {
+	Cooldowns: {[string]: number},
 }
 
 export type PostureChangedPacket = {
