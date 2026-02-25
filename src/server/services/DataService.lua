@@ -89,6 +89,11 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 		Broken = false,
 	},
 	
+	-- Aspect System extras
+	AspectData = nil,
+	ResonanceShards = 0,
+	TotalResonance = 0,
+	
 	-- Inventory & Equipment
 	EquippedMantras = {},
 	KnownMantras = {},

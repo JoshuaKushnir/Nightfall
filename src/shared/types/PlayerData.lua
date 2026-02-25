@@ -8,6 +8,8 @@
 	All player data should conform to these types for type safety across the codebase.
 ]]
 
+local AspectTypes = require(game:GetService("ReplicatedStorage").Shared.types.AspectTypes)
+
 -- Component Types
 export type HealthComponent = {
 	Current: number,
@@ -70,6 +72,11 @@ export type PlayerData = {
 	-- Combat Data
 	Mantras: {Mantra},
 	ActiveCooldowns: {[string]: number}, -- Mantra name -> cooldown end time
+	
+	-- Aspect System
+	AspectData: AspectTypes.PlayerAspectData?,    -- nil until Aspect chosen at character creation
+	ResonanceShards: number,          -- in-flight currency, lost on death
+	TotalResonance: number,           -- permanent, never lost
 	
 	-- Discipline
 	DisciplineId: string,
