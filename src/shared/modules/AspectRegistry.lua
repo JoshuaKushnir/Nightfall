@@ -22,7 +22,8 @@ local ASPECT_COLORS: {[AspectTypes.AspectId]: Color3} = {
 }
 
 -- Aspect configs
-Registry.Aspects: {[AspectTypes.AspectId]: AspectTypes.AspectConfig} = {
+Registry.Aspects = {} :: {[AspectTypes.AspectId]: AspectTypes.AspectConfig}
+Registry.Aspects = {
     Ash = {
         Id = "Ash",
         DisplayName = "Ash",
