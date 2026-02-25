@@ -34,6 +34,10 @@ AspectController._cooldowns = {} -- abilityId -> expiry tick
 AspectController._aspectData = nil :: AspectTypes.PlayerAspectData?
 AspectController._inventory = {} :: {ItemTypes.Item}
 AspectController._equipped = {} :: {[string]: ItemTypes.Item?}
+
+-- callbacks for when inventory/equipment updates arrive from server
+AspectController._inventoryChangeListeners = {}
+
 AspectController._keybinds = {} :: {[Enum.KeyCode]: string?}
 AspectController._keybinds = {
     [Enum.KeyCode.Z] = nil,
@@ -92,6 +96,10 @@ local function _registerHandlers()
     NetworkController:RegisterHandler("InventorySync", function(packet)
         AspectController._inventory = packet.Inventory or {}
         AspectController._equipped = packet.Equipped or {}
+        -- notify listeners so UI can refresh immediately
+        for _, fn in ipairs(AspectController._inventoryChangeListeners) do
+            pcall(fn)
+        end
         warn("[AspectController] InventorySync received", #AspectController._inventory)
         for i, item in ipairs(AspectController._inventory) do
             warn(`   inv {i}: {item.Id}`)
@@ -139,6 +147,12 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- project initialization functions
+function AspectController:OnInventoryChanged(callback: ()->())
+    if type(callback) == "function" then
+        table.insert(AspectController._inventoryChangeListeners, callback)
+    end
+end
+
 function AspectController:Init(dependencies: {[string]: any}?)
     print("[AspectController] Initializing...")
     if dependencies then

@@ -8,8 +8,13 @@ local InventoryController = require(ReplicatedStorage.Client.controllers.Invento
 -- stub AspectController and NetworkController
 local fakeAspect = {
     _inventory = {},
+    _equipped = {},
     GetInventory = function(self) return self._inventory end,
     RequestEquip = function() end,
+    OnInventoryChanged = function(self, fn)
+        -- store callback for test to call manually
+        self._cb = fn
+    end,
 }
 
 local stubNet = {}
@@ -63,5 +68,43 @@ return {
                 assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots")
             end,
         },
+        {
+            name = "Inventory sync callback fires RefreshUI",
+            fn = function()
+                -- clear
+                local player = game:GetService("Players").LocalPlayer
+                player.PlayerGui:FindFirstChild("InventoryUI")?.Destroy()
+
+                -- initial inventory empty
+                fakeAspect._inventory = {}
+                InventoryController:RefreshUI()
+                -- now simulate server update
+                fakeAspect._inventory = {{Name="X", Category="Abilities", Rarity="Common"}}
+                if fakeAspect._cb then
+                    fakeAspect._cb()
+                end
+                local pg = player:WaitForChild("PlayerGui")
+                local scroll = pg.InventoryUI.InventoryRoot.Scroll
+                assert(#scroll:GetChildren() > 0, "RefreshUI should run on callback")
+            end,
+        },
+        {
+            name = "ToggleOpen changes state and moves UI",
+            fn = function()
+                -- ensure gui exists
+                InventoryController:RefreshUI()
+                local gui = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI
+                local root = gui.InventoryRoot
+                local initialPos = root.Position
+                InventoryController:ToggleOpen()
+                wait(0.3)
+                assert(InventoryController._isOpen == false, "should be closed")
+                assert(root.Position.X.Scale < 0, "root should have moved offscreen")
+                InventoryController:ToggleOpen()
+                wait(0.3)
+                assert(InventoryController._isOpen == true, "should be open")
+            end,
+        },
     },
 }
+
