@@ -14,6 +14,7 @@
 - **AspectRegistry module:** Added `src/shared/modules/AspectRegistry.lua` containing data for all six Aspects, stub abilities/passives, and synergy definitions. Committed under #11.
 - **PlayerData update:** Expanded `PlayerData` type and default profile to include `AspectData`, `ResonanceShards`, and `TotalResonance` fields. Committed under #12.
 - **NetworkTypes extended:** Added six Aspect-related events and packet definitions. Committed under #12.
+- **AspectController:** Added `src/client/controllers/AspectController.lua` handling keybinds, syncing cooldowns, and sending requests. Committed under #12.
 
 ### Session NF-038 Changes:
 
