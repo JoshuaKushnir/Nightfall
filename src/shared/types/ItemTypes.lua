@@ -10,13 +10,29 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes) :: any
 
 export type ItemId = string
-export type ItemCategory = "AspectMove" | "Weapon" | "Armor" | "Accessory" | "Consumable" | "Quest"
+export type ItemCategory = 
+    "Abilities" 
+    | "Tools" 
+    | "TrainingGear" 
+    | "Equipment" 
+    | "Weapons" 
+    | "Schematics" 
+    | "QuestItems" 
+    | "Consumables" 
+    | "Relics" 
+    | "Materials" 
+    -- legacy types (kept for compatibility)
+    | "AspectMove" | "Weapon" | "Armor" | "Accessory" | "Consumable" | "Quest"
+
+export type Rarity = "Common" | "Uncommon" | "Rare" | "Legendary" | "Potion" | "Elemental"
 
 export type ItemBase = {
     Id: ItemId,
     Name: string,
     Description: string,
     Category: ItemCategory,
+    Rarity: Rarity,
+    Weight: number?, -- optional for capacity checks
 }
 
 -- An inventory item that represents a castable Aspect ability.
