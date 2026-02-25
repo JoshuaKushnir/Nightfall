@@ -18,6 +18,18 @@
 - **Bootstrap wiring:** Registered `AspectService` in server runtime and added `AspectController` to client bootstrap start order. Committed under #13.
 - **Cooldown & Mana regen:** Implemented cooldown storage on player data, sync event, and heartbeat-based mana regeneration in `AspectService`. Committed under #13 and closing issue #13.
 
+### Phase 3 Completion Summary:
+
+All planned Phase 3 work is now complete. Types, registry data,
+server service, client controller, network events, and bootstrap integration
+have been added. Player data extended for Aspect and Resonance,
+cooldowns and mana regen implemented, and spec-gap issues created.
+Epics and sub-issues (conceptual) are ready for closure; post-merge the
+Phase 3 Epic can be closed in GitHub.
+
+**Next Steps:** migrate to testing, flesh out ability implementations once
+design numbers come in, and begin Phase 4 planning.
+
 ### Session NF-038 Changes:
 
 - **Fix — Immediate Wall-Run Dropouts (The "OnGround" Bug):**
