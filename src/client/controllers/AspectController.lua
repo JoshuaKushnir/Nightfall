@@ -51,17 +51,22 @@ function AspectController:IsOnCooldown(abilityId: string)
     return expiry and expiry > tick() or false
 end
 
--- handle network events
-NetworkProvider:RegisterClientEvent("AbilityDataSync", function(packet: NetworkTypes.AbilityDataSyncPacket)
+-- handle network events via NetworkController
+local NetworkController = require(ReplicatedStorage.Shared.controllers.NetworkController) -- assuming path
+
+NetworkController:RegisterHandler("AbilityDataSync", function(packet)
     AspectController._cooldowns = packet or {}
 end)
 
-NetworkProvider:RegisterClientEvent("AbilityCastResult", function(success, reason, abilityId, targetPos)
+NetworkController:RegisterHandler("AbilityCastResult", function(packet)
+    local success = packet.Success
+    local reason = packet.Reason
+    local abilityId = packet.AbilityId
+    local targetPos = packet.TargetPosition
     if not success then
         warn("Ability cast failed:", reason)
     end
     if success and abilityId then
-        -- start local cooldown as well
         local ability = AspectRegistry.Abilities[abilityId]
         if ability then
             AspectController._cooldowns[abilityId] = tick() + ability.Cooldown
@@ -69,8 +74,8 @@ NetworkProvider:RegisterClientEvent("AbilityCastResult", function(success, reaso
     end
 end)
 
-NetworkProvider:RegisterClientEvent("AspectAssigned", function(aspectId)
-    -- cache aspect data (not complete profile, just id)
+NetworkController:RegisterHandler("AspectAssigned", function(packet)
+    local aspectId = packet
     AspectController._aspectData = {AspectId = aspectId, IsUnlocked = true, Branches = {Expression={Depth=0,ShardsInvested=0},Form={Depth=0,ShardsInvested=0},Communion={Depth=0,ShardsInvested=0}}, TotalShardsInvested=0}
 end)
 
