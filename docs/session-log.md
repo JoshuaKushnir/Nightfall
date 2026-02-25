@@ -54,9 +54,9 @@ design numbers come in, and begin Phase 4 planning.
 
 ### Session NF-041 Changes:
 
-- **UI polish:** Added open/close animation for inventory window with `I` key; panel now slides off-screen and a top-right hint appears when closed. Stats area added showing item count and equipped count.
+- **UI polish:** Added open/close animation for inventory window with backquote key; panel now slides off-screen to the right and hint text updated. Inventory moved to right‑hand side to avoid debug UI; hotbar pulled out into a persistent frame so it remains visible even when the bag is closed. Stats area continues to show item/equipped counts.
 - **Callback wiring:** AspectController gained `OnInventoryChanged` listener support; InventoryController subscribes and refreshes immediately on `InventorySync` instead of polling.
-- **Tests updated:** Expanded `InventoryController` unit tests to validate sync callback and toggle behavior.
+- **Tests updated:** Expanded `InventoryController` unit tests to validate sync callback, toggle behavior, hint text, and independent hotbar.
 - **Minor fixes:** removed heartbeat polling code; cleaned up GUI layout.
 - **Next:** ensure equip/unequip server handler remains robust and run integration scenario.
 
