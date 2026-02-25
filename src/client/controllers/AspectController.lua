@@ -20,6 +20,7 @@ local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
+local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes) :: any
 local NetworkTypes = require(ReplicatedStorage.Shared.types.NetworkTypes)
 
 local localPlayer = Players.LocalPlayer
@@ -31,6 +32,7 @@ local AspectController = {}
 AspectController._cooldowns = {} -- abilityId -> expiry tick
 -- typed via cast rather than annotation to avoid parser error
 AspectController._aspectData = nil :: AspectTypes.PlayerAspectData?
+AspectController._inventory = {} :: {ItemTypes.Item}
 AspectController._keybinds = {} :: {[Enum.KeyCode]: string?}
 AspectController._keybinds = {
     [Enum.KeyCode.Z] = nil,
@@ -49,6 +51,28 @@ function AspectController:GetEquippedAbilities(): {string}
     return out
 end
 
+function AspectController:GetInventory(): {ItemTypes.Item}
+    return self._inventory
+end
+
+function AspectController:RequestEquip(slot: string, itemId: string)
+    if NetworkController then
+        NetworkController:SendToServer("EquipItem", {Slot = slot, ItemId = itemId})
+    end
+end
+
+function AspectController:RequestUnequip(slot: string)
+    if NetworkController then
+        NetworkController:SendToServer("UnequipItem", {Slot = slot})
+    end
+end
+
+function AspectController:RequestUse(itemId: string, target: Player?)
+    if NetworkController then
+        NetworkController:SendToServer("UseItem", {ItemId = itemId, Target = target})
+    end
+end
+
 function AspectController:IsOnCooldown(abilityId: string)
     local expiry = self._cooldowns[abilityId]
     return expiry and expiry > tick() or false
@@ -61,8 +85,16 @@ local function _registerHandlers()
     if not NetworkController then return end
 
     NetworkController:RegisterHandler("AbilityDataSync", function(packet)
-    AspectController._cooldowns = packet or {}
-end)
+        AspectController._cooldowns = packet or {}
+    end)
+
+    NetworkController:RegisterHandler("InventorySync", function(packet)
+        AspectController._inventory = packet.Inventory or {}
+        warn("[AspectController] InventorySync received", #AspectController._inventory)
+        for i, item in ipairs(AspectController._inventory) do
+            warn(`   slot {i}: {item.Id}`)
+        end
+    end)
 
     NetworkController:RegisterHandler("AbilityCastResult", function(packet)
         local success = packet.Success
