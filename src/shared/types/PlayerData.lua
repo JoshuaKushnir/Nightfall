@@ -8,7 +8,8 @@
 	All player data should conform to these types for type safety across the codebase.
 ]]
 
-local AspectTypes = require(game:GetService("ReplicatedStorage").Shared.types.AspectTypes)
+local AspectTypes = require(game:GetService("ReplicatedStorage").Shared.types.AspectTypes) :: any
+local ItemTypes = require(game:GetService("ReplicatedStorage").Shared.types.ItemTypes) :: any
 
 -- Component Types
 export type HealthComponent = {
@@ -80,6 +81,10 @@ export type PlayerData = {
 	
 	-- Discipline
 	DisciplineId: string,
+	
+	-- Inventory & equipment (items stored in the player's backpack/config)
+	Inventory: {ItemTypes.Item},      -- items in backpack or stash
+	EquippedItems: {ItemTypes.Item?},  -- slot index -> item (nil if empty)
 	
 	-- Metadata
 	Level: number,

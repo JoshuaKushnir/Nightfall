@@ -8,6 +8,7 @@
 ]]
 
 local AspectTypes = require(script.Parent.Parent.types.AspectTypes)
+local ItemTypes = require(script.Parent.Parent.types.ItemTypes)
 
 local Registry = {}
 
@@ -77,6 +78,13 @@ Registry.Aspects = {
 -- Ability and passive tables
 Registry.Abilities = {} :: {[string]: AspectTypes.AspectAbility}
 Registry.Passives = {} :: {[string]: AspectTypes.AspectPassive}
+
+-- Move item registry (maps item id -> AspectMoveItem)
+Registry.MoveItems = {} :: {[string]: ItemTypes.AspectMoveItem}
+
+local function makeMoveItem(params: ItemTypes.AspectMoveItem)
+    Registry.MoveItems[params.Id] = params
+end
 
 local function makeAbility(params: AspectTypes.AspectAbility)
     Registry.Abilities[params.Id] = params
