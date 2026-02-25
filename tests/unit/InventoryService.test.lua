@@ -136,5 +136,23 @@ return {
                 assert(#profile.Inventory == 2, "Expected two starter moves")
             end,
         },
+        {
+            name = "Grant test moves even if inventory nonempty, no duplicates",
+            fn = function()
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {{Id="other"}} , EquippedItems = {}}
+                }
+                InventoryService._onPlayerAdded(fakePlayer)
+                local profile = DataService:GetProfile(fakePlayer)
+                local foundQuick, foundStrong = false, false
+                for _, v in ipairs(profile.Inventory) do
+                    if v.Id == "move_Test_Move_Quick" then foundQuick = true end
+                    if v.Id == "move_Test_Move_Strong" then foundStrong = true end
+                end
+                assert(foundQuick and foundStrong, "Both test moves should be present")
+            end,
+        },
     },
 }
