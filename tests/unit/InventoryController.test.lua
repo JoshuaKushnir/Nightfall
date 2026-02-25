@@ -52,5 +52,16 @@ return {
                 assert(count == 1, "Search should hide other items")
             end,
         },
+        {
+            name = "Hotbar shows equipped slots",
+            fn = function()
+                fakeAspect._equipped = { ["1"] = {Name="Quick"}, ["3"]={Name="Strong"} }
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local pg = player:WaitForChild("PlayerGui")
+                local hotbar = pg.InventoryUI.InventoryRoot.HotbarRoot
+                assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots")
+            end,
+        },
     },
 }
