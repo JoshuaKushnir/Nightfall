@@ -93,6 +93,7 @@ local dependencies = {
 	WeaponController    = controllers.WeaponController,
 	CombatController    = controllers.CombatController,
 	AspectController    = controllers.AspectController,
+	InventoryController = controllers.InventoryController,
 }
 
 for name, controller in controllers do
@@ -127,6 +128,7 @@ local startOrder = {
 	"ActionController",
 	"CombatController",      -- new combat state machine
 	"AspectController",      -- handles Aspect ability input
+	"InventoryController",    -- displays inventory items
 	"PlayerHUDController",
 	"CombatFeedbackUI",
 }
