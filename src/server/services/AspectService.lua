@@ -22,6 +22,7 @@ local DataService = require(script.Parent.DataService)
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local CombatService = require(script.Parent.CombatService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local NetworkService = require(script.Parent.NetworkService)
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 
@@ -258,17 +259,17 @@ end
 -- event listeners for network requests
 local function _onInvestRequest(player, aspectId, branch, amount)
     local success, reason = AspectService.InvestInBranch(player, aspectId, branch, amount)
-    NetworkProvider:FireClient(player, "AspectInvestResult", success, reason)
+    NetworkService:SendToClient(player, "AspectInvestResult", {Success = success, Reason = reason})
 end
 
 local function _onCastRequest(player, abilityId, targetPosition)
     local success, reason = AspectService.ExecuteAbility(player, abilityId, targetPosition)
-    NetworkProvider:FireClient(player, "AbilityCastResult", success, reason, abilityId, targetPosition)
+    NetworkService:SendToClient(player, "AbilityCastResult", {Success = success, Reason = reason, AbilityId = abilityId, TargetPosition = targetPosition})
 end
 
 -- sync cooldowns on join
 local function _onPlayerAdded(player)
-    NetworkProvider:FireClient(player, "AbilityDataSync", AspectService:GetCooldowns(player))
+    NetworkService:SendToClient(player, "AbilityDataSync", AspectService:GetCooldowns(player))
     AspectService.ApplyPassives(player)
 end
 
@@ -286,8 +287,13 @@ end
 
 function AspectService:Start()
     print("[AspectService] Starting...")
-    NetworkProvider:RegisterEvent("AspectInvestRequest", _onInvestRequest)
-    NetworkProvider:RegisterEvent("AbilityCastRequest", _onCastRequest)
+    NetworkService:RegisterHandler("AspectInvestRequest", function(player, packet)
+        -- packet is {AspectId, Branch, Amount}
+        _onInvestRequest(player, packet.AspectId, packet.Branch, packet.Amount)
+    end)
+    NetworkService:RegisterHandler("AbilityCastRequest", function(player, packet)
+        _onCastRequest(player, packet.AbilityId, packet.TargetPosition)
+    end)
     RunService.Heartbeat:Connect(_onHeartbeat)
     print("[AspectService] Started successfully")
 end
