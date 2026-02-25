@@ -163,5 +163,18 @@ return {
                 assert(foundQuick and foundStrong and foundFists, "Starter moves and fists should be present")
             end,
         },
+        {
+            name = "Explicit EquipWeapon syncs profile",
+            fn = function()
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {{Id="weapon_fists", Name="Fists", Category="Weapons"}}, EquippedItems = {}}
+                }
+                InventoryService:SetEquipped(fakePlayer, "weapon_fists", "weapon_fists")
+                local profile = DataService:GetProfile(fakePlayer)
+                assert(profile.EquippedItems.weapon_fists ~= nil, "profile should record weapon equipped")
+            end,
+        },
     },
 }

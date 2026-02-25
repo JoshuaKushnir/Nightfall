@@ -204,6 +204,11 @@ function InventoryService:Start()
     NetworkService:RegisterHandler("EquipItem", _onEquipRequest)
     NetworkService:RegisterHandler("UnequipItem", _onUnequipRequest)
     NetworkService:RegisterHandler("UseItem", _onUseRequest)
+    -- keep inventory UI in sync when weapons are equipped elsewhere
+    NetworkService:RegisterHandler("EquipWeapon", function(player, packet)
+        -- packet.WeaponId
+        InventoryService.SetEquipped(player, packet.WeaponId, packet.WeaponId)
+    end)
     print("[InventoryService] Started")
 end
 

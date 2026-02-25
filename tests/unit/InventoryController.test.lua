@@ -17,7 +17,10 @@ local fakeAspect = {
     end,
 }
 
-local stubNet = {}
+local stubNet = {sent = {}}
+stubNet.SendToServer = function(self, name, pkt)
+    table.insert(stubNet.sent, {name=name, pkt=pkt})
+end
 
 -- bootstrap
 InventoryController:Init({AspectController = fakeAspect, NetworkController = stubNet})
@@ -123,6 +126,34 @@ return {
                 InventoryController:ToggleOpen()
                 wait(0.3)
                 assert(InventoryController._isOpen == true, "should be open")
+            end,
+        },
+        {
+            name = "Inventory items are square"
+            ,fn = function()
+                fakeAspect._inventory = {{Id="foo",Name="Foo",Category="Abilities",Rarity="Common"}}
+                InventoryController:RefreshUI()
+                local gui = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI
+                local btn = gui.InventoryUI.InventoryRoot.Scroll:FindFirstChild("Item_foo")
+                assert(btn and btn.Size.X.Offset == btn.Size.Y.Offset, "Item button should be square")
+            end,
+        },
+        {
+            name = "Clicking weapon sends equip events",
+            fn = function()
+                stubNet.sent = {}
+                fakeAspect._inventory = {{Id="weapon_fists",Name="Fists",Category="Weapons",Rarity="Common"}}
+                InventoryController._isOpen = true
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local gui = player.PlayerGui.InventoryUI
+                local btn = gui.InventoryRoot.Scroll:FindFirstChild("Item_weapon_fists")
+                assert(btn, "weapon button exists")
+                btn.MouseButton1Click:Fire()
+                wait(0.1)
+                assert(#stubNet.sent >= 2, "should send at least two network events")
+                local names = {stubNet.sent[1].name, stubNet.sent[2].name}
+                assert(table.find(names, "EquipWeapon"), "EquipWeapon should be sent")
             end,
         },
         {

@@ -19,6 +19,7 @@ local localPlayer = Players.LocalPlayer
 
 local InventoryController = {}
 InventoryController._aspectController = nil :: any
+InventoryController._networkController = nil :: any
 InventoryController._gui = nil :: ScreenGui?
 
 -- open/closed state and hint
@@ -117,12 +118,12 @@ local function _ensureGui()
     scroll.ScrollBarThickness = 6
     scroll.Parent = root
 
-    -- hotbar is separate so it stays visible when inventory is closed
+    -- hotbar is separate and centered horizontally at bottom
     local hotbar = Instance.new("Frame")
     hotbar.Name = "HotbarRoot"
     hotbar.Size = UDim2.new(0, 360, 0, 40) -- 8 slots ×45
-    hotbar.Position = UDim2.new(1, -370, 1, -50)
-    hotbar.AnchorPoint = Vector2.new(0, 0) -- top-left remains relative to screen
+    hotbar.Position = UDim2.new(0.5, -180, 1, -50)
+    hotbar.AnchorPoint = Vector2.new(0, 0)
     hotbar.BackgroundTransparency = 0.3
     hotbar.BackgroundColor3 = Color3.fromRGB(30,30,30)
     hotbar.Parent = screenGui
@@ -219,23 +220,39 @@ function InventoryController:RefreshUI()
             end)
             y = y + 24
             if not InventoryController._collapsed[cat] then
+                -- draw grid
+                local cols = 5
+                local size = 40
+                local pad = 5
+                local col = 0
+                local row = 0
                 for _, item in ipairs(catItems) do
                     local btn = Instance.new("TextButton")
                     btn.Name = "Item_"..item.Id
-                    btn.Size = UDim2.new(1,-10,0,20)
-                    btn.Position = UDim2.new(0,5,0,y)
+                    btn.Size = UDim2.new(0, size, 0, size)
+                    btn.Position = UDim2.new(0, col*(size+pad), 0, y + row*(size+pad))
                     btn.BackgroundColor3 = CATEGORY_COLOR[cat] or Color3.new(0.2,0.2,0.2)
                     btn.BorderColor3 = RARITY_BORDER[item.Rarity or "Common"] or Color3.new(1,1,1)
                     btn.Text = item.Name
                     btn.TextScaled = true
                     btn.Parent = scroll
                     btn.MouseButton1Click:Connect(function()
-                        if self._aspectController then
-                            self._aspectController:RequestEquip(item.Id,item.Id)
+                        if self._networkController then
+                            if item.Category == "Weapons" then
+                                self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                            else
+                                self._networkController:SendToServer("EquipItem", {Slot = item.Id, ItemId = item.Id})
+                            end
                         end
                     end)
-                    y = y + 22
+
+                    col += 1
+                    if col >= cols then
+                        col = 0
+                        row += 1
+                    end
                 end
+                y = y + (row+1)*(size+pad)
             end
         end
     end
@@ -248,24 +265,57 @@ function InventoryController:RefreshUI()
             if child:IsA("TextButton") then child:Destroy() end
         end
         local slots = {}
-        for k,v in pairs(self._equipped) do
+        for k,v in pairs(self._equipped or {}) do
             slots[tonumber(k) or 0] = v
         end
-        for idx=1,8 do
-            local btn = Instance.new("TextButton")
-            btn.Name = "HotbarSlot"..idx
-            btn.Size = UDim2.new(0,40,0,40)
-            btn.Position = UDim2.new(0, (idx-1)*45, 0, 0)
-            btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-            local item = slots[idx]
-            btn.Text = item and item.Name or ""
-            btn.TextScaled = true
-            btn.Parent = hotbar
-            btn.MouseButton1Click:Connect(function()
-                if self._aspectController then
-                    self._aspectController:RequestUnequip(tostring(idx))
+        if self._isOpen then
+            -- show all slots when inventory open (including empties)
+            for idx=1,8 do
+                local btn = Instance.new("TextButton")
+                btn.Name = "HotbarSlot"..idx
+                btn.Size = UDim2.new(0,40,0,40)
+                btn.Position = UDim2.new(0, (idx-1)*45, 0, 0)
+                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                local item = slots[idx]
+                btn.Text = item and item.Name or ""
+                btn.TextScaled = true
+                btn.Parent = hotbar
+                btn.MouseButton1Click:Connect(function()
+                    if self._networkController then
+                        if item and item.Category == "Weapons" then
+                            self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                        else
+                            self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
+                        end
+                    end
+                end)
+            end
+        else
+            -- when closed, only render filled slots compactly
+            local x = 0
+            for idx=1,8 do
+                local item = slots[idx]
+                if item then
+                    local btn = Instance.new("TextButton")
+                    btn.Name = "HotbarSlot"..idx
+                    btn.Size = UDim2.new(0,40,0,40)
+                    btn.Position = UDim2.new(0, x, 0, 0)
+                    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                    btn.Text = item.Name
+                    btn.TextScaled = true
+                    btn.Parent = hotbar
+                    btn.MouseButton1Click:Connect(function()
+                        if self._networkController then
+                            if item.Category == "Weapons" then
+                                self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                            else
+                                self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
+                            end
+                        end
+                    end)
+                    x += 45
                 end
-            end)
+            end
         end
     end
 end
@@ -279,7 +329,11 @@ function InventoryController:Init(dependencies: {[string]: any}?)
     print("[InventoryController] Initializing...")
     if dependencies then
         self._aspectController = dependencies.AspectController
+        self._networkController = dependencies.NetworkController
     end
+
+    -- ensure equipped table exists to avoid nil loops
+    self._equipped = self._equipped or {}
 
     -- register callback for inventory updates
     if self._aspectController and self._aspectController.OnInventoryChanged then
@@ -288,11 +342,11 @@ function InventoryController:Init(dependencies: {[string]: any}?)
         end)
     end
 
-    -- listen for key to toggle
+    -- listen for key to toggle (Backquote correct spelling)
     local UserInputService = game:GetService("UserInputService")
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.BackQuote then
+        if input.KeyCode == Enum.KeyCode.Backquote or input.KeyCode == Enum.KeyCode.I then
             self:ToggleOpen()
         end
     end)
