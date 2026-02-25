@@ -126,6 +126,36 @@ for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
     end
 end
 
+-- add explicit test-only abilities (not tied to depth)
+makeAbility({
+    Id = "Test_Move_Quick",
+    Name = "Quick Test Move",
+    AspectId = "Ash",
+    Branch = "Expression",
+    MinDepth = 1,
+    BaseDamage = 10,
+    PostureDamage = 5,
+    ManaCost = 15,
+    Cooldown = 0.5,
+    CastTime = 0.1,
+    RequiredState = {"Idle"},
+    VFX_Function = emptyVFX,
+})
+makeAbility({
+    Id = "Test_Move_Strong",
+    Name = "Strong Test Move",
+    AspectId = "Tide",
+    Branch = "Expression",
+    MinDepth = 1,
+    BaseDamage = 25,
+    PostureDamage = 10,
+    ManaCost = 30,
+    Cooldown = 2.0,
+    CastTime = 0.5,
+    RequiredState = {"Idle"},
+    VFX_Function = emptyVFX,
+})
+
 -- stub passives for Form branch for each active Aspect
 for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
     for depth = 1, 3 do
