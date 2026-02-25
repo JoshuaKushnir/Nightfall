@@ -71,3 +71,17 @@ export type AspectConfig = {
     ThemeColor: Color3,      -- for UI, set placeholder values
     MovementModifier: string, -- description only, implemented in MovementController later
 }
+
+-- return a table with type aliases for runtime requires
+local _exports: any = {}
+_exports.AspectId = ({} :: any) :: AspectId
+_exports.BranchId = ({} :: any) :: BranchId
+_exports.BranchDepth = ({} :: any) :: BranchDepth
+_exports.AspectBranchState = ({} :: any) :: AspectBranchState
+_exports.PlayerAspectData = ({} :: any) :: PlayerAspectData
+_exports.AspectAbility = ({} :: any) :: AspectAbility
+_exports.AspectPassive = ({} :: any) :: AspectPassive
+_exports.AspectSynergy = ({} :: any) :: AspectSynergy
+_exports.AspectConfig = ({} :: any) :: AspectConfig
+
+return _exports
