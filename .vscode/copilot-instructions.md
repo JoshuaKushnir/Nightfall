@@ -1,1198 +1,549 @@
-# Nightfall: Engineering Manifesto & Architecture Rules
-**Last Updated:** February 12, 2026  
-**Project:** Nightfall - Dark Fantasy Roblox RPG  
-**Architecture:** Rojo + Luau (Strict Typing, Modular, Testable)
+# Nightbound: Engineering Manifesto
+**Project:** Nightbound — Dark Fantasy Roblox RPG  
+**Stack:** Rojo + Luau (Strict Typing, Service/Controller, DRY)  
+**Repo:** JoshuaKushnir/Nightfall  
+**Last Updated:** February 2026
 
 ---
 
-## 🚨 CRITICAL: MANDATORY WORKFLOW RULES (READ FIRST)
+## ⚡ THE ONE RULE THAT OVERRIDES EVERYTHING
 
-### ⚠️ COPILOT ISSUE-DRIVEN DEVELOPMENT (MOST IMPORTANT)
-**Golden Rule: NO IMPLEMENTATION WITHOUT AN ISSUE**
+> **NO CODE WITHOUT AN ISSUE. NO ISSUE WITHOUT A COMMIT. NO COMMIT WITHOUT A PUSH.**
 
-1. **ALL IDEAS REQUIRE ISSUES FIRST:**
-   - Feature ideas → Create/reference GitHub issue BEFORE coding
-   - Bug fixes → Link to existing issue or create new one
-   - Refactoring → Document in issue with scope and impact
-   - Questions/confusion → Default to GitHub issues discussion or create `docs/TECHNICAL_DECISIONS.md` entry
-   - **Never implement without issue backing** - Use GitHub issue board as approval mechanism
-
-2. **IF NO ISSUE EXISTS FOR YOUR TASK:**
-   - Check [GitHub Issues](https://github.com/JoshuaKushnir/Nightfall/issues) first
-   - If not found, create new issue using `gh issue create` with proper labels
-   - Use best practices and professional standards if unsure of implementation details
-   - State assumptions in issue description
-   - Wait for issue creation confirmation before proceeding
-
-3. **BUG HANDLING PROTOCOL:**
-   - If you discover a bug DURING implementation:
-     - Stop implementation immediately
-     - Create GitHub issue with `bug` label (if not using standard labels, use descriptive title)
-     - Document exact reproduction steps in issue
-     - Reference the original issue being worked on
-     - Update session-log with bug discovery
-     - Do NOT attempt to fix unless explicitly instructed (let human review)
-   - If asked to fix a known bug:
-     - Find existing GitHub issue
-     - Move issue to "In Progress" state
-     - Update issue with current progress
-     - Close issue only when fully tested
-
-4. **MANDATORY TESTING BEFORE ISSUE CLOSURE:**
-   **🚨 CRITICAL: NEVER CLOSE AN ISSUE WITHOUT TESTING**
-   
-   **Testing Requirements (ALL must be met before closing):**
-   - ✅ **Unit Tests:** All public methods tested with edge cases
-   - ✅ **Integration Tests:** Service interactions verified
-   - ✅ **Manual Testing:** Roblox Studio testing with no errors/warnings
-   - ✅ **Type Checking:** `--!strict` passes with no type errors
-   - ✅ **Acceptance Criteria:** ALL criteria in issue description verified
-   - ✅ **Performance:** No lag, stuttering, or memory leaks
-   - ✅ **Client-Server Sync:** Network communication working (if applicable)
-   - ✅ **UI Responsiveness:** Interface elements respond correctly (if applicable)
-   - ✅ **Edge Cases:** Nil values, empty data, extreme inputs tested
-   - ✅ **Documentation:** Code comments and module headers complete
-   
-   **Testing Evidence Required:**
-   - Screenshots/videos of functionality working
-   - Console output showing no errors/warnings
-   - Test results documented in issue comments
-   - Performance metrics (if applicable)
-   - Integration verification with dependent systems
-   
-   **If Testing Fails:**
-   - Do NOT close the issue
-   - Document what failed in issue comments
-   - Create follow-up issues for fixes
-   - Mark issue as "blocked" or "needs-review"
-   - Update session log with testing results
-   
-   **Testing Commands:**
-   ```bash
-   # Run in Roblox Studio to verify no errors
-   # Check Output window for warnings/errors
-   # Test all acceptance criteria manually
-   # Verify type checking with --!strict
-   ```
-
-5. **ISSUE LIFECYCLE MANAGEMENT:**
-   - **Epic Issues (Phase-Level):**
-     - **Create:** One per phase with overview, dependencies, and definition of done
-     - **Link Sub-Issues:** Use `gh sub-issue add <epic-number> <sub-issue-number>` to link existing issues
-     - **Create Sub-Issues:** Use `gh sub-issue create --parent <epic-number> --title "Title"` for new work
-     - **Monitor:** Progress tracked automatically via GitHub's native sub-issue tracking
-     - **Close:** Only when ALL sub-issues complete AND phase fully delivered
-   - **Sub-Issues (Feature-Level):**
-     - **Create Standalone:** Use standard `gh issue create` with labels
-     - **Create Linked:** Use `gh sub-issue create --parent <epic-number>` to auto-link to epic
-     - **Link Existing:** Use `gh sub-issue add <parent> <child>` to link existing issue to epic
-     - **Add Dependencies:** Use `gh issue-ext blocking add <blocked-id> <blocking-id>` to mark dependencies
-     - **Check Blockers:** Use `gh issue-ext blocking list <issue-id>` before starting work
-     - **Update:** During development → Add comments with progress checkpoint
-     - **Review:** Before completion → Verify all acceptance criteria met
-     - **Close:** When fully implemented and tested → GitHub auto-updates parent epic progress
-     - **Track:** Update session-log.md with issue progress and link to epic
-
-5. **WHEN CONFUSED OR AMBIGUOUS:**
-   - Default to **GitHub issue discussion thread** - ask clarifying questions in issue comments
-   - Reference professional standards and best practices in your response
-   - Document decision rationale in session log
-   - **Minimize human interaction** - figure it out using established patterns and conventions
-   - If truly blocked, note in issue and mark as `blocked` label
+If you are about to write code and there is no GitHub issue for it, stop. Create the issue first. This is not a suggestion. It is the operating model.
 
 ---
 
-### ⚠️ BEFORE STARTING ANY TASK:
-1. **ALWAYS READ `docs/BACKLOG.md`** - Check for existing issues, planned work, and architectural decisions
-2. **ALWAYS READ `docs/session-log.md`** - Understand what was done previously, active types, and technical debt
-3. **VERIFY GITHUB ISSUE EXISTS** - Check [GitHub Issues](https://github.com/JoshuaKushnir/Nightfall/issues) for the task at hand
-4. **IF ISSUE MISSING:** Create it using `gh issue create` with labels (`phase-X`, `priority`, `type`)
-5. **CHECK DEPENDENCIES** - Review issue dependencies using `gh issue-ext blocking list <issue-id>` and ensure prerequisites are complete
-6. **REFERENCE ISSUE IN ALL WORK** - Use issue number in code comments, commit messages, session log
+## 🧠 SESSION START — DO THIS EVERY TIME, IN ORDER
 
-### ⚠️ DURING EVERY TASK:
-1. **UPDATE GITHUB ISSUE** - Add comment with progress checkpoint every major file/system creation
-   - Format: `## Progress Update\n- [x] Task completed\n- [ ] Next step\n**Issue:** self-assigned`
-2. **LOG ALL ACTIONS** to `docs/session-log.md` under the current session:
-   - Files created/modified with brief description
-   - New types or interfaces added
-   - Architectural decisions made
-   - Problems encountered and solutions applied
-   - **Link to GitHub issue number** in all entries
-3. **REFERENCE ISSUE NUMBERS** - Link all work to specific issues
-   - Code comments: `// Issue #24: ProfileService wrapper implementation`
-   - Commit messages: `feat(#24): Implement DataService profile loading`
-   - Session log: Include issue number in all entries
-4. **MAINTAIN TYPE CONSISTENCY** - Always check `src/shared/types` before creating new data structures
-5. **PRESERVE CONTEXT** - If you discover additional requirements or edge cases:
-   - Note them in GitHub issue comments
-   - Update acceptance criteria if scope changed
-   - Create linked issues if separate work discovered
-   - Do NOT silence issues - always update GitHub
+Before touching any file or creating any issue:
 
-### ⚠️ AFTER COMPLETING ANY TASK:
-
-1. **MANDATORY TESTING VERIFICATION (REQUIRED BEFORE CLOSURE):**
-   **🚨 DO NOT CLOSE ANY ISSUE WITHOUT COMPLETING THIS CHECKLIST:**
-   
-   - [ ] **Unit Tests Pass:** All public methods tested with edge cases
-   - [ ] **Integration Tests Pass:** Service interactions verified
-   - [ ] **Roblox Studio Testing:** Code runs without errors/warnings in Studio
-   - [ ] **Type Checking:** `--!strict` enabled and passes
-   - [ ] **Acceptance Criteria Met:** ALL criteria in issue description verified
-   - [ ] **Performance Verified:** No lag, stuttering, or memory issues
-   - [ ] **Client-Server Sync:** Network communication working (if applicable)
-   - [ ] **UI Functionality:** Interface elements respond correctly (if applicable)
-   - [ ] **Edge Cases Tested:** Nil values, empty data, extreme inputs handled
-   - [ ] **Documentation Complete:** Code comments and module headers added
-   
-   **Testing Evidence Required:**
-   - Console output showing no errors/warnings
-   - Screenshots/videos of functionality working
-   - Test results documented in issue comments
-   - Performance metrics (if applicable)
-   
-   **If ANY test fails:** Do NOT close issue - document failures and create follow-up issues
-
-2. **CLOSE GITHUB ISSUE (Only When ALL Testing Complete):**
-   - Verify ALL acceptance criteria are ✅ complete
-   - Verify ALL testing checklist items are ✅ complete
-   - Add final comment summarizing completion:
-     ```
-     ## Issue Complete ✅
-     - [x] All acceptance criteria met
-     - [x] All testing requirements satisfied
-     - Files created/modified: [list]
-     - Testing performed: [detailed list with results]
-     - Related issues: [link any]
-     - Ready for: [next phase/review]
-     ```
-   - Use GitHub CLI: `gh issue close <issue-number> --comment "Completion summary..."`
-   - **NEVER close prematurely** - only when fully implemented AND tested
-
-3. **UPDATE `docs/session-log.md`:**
-   - Mark completed milestones with issue number
-   - Add new types to "Active Global Types" section
-   - Document any technical debt created (with links to issues created)
-   - Note integration points and testing performed
-   - Reference all GitHub issue numbers worked on
-   - Summarize blockers or follow-up work needed
-
-3. **VERIFY INTEGRATION:**
-   - Ensure new code integrates with existing systems
-   - Check that types are exported and imported correctly
-   - Confirm no breaking changes to dependent systems
-   - Test with related systems if applicable
-   - Update session log with verification results
-
-4. **DOCUMENT NEXT STEPS IN GITHUB:**
-   - If blockers discovered, create new issue (link to original)
-   - If follow-up work needed, create issue and link from completed issue
-   - If refactoring opportunities found, add issue comment suggesting refactor
-   - Update any dependent issues with status
-   - Mark related issues as unblocked if prerequisites now complete
-
-### 📋 ISSUE BOARD MANAGEMENT:
-- **Creating New Issues:**
-  - Use issue template format from BACKLOG.md
-  - Assign proper labels: `phase-X`, `priority`, `type`
-  - Define acceptance criteria clearly
-  - Link related issues for context
-- **Issue States:**
-  - `⏳ Pending` - Not started, awaiting dependencies
-  - `🔄 In Progress` - Currently being worked on
-  - `✅ Complete` - Fully implemented and tested
-  - `🚫 Blocked` - Waiting on external factor or decision
-- **Priority Levels:**
-  - `critical` - Blocks other work, must be done first
-  - `high` - Important for phase completion
-  - `medium` - Enhances functionality, not blocking
-  - `low` - Nice to have, cosmetic
-
-### 🏗️ EPIC & SUB-ISSUE HIERARCHY:
-**Structure:** Every phase has ONE epic issue with proper GitHub sub-issues linked to it.
-
-- **Epic Issues (`epic` label):**
-  - One per phase (e.g., #48 Phase 1, #49 Phase 2, #50 Phase 3, #51 Phase 4, #18 Phase 5)
-  - Epic body MUST include:
-    - Phase overview and objectives
-    - Dependencies on other phases or systems
-    - Definition of done for entire phase
-  - GitHub automatically displays linked sub-issues with progress tracking
-  - Epic stays OPEN until ALL sub-issues complete
-  - Never close epic manually - only when phase is fully complete
-
-- **Sub-Issues (GitHub Native Feature):**
-  - Features, systems, or components that belong to an epic
-  - Linked to parent epic using GitHub's sub-issue relationship (not labels!)
-  - Each sub-issue has its own:
-    - Detailed technical specifications
-    - Acceptance criteria
-    - Dependencies on other sub-issues
-    - Priority and type labels
-  - Sub-issues can be closed independently as they complete
-  - GitHub automatically shows sub-issue progress on parent epic
-
-- **Creating Sub-Issues:**
-  **Option 1: Link existing issue to epic**
-  ```bash
-  gh sub-issue add <parent-epic-number> <sub-issue-number> --repo JoshuaKushnir/Nightfall
-  ```
-  
-  **Option 2: Create new sub-issue directly linked to epic**
-  ```bash
-  gh sub-issue create --parent <parent-epic-number> --title "Title of sub-issue" --repo JoshuaKushnir/Nightfall
-  ```
-  
-  **Best Practice:**
-  1. Check parent epic to see if issue already exists
-  2. If issue exists but not linked: Use `gh sub-issue add` to link it
-  3. If creating new work: Use `gh sub-issue create --parent` to auto-link
-  4. Add relevant type labels (`backend`, `frontend`, `full-stack`)
-  5. Fill in detailed issue description with acceptance criteria
-
-- **Working on Sub-Issues:**
-  - Always check parent epic first to understand phase context
-  - Update sub-issue status independently (assign, mark in-progress, close)
-  - GitHub automatically updates parent epic progress when sub-issues close
-  - View all sub-issues for an epic: Check epic's "Sub-issues" section on GitHub
-
-- **Example Hierarchy:**
-  ```
-  Epic #48: Phase 1 - Core Framework
-  ├── Sub-issue #24: ProfileService Data Wrapper [✓ Complete]
-  ├── Sub-issue #25: State Machine System [✓ Complete]
-  ├── Sub-issue #26: Network Provider [✓ Complete]
-  ├── Sub-issue #27: Bootstrap Systems [✓ Complete]
-  └── Sub-issue #42: Client Binding Framework [✓ Complete]
-  
-  Epic #49: Phase 2 - Combat & Fluidity
-  ├── Sub-issue #28: Hitbox System [ Pending]
-  ├── Sub-issue #29: Action Controller [ Pending]
-  ├── Sub-issue #30: Parry Mechanics [ Pending]
-  └── Sub-issue #43: Combat Feedback UI [ Pending]
-  ```
-
-- **Why This Matters:**
-  - **Progress Tracking:** GitHub shows phase completion % automatically
-  - **Scope Management:** Easy to see what's in/out of scope for a phase
-  - **Dependency Clarity:** Sub-issues reference each other AND parent epic
-  - **Context Preservation:** New team members can understand project by reading epics
-  - **Work Organization:** Never lose track of what needs to be done in a phase
-  - **Native GitHub Feature:** Uses official GitHub sub-issue relationships (not labels)
-
-### 🔗 ISSUE DEPENDENCIES & BLOCKING RELATIONSHIPS:
-**Structure:** Track which issues block other issues using GitHub CLI extensions.
-
-GitHub CLI supports managing dependency/blocking relationships between issues using the `gh issue-ext` extension. This helps visualize which work must be completed before other work can begin.
-
-- **Managing Issue Dependencies:**
-  
-  **Add a blocking relationship (Issue A blocks Issue B):**
-  ```bash
-  gh issue-ext blocking add <blocked_issue_id> <blocking_issue_id>
-  ```
-  *Example: If #28 (Hitbox) must be done before #30 (Parry), mark #28 as blocking #30:*
-  ```bash
-  gh issue-ext blocking add 30 28
-  ```
-  
-  **List all issues blocking a specific issue:**
-  ```bash
-  gh issue-ext blocking list <issue_id>
-  ```
-  *Example: See what's blocking #43 (Combat UI):*
-  ```bash
-  gh issue-ext blocking list 43
-  ```
-  
-  **Remove a blocking relationship:**
-  ```bash
-  gh issue-ext blocking remove <blocked_issue_id> <blocking_issue_id>
-  ```
-  *Example: Unblock #30 from #28:*
-  ```bash
-  gh issue-ext blocking remove 30 28
-  ```
-
-- **Best Practices:**
-  1. **Document dependencies in issue descriptions** - Always write dependencies in issue body for visibility
-  2. **Use blocking relationships for hard dependencies** - Only mark as blocking if work CANNOT start without it
-  3. **Keep dependency chains short** - Long chains indicate work should be broken down
-  4. **Check blockers before starting work** - Run `gh issue-ext blocking list <issue>` before beginning
-  5. **Unblock issues promptly** - When completing work, check if any issues were blocked by it
-
-- **When to Use Blocking Relationships:**
-  - ✅ **Backend system must exist before frontend can use it** (e.g., #26 NetworkProvider blocks #42 Client Binding)
-  - ✅ **Core functionality required for advanced feature** (e.g., #28 Hitbox blocks #30 Parry mechanics)
-  - ✅ **Data structure must be defined before consumer** (e.g., PlayerData types block DataService)
-  - ❌ **Nice-to-have improvements** (don't use blocking for optional enhancements)
-  - ❌ **Soft preferences** (only use for technical requirements, not preferences)
-
-- **Example Dependency Graph:**
-  ```
-  Phase 1 (#48)
-  ├── #24: ProfileService [✓ Complete]
-  │   └── blocks → #35: Progression System (needs data persistence)
-  ├── #26: Network Provider [✓ Complete]
-  │   ├── blocks → #42: Client Binding
-  │   ├── blocks → #44: Mantra Casting UI
-  │   └── blocks → #34: Dialogue System
-  └── #25: State Machine [✓ Complete]
-      └── blocks → #29: Action Controller (needs state management)
-  
-  Phase 2 (#49)
-  ├── #28: Hitbox System [Pending]
-  │   └── blocks → #30: Parry Mechanics (needs hit detection)
-  └── #29: Action Controller [Pending]
-      └── blocks → #43: Combat Feedback UI (needs animations)
-  ```
-
-- **Workflow Integration:**
-  - When creating a new issue, document dependencies in the body
-  - Before starting work, check: `gh issue-ext blocking list <issue-number>`
-  - When completing an issue, search for issues it was blocking
-  - Update blocked issues with comments: "Unblocked by completion of #XX"
-  - Add to session log when resolving blocking relationships
-
----
-
-## 🎯 DECISION-MAKING & BEST PRACTICES (Minimize Human Interaction)
-
-### When to Make Autonomous Decisions:
-**You should proceed WITHOUT asking for approval when:**
-- Decision follows established architectural patterns (Service/Controller, strict typing, DRY, etc.)
-- Implementation aligns with code standards documented in copilot-instructions.md
-- Best practices are generally accepted in the industry (e.g., error handling, state management)
-- Technical decision is reversible or fixable with reasonable effort
-- Specs are unambiguous and acceptance criteria are clear
-
-### Decision Framework (In Order of Priority):
-1. **Check copilot-instructions.md** - Follow documented patterns and standards first
-2. **Check existing code** - Replicate patterns used in similar modules
-3. **Check best practices** - Use professional/industry standards
-4. **Check this decision-making framework** - Apply logic below
-5. **Document in GitHub** - Add comment explaining decision rationale
-
-### Specific Decision Categories:
-
-**API/Function Design:**
-- Use established patterns: Service methods, Controller callbacks, utility functions
-- Naming: camelCase for functions/variables, PascalCase for types/classes
-- Parameters: Type every parameter, provide defaults when reasonable
-- Documentation: Add header comment with purpose, parameters, returns, example
-
-**Architectural Choices:**
-- **When to create a Service:** Shared state or logic needed across multiple systems
-- **When to create a Utility:** Function used 2+ times or pure logic with no side effects
-- **When to create a Controller:** Client-side logic tied to specific gameplay system
-- **When to create a Type:** Data structure shared between multiple modules
-
-**Error Handling:**
-- All network calls: Use (success, result) tuple pattern
-- All database operations: Implement retry logic with exponential backoff
-- All user input: Validate and sanitize before use
-- All risky operations: Wrap in pcall() or Result pattern
-
-**Performance:**
-- Avoid `wait()` during initialization - use signals instead
-- Cache calculations that are repeated
-- Use object pools for frequently created/destroyed instances
-- Profile before optimizing (don't guess)
-
-**Type Safety:**
-- ALWAYS use `--!strict` at top of file
-- Define explicit return types for all functions
-- Use union types for known value sets
-- Export types from dedicated type files
-
-**Bug vs Feature Decision:**
-- **Bug:** Unintended behavior, breaks acceptance criteria, regression
-- **Feature:** New capability, enhancement, additional scope
-- When unclear: Err on side of "bug" - create issue and note in GitHub
-
-### Common Ambiguities & How to Resolve:
-
-| Ambiguity | Default Approach | Document In |
-|-----------|------------------|-------------|
-| "Should I add feature X?" | Check issue acceptance criteria - if not listed, create new issue first | GitHub issue |
-| "Which pattern should I use?" | Follow most similar existing code | Code comment + session log |
-| "How much error handling?" | Assume all inputs are malicious (security mindset) | Module documentation |
-| "When to refactor?" | Never during active task - create tech debt issue instead | GitHub with `tech-debt` label |
-| "Performance concern?" | Profile first to confirm - document findings in issue | GitHub issue analysis |
-| "Breaking change?" | Stop immediately - consult issue and mark issue as `blocked` | GitHub issue discussion |
-
-### When to Stop and Escalate to Human:
-
-**DO NOT PROCEED - Create GitHub Issue or Comment:**
-- Breaking changes to existing public APIs
-- Fundamental architectural decisions not covered in manifesto
-- Security vulnerabilities or anti-cheat concerns
-- Undefined scope or conflicting requirements
-- Resource constraints (too complex to estimate)
-- Third-party library integration with unclear licensing/compatibility
-
-**Mark as `blocked` label and add GitHub comment:**
 ```
-## Awaiting Human Review
-- **Issue:** [Description of blocker]
-- **Why:** [Reason can't proceed autonomously]
-- **Options considered:** [List with pros/cons]
-- **Recommendation:** [Your professional assessment]
-- **Time sensitive:** [Yes/No]
+1. READ docs/session-log.md               — what was built, last session ID, current state
+2. READ .github/copilot-instructions.md   — this file
+3. RUN: gh issue list --state open        — what is pending and in progress
+4. IDENTIFY the next issue to work on     — highest priority, unblocked
+5. ASSIGN yourself and move to In Progress on GitHub
 ```
 
+Do not skip step 1. The session log is your memory. Without it you will duplicate work, break things that are already done, or build on wrong assumptions.
+
 ---
 
-## 1. System Memory & Session Tracking
+## 📋 SESSION END — DO THIS EVERY TIME, IN ORDER
 
-### Session Intelligence System
-Every coding session has persistent memory through interconnected documentation:
+After completing any meaningful unit of work:
 
-**Primary Memory Files:**
-- **`docs/session-log.md`** - Session-by-session technical journal
-  - Current session ID and date
-  - Active global types registry
-  - Last integrated system/module
-  - Completed milestones checklist
-  - Technical debt tracker
-  - Pending issues and blockers
-- **`https://github.com/JoshuaKushnir/Nightfall/issues`** - Complete development roadmap
-  - All phases and issues
-  - Feature specifications
-  - Acceptance criteria
-  - Dependencies and blockers
-  - Priority and status tracking
-
-**Context Preservation Protocol:**
-1. **Before Writing Code:**
-   - Read both memory files
-   - Identify active types from session log
-   - Check BACKLOG for related issues
-   - Verify no conflicting implementations exist
-2. **During Development:**
-   - Reference existing types in `src/shared/types`
-   - Log significant decisions inline with comments
-   - Track new types/interfaces created
-3. **After Implementation:**
-   - Update session log with details
-   - Mark BACKLOG issues complete
-   - Document integration points
-   - Note any new technical debt
-
-### Session Log Format Standards
-```markdown
-## Current Session ID: NF-XXX
-**Date:** YYYY-MM-DD
-**Epic:** Brief description of main focus
-
-## Last Integrated System: ModuleName
-
-### Active Global Types
-- `TypeName` - Brief description and usage
-- `AnotherType` - Brief description
-
-### Technical Debt / Pending Issues
-- [ ] Issue #X: Description with context
-- [ ] TODO: Specific technical debt item
-
-### Completed Milestones
-- [x] Specific completed task with timestamp
+```
+1. COMMIT with issue reference
+2. PUSH to remote
+3. UPDATE the GitHub issue (progress comment or close it)
+4. UPDATE docs/session-log.md
+5. COMMIT the session log: docs(#XX): Update session log
+6. PUSH again
 ```
 
+Never end a session with uncommitted changes. Never end a session without updating the session log.
+
 ---
 
-## 2. Modular Architecture (Rojo/Luau)
+## 🗂️ ISSUE-FIRST DEVELOPMENT
 
-### Service/Controller Pattern (The Foundation)
-**Server-Side Services** (`src/server/services/`)
-- Authoritative game logic and data management
-- State validation and anti-cheat enforcement
-- Database operations and player persistence
-- Global event coordination
-- **Naming:** Always end with `Service` (e.g., `DataService`, `CombatService`)
-- **Structure:**
-  ```lua
-  --!strict
-  --[[
-      Class: ServiceName
-      Description: What this service manages
-      Dependencies: List required services
-      Author: Project Nightfall
-      Last Modified: YYYY-MM-DD
-  ]]
-  
-  local ServiceName = {}
-  ServiceName.__index = ServiceName
-  
-  -- Private state
-  local isInitialized = false
-  
-  function ServiceName:Init()
-      if isInitialized then
-          warn("ServiceName already initialized")
-          return
-      end
-      -- Setup code
-      isInitialized = true
-  end
-  
-  function ServiceName:Start()
-      -- Start running logic after all services Init()
-  end
-  
-  return ServiceName
-  ```
+### Creating Issues
 
-**Client-Side Controllers** (`src/client/controllers/`)
-- User interface logic and user input handling
-- Local animations and visual feedback
-- Client-side prediction (with server validation)
-- UI state management
-- **Naming:** Always end with `Controller` (e.g., `CombatController`, `UIController`)
-- **Structure:** Mirror service structure but for client logic
+Every piece of work — feature, bugfix, refactor, spec gap, tech debt — needs a GitHub issue before implementation begins. No exceptions.
 
-**Network Boundary** (`src/shared/network/`)
-- All client-server communication goes through defined RemoteEvents/RemoteFunctions
-- **Naming:** `[Feature]Network.lua` defines all remotes for that feature
-- **Type Safety:** Always define expected parameter types
-- **Validation:** Server MUST validate ALL client inputs (trust nothing)
-- **Rate Limiting:** Implement cooldowns for all client-initiated actions
+```bash
+gh issue create \
+  --repo JoshuaKushnir/Nightfall \
+  --title "verb + noun description" \
+  --label "phase-X,priority,type" \
+  --milestone "Phase X: Name" \
+  --body "$(cat <<'EOF'
+## Overview
+[What this is and why it exists — 1-2 sentences]
 
-### Dependency Injection & Initialization
-**Initialization Order:**
-1. All services call `Init()` first (setup phase, no dependencies)
-2. All services call `Start()` second (dependencies safe to use)
-3. Never use `wait()` or `task.wait()` during initialization
+## Acceptance Criteria
+- [ ] [Concrete, testable, binary — either done or not]
+- [ ] [Each criterion maps to something you can verify in Studio or via type checker]
 
-**Dependency Loading:**
+## Dependencies
+Blocked by: #XX
+
+## Files Affected
+- `src/path/to/file.lua` (create / modify)
+
+## Notes
+[Spec gaps, design decisions, placeholder values used]
+EOF
+)"
+```
+
+### Issue Labels
+
+Always apply three label types:
+
+| Category | Options |
+|---|---|
+| **Phase** | `phase-1` `phase-2` `phase-3` `phase-4` `phase-5` |
+| **Priority** | `critical` `high` `medium` `low` |
+| **Type** | `backend` `frontend` `infrastructure` `data` `combat` `magic` `ui` `networking` `tech-debt` `spec-gap` `bug` `epic` |
+
+### Issue Lifecycle
+
+```
+Created → [assigned, In Progress] → [progress comments during work] → [all criteria met] → Closed
+```
+
+- Add a progress comment every time you complete a major step within an issue
+- Never close an issue until ALL acceptance criteria are verified in Roblox Studio
+- If you discover a bug while working on an issue: stop, create a new `bug` issue, reference it in the current issue, do not fix silently
+
+### Epics and Sub-Issues
+
+Each phase has one epic issue. All work for that phase is a sub-issue linked to the epic.
+
+```bash
+# Link a sub-issue to its parent epic
+gh sub-issue add <epic-number> <sub-issue-number> --repo JoshuaKushnir/Nightfall
+
+# Create a new sub-issue already linked
+gh sub-issue create --parent <epic-number> --title "Title" --repo JoshuaKushnir/Nightfall
+```
+
+Epic IDs (verify against board):
+- Phase 1 Core Framework: verify on board
+- Phase 2 Combat & Fluidity: verify on board
+- Phase 3 Aspect / Mantra: verify on board
+- Phase 4 World & Narrative: verify on board
+- Phase 5 Polish & Launch: #18
+
+### Blocking Relationships
+
+Hard dependencies must be set as blocking relationships on GitHub, not just mentioned in descriptions.
+
+```
+Use GitHub Web: Issue → "Linked issues" sidebar → "blocks" or "blocked by"
+```
+
+Rule: only set `blocks` when work **cannot start** without the other issue complete. Do not use it for soft preferences.
+
+---
+
+## 🏗️ ARCHITECTURE
+
+### Folder Map
+
+```
+src/
+  server/
+    services/         ← all server logic (DataService, CombatService, AspectService...)
+    runtime/          ← init.lua bootstrap — loads and starts all services
+  client/
+    controllers/      ← all client logic (ActionController, InventoryController...)
+    modules/          ← client-only utilities (UIBinding, DebugInput...)
+    runtime/          ← init.lua bootstrap — loads and starts all controllers
+  shared/
+    types/            ← ALL type definitions (PlayerData, NetworkTypes, AspectTypes...)
+    modules/          ← shared logic (StateService, HitboxService, Utils, AspectRegistry...)
+    network/          ← NetworkProvider — Remote registry
+docs/
+  session-log.md      ← THE MEMORY FILE
+  BACKLOG.md          ← phase overview, links to GitHub
+.github/
+  copilot-instructions.md  ← this file
+```
+
+### The Hard Rules of Architecture
+
+**1. No cross-boundary requires**
 ```lua
--- GOOD: Signal-based provider
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StateService = require(ReplicatedStorage.Shared.Modules.StateService)
+-- ✅ Correct
+local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
--- BAD: Yielding during load
-local StateService = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Modules"):WaitForChild("StateService"))
+-- ❌ Never do this from server
+local ActionController = require(game.StarterPlayerScripts.controllers.ActionController)
 ```
 
-### DRY (Don't Repeat Yourself) Utility First
-**The Two-Use Rule:** If any logic is used in 2+ places, it MUST become a utility function.
-
-**Utility Categories** (`src/shared/modules/`)
-- **`MathUtils.lua`** - Vector math, magnitude checks, angle calculations, interpolation
-- **`TableUtils.lua`** - Deep copy, merge, filter, map, reduce operations
-- **`ValidationUtils.lua`** - Type checking, range validation, nil-safe operations
-- **`RaycastUtils.lua`** - Common raycast patterns, hitbox detection, line-of-sight
-- **`TweenUtils.lua`** - Reusable tween templates, animation helpers
-- **`StringUtils.lua`** - Formatting, parsing, sanitization
-
-**Utility Function Standards:**
+**2. StateService is the only way to change player state**
 ```lua
---[[
-    Function: UtilityName
-    Description: What it does and when to use it
-    Parameters:
-        param1: Type - Description
-        param2: Type - Description
-    Returns: Type - Description
-    Example:
-        local result = UtilityName(value1, value2)
-]]
-export type InputType = {
-    field: string
-}
+-- ✅ Correct
+StateService:SetPlayerState(player, "Attacking")
 
-local function UtilityName(param1: InputType, param2: number): boolean
-    -- Implementation
-    return true
+-- ❌ Never do this
+playerData.State = "Attacking"
+```
+
+**3. Server validates everything the client sends**
+```lua
+-- Every RemoteEvent handler on the server:
+NetworkService:RegisterHandler("AbilityCastRequest", function(player, packet)
+    -- 1. Validate player exists
+    -- 2. Validate packet fields are present and correct type
+    -- 3. Validate state allows this action
+    -- 4. Validate resources (mana, cooldown)
+    -- 5. Validate range/position
+    -- Only then: execute
+end)
+```
+
+**4. Utilities go in Utils**
+
+If the same logic appears in two files, it moves to `src/shared/modules/Utils.lua`. No exceptions.
+
+**5. Services use Init/Start pattern**
+```lua
+local MyService = {}
+MyService._initialized = false
+
+function MyService:Init(dependencies)
+    self._dep = dependencies.SomeService
+    self._initialized = true
 end
+
+function MyService:Start()
+    assert(self._initialized, "Must call Init() before Start()")
+    -- begin listening, set up connections, etc.
+end
+
+return MyService
+```
+
+**6. No wait() anywhere**
+```lua
+-- ❌ Never
+wait(1)
+game:WaitForChild("Thing")
+
+-- ✅ Always
+task.wait(1)
+thing.ChildAdded:Wait()
 ```
 
 ---
 
-## 3. Combat & Gameplay Logic
+## 📐 CODING STANDARDS
 
-### State-Machine Authoritative Design
-**The Nexus:** `StateService` is the single source of truth for all character states.
+### Every File Must Start With
 
-**State Requirements:**
-- Every player and NPC MUST have a registered state
-- State changes MUST go through StateService (no direct modification)
-- State transitions MUST be validated (can't go from Dead to Attacking)
-- State changes MUST be replicated to clients for animations
-
-**State Types** (from `src/shared/types/PlayerData.lua`):
-```lua
-export type PlayerState = 
-    "Idle" | "Walking" | "Sprinting" | "Jumping" | 
-    "Attacking" | "Casting" | "Blocking" | "Dodging" | 
-    "Stunned" | "Ragdolled" | "Dead" | "Meditating"
-```
-
-**State Validation Pattern:**
-Every action must check state before execution:
-```lua
-local function PerformAction(player: Player)
-    local currentState = StateService:GetState(player)
-    
-    -- Block during invalid states
-    if currentState == "Stunned" or currentState == "Dead" or currentState == "Attacking" then
-        return false, "Cannot perform action during " .. currentState
-    end
-    
-    -- Set new state
-    StateService:SetState(player, "Attacking")
-    
-    -- Perform action logic
-    -- ...
-    
-    -- Return to idle
-    task.delay(duration, function()
-        StateService:SetState(player, "Idle")
-    end)
-    
-    return true
-end
-```
-
-### Mantra Framework (Magic System)
-**Mantra Definition Standard:**
-```lua
-export type Mantra = {
-    Id: string,
-    Name: string,
-    Description: string,
-    BaseDamage: number,
-    ManaCost: number,
-    CastTime: number, -- seconds
-    Cooldown: number, -- seconds
-    Range: number, -- studs
-    Element: "Fire" | "Water" | "Wind" | "Earth" | "Lightning" | "Shadow" | "Light",
-    VFX_Function: (caster: Player, target: Vector3) -> (),
-    OnHit_Function: (caster: Player, target: Player, damage: number) -> (),
-    RequiredLevel: number,
-    RequiredStats: {
-        Intelligence: number?,
-        Willpower: number?
-    }
-}
-```
-
-**Aspect Execution Flow:**
-1. **Validate State:** Check caster is in valid state
-2. **Validate Resources:** Check mana cost and cooldown
-3. **Validate Target:** Check range and line-of-sight
-4. **Set State:** Set caster to "Casting" state
-5. **Cast Time:** Wait for cast time (interruptible)
-6. **Execute VFX:** Play visual effects
-7. **Apply Damage:** Server calculates and applies damage
-8. **Trigger OnHit:** Execute special effects
-9. **Start Cooldown:** Begin cooldown timer
-10. **Return State:** Return caster to "Idle"
-
-### Combat Component System
-Use composition over inheritance for character attributes:
-
-**Component Types:**
-- **HealthComponent:** Current/Max health, regeneration rate, damage history
-- **ManaComponent:** Current/Max mana, regeneration rate, cost modifiers
-- **PostureComponent:** Balance system for stagger mechanics
-- **EquipmentComponent:** Worn items, stat modifiers
-- **StatusComponent:** Active buffs/debuffs with durations
-
-**Component Access Pattern:**
-```lua
--- Get component from PlayerData
-local healthComp = playerData.Components.Health
-local currentHP = healthComp.Current
-local maxHP = healthComp.Max
-
--- Update component
-healthComp.Current = math.max(0, currentHP - damage)
-
--- Trigger events if needed
-if healthComp.Current <= 0 then
-    StateService:SetState(player, "Dead")
-end
-```
-
----
-
-## 4. Coding Standards & Type Safety
-
-### Strict Typing Enforcement
-**Mandatory for ALL files:**
 ```lua
 --!strict
-```
-
-**Type Definition Standards:**
-- Use `export type` for all shared types
-- Define explicit return types for all functions
-- Use union types for known value sets
-- Avoid `any` unless absolutely necessary (document why)
-
-**Type Location Rules:**
-- **Shared Types:** `src/shared/types/` - Used by both client and server
-- **Service Types:** Define in service file if only used by that service
-- **Network Types:** Define parameter types at network boundary
-
-**Type Documentation:**
-```lua
 --[[
-    Type: TypeName
-    Description: What this type represents
-    Used By: List of modules/services
-    Example:
-        local instance: TypeName = {
-            field1 = "value",
-            field2 = 42
-        }
+    Class: FileName
+    Description: What this module does and why it exists
+    Dependencies: List of what it requires
+    
+    Usage:
+        local MyService = require(path.to.MyService)
+        MyService:Init(dependencies)
+        MyService:Start()
 ]]
-export type TypeName = {
-    field1: string,
-    field2: number,
-    optionalField: boolean?
-}
 ```
 
-### Code Quality Standards
+### Type Rules
 
-**Function Complexity:**
-- Max 50 lines per function (split if longer)
-- Single responsibility - each function does ONE thing
-- Clear input/output contracts with types
-- Early returns for error cases
+- `--!strict` on every file — no exceptions
+- `export type` for ALL shared types — never `local type`
+- All types live in `src/shared/types/` — never define shared types inside a service file
+- All function parameters and return values must be typed
+- Never use `any` unless absolutely unavoidable — if you do, add a comment explaining why
 
-**Variable Naming:**
-- `camelCase` for variables and functions
-- `PascalCase` for types and classes
-- `SCREAMING_SNAKE_CASE` for constants
-- Descriptive names (avoid abbreviations unless obvious)
-
-**Comments & Documentation:**
 ```lua
--- Single line comments for quick clarifications
+-- ✅ Correct
+export type PlayerState = "Idle" | "Attacking" | "Stunned" | "Dead"
 
---[[
-    Multi-line comments for:
-    - Function documentation
-    - Complex algorithm explanation
-    - Architecture decisions
-]]
-
--- TODO: Specific task remaining (add to technical debt)
--- FIXME: Known bug to address (create issue)
--- HACK: Temporary solution (explain why and plan removal)
--- NOTE: Important contextual information
-```
-
-**Error Handling:**
-```lua
--- Use Result pattern: return success, value_or_error
-local function RiskyOperation(input: string): (boolean, string)
-    if not input or input == "" then
-        return false, "Input cannot be empty"
-    end
-    
-    local success, result = pcall(function()
-        -- Risky operation
-        return processInput(input)
-    end)
-    
-    if not success then
-        warn("RiskyOperation failed:", result)
-        return false, "Operation failed: " .. tostring(result)
-    end
-    
-    return true, result
+function MyService:GetState(player: Player): PlayerState?
+    return PlayerStates[player]
 end
 
--- Usage
-local success, result = RiskyOperation(userInput)
+-- ❌ Wrong
+local type PlayerState = string
+
+function MyService:GetState(player)
+    return PlayerStates[player]
+end
+```
+
+### Function Length
+
+Functions over 50 lines should be broken into smaller named functions. If you're over 50 lines and it feels necessary, add a comment explaining why it can't be split.
+
+### Variable Naming
+
+| Pattern | Use for |
+|---|---|
+| `PascalCase` | Types, Services, Controllers, module-level constants |
+| `camelCase` | Local variables, function parameters |
+| `SCREAMING_SNAKE` | True constants (never reassigned) |
+| `_prefixed` | Private fields on service/controller tables |
+
+### Error Handling
+
+```lua
+-- For expected failures (validation):
+if not playerData then
+    warn(`[ServiceName] No data for player {player.Name}`)
+    return false, "Player data not found"
+end
+
+-- For unexpected failures (infrastructure):
+local success, result = pcall(function()
+    return DataStore:GetAsync(key)
+end)
 if not success then
-    -- Handle error
-    warn("Error:", result)
-    return
+    warn(`[DataService] DataStore read failed: {result}`)
+    -- handle gracefully
 end
--- Use result
-print("Success:", result)
 ```
 
 ---
 
-## 5. Testing & Validation
+## ⚔️ COMBAT & STATE RULES
 
-### Unit Testing Requirements
-**Test Coverage Expectations:**
-- All utility functions MUST have tests
-- All service public methods MUST have tests
-- All validation/calculation logic MUST have tests
+### State Validation Is Mandatory Before Every Action
 
-**Test File Location:**
-- `tests/shared/` for shared utilities
-- `tests/server/` for services
-- Mirror source file structure
-
-**Test Structure:**
 ```lua
---!strict
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TestModule = require(ReplicatedStorage.Shared.Modules.ModuleName)
-
-return function()
-    describe("ModuleName", function()
-        describe("FunctionName", function()
-            it("should handle valid input", function()
-                local result = TestModule.FunctionName("valid")
-                expect(result).to.equal(expected)
-            end)
-            
-            it("should reject invalid input", function()
-                expect(function()
-                    TestModule.FunctionName(nil)
-                end).to.throw()
-            end)
-            
-            it("should handle edge cases", function()
-                -- Test boundary conditions
-            end)
-        end)
-    end)
+local function CanPerformAction(player: Player, actionState: PlayerState): (boolean, string?)
+    local state = StateService:GetState(player)
+    if state == "Dead" then return false, "Player is dead" end
+    if state == "Stunned" then return false, "Player is stunned" end
+    if state == "Ragdolled" then return false, "Player is ragdolled" end
+    -- Add action-specific checks
+    return true, nil
 end
 ```
 
-### Integration Testing
-**When to Write Integration Tests:**
-- Service interactions (e.g., DataService + StateService)
-- Network communication (RemoteEvent handlers)
-- Complex workflows (combat execution, mantra casting)
+### State Transition Reference
 
-**Integration Test Focus:**
-- Does the data flow correctly between systems?
-- Are state transitions handled properly?
-- Are edge cases at boundaries caught?
+Valid transitions — if it's not in this list, it's blocked:
 
-### Manual Testing Checklist
-Before marking any issue as complete, verify:
-- [ ] Code runs without errors in Roblox Studio
-- [ ] No warnings in output console
-- [ ] Type checking passes (`--!strict` enabled)
-- [ ] Functionality works as specified in acceptance criteria
-- [ ] Edge cases tested (nil values, extreme numbers, empty tables)
-- [ ] Performance acceptable (no lag or stuttering)
-- [ ] Client-server sync working correctly
-- [ ] UI responds appropriately (if applicable)
+| From | Can go to |
+|---|---|
+| Idle | Walking, Running, Jumping, Attacking, Blocking, Dodging, Casting, Stunned, Dead |
+| Walking | Idle, Running, Jumping, Attacking, Blocking, Dodging, Casting, Stunned, Dead |
+| Running | Idle, Walking, Jumping, Attacking, Dodging, Stunned, Dead |
+| Attacking | Idle, Walking, Stunned, Dead |
+| Blocking | Idle, Walking, Stunned, Dead |
+| Casting | Idle, Walking, Stunned, Dead |
+| Stunned | Idle, Dead |
+| Dead | (terminal — ForceState admin only) |
+
+### Anti-Cheat Non-Negotiables
+
+- Damage is NEVER calculated by the client — server only
+- Hitbox creation timing is client-side but position/result is server-validated
+- Cooldowns are tracked server-side — client may cache for UI only
+- Position delta is validated on server (anti-teleport)
+- Rate limiting on every RemoteEvent handler
 
 ---
 
-## 6. Documentation Standards
+## 🔮 ASPECT SYSTEM RULES
 
-### Module Header Template
+All ability execution flows through AspectService on the server:
+
+```
+Client (keypress) → AbilityCastRequest → Server
+Server → CanCastAbility() check → state + mana + cooldown + range
+Server → SetState("Casting") → wait castTime → VFX stub → apply damage
+Server → AbilityCastResult → Client (feedback)
+```
+
+VFX functions are always empty stubs until an animator implements them:
 ```lua
---!strict
---[[
-    ================================
-    Module: ModuleName
-    Type: Service|Controller|Utility|Type
-    ================================
-    
-    Description:
-        Detailed description of what this module does,
-        its responsibilities, and when to use it.
-    
-    Dependencies:
-        - DependencyName: Why it's needed
-        - AnotherDep: Purpose
-    
-    Public API:
-        - FunctionName(params): returns - Description
-        - AnotherFunction(params): returns - Description
-    
-    Usage Example:
-        local Module = require(path.to.Module)
-        local result = Module:FunctionName(args)
-    
-    Author: Project Nightfall
-    Created: YYYY-MM-DD
-    Last Modified: YYYY-MM-DD by [Reason]
-    Related Issues: #X, #Y
-    ================================
-]]
+VFX_Function = function(caster: Player, targetPosition: Vector3?) 
+    -- VFX STUB: [describe intended effect here]
+    -- Implementation deferred — not a programmer task
+end,
 ```
 
-### Inline Documentation Standards
-**When to Add Inline Comments:**
-- Complex algorithms or math
-- Non-obvious business logic
-- Workarounds or hacks
-- Performance optimizations
-- Architecture decisions
-
-**What NOT to Comment:**
-- Obvious code (e.g., `-- Set x to 5` above `x = 5`)
-- Redundant type info (types should be explicit)
-- Outdated comments (delete or update, never leave stale)
-
-### README Standards
-Every major system should have a README:
-- **Purpose:** What problem does this solve?
-- **Architecture:** High-level design diagram or explanation
-- **Usage:** How to use this system
-- **Configuration:** Any settings or constants
-- **Testing:** How to test this system
-- **Known Issues:** Current limitations or bugs
+Communion abilities are always stubs — do not implement behavior.
 
 ---
 
-## 7. Performance & Optimization
+## 🎒 INVENTORY RULES
 
-### Roblox-Specific Performance Rules
-
-**Instance Management:**
-- Reuse instances with object pools (don't constantly create/destroy)
-- Use `GetChildren()` sparingly (cache results if possible)
-- Avoid `WaitForChild()` in loops (use single wait at startup)
-- Debounce rapid events (especially user input)
-
-**Memory Management:**
-- Clean up connections when objects destroyed
-- Use `Janitor` or `Maid` pattern for lifecycle management
-- Delete old references to prevent memory leaks
-- Be careful with closures capturing large objects
-
-**Network Optimization:**
-- Batch related data into single RemoteEvent calls
-- Use unreliable events for non-critical data (position updates)
-- Compress data when possible (send IDs instead of full objects)
-- Limit network calls per second (rate limiting)
-
-**Computational Efficiency:**
-- Cache expensive calculations
-- Use `ipairs` for arrays, `pairs` for dictionaries
-- Avoid nested loops with large datasets
-- Use `task.spawn` or `task.defer` for non-blocking operations
-- Profile code with Roblox Microprofiler when optimizing
+- Default Roblox backpack is disabled via `task.defer(StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false))` in client runtime
+- No Roblox `Tool` objects — all combat is service-driven
+- Equip/unequip is server-validated — client sends request, server mutates PlayerData
+- UI is built entirely in code — no Studio-placed ScreenGui elements
+- Drag-and-drop between slots is deferred tech debt — do not implement
 
 ---
 
-## 8. Security & Anti-Cheat
+## 📦 GIT WORKFLOW
 
-### Server Authority Principles
-**Golden Rule:** NEVER trust the client.
+### Commit Format
 
-**Validation Requirements:**
-- All player actions MUST be validated server-side
-- Check state, resources, cooldowns, range BEFORE executing
-- Verify ownership (player can't affect other players' data)
-- Validate magnitude and angle of actions (anti-teleport)
-- Rate limit all client requests
+```
+<type>(#issue): Imperative short description
 
-**Data Sanitization:**
-```lua
-local function ValidateDamage(reported: number): number
-    -- Don't trust client-calculated damage
-    local MAX_DAMAGE = 1000
-    return math.clamp(reported, 0, MAX_DAMAGE)
-end
-
-local function ValidatePosition(player: Player, position: Vector3): boolean
-    local character = player.Character
-    if not character or not character.PrimaryPart then
-        return false
-    end
-    
-    local currentPos = character.PrimaryPart.Position
-    local distance = (position - currentPos).Magnitude
-    
-    -- Ensure player isn't teleporting
-    local MAX_SPEED = 100 -- studs per second
-    return distance <= MAX_SPEED * 2 -- 2 second buffer
-end
+Optional body if context is needed.
 ```
 
-### Exploit Prevention Patterns
-- **Remote Spamming:** Implement cooldowns and rate limiting
-- **Teleportation:** Validate position changes
-- **Speed Hacking:** Monitor velocity and position delta
-- **Stat Manipulation:** All stats stored and modified server-side only
-- **Item Duplication:** Use session locks and transaction validation
+Types: `feat` `fix` `refactor` `docs` `test` `chore`
+
+Examples:
+```
+feat(#62): Add InventoryController Tab/I toggle and open/close tween
+fix(#71): Prevent AspectService mana regen before player data loads
+docs(#62): Update session log with inventory system completion
+refactor(#55): Extract position validation to Utils.ValidatePosition
+```
+
+### When to Commit
+
+Commit after every **logical unit** — one file, one system, one meaningful step. Never batch multiple files into one commit unless they are truly inseparable (e.g., a type file and the service that uses it in the same PR step).
+
+### Push After Every Commit
+
+```bash
+git add .
+git commit -m "feat(#XX): Description"
+git push origin <branch>
+```
+
+Never let commits sit unpushed. The remote is the source of truth.
+
+### Branch Strategy
+
+```
+main          ← stable, always deployable
+develop       ← integration branch
+feature/issue-XX-short-name  ← your working branch
+hotfix/description           ← urgent fixes only
+```
 
 ---
 
-## 9. Git & Version Control
+## 🧪 DEFINITION OF DONE
 
-### Commit Message Standards
-```
-<type>(#issue): Brief description
+An issue is only closed when ALL of these are true:
 
-Longer description if needed explaining why this
-change was made and any important context.
+- [ ] Code compiles with `--!strict` and zero type errors
+- [ ] All acceptance criteria in the issue are met
+- [ ] Manual test in Roblox Studio: zero errors or warnings in Output
+- [ ] Client-server flow tested (if networked)
+- [ ] No memory leaks — all Connections cleaned up on player leave or module unload
+- [ ] Session log updated with what was built
+- [ ] GitHub issue has a completion comment listing what was done
+- [ ] All commits pushed to remote
 
-- List of changes
-- Another change
-
-Related: #issue_number
-```
-
-**Types:** `feat`, `fix`, `refactor`, `docs`, `test`, `chore`
-
-**Examples:**
-- `feat(#15): Add CombatService damage calculation`
-- `fix(#23): Prevent StateService race condition`
-- `refactor(#8): Extract common raycast logic to Utils`
-- `docs: Update session log with Phase 1 completion`
-
-### Branching Strategy
-- **`main`** - Stable, deployable code only
-- **`develop`** - Integration branch for features
-- **`feature/issue-X`** - Individual feature branches
-- **`hotfix/description`** - Urgent production fixes
+If any item is false, the issue stays open.
 
 ---
 
-## 10. Project-Specific Patterns
+## 🚦 AUTONOMOUS DECISION FRAMEWORK
 
-### Nightfall-Specific Conventions
+When you hit ambiguity and there is no human to ask, use this priority order:
 
-**State Transition Graph:**
-```
-Idle ↔ Walking ↔ Sprinting
-  ↓       ↓         ↓
-Jumping  Attacking  Casting
-  ↓       ↓         ↓
-Rolling  Blocking  Dodging
-  ↓       ↓         ↓
-Stunned → Ragdolled → Dead
-          ↓
-     Meditating
-```
+1. **This file** — if it's documented here, follow it
+2. **Existing code patterns** — replicate what's already in the repo
+3. **Industry best practices** — standard Roblox/Luau conventions
+4. **Conservative default** — choose the simpler, more reversible option
+5. **Document and move on** — create a `spec-gap` issue and use a placeholder
 
-**Data Flow Architecture:**
-```
-Client Input → Client Controller → Network → Server Service → StateService
-                                                    ↓
-                                              Data Validation
-                                                    ↓
-                                             Execute Action
-                                                    ↓
-                                            Update PlayerData
-                                                    ↓
-                                        Replicate to Clients (Network)
-                                                    ↓
-                                        Client Controller → UI Update
-```
+### When to STOP and create a blocked issue instead of guessing:
 
-**Namespace Organization:**
-- `Nightfall.Combat.*` - All combat-related modules
-- `Nightfall.Magic.*` - Mantra system modules
-- `Nightfall.Data.*` - Data persistence and management
-- `Nightfall.UI.*` - Interface and HUD systems
-- `Nightfall.World.*` - World generation and NPCs
+- Breaking change to a public API used by multiple systems
+- Security or anti-cheat decision
+- Scope is fundamentally unclear (can't write acceptance criteria)
+- Third-party library integration with unclear behavior
+- Architectural decision that affects multiple phases
+
+### Common Spec Gaps and Their Placeholders
+
+| Gap | Placeholder |
+|---|---|
+| Resonance Shard cost per branch depth | 100 / 250 / 500 (depth 1/2/3) |
+| Ability Mana costs | 20 / 35 / 55 (depth 1/2/3) |
+| Expression ability base damage | 15 / 30 / 50 (depth 1/2/3) |
+| Resonance Shard loss on death | 15% of current Shards |
+| Discipline stat differences | All equal until spec gap resolved |
+| Weapon Groove depth thresholds | 50 / 150 / 300 uses (Whisper/Resonant/Soulbind) |
+
+Always create a `spec-gap` labeled issue when you use a placeholder. Never silently invent numbers and leave them undocumented.
 
 ---
 
-## ✅ Quality Checklist (Run Before Completing ANY Task)
+## 🗺️ CURRENT PROJECT STATE (update this header each planning session)
 
-### Issue Management Checklist:
-- [ ] GitHub issue exists for all work (check [issues](https://github.com/JoshuaKushnir/Nightfall/issues))
-- [ ] Issue has proper labels: `phase-X`, priority, type
-- [ ] Issue was updated with progress checkpoints during work
-- [ ] All acceptance criteria in issue are ✅ complete
-- [ ] No new bugs discovered (if found, create linked issue)
-- [ ] Session-log.md references GitHub issue number
-- [ ] Commit messages include issue number (e.g., `feat(#24): Description`)
-- [ ] Ready to close issue: All criteria met, tested, documented
-- [ ] Issue will be closed with completion summary
+**Last updated:** February 2026 — Session NF-040
 
-### 🚨 MANDATORY TESTING CHECKLIST (REQUIRED BEFORE CLOSURE):
-**FAILURE TO COMPLETE THIS CHECKLIST = DO NOT CLOSE ISSUE**
+| Phase | Status | Notes |
+|---|---|---|
+| Phase 0: Genesis | ✅ Complete | Repo, types, Rojo |
+| Phase 1: Core Framework | ✅ Complete | DataService, NetworkService, StateService, Bootstrap |
+| Phase 2: Combat & Movement | ✅ Complete | Hitbox, Combat, Defense, Movement |
+| Phase 3: Aspect System | ✅ Complete | Types, Registry, Service, Controller, cooldowns, mana regen |
+| Phase 3: Inventory | 🔄 In Progress | InventoryService done (NF-040), UI pending |
+| Phase 4: World & Narrative | ⏳ Not Started | Progression, dialogue, discipline, weapons |
+| Phase 5: Polish & Launch | ⏳ Not Started | Anti-cheat audit, performance, final checklist |
 
-- [ ] **Unit Tests:** All public methods tested with edge cases (nil, empty, extreme values)
-- [ ] **Integration Tests:** Service interactions verified (DataService + StateService, etc.)
-- [ ] **Roblox Studio Testing:** Code runs without ANY errors/warnings in Output window
-- [ ] **Type Checking:** `--!strict` enabled and passes with no type errors
-- [ ] **Acceptance Criteria:** ALL criteria in issue description manually verified
-- [ ] **Performance Testing:** No lag, stuttering, or memory leaks (60 FPS target)
-- [ ] **Client-Server Sync:** Network communication working correctly (if applicable)
-- [ ] **UI Responsiveness:** Interface elements respond correctly (if applicable)
-- [ ] **Edge Cases:** Nil values, empty data, extreme inputs handled gracefully
-- [ ] **Error Handling:** Proper error messages and recovery for failure cases
-- [ ] **Documentation:** Code comments, module headers, and API docs complete
-
-**Testing Evidence Required in Issue Comments:**
-- Screenshots/videos of functionality working
-- Console output showing no errors/warnings
-- Test results with specific scenarios tested
-- Performance metrics (if applicable)
-- Integration verification results
-
-**If ANY test fails:** STOP, document failure, create follow-up issue, DO NOT CLOSE
-
-### Pre-Commit Checklist:
-- [ ] `docs/session-log.md` updated with current session progress and issue numbers
-- [ ] GitHub issue linked and has progress comments
-- [ ] All files have `--!strict` at the top
-- [ ] All new types added to appropriate type definition file
-- [ ] Module header documentation complete
-- [ ] Public functions have parameter/return documentation
-- [ ] No `wait()` or `WaitForChild()` in hot paths
-- [ ] Server validates ALL client input
-- [ ] Error handling implemented for risky operations
-- [ ] Manual testing performed in Roblox Studio
-- [ ] No console warnings or errors
-- [ ] Commit message follows format: `<type>(#issue): Description`
-
-### Code Review Checklist:
-- [ ] Follows service/controller architectural pattern
-- [ ] Uses composition over inheritance
-- [ ] No code duplication (utilities extracted)
-- [ ] State changes go through StateService
-- [ ] Types are explicit and accurate
-- [ ] Functions under 50 lines
-- [ ] Descriptive variable/function names
-- [ ] Comments explain "why" not "what"
-- [ ] Performance considerations addressed
-- [ ] Security implications considered
-- [ ] GitHub issue ready to close (all criteria met)
-
-## Commit and Sync Protocols
-
-### Post-Change Workflow:
-After any substantive change (code edits, file creations, documentation updates):
-1. **Stage Changes**: `git add .` or specific files
-2. **Commit with Issue Reference**: `git commit -m "<type>(#issue): Description"`
-   - `<type>`: feat, fix, docs, refactor, test, chore
-   - `#issue`: GitHub issue number (e.g., #24)
-   - Description: Brief summary of changes
-3. **Push to Repository**: `git push origin <branch>`
-   - Ensure branch is up-to-date with remote
-4. **Sync Verification**: Confirm changes are visible in GitHub repository
-
-### Always Commit and Push:
-- **No uncommitted changes** - Commit immediately after validation
-- **Push after every commit** - Keep repository synchronized
-- **Branch Management**: Work on feature branches, merge via PR when ready
-- **Issue Tracking**: Reference issue in commit message for traceability
-
-### Exception Handling:
-- If build/tests fail, fix before committing
-- For hotfixes, commit and push immediately after validation
-- Document any deviations in GitHub issue comments
+**Next unblocked work:**
+1. Custom Inventory UI (InventoryController, equipment panel, bag grid)
+2. Aspect stub → real ability implementations (Depth 1 per Aspect)
+3. Phase 4 planning and issue creation
 
 ---
 
-## 🎯 Remember: GitHub Issues First, Then Code
-- **NO IMPLEMENTATION WITHOUT AN ISSUE** - Check [GitHub Issues](https://github.com/JoshuaKushnir/Nightfall/issues) first
-- Take time to check the issue board before starting
-- Log progress in GitHub issue comments during development
-- Update and close issues when complete
-- When confused, use best practices and decision framework above
-- Minimize human interaction - document decisions in GitHub
-- Test manually before closing issue
+## 📝 SESSION LOG FORMAT
 
-**Single Source of Truth:** [GitHub Issue Board](https://github.com/JoshuaKushnir/Nightfall/issues)  
-**Session Memory:** Keep [session-log.md](../docs/session-log.md) updated with issue numbers  
-**Code Standards:** This document + [BACKLOG.md](../docs/BACKLOG.md)
+Every session entry in `docs/session-log.md` must follow this structure:
 
-# Project Nightfall: Session Intelligence Log
+```markdown
+## Session NF-[XXX]: [One-line description]
+**Date:** YYYY-MM-DD  
+**Issues:** #XX, #YY
+
+### What Was Built
+- **File created/modified:** Brief description of what changed and why
+- **File created/modified:** Brief description
+
+### Integration Points
+- How this connects to other systems
+- What it enables that wasn't possible before
+
+### Spec Gaps Encountered
+- [Description] → Created issue #XX with placeholder value [N]
+
+### Tech Debt Created
+- [Description] → Tracked in issue #XX
+
+### Next Session Should Start On
+Issue #[NUMBER]: [TITLE] — [one sentence on why it's next]
+```
+
+---
+
+## ❌ THINGS THAT ARE NEVER ACCEPTABLE
+
+- Writing code without a GitHub issue
+- Using `wait()` instead of `task.wait()`
+- Defining shared types outside of `src/shared/types/`
+- Calculating damage or state changes on the client without server validation
+- Implementing VFX (empty stubs only)
+- Implementing Communion abilities (stubs with design comments only)
+- Implementing drag-and-drop inventory (logged as tech debt, deferred)
+- Closing an issue before manually testing in Roblox Studio
+- Ending a session without updating `docs/session-log.md`
+- Leaving commits unpushed
+
+---
+
+## ✅ THINGS THAT ARE ALWAYS REQUIRED
+
+- `--!strict` at the top of every file
+- Standard documentation header on every module
+- `export type` for every shared type
+- Issue reference in every commit message
+- Session log update at the end of every session
+- Server validation of every client-sent action
+- StateService for every state change
+- GitHub issue progress comment when completing each major step
+
+---
+
+**GitHub:** [JoshuaKushnir/Nightfall](https://github.com/JoshuaKushnir/Nightfall)  
+**Issues:** [github.com/JoshuaKushnir/Nightfall/issues](https://github.com/JoshuaKushnir/Nightfall/issues)  
+**Session Log:** `docs/session-log.md`
