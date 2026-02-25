@@ -37,6 +37,9 @@ return {
                     count += 1
                 end
                 assert(count > 0, "MoveItems registry unexpectedly empty")
+                -- verify specifically added test moves are present
+                assert(AspectRegistry.MoveItems["move_Test_Move_Quick"], "Quick test move missing")
+                assert(AspectRegistry.MoveItems["move_Test_Move_Strong"], "Strong test move missing")
             end,
         },
     },
