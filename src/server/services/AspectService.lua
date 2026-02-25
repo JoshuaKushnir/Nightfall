@@ -27,8 +27,8 @@ local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 -- Forward declarations for lazy dependencies
 
 -- Type aliases
-local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
-
+local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)-- Cooldown tracking is stored on PlayerData.ActiveCooldowns and mana regen
+-- occurs via Heartbeat connection with respect to ManaComponent.RegenDelay.
 -- Internal cooldown tracking will live on player data
 -- Mana regeneration loop implemented in this service
 
