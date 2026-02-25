@@ -637,6 +637,12 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = true,
 		Description = "Client requests to use item",
 	},
+	AbilityDataSync = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Sync ability cooldowns on join",
+	},
 	InventorySync = {
 		Direction = "ServerToClient",
 		RateLimitPerSecond = nil,

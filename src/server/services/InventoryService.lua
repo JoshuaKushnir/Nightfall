@@ -30,7 +30,7 @@ local function _syncInventory(player: Player)
     if not profile then
         return
     end
-    NetworkProvider:FireClient(player, "InventorySync", {Inventory = profile.Inventory or {}})
+    NetworkService:SendToClient(player, "InventorySync", {Inventory = profile.Inventory or {}})
 end
 
 -- give an item to a player, returns true if added
