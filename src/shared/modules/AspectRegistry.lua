@@ -205,7 +205,9 @@ for abilityId, ability in pairs(Registry.Abilities) do
         Id = "move_" .. abilityId,
         Name = ability.Name,
         Description = ability.Name, -- placeholder; could be fleshed with more info
-        Category = "AspectMove",
+        Category = "Abilities",
+        Rarity = "Common",
+        Weight = 0,
         AbilityId = abilityId,
         AspectId = ability.AspectId,
     })
