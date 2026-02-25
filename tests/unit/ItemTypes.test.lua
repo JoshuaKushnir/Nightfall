@@ -31,6 +31,12 @@ return {
             fn = function()
                 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
                 assert(type(AspectRegistry.MoveItems) == "table", "MoveItems registry missing")
+                -- should contain at least one move entry generated from abilities
+                local count = 0
+                for _, _ in pairs(AspectRegistry.MoveItems) do
+                    count += 1
+                end
+                assert(count > 0, "MoveItems registry unexpectedly empty")
             end,
         },
     },
