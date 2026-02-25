@@ -12,6 +12,7 @@
 
 - **Started Aspect System — Types defined:** Created `src/shared/types/AspectTypes.lua` with all required Aspect-related type definitions. Committed under #11.
 - **AspectRegistry module:** Added `src/shared/modules/AspectRegistry.lua` containing data for all six Aspects, stub abilities/passives, and synergy definitions. Committed under #11.
+- **PlayerData update:** Expanded `PlayerData` type and default profile to include `AspectData`, `ResonanceShards`, and `TotalResonance` fields. Committed under #12.
 
 ### Session NF-038 Changes:
 
