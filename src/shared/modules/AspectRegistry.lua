@@ -165,6 +165,22 @@ for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
     end
 end
 
+--[[
+    Automatically create an AspectMove item for every ability so the client
+    inventory can contain and equip them interchangeably with loaded moves.
+    The move ID is prefixed with "move_" to avoid colliding with raw ability IDs.
+]]
+for abilityId, ability in pairs(Registry.Abilities) do
+    makeMoveItem({
+        Id = "move_" .. abilityId,
+        Name = ability.Name,
+        Description = ability.Name, -- placeholder; could be fleshed with more info
+        Category = "AspectMove",
+        AbilityId = abilityId,
+        AspectId = ability.AspectId,
+    })
+end
+
 -- no abilities for Marrow yet (locked)
 
 -- cross-aspect synergies data
