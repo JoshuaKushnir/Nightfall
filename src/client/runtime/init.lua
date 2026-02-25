@@ -51,6 +51,13 @@ end
 print(`[Client] ✓ LocalPlayer found: {player.Name}`)
 print("")
 
+-- disable default Roblox backpack UI
+local StarterGui = game:GetService("StarterGui")
+-- run deferred to avoid CoreGui timing issues
+task.defer(function()
+    StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+end)
+
 -- Setup debug input (for development)
 DebugInput:Init()
 print("")
