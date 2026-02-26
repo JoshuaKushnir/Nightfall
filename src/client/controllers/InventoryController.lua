@@ -89,7 +89,7 @@ local function finishDrag(drag, mousePos)
                 if InventoryController._networkController then
                     InventoryController._networkController:SendToServer("EquipItem", {Slot = tostring(idx), ItemId = drag.item.Id})
                     if drag.item.Category == "Weapons" then
-                        InventoryController._networkController:SendToServer("EquipWeapon", {WeaponId = drag.item.WeaponId or drag.item.Id})
+                        InventoryController._networkController:SendToServer("EquipWeapon", drag.item.WeaponId or drag.item.Id)
                     end
                 end
             elseif drag.origin == "hotbar" then
@@ -299,7 +299,7 @@ function InventoryController:RefreshUI()
                                 if equipped then
                                     self._networkController:SendToServer("UnequipWeapon", {})
                                 else
-                                    self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                                    self._networkController:SendToServer("EquipWeapon", item.Id)
                                 end
                             else
                                 self._networkController:SendToServer("EquipItem", {Slot = item.Id, ItemId = item.Id})
@@ -349,7 +349,7 @@ function InventoryController:RefreshUI()
                 btn.MouseButton1Click:Connect(function()
                     if self._networkController then
                         if item and item.Category == "Weapons" then
-                            self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                            self._networkController:SendToServer("EquipWeapon", item.Id)
                         else
                             self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                         end
@@ -383,7 +383,7 @@ function InventoryController:RefreshUI()
                     btn.MouseButton1Click:Connect(function()
                         if self._networkController then
                             if item.Category == "Weapons" then
-                                self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                                self._networkController:SendToServer("EquipWeapon", item.Id)
                             else
                                 self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                             end
@@ -398,6 +398,10 @@ end
 
 -- handler for inventory sync (called when AspectController updates its cache)
 local function _onInventoryUpdated()
+    -- copy new equipped state from AspectController so hotbar reflects it
+    if InventoryController._aspectController then
+        InventoryController._equipped = InventoryController._aspectController._equipped or {}
+    end
     InventoryController:RefreshUI()
 end
 

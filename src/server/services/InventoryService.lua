@@ -161,7 +161,7 @@ local function _onPlayerAdded(player)
                 hasQuick = true
             elseif v.Id == "move_Test_Move_Strong" then
                 hasStrong = true
-            elseif v.Id == "weapon_fists" then
+            elseif v.Id == "fists" then
                 hasFists = true
             end
         end
@@ -174,14 +174,15 @@ local function _onPlayerAdded(player)
                 end
             end
         end
-        -- grant fists weapon if missing
+        -- grant fists weapon if missing (use same id as WeaponRegistry)
         if not hasFists then
             table.insert(profile.Inventory, {
-                Id = "weapon_fists",
+                Id = "fists",                    -- match registry
                 Name = "Fists",
                 Description = "Your bare hands.",
                 Category = "Weapons",
                 Rarity = "Common",
+                WeaponId = "fists",
             })
         end
     end
@@ -205,9 +206,17 @@ function InventoryService:Start()
     NetworkService:RegisterHandler("UnequipItem", _onUnequipRequest)
     NetworkService:RegisterHandler("UseItem", _onUseRequest)
     -- keep inventory UI in sync when weapons are equipped elsewhere
+    -- client now sends a raw string id; legacy table shape still supported
     NetworkService:RegisterHandler("EquipWeapon", function(player, packet)
-        -- packet.WeaponId
-        InventoryService.SetEquipped(player, packet.WeaponId, packet.WeaponId)
+        local weaponId: string?
+        if type(packet) == "string" then
+            weaponId = packet
+        elseif type(packet) == "table" then
+            weaponId = packet.WeaponId
+        end
+        if weaponId then
+            InventoryService.SetEquipped(player, weaponId, weaponId)
+        end
     end)
     print("[InventoryService] Started")
 end

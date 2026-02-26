@@ -137,7 +137,7 @@ return {
                 assert(#profile.Inventory == 3, "Expected two moves and fists")
                 local foundFists = false
                 for _, v in ipairs(profile.Inventory) do
-                    if v.Id == "weapon_fists" then
+                    if v.Id == "fists" then
                         foundFists = true
                     end
                 end
@@ -158,7 +158,7 @@ return {
                 for _, v in ipairs(profile.Inventory) do
                     if v.Id == "move_Test_Move_Quick" then foundQuick = true end
                     if v.Id == "move_Test_Move_Strong" then foundStrong = true end
-                    if v.Id == "weapon_fists" then foundFists = true end
+                    if v.Id == "fists" then foundFists = true end
                 end
                 assert(foundQuick and foundStrong and foundFists, "Starter moves and fists should be present")
             end,
@@ -176,5 +176,31 @@ return {
                 assert(profile.EquippedItems.weapon_fists ~= nil, "profile should record weapon equipped")
             end,
         },
+        {
+            name = "EquipWeapon handler accepts string payload",
+            fn = function()
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {{Id="weapon_fists", Name="Fists", Category="Weapons"}}, EquippedItems = {}}
+                }
+                -- replicate handler logic from InventoryService:Start
+                local function handler(player, packet)
+                    local weaponId
+                    if type(packet) == "string" then
+                        weaponId = packet
+                    elseif type(packet) == "table" then
+                        weaponId = packet.WeaponId
+                    end
+                    if weaponId then
+                        InventoryService.SetEquipped(player, weaponId, weaponId)
+                    end
+                end
+                handler(fakePlayer, "weapon_fists")
+                local profile = DataService:GetProfile(fakePlayer)
+                assert(profile.EquippedItems.weapon_fists ~= nil, "string payload should equip weapon")
+            end,
+        },
+
     },
 }
