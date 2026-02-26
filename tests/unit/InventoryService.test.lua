@@ -171,9 +171,10 @@ return {
                     IsActive = function() return true end,
                     Data = {Inventory = {{Id="weapon_fists", Name="Fists", Category="Weapons"}}, EquippedItems = {}}
                 }
-                InventoryService:SetEquipped(fakePlayer, "weapon_fists", "weapon_fists")
+                -- call the updated handler logic, which places weapon in slot "1"
+                InventoryService.SetEquipped(fakePlayer, "1", "weapon_fists")
                 local profile = DataService:GetProfile(fakePlayer)
-                assert(profile.EquippedItems.weapon_fists ~= nil, "profile should record weapon equipped")
+                assert(profile.EquippedItems["1"] ~= nil, "profile should record weapon in slot 1")
             end,
         },
         {

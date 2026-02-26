@@ -206,7 +206,8 @@ function InventoryService:Start()
     NetworkService:RegisterHandler("UnequipItem", _onUnequipRequest)
     NetworkService:RegisterHandler("UseItem", _onUseRequest)
     -- keep inventory UI in sync when weapons are equipped elsewhere
-    -- client now sends a raw string id; legacy table shape still supported
+    -- regardless of how clients send the payload, we'll assign the weapon to
+    -- a fixed hotbar slot ("1") so that UI code can render it predictably.
     NetworkService:RegisterHandler("EquipWeapon", function(player, packet)
         local weaponId: string?
         if type(packet) == "string" then
@@ -215,7 +216,9 @@ function InventoryService:Start()
             weaponId = packet.WeaponId
         end
         if weaponId then
-            InventoryService.SetEquipped(player, weaponId, weaponId)
+            -- always put weapon in slot 1; this prevents it from colliding with
+            -- ability slots and makes the client UI simpler.
+            InventoryService.SetEquipped(player, "1", weaponId)
         end
     end)
     print("[InventoryService] Started")
