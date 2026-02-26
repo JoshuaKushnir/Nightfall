@@ -62,5 +62,32 @@ return {
 				WeaponRegistry.Has, WeaponRegistry.Get = origHas, origGet
 			end,
 		},
+		{
+			name = "remote handler accepts string or table",
+			fn = function()
+				local fakePlayer = {UserId=1, Name="Foo", Character={FindFirstChildOfClass=function() return {Health=100} end}}
+				local origHas, origGet = WeaponRegistry.Has, WeaponRegistry.Get
+				WeaponRegistry.Has = function() return true end
+				WeaponRegistry.Get = function(id) return {Id=id} end
+				-- simulate listener logic
+				local handler = function(player, payload)
+					local weaponId
+					if typeof(payload) == "string" then
+						weaponId = payload
+					elseif typeof(payload) == "table" then
+						weaponId = payload.WeaponId
+					end
+					if weaponId then
+						WeaponService.EquipWeapon(player, weaponId)
+					end
+				end
+				handler(fakePlayer, "sword")
+				assert(WeaponService.GetEquipped(fakePlayer) == "sword")
+				handler(fakePlayer, {WeaponId="axe"})
+				assert(WeaponService.GetEquipped(fakePlayer) == "axe")
+				WeaponRegistry.Has, WeaponRegistry.Get = origHas, origGet
+			end,
+		},
+
 	},
 }

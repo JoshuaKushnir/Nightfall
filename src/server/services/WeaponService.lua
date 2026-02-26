@@ -392,7 +392,14 @@ function WeaponService:Start()
 	-- Listen for equip requests from clients
 	local equipEvent = NetworkProvider:GetRemoteEvent(EQUIP_EVENT_NAME)
 	if equipEvent then
-		equipEvent.OnServerEvent:Connect(function(player, weaponId)
+		equipEvent.OnServerEvent:Connect(function(player, payload)
+			-- payload may be a raw string or a table containing WeaponId (and optionally Slot)
+			local weaponId: string?
+			if typeof(payload) == "string" then
+				weaponId = payload
+			elseif typeof(payload) == "table" then
+				weaponId = payload.WeaponId
+			end
 			if typeof(weaponId) ~= "string" then
 				warn(`[WeaponService] EquipWeapon from {player.Name} — invalid weaponId type`)
 				return
