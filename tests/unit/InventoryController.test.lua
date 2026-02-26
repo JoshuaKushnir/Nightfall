@@ -91,6 +91,26 @@ return {
             end,
         },
         {
+            name = "Non-numeric equipped keys still populate hotbar",
+            fn = function()
+                -- simulate server sending equipment with non-numeric slot
+                fakeAspect._equipped = { weapon_fists = {Name="Fists"} }
+                if fakeAspect._cb then fakeAspect._cb() end
+                InventoryController._isOpen = true
+                local player = game:GetService("Players").LocalPlayer
+                local pg = player:WaitForChild("PlayerGui")
+                local hotbar = pg.InventoryUI:FindFirstChild("HotbarRoot")
+                local found=false
+                for _,c in ipairs(hotbar:GetChildren()) do
+                    if c:IsA("TextButton") and c.Text == "Fists" then
+                        found = true
+                        break
+                    end
+                end
+                assert(found, "hotbar should show item even if slot key is non-numeric")
+            end,
+        },
+        {
             name = "Inventory sync callback fires RefreshUI",
             fn = function()
                 -- clear
@@ -155,9 +175,10 @@ return {
                 wait(0.1)
                 assert(#stubNet.sent == 1, "should send exactly one network event")
                 assert(stubNet.sent[1].name == "EquipWeapon", "EquipWeapon should be sent")
-                assert(type(stubNet.sent[1].pkt) == "string", "payload should be raw weaponId string")
+                assert(type(stubNet.sent[1].pkt) == "table" and stubNet.sent[1].pkt.WeaponId == "fists", "payload should be table with WeaponId")
             end,
         },
+
         {
             name = "Clicking already equipped weapon sends unequip",
             fn = function()
@@ -178,24 +199,44 @@ return {
             end,
         },
         {
-            name = "Drag inventory item to hotbar",
+            name = "Drag weapon already owned only sends EquipItem",
             fn = function()
                 stubNet.sent = {}
                 fakeAspect._inventory = {{Id="fists",Name="Fists",Category="Weapons",Rarity="Common",WeaponId="fists"}}
+                WeaponController.GetOwned = function() return "fists" end
                 InventoryController._isOpen = true
                 InventoryController:RefreshUI()
-                -- simulate drag to hotbar center
                 local btn = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI.InventoryRoot.Scroll.Item_fists
                 assert(btn, "weapon button exists for drag")
-                -- call debug helpers directly
                 InventoryController._debug_startDrag(btn, fakeAspect._inventory[1], "inventory")
-                -- pretend drop at hotbar position x=200 y=screen bottom
                 InventoryController._debug_finishDrag({item=fakeAspect._inventory[1],origin="inventory"}, Vector2.new(300, 800))
                 wait(0.1)
-                assert(stubNet.sent[1].name == "EquipItem" or stubNet.sent[1].name == "EquipWeapon")
-                if stubNet.sent[1].name == "EquipWeapon" then
-                    assert(type(stubNet.sent[1].pkt) == "string", "equip payload should be string")
+                assert(#stubNet.sent == 1, "only one event should be sent")
+                assert(stubNet.sent[1].name == "EquipItem", "should only reposition when already owned")
+            end,
+        },
+        {
+            name = "Drag new weapon sends EquipItem then EquipWeapon with slot",
+            fn = function()
+                stubNet.sent = {}
+                fakeAspect._inventory = {{Id="axe",Name="Axe",Category="Weapons",Rarity="Common",WeaponId="axe"}}
+                WeaponController.GetOwned = function() return nil end
+                InventoryController._isOpen = true
+                InventoryController:RefreshUI()
+                local btn = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI.InventoryRoot.Scroll.Item_axe
+                assert(btn, "weapon button exists for drag")
+                InventoryController._debug_startDrag(btn, fakeAspect._inventory[1], "inventory")
+                InventoryController._debug_finishDrag({item=fakeAspect._inventory[1],origin="inventory"}, Vector2.new(300, 800))
+                wait(0.1)
+                local sawEquipItem, sawEquipWeapon = false, false
+                for _,e in ipairs(stubNet.sent) do
+                    if e.name == "EquipItem" then sawEquipItem = true end
+                    if e.name == "EquipWeapon" then
+                        sawEquipWeapon = true
+                        assert(type(e.pkt) == "table" and e.pkt.Slot ~= nil, "weapon payload should include slot")
+                    end
                 end
+                assert(sawEquipItem and sawEquipWeapon, "both events should be sent")
             end,
         },
         {

@@ -48,5 +48,19 @@ return {
 				StateService.GetPlayerData = origState
 			end,
 		},
+		{
+			name = "re-equipping same weapon is harmless",
+			fn = function()
+				local fakePlayer = {UserId=100, Name="Reeq", Character={FindFirstChildOfClass=function() return {Health=100} end}}
+				-- make registry accept
+				local origHas, origGet = WeaponRegistry.Has, WeaponRegistry.Get
+				WeaponRegistry.Has = function() return true end
+				WeaponRegistry.Get = function(id) return {Id=id} end
+				WeaponService.EquipWeapon(fakePlayer, "dagger")
+				WeaponService.EquipWeapon(fakePlayer, "dagger")
+				assert(WeaponService.GetEquipped(fakePlayer) == "dagger")
+				WeaponRegistry.Has, WeaponRegistry.Get = origHas, origGet
+			end,
+		},
 	},
 }

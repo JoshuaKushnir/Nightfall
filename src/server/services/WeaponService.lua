@@ -235,9 +235,14 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 		return
 	end
 
-	-- Reject if already holding a weapon
-	if EquippedWeapons[player.UserId] then
-		warn(`[WeaponService] Equip denied for {player.Name} — "{EquippedWeapons[player.UserId]}" is already equipped`)
+	-- Reject if already holding a different weapon
+	local current = EquippedWeapons[player.UserId]
+	if current then
+		if current == weaponId then
+			-- already equipped this exact weapon; nothing to do
+			return
+		end
+		warn(`[WeaponService] Equip denied for {player.Name} — "{current}" is already equipped`)
 		return
 	end
 

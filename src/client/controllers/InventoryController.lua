@@ -87,9 +87,20 @@ local function finishDrag(drag, mousePos)
             local idx = math.floor((x) / 45) + 1
             if drag.origin == "inventory" then
                 if InventoryController._networkController then
+                    -- always update the inventory slot for the item
                     InventoryController._networkController:SendToServer("EquipItem", {Slot = tostring(idx), ItemId = drag.item.Id})
+
                     if drag.item.Category == "Weapons" then
-                        InventoryController._networkController:SendToServer("EquipWeapon", drag.item.WeaponId or drag.item.Id)
+                        local weaponId = drag.item.WeaponId or drag.item.Id
+                        -- only tell the server to equip a weapon if we don't already own it
+                        -- (prevents denial logs and unnecessary syncs)
+                        local owned = false
+                        if typeof(WeaponController) == "table" and WeaponController.GetOwned then
+                            owned = WeaponController.GetOwned() == weaponId
+                        end
+                        if not owned then
+                            InventoryController._networkController:SendToServer("EquipWeapon", {WeaponId = weaponId, Slot = tostring(idx)})
+                        end
                     end
                 end
             elseif drag.origin == "hotbar" then
@@ -291,7 +302,7 @@ function InventoryController:RefreshUI()
                     btn.MouseButton1Click:Connect(function()
                         if self._networkController then
                             if item.Category == "Weapons" then
-                                -- toggle weapon
+                                -- toggle weapon (slot unknown in inventory grid)
                                 local equipped = false
                                 if typeof(WeaponController) == "table" and WeaponController.GetEquipped then
                                     equipped = WeaponController.GetEquipped() == item.Id
@@ -299,7 +310,7 @@ function InventoryController:RefreshUI()
                                 if equipped then
                                     self._networkController:SendToServer("UnequipWeapon", {})
                                 else
-                                    self._networkController:SendToServer("EquipWeapon", item.Id)
+                                    self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
                                 end
                             else
                                 self._networkController:SendToServer("EquipItem", {Slot = item.Id, ItemId = item.Id})
@@ -331,8 +342,24 @@ function InventoryController:RefreshUI()
             if child:IsA("TextButton") then child:Destroy() end
         end
         local slots = {}
+        -- first pass: copy numeric slots directly
         for k,v in pairs(self._equipped or {}) do
-            slots[tonumber(k) or 0] = v
+            local idx = tonumber(k)
+            if idx and idx >= 1 and idx <= 8 then
+                slots[idx] = v
+            end
+        end
+        -- second pass: assign any non-numeric entries to the first empty slot
+        for k,v in pairs(self._equipped or {}) do
+            local idx = tonumber(k)
+            if not (idx and idx >= 1 and idx <= 8) then
+                for i = 1, 8 do
+                    if not slots[i] then
+                        slots[i] = v
+                        break
+                    end
+                end
+            end
         end
         if self._isOpen then
             -- show all slots when inventory open (including empties)
@@ -349,7 +376,7 @@ function InventoryController:RefreshUI()
                 btn.MouseButton1Click:Connect(function()
                     if self._networkController then
                         if item and item.Category == "Weapons" then
-                            self._networkController:SendToServer("EquipWeapon", item.Id)
+                            self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id, Slot = tostring(idx)})
                         else
                             self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                         end

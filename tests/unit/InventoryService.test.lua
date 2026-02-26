@@ -178,6 +178,33 @@ return {
             end,
         },
         {
+            name = "EquipWeapon handler respects provided slot",
+            fn = function()
+                local fakePlayer = {}
+                DataService._profiles[fakePlayer] = {
+                    IsActive = function() return true end,
+                    Data = {Inventory = {{Id="weapon_axe",Name="Axe",Category="Weapons"}}, EquippedItems = {}}
+                }
+                -- simulate network event with table including slot
+                local handler = function(player, packet)
+                    local weaponId, slot
+                    if type(packet) == "string" then
+                        weaponId = packet
+                    elseif type(packet) == "table" then
+                        weaponId = packet.WeaponId
+                        slot = packet.Slot
+                    end
+                    if weaponId then
+                        InventoryService.SetEquipped(player, slot or "1", weaponId)
+                    end
+                end
+                handler(fakePlayer, {WeaponId="weapon_axe", Slot="5"})
+                local profile = DataService:GetProfile(fakePlayer)
+                assert(profile.EquippedItems["5"] ~= nil, "weapon should be in provided slot")
+            end,
+        },
+
+        {
             name = "EquipWeapon handler accepts string payload",
             fn = function()
                 local fakePlayer = {}
