@@ -14,7 +14,8 @@ local Players = game:GetService("Players")
 
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes) :: any
-local WeaponController = require(ReplicatedStorage.Client.controllers.WeaponController)
+-- weapon controller lives in the same client folder, not ReplicatedStorage
+local WeaponController = require(script.Parent.WeaponController)
 
 local localPlayer = Players.LocalPlayer
 
