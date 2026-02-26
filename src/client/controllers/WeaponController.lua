@@ -90,6 +90,22 @@ local function _ScanAndWire()
 		if held and held:GetAttribute("WeaponId") then
 			_heldWeaponId = held:GetAttribute("WeaponId") :: string
 			print(`[WeaponController] ✓ Tool already held on scan: {_heldWeaponId}`)
+		else
+			-- Auto-select the first weapon tool in the backpack so the player
+			-- can attack immediately without pressing 1. This moves the Tool
+			-- from Backpack → Character and fires the Tool.Equipped event,
+			-- which sets _heldWeaponId via _WireToolEvents.
+			if backpack then
+				for _, item in backpack:GetChildren() do
+					if item:IsA("Tool") and item:GetAttribute("WeaponId") then
+						-- Equip by parenting into character — Roblox's built-in
+						-- tool selection mechanism.
+						item.Parent = character
+						print(`[WeaponController] ✓ Auto-selected tool: {item:GetAttribute("WeaponId")}`)
+						break
+					end
+				end
+			end
 		end
 	end
 end
@@ -151,6 +167,21 @@ function WeaponController:Start()
 			if who == Player then
 				_ownedWeaponId = weaponId
 				print(`[WeaponController] ✓ Weapon owned: {weaponId}`)
+				-- attempt to equip the tool locally if it exists in backpack
+				task.defer(function()
+					local backpack = Player:FindFirstChildOfClass("Backpack")
+					if backpack then
+						for _, tool in ipairs(backpack:GetChildren()) do
+							if tool:IsA("Tool") and tool:GetAttribute("WeaponId") == weaponId then
+								local humanoid = Player.Character and Player.Character:FindFirstChildOfClass("Humanoid")
+								if humanoid then
+									humanoid:EquipTool(tool)
+								end
+								break
+							end
+						end
+					end
+				end)
 			end
 		end)
 	end

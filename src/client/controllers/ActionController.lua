@@ -184,7 +184,7 @@ function ActionController._PerformFeint()
 	-- apply cooldown for the feint itself (weapon-specific overrides)
 	local feintCfg = ActionTypes.FEINT
 	local cd = feintCfg and feintCfg.Cooldown or nil
-	local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
+	local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
 	local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
 	if weaponCfg and weaponCfg.FeintCooldown then
 		cd = weaponCfg.FeintCooldown
@@ -377,9 +377,12 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
-	-- Gate attack actions: require an equipped weapon (fists counts).
-	if (config.Type == "Attack") and WeaponController and not WeaponController.GetEquipped() then
-		print("[ActionController] ✗ Cannot attack — no weapon equipped")
+	-- Gate attack actions: require an owned weapon (fists counts).
+	-- GetOwned() returns non-nil as long as the server has given us a weapon,
+	-- regardless of whether the Tool is actively held in hand. GetEquipped()
+	-- (held = tool in Character) is only relevant for VFX, not combat gating.
+	if (config.Type == "Attack") and WeaponController and not WeaponController.GetOwned() then
+		print("[ActionController] ✗ Cannot attack — no weapon owned")
 		return
 	end
 
@@ -481,7 +484,7 @@ function ActionController.PlayAction(config: ActionConfig)
 		-- ── Weapon-aware combo tree (Issue #71) ───────────────────────────────
 		-- If the player has a weapon equipped attempt to use that weapon's
 		-- Animations.Combo table.  Fall back to bare-hands punch N on no weapon.
-		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
+		local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
 		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
 		-- attack speed multiplier from the weapon (1.0 = baseline)
 		local speed = 1
@@ -570,7 +573,7 @@ function ActionController.PlayAction(config: ActionConfig)
 
 	-- compute weapon speed for attacks (used later for cd and playback)
 	if config.Type == "Attack" then
-		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
+		local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
 		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
 		local speed = 1
 		if weaponCfg and weaponCfg.AttackSpeed and weaponCfg.AttackSpeed > 0 then
