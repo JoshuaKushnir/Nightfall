@@ -14,6 +14,7 @@ local Players = game:GetService("Players")
 
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes) :: any
+local WeaponController = require(ReplicatedStorage.Client.controllers.WeaponController)
 
 local localPlayer = Players.LocalPlayer
 
@@ -73,6 +74,56 @@ for _,cat in ipairs(CATEGORY_ORDER) do InventoryController._collapsed[cat] = fal
 
 -- store last search
 InventoryController._search = ""
+
+-- drag helpers
+local dragging
+local function finishDrag(drag, mousePos)
+    local hotbar = InventoryController._gui and InventoryController._gui:FindFirstChild("HotbarRoot")
+    if hotbar then
+        local x = mousePos.X - hotbar.AbsolutePosition.X
+        local y = mousePos.Y - hotbar.AbsolutePosition.Y
+        if x>=0 and y>=0 and x<=hotbar.AbsoluteSize.X and y<=hotbar.AbsoluteSize.Y then
+            local idx = math.floor((x) / 45) + 1
+            if drag.origin == "inventory" then
+                if InventoryController._networkController then
+                    InventoryController._networkController:SendToServer("EquipItem", {Slot = tostring(idx), ItemId = drag.item.Id})
+                    if drag.item.Category == "Weapons" then
+                        InventoryController._networkController:SendToServer("EquipWeapon", {WeaponId = drag.item.WeaponId or drag.item.Id})
+                    end
+                end
+            elseif drag.origin == "hotbar" then
+                if InventoryController._networkController then
+                    InventoryController._networkController:SendToServer("UnequipItem", {Slot = tostring(drag.slot)})
+                end
+            end
+        end
+    end
+end
+
+local function startDrag(btn, item, origin, slot)
+    if dragging then return end
+    dragging = {button = btn, item = item, origin = origin, slot = slot}
+    local ghost = btn:Clone()
+    ghost.Name = "DragGhost"
+    ghost.Parent = InventoryController._gui
+    ghost.ZIndex = 1000
+    ghost.AnchorPoint = Vector2.new(0,0)
+    local moveConn, upConn
+    moveConn = game:GetService("UserInputService").InputChanged:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseMovement then
+            ghost.Position = UDim2.new(0, inp.Position.X, 0, inp.Position.Y)
+        end
+    end)
+    upConn = game:GetService("UserInputService").InputEnded:Connect(function(inp)
+        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            moveConn:Disconnect()
+            upConn:Disconnect()
+            ghost:Destroy()
+            finishDrag(dragging, inp.Position)
+            dragging = nil
+        end
+    end)
+end
 
 local function _ensureGui()
     if InventoryController._gui then
@@ -239,10 +290,24 @@ function InventoryController:RefreshUI()
                     btn.MouseButton1Click:Connect(function()
                         if self._networkController then
                             if item.Category == "Weapons" then
-                                self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                                -- toggle weapon
+                                local equipped = false
+                                if typeof(WeaponController) == "table" and WeaponController.GetEquipped then
+                                    equipped = WeaponController.GetEquipped() == item.Id
+                                end
+                                if equipped then
+                                    self._networkController:SendToServer("UnequipWeapon", {})
+                                else
+                                    self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id})
+                                end
                             else
                                 self._networkController:SendToServer("EquipItem", {Slot = item.Id, ItemId = item.Id})
                             end
+                        end
+                    end)
+                    btn.InputBegan:Connect(function(inp)
+                        if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                            startDrag(btn, item, "inventory")
                         end
                     end)
 
@@ -287,6 +352,16 @@ function InventoryController:RefreshUI()
                         else
                             self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                         end
+                    end
+                end)
+                btn.InputBegan:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                        startDrag(btn, item, "hotbar", idx)
+                    end
+                end)
+                btn.InputBegan:Connect(function(inp)
+                    if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                        startDrag(btn, item, "hotbar", idx)
                     end
                 end)
             end
@@ -346,7 +421,10 @@ function InventoryController:Init(dependencies: {[string]: any}?)
     local UserInputService = game:GetService("UserInputService")
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode == Enum.KeyCode.Backquote or input.KeyCode == Enum.KeyCode.I then
+        local kc = input.KeyCode
+        -- handle layouts where backquote comes through as Unknown+character
+        local isBacktick = kc == Enum.KeyCode.Backquote or (kc == Enum.KeyCode.Unknown and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Unknown and input.Character == "`")
+        if isBacktick or kc == Enum.KeyCode.I then
             self:ToggleOpen()
         end
     end)
@@ -376,5 +454,10 @@ function InventoryController:ToggleOpen()
         hint.Visible = not self._isOpen
     end
 end
+
+
+-- expose helpers for unit tests
+InventoryController._debug_startDrag = startDrag
+InventoryController._debug_finishDrag = finishDrag
 
 return InventoryController
