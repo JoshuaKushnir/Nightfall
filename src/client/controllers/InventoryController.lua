@@ -379,10 +379,13 @@ function InventoryController:RefreshUI()
                 btn.TextScaled = true
                 btn.Parent = hotbar
                 btn.MouseButton1Click:Connect(function()
+                    print("[InventoryController] hotbar click", idx, item and item.Id, "nw?", tostring(self._networkController ~= nil))
                     if self._networkController then
                         if item and item.Category == "Weapons" then
+                            print("[InventoryController] sending EquipWeapon for", item.Id, "slot", idx)
                             self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id, Slot = tostring(idx)})
                         else
+                            print("[InventoryController] sending UnequipItem slot", idx)
                             self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                         end
                     end
@@ -414,10 +417,13 @@ function InventoryController:RefreshUI()
                     btn.TextScaled = true
                     btn.Parent = hotbar
                     btn.MouseButton1Click:Connect(function()
+                        print("[InventoryController] hotbar click", idx, item and item.Id, "nw?", tostring(self._networkController ~= nil))
                         if self._networkController then
-                            if item.Category == "Weapons" then
+                            if item and item.Category == "Weapons" then
+                                print("[InventoryController] sending EquipWeapon for", item.Id, "slot", idx)
                                 self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id, Slot = tostring(idx)})
                             else
+                                print("[InventoryController] sending UnequipItem slot", idx)
                                 self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                             end
                         end
