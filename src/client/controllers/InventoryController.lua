@@ -368,8 +368,13 @@ function InventoryController:RefreshUI()
                 btn.Name = "HotbarSlot"..idx
                 btn.Size = UDim2.new(0,40,0,40)
                 btn.Position = UDim2.new(0, (idx-1)*45, 0, 0)
-                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
                 local item = slots[idx]
+                if item then
+                    btn.BackgroundColor3 = CATEGORY_COLOR[item.Category] or Color3.fromRGB(60,60,60)
+                    btn.BorderColor3 = RARITY_BORDER[item.Rarity or "Common"] or Color3.new(1,1,1)
+                else
+                    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                end
                 btn.Text = item and item.Name or ""
                 btn.TextScaled = true
                 btn.Parent = hotbar
@@ -403,14 +408,15 @@ function InventoryController:RefreshUI()
                     btn.Name = "HotbarSlot"..idx
                     btn.Size = UDim2.new(0,40,0,40)
                     btn.Position = UDim2.new(0, x, 0, 0)
-                    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                    btn.BackgroundColor3 = CATEGORY_COLOR[item.Category] or Color3.fromRGB(60,60,60)
+                    btn.BorderColor3 = RARITY_BORDER[item.Rarity or "Common"] or Color3.new(1,1,1)
                     btn.Text = item.Name
                     btn.TextScaled = true
                     btn.Parent = hotbar
                     btn.MouseButton1Click:Connect(function()
                         if self._networkController then
                             if item.Category == "Weapons" then
-                                self._networkController:SendToServer("EquipWeapon", item.Id)
+                                self._networkController:SendToServer("EquipWeapon", {WeaponId = item.Id, Slot = tostring(idx)})
                             else
                                 self._networkController:SendToServer("UnequipItem", {Slot = tostring(idx)})
                             end

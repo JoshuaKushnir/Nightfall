@@ -199,6 +199,49 @@ return {
             end,
         },
         {
+            name = "Clicking hotbar weapon includes slot in payload",
+            fn = function()
+                stubNet.sent = {}
+                -- equip item in slot 2 via AspectController cache
+                fakeAspect._equipped = { ["2"] = {Name="Fists",Category="Weapons",Rarity="Common"} }
+                if fakeAspect._cb then fakeAspect._cb() end
+                InventoryController._isOpen = true
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local hotbar = player.PlayerGui.InventoryUI:FindFirstChild("HotbarRoot")
+                local btn = hotbar and hotbar:FindFirstChild("HotbarSlot2")
+                assert(btn, "hotbar slot exists")
+                btn.MouseButton1Click:Fire()
+                wait(0.1)
+                assert(#stubNet.sent == 1)
+                assert(stubNet.sent[1].name == "EquipWeapon")
+                assert(type(stubNet.sent[1].pkt) == "table" and stubNet.sent[1].pkt.Slot == "2")
+            end,
+        },
+        {
+            name = "Closed hotbar click still includes slot",
+            fn = function()
+                stubNet.sent = {}
+                fakeAspect._equipped = { ["3"] = {Name="Fists",Category="Weapons",Rarity="Common"} }
+                if fakeAspect._cb then fakeAspect._cb() end
+                InventoryController._isOpen = false
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local hotbar = player.PlayerGui.InventoryUI:FindFirstChild("HotbarRoot")
+                local btn = hotbar and hotbar:FindFirstChild("HotbarSlot3")
+                assert(btn, "hotbar slot exists when closed")
+                btn.MouseButton1Click:Fire()
+                wait(0.1)
+                assert(#stubNet.sent == 1)
+                assert(stubNet.sent[1].name == "EquipWeapon")
+                assert(type(stubNet.sent[1].pkt) == "table" and stubNet.sent[1].pkt.Slot == "3")
+            end,
+        },
+
+            end,
+        },
+
+        {
             name = "Drag weapon already owned only sends EquipItem",
             fn = function()
                 stubNet.sent = {}
