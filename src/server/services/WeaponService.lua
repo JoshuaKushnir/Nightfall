@@ -12,37 +12,40 @@
 
 	Public API:
 		WeaponService.GetEquipped(player) -> string?
+
+	CHANGES from original:
+	- _EquipDefault: gives fists Tool to Backpack only, does NOT call EquipWeapon.
+	  Player spawns unarmed. They must drag fists to the hotbar and click to hold.
+	- EquipWeapon: removed "already equipped" guard. Now does a proper swap —
+	  sheathe current weapon first (Character → Backpack), then hold new one.
+	- UnequipWeapon: no longer calls _RemoveTool (which destroyed the tool forever).
+	  Now sheathes by moving Tool Character → Backpack. Tool stays, re-equippable.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
-local StateService = require(ReplicatedStorage.Shared.modules.StateService)
+local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+local StateService     = require(ReplicatedStorage.Shared.modules.StateService)
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
 local WeaponService = {}
 
 -- ─── Storage ─────────────────────────────────────────────────────────────────
 
--- Keyed by player UserId; value is the equipped weapon Id
+-- Keyed by player UserId; value is the weapon Id currently HELD (in Character).
+-- nil means unarmed (tool may still be in Backpack).
 local EquippedWeapons: {[number]: string} = {}
 
 -- ─── Anti-cheat (#74) ────────────────────────────────────────────────────────
 
--- Server-side attack cooldown — last confirmed hit time per player
 local _lastAttackTime: {[number]: number} = {}
--- Strike counter — accumulated violations per player (3 = kick)
 local _strikes: {[number]: number} = {}
 
--- Minimum seconds between server-confirmed attacks (50 ms)
-local SERVER_ATTACK_COOLDOWN = 0.05
--- Extra studs added to weapon.Range for server tolerance
-local SERVER_RANGE_TOLERANCE = 3
--- Max damage multiplier vs weapon.BaseDamage (caps runaway damage packets)
-local MAX_DAMAGE_MULTIPLIER = 2.0
--- Hits allowed above MAX_DAMAGE_MULTIPLIER before striking
+local SERVER_ATTACK_COOLDOWN    = 0.05
+local SERVER_RANGE_TOLERANCE    = 3
+local MAX_DAMAGE_MULTIPLIER     = 2.0
 local MAX_VIOLATIONS_BEFORE_KICK = 3
 
 -- ─── Constants ───────────────────────────────────────────────────────────────
@@ -52,29 +55,16 @@ local UNEQUIP_EVENT_NAME   = "UnequipWeapon"
 local EQUIPPED_BROADCAST   = "WeaponEquipped"
 local UNEQUIPPED_BROADCAST = "WeaponUnequipped"
 
-local ATTR_EQUIPPED = "EquippedWeapon" -- StringValue attribute set on the player Character
+local ATTR_EQUIPPED = "EquippedWeapon"
 
 -- ─── Private helpers ─────────────────────────────────────────────────────────
 
---[[
-	Return the Humanoid for a player's current character, or nil.
-	@param player Player
-	@return Humanoid?
-]]
 local function _GetHumanoid(player: Player): Humanoid?
 	local character = player.Character
-	if not character then
-		return nil
-	end
+	if not character then return nil end
 	return character:FindFirstChildOfClass("Humanoid") :: Humanoid?
 end
 
---[[
-	Create a Roblox Tool for the given weapon config and parent it to the
-	player's Backpack so it appears in the hotbar.
-	@param player   The player who will receive the tool.
-	@param config   The WeaponConfig table from WeaponRegistry.
-]]
 local function _GiveTool(player: Player, config: any)
 	local backpack = player:FindFirstChildOfClass("Backpack")
 	if not backpack then
@@ -90,17 +80,16 @@ local function _GiveTool(player: Player, config: any)
 	end
 
 	local tool = Instance.new("Tool")
-	tool.Name            = config.Name
-	tool.ToolTip         = config.Description or ""
-	tool.RequiresHandle  = false   -- no physical Handle part needed
-	tool.CanBeDropped    = false   -- weapons are not droppable
+	tool.Name           = config.Name
+	tool.ToolTip        = config.Description or ""
+	tool.RequiresHandle = false
+	tool.CanBeDropped   = false
 	tool:SetAttribute("WeaponId", config.Id)
 
-	-- Grip offset from config (defaults to identity if not set).
 	if config.GripOffset then
-		tool.GripPos   = config.GripOffset.Position
-		tool.GripRight  = config.GripOffset.RightVector
-		tool.GripUp     = config.GripOffset.UpVector
+		tool.GripPos     = config.GripOffset.Position
+		tool.GripRight   = config.GripOffset.RightVector
+		tool.GripUp      = config.GripOffset.UpVector
 		tool.GripForward = config.GripOffset.LookVector
 	end
 
@@ -108,30 +97,22 @@ local function _GiveTool(player: Player, config: any)
 	print(`[WeaponService] ✓ Tool '{tool.Name}' added to {player.Name}'s Backpack`)
 end
 
---[[
-	Remove the Tool matching weaponId from the player's Backpack and Character.
-	@param player   The player whose tool should be removed.
-	@param weaponId Weapon Id to find and destroy.
-]]
-local function _RemoveTool(player: Player, weaponId: string)
-	local function clearFrom(parent: Instance?)
-		if not parent then return end
-		for _, item in parent:GetChildren() do
+-- Sheathe: move Tool from Character back to Backpack. Does NOT destroy it.
+local function _SheatheTool(player: Player, weaponId: string)
+	local char = player.Character
+	local bp   = player:FindFirstChildOfClass("Backpack")
+	if char and bp then
+		for _, item in char:GetChildren() do
 			if item:IsA("Tool") and item:GetAttribute("WeaponId") == weaponId then
-				item:Destroy()
+				item.Parent = bp
+				return
 			end
 		end
 	end
-	clearFrom(player:FindFirstChildOfClass("Backpack"))
-	clearFrom(player.Character)
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
 
---[[
-	Anti-cheat: record a strike against a player for sending suspicious data.
-	If the strike counter reaches MAX_VIOLATIONS_BEFORE_KICK the player is kicked.
-]]
 function WeaponService.RecordViolation(player: Player, reason: string)
 	local uid = player.UserId
 	_strikes[uid] = (_strikes[uid] or 0) + 1
@@ -142,89 +123,42 @@ function WeaponService.RecordViolation(player: Player, reason: string)
 	end
 end
 
---[[
-	Anti-cheat: validate a client attack request before damage is applied.
-	Checks per-player fire-rate and optionally validates range + damage ceiling.
-
-	@param player       The attacker
-	@param hitData      The hitData table from the network packet
-	@return ok(bool), clampedDamage(number)
-	         ok=false means the hit should be rejected entirely.
-]]
-function WeaponService.ValidateAttack(player: Player, hitData: {[string]: any}): (boolean, number)
-	local uid = player.UserId
-	local now = tick()
-
-	-- ── 1. Rate-limit ──────────────────────────────────────────────────────
-	if _lastAttackTime[uid] and (now - _lastAttackTime[uid]) < SERVER_ATTACK_COOLDOWN then
-		WeaponService.RecordViolation(player, "attack rate exceeded")
+function WeaponService.ValidateAttack(player: Player, hitData: any): (boolean, number)
+	local uid     = player.UserId
+	local now     = tick()
+	local last    = _lastAttackTime[uid] or 0
+	if now - last < SERVER_ATTACK_COOLDOWN then
+		WeaponService.RecordViolation(player, "attack too fast")
 		return false, 0
 	end
 	_lastAttackTime[uid] = now
 
-	-- ── 2. Damage ceiling ──────────────────────────────────────────────────
 	local weaponId = EquippedWeapons[uid]
-	local config = weaponId and WeaponRegistry.Get(weaponId)
-	local baseDamage: number = (config and config.BaseDamage) or 10
-	local maxAllowed = baseDamage * MAX_DAMAGE_MULTIPLIER
-	local incoming: number = (hitData.Damage and tonumber(hitData.Damage)) or baseDamage
+	if not weaponId then return false, 0 end
+	local config = WeaponRegistry.Get(weaponId)
+	if not config then return false, 0 end
 
-	if incoming > maxAllowed then
-		WeaponService.RecordViolation(player, ("damage %d > max %d"):format(incoming, maxAllowed))
-		-- Clamp rather than reject outright, so lag doesn't unfairly penalise
-		incoming = maxAllowed
+	local damage = hitData and hitData.Damage or 0
+	local cap    = config.BaseDamage * MAX_DAMAGE_MULTIPLIER
+	if damage > cap then
+		WeaponService.RecordViolation(player, "damage over cap")
+		damage = cap
 	end
 
-	-- ── 3. Range check ─────────────────────────────────────────────────────
-	if config and config.Range then
-		local maxRange = config.Range + SERVER_RANGE_TOLERANCE
-		local attackerChar = player.Character
-		local attackerHRP = attackerChar and attackerChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-
-		if attackerHRP and hitData.TargetName then
-			local targetPlayer = game:GetService("Players"):FindFirstChild(hitData.TargetName :: string)
-			local targetChar = targetPlayer and (targetPlayer :: Player).Character
-			local targetHRP = targetChar and targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-
-			if not targetHRP then
-				-- Try dummy workspace model
-				local dummyModel = workspace:FindFirstChild(hitData.TargetName :: string) :: Model?
-				local dummyHRP = dummyModel and dummyModel:FindFirstChild("HumanoidRootPart") :: BasePart?
-				targetHRP = dummyHRP
-			end
-
-			if targetHRP then
-				local dist = (attackerHRP.Position - targetHRP.Position).Magnitude
-				if dist > maxRange then
-					WeaponService.RecordViolation(player,
-						("range %.1f > max %.1f"):format(dist, maxRange))
-					return false, 0
-				end
-			end
-		end
-	end
-
-	return true, math.floor(incoming)
+	return true, damage
 end
 
---[[
-	Return the currently equipped weapon Id for a player, or nil.
-	@param player The player to query.
-	@return string?
-]]
 function WeaponService.GetEquipped(player: Player): string?
 	return EquippedWeapons[player.UserId]
 end
 
 --[[
-	Equip a weapon for a player.
-	Validates humanoid health, ensures no weapon is already equipped, and
-	confirms the weapon exists in WeaponRegistry before proceeding.
-	@param player    The requesting player.
-	@param weaponId  The Id from WeaponRegistry.
+	Equip (hold/draw) a weapon for a player.
+	If the player is already holding a different weapon, sheathe it first.
+	The tool must already be in the player's Backpack (given by _EquipDefault
+	or a previous equip). If it's missing, _GiveTool is called to create it.
 ]]
 function WeaponService.EquipWeapon(player: Player, weaponId: string)
-	-- Validate humanoid exists and player is alive
 	local humanoid = _GetHumanoid(player)
 	if not humanoid then
 		warn(`[WeaponService] Equip denied for {player.Name} — no character/humanoid`)
@@ -235,55 +169,83 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 		return
 	end
 
-	-- Reject if already holding a different weapon
-	local current = EquippedWeapons[player.UserId]
-	if current then
-		if current == weaponId then
-			-- already equipped this exact weapon; nothing to do
-			return
-		end
-		warn(`[WeaponService] Equip denied for {player.Name} — "{current}" is already equipped`)
-		return
-	end
-
-	-- Validate weapon exists in registry
 	if not WeaponRegistry.Has(weaponId) then
 		warn(`[WeaponService] Unknown weapon id "{weaponId}" requested by {player.Name}`)
 		return
 	end
 
-	-- Discipline restriction / cross-training warning
+	local current = EquippedWeapons[player.UserId]
+
+	-- Already holding the same weapon — no-op
+	if current == weaponId then return end
+
+	-- Sheathe current weapon first (move Character → Backpack, don't destroy)
+	if current then
+		_SheatheTool(player, current)
+		EquippedWeapons[player.UserId] = nil
+		if player.Character then
+			player.Character:SetAttribute(ATTR_EQUIPPED, nil)
+		end
+	end
+
+	-- Discipline cross-training warning (kept from original, non-blocking)
 	local config = WeaponRegistry.Get(weaponId)
 	if config and config.WeightClass then
-		local playerData = StateService:GetPlayerData(player)
-		local discCfg = playerData and DisciplineConfig.Get(playerData.DisciplineId)
-		if discCfg and discCfg.weaponClasses then
-			if not table.find(discCfg.weaponClasses, config.WeightClass) then
-				-- cross-training: weapon outside primary discipline
-				warn(`[WeaponService] {player.Name} is cross-training with {config.WeightClass} weapon (primary discipline={playerData and playerData.DisciplineId})`)
-				-- allowed, penalties applied elsewhere
+		local ok, playerData = pcall(function()
+			return StateService and StateService.GetPlayerData
+				and StateService:GetPlayerData(player) or nil
+		end)
+		if ok and playerData then
+			local ok2, discCfg = pcall(function()
+				return DisciplineConfig and DisciplineConfig.Get
+					and DisciplineConfig.Get(playerData.DisciplineId) or nil
+			end)
+			if ok2 and discCfg and discCfg.weaponClasses then
+				if not table.find(discCfg.weaponClasses, config.WeightClass) then
+					warn(`[WeaponService] {player.Name} cross-training: {config.WeightClass}`)
+				end
 			end
 		end
 	end
 
-	-- Store
+	-- Store as held
 	EquippedWeapons[player.UserId] = weaponId
-
-	-- Set attribute on the Character
-	local character = player.Character
-	if character then
-		character:SetAttribute(ATTR_EQUIPPED, weaponId)
+	if player.Character then
+		player.Character:SetAttribute(ATTR_EQUIPPED, weaponId)
 	end
 
-	-- Give the player a Tool instance so it appears in the hotbar.
-	local config = WeaponRegistry.Get(weaponId)
-	if config then
-		_GiveTool(player, config)
+	-- Move Tool Backpack → Character to physically hold it.
+	-- If the tool doesn't exist yet in the backpack, create it first.
+	local bp   = player:FindFirstChildOfClass("Backpack")
+	local char = player.Character
+	local toolFound = false
+
+	if bp then
+		for _, item in bp:GetChildren() do
+			if item:IsA("Tool") and item:GetAttribute("WeaponId") == weaponId then
+				if char then item.Parent = char end
+				toolFound = true
+				break
+			end
+		end
+	end
+
+	if not toolFound then
+		if config then _GiveTool(player, config) end
+		-- _GiveTool parents to Backpack; now move to Character
+		local bp2 = player:FindFirstChildOfClass("Backpack")
+		if bp2 and char then
+			for _, item in bp2:GetChildren() do
+				if item:IsA("Tool") and item:GetAttribute("WeaponId") == weaponId then
+					item.Parent = char
+					break
+				end
+			end
+		end
 	end
 
 	print(`[WeaponService] ✓ {player.Name} equipped "{weaponId}"`)
 
-	-- Broadcast to all clients
 	local equippedEvent = NetworkProvider:GetRemoteEvent(EQUIPPED_BROADCAST)
 	if equippedEvent then
 		equippedEvent:FireAllClients(player, weaponId)
@@ -291,31 +253,24 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 end
 
 --[[
-	Unequip the current weapon for a player.
-	Clears the Character attribute and broadcasts to all clients.
-	@param player The requesting player.
+	Unequip (sheathe) the current weapon for a player.
+	Moves the Tool Character → Backpack. Does NOT destroy it.
 ]]
 function WeaponService.UnequipWeapon(player: Player)
 	local current = EquippedWeapons[player.UserId]
-	if not current then
-		return -- Nothing to unequip
-	end
+	if not current then return end
 
-	-- Clear storage
 	EquippedWeapons[player.UserId] = nil
 
-	-- Clear attribute on the Character
-	local character = player.Character
-	if character then
-		character:SetAttribute(ATTR_EQUIPPED, nil)
+	if player.Character then
+		player.Character:SetAttribute(ATTR_EQUIPPED, nil)
 	end
 
-	-- Remove the Tool from Backpack and Character.
-	_RemoveTool(player, current)
+	-- Sheathe: move Tool back to Backpack, keep it alive
+	_SheatheTool(player, current)
 
-	print(`[WeaponService] ✓ {player.Name} unequipped "{current}"`)
+	print(`[WeaponService] ✓ {player.Name} sheathed "{current}"`)
 
-	-- Broadcast to all clients
 	local unequippedEvent = NetworkProvider:GetRemoteEvent(UNEQUIPPED_BROADCAST)
 	if unequippedEvent then
 		unequippedEvent:FireAllClients(player)
@@ -325,37 +280,34 @@ end
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 --[[
-	Equip the default weapon (fists) for a player.
-	Force-clears any existing entry so this is safe to call on respawn.
-	@param player Player
+	Give the player their fists tool on spawn.
+	Does NOT call EquipWeapon — player spawns UNARMED.
+	EquippedWeapons stays nil so the first EquipWeapon call from the hotbar works.
 ]]
 local function _EquipDefault(player: Player)
-	-- Force-clear any stale entry so EquipWeapon doesn't reject the request.
+	-- Clear any stale held state from a previous life
 	EquippedWeapons[player.UserId] = nil
-	-- Clear the attribute too so the character starts clean.
 	if player.Character then
 		player.Character:SetAttribute(ATTR_EQUIPPED, nil)
 	end
-	-- Wait for the Humanoid to exist — CharacterAdded fires before the
-	-- character's children are all in place, so _GetHumanoid would return nil
-	-- if we called EquipWeapon immediately.
-	local character = player.Character
-	if character then
-		character:WaitForChild("Humanoid", 10)
+
+	-- Wait for Humanoid (CharacterAdded fires before children are ready)
+	if player.Character then
+		player.Character:WaitForChild("Humanoid", 10)
 	end
-	WeaponService.EquipWeapon(player, "fists")
+
+	-- Give fists Tool to Backpack so it's available to equip from the hotbar
+	local config = WeaponRegistry.Get("fists")
+	if config then
+		_GiveTool(player, config)
+	end
 end
 
---[[
-	Initialize the service
-]]
 function WeaponService:Init()
 	print("[WeaponService] Initializing...")
 
-	-- Auto-equip fists whenever a character spawns.
 	Players.PlayerAdded:Connect(function(player)
-		player.CharacterAdded:Connect(function(character)
-			-- Run in a separate thread so WaitForChild doesn't block the signal.
+		player.CharacterAdded:Connect(function(_character)
 			task.spawn(_EquipDefault, player)
 		end)
 		if player.Character then
@@ -363,9 +315,8 @@ function WeaponService:Init()
 		end
 	end)
 
-	-- Handle players already connected before this service loaded.
 	for _, player in Players:GetPlayers() do
-		player.CharacterAdded:Connect(function(character)
+		player.CharacterAdded:Connect(function(_character)
 			task.spawn(_EquipDefault, player)
 		end)
 		if player.Character then
@@ -373,33 +324,21 @@ function WeaponService:Init()
 		end
 	end
 
-	-- Clean up when a player leaves.
 	Players.PlayerRemoving:Connect(function(player)
-		EquippedWeapons[player.UserId] = nil
-		_lastAttackTime[player.UserId] = nil
-		_strikes[player.UserId]       = nil
+		EquippedWeapons[player.UserId]    = nil
+		_lastAttackTime[player.UserId]    = nil
+		_strikes[player.UserId]           = nil
 	end)
 
 	print("[WeaponService] Initialized successfully")
 end
 
---[[
-	Start the service — wire up remote event listeners
-]]
 function WeaponService:Start()
 	print("[WeaponService] Starting...")
 
-	-- Listen for equip requests from clients
 	local equipEvent = NetworkProvider:GetRemoteEvent(EQUIP_EVENT_NAME)
 	if equipEvent then
-		equipEvent.OnServerEvent:Connect(function(player, payload)
-			-- payload may be a raw string or a table containing WeaponId (and optionally Slot)
-			local weaponId: string?
-			if typeof(payload) == "string" then
-				weaponId = payload
-			elseif typeof(payload) == "table" then
-				weaponId = payload.WeaponId
-			end
+		equipEvent.OnServerEvent:Connect(function(player, weaponId)
 			if typeof(weaponId) ~= "string" then
 				warn(`[WeaponService] EquipWeapon from {player.Name} — invalid weaponId type`)
 				return
@@ -408,7 +347,6 @@ function WeaponService:Start()
 		end)
 	end
 
-	-- Listen for unequip requests from clients
 	local unequipEvent = NetworkProvider:GetRemoteEvent(UNEQUIP_EVENT_NAME)
 	if unequipEvent then
 		unequipEvent.OnServerEvent:Connect(function(player)

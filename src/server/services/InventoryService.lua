@@ -188,11 +188,10 @@ local function _onUseRequest(player, packet)
     InventoryService.UseItem(player, packet.ItemId, packet.Target)
 end
 
--- EquipWeapon: called by WeaponService to also record the equip in the profile
--- WeaponId is the item id (e.g. "weapon_fists"), Slot is numeric slot string
-local function _onEquipWeapon(player, packet)
-    local slot = tostring(packet.Slot or "1")
-    InventoryService.SetEquipped(player, slot, packet.WeaponId)
+-- EquipWeapon: WeaponService owning a weapon does NOT auto-slot into hotbar.
+-- Hotbar placement is player-driven only (drag/click from inventory).
+local function _onEquipWeapon(_player: Player, _packet: any)
+    -- intentionally empty
 end
 
 local function _onPlayerAdded(player)

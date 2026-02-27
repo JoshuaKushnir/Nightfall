@@ -64,50 +64,46 @@ local function _WireToolEvents(tool: Tool)
 end
 
 --[[
-	Scan the player's Backpack and Character for weapon tools and wire them up.
-	Also sets _heldWeaponId immediately if a tool is already in the Character.
-]]
-local function _ScanAndWire()
-	local backpack = Player:FindFirstChildOfClass("Backpack")
-	if backpack then
-		for _, item in backpack:GetChildren() do
-			if item:IsA("Tool") and item:GetAttribute("WeaponId") then
-				_WireToolEvents(item :: Tool)
-			end
-		end
-		-- Wire any tools added to the backpack later (e.g. weapon swap)
-		backpack.ChildAdded:Connect(function(child)
-			if child:IsA("Tool") and child:GetAttribute("WeaponId") then
-				_WireToolEvents(child :: Tool)
-			end
-		end)
-	end
+    PATCH for WeaponController.lua
 
-	-- If the tool is already held when we scan, set state immediately.
-	local character = Player.Character
-	if character then
-		local held = character:FindFirstChildOfClass("Tool")
-		if held and held:GetAttribute("WeaponId") then
-			_heldWeaponId = held:GetAttribute("WeaponId") :: string
-			print(`[WeaponController] ✓ Tool already held on scan: {_heldWeaponId}`)
-		else
-			-- Auto-select the first weapon tool in the backpack so the player
-			-- can attack immediately without pressing 1. This moves the Tool
-			-- from Backpack → Character and fires the Tool.Equipped event,
-			-- which sets _heldWeaponId via _WireToolEvents.
-			if backpack then
-				for _, item in backpack:GetChildren() do
-					if item:IsA("Tool") and item:GetAttribute("WeaponId") then
-						-- Equip by parenting into character — Roblox's built-in
-						-- tool selection mechanism.
-						item.Parent = character
-						print(`[WeaponController] ✓ Auto-selected tool: {item:GetAttribute("WeaponId")}`)
-						break
-					end
-				end
-			end
-		end
-	end
+    Replace the _ScanAndWire function entirely with this version.
+
+    Change from previous patch:
+    - Removed the auto-select block that moved a tool from Backpack → Character.
+    - The player now spawns with weapons in Backpack (owned by WeaponService)
+      but NONE held/equipped. They must press 1 or click the weapon's hotbar slot
+      to physically hold the tool.
+    - _WireToolEvents is still called for all backpack tools so held/unhold events
+      fire correctly when the player does choose to hold a weapon.
+]]
+
+local function _ScanAndWire()
+    local backpack = Player:FindFirstChildOfClass("Backpack")
+    if backpack then
+        for _, item in backpack:GetChildren() do
+            if item:IsA("Tool") and item:GetAttribute("WeaponId") then
+                _WireToolEvents(item :: Tool)
+            end
+        end
+        -- Wire future additions (e.g. weapon swaps from WeaponService)
+        backpack.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") and child:GetAttribute("WeaponId") then
+                _WireToolEvents(child :: Tool)
+            end
+        end)
+    end
+
+    -- If a tool is already physically held when we scan (e.g. respawn edge case),
+    -- record it so _heldWeaponId is accurate.
+    local character = Player.Character
+    if character then
+        local held = character:FindFirstChildOfClass("Tool")
+        if held and held:GetAttribute("WeaponId") then
+            _heldWeaponId = held:GetAttribute("WeaponId") :: string
+            print(`[WeaponController] ✓ Tool already held on scan: {_heldWeaponId}`)
+        end
+        -- No auto-equip here — player spawns unarmed, weapons stay in Backpack.
+    end
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────

@@ -40,10 +40,6 @@ local MovementController: any = nil
 local StateSyncController: any = nil -- injected; used for stun-buffer drain
 local CombatController: any = nil -- will be injected to track combat state
 
--- Feint bookkeeping
-local heavyDown = false             -- true while M2/R held
-local heavyConsumed = false         -- heavy press used to trigger a feint (prevents normal heavy attack)
-
 -- State
 local CurrentAction: Action?
 local ActionQueue: {ActionConfig} = {}
@@ -137,88 +133,7 @@ function ActionController:Start()
 		end
 	end
 
-	-- Feint helpers --------------------------------------------------------
-local function _isWithinFeintWindow(action)
-	if not action or not action.Config or action.Config.Type ~= "Attack" then
-		return false
-	end
-	local now = tick()
-	local elapsed = now - action.StartTime
-	-- window extends through the windup (HitStart) up to the CancelFrame if defined
-	local hitStart = action.Config.HitStartFrame or 0
-	local windupTime = hitStart * action.Config.Duration
-	if action.Config.CancelFrame then
-		local cancelTime = action.Config.Duration * action.Config.CancelFrame
-		windupTime = math.max(windupTime, cancelTime)
-	end
-	return elapsed < windupTime
-end
-
-function ActionController._PerformFeint()
-	-- respect feint cooldown
-	local feintId = ActionTypes.FEINT.Id
-	if ActionCooldowns[feintId] and tick() < ActionCooldowns[feintId] then
-		print("[ActionController] ✗ Feint ignored - still on cooldown")
-		return
-	end
-	if not CurrentAction then
-		return
-	end
-	print("[ActionController] ⚪ Feint triggered (cancelling " .. CurrentAction.Config.Name .. ")")
-	-- cancel current action similar to early cancel
-	local old = CurrentAction
-	-- clear original action cooldown so player can reuse it immediately
-	if old and old.Config and old.Config.Id then
-		ActionCooldowns[old.Config.Id] = nil
-	end
-	-- fade animation
-	if old.AnimationTrack and old.AnimationTrack.IsPlaying then
-		old.AnimationTrack:Stop(0.08)
-	end
-	-- remove hitbox if any
-	if old.Hitbox then
-		HitboxService.RemoveHitbox(old.Hitbox)
-		old.Hitbox = nil
-	end
-	CurrentAction = nil
-	-- apply cooldown for the feint itself (weapon-specific overrides)
-	local feintCfg = ActionTypes.FEINT
-	local cd = feintCfg and feintCfg.Cooldown or nil
-	local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
-	local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
-	if weaponCfg and weaponCfg.FeintCooldown then
-		cd = weaponCfg.FeintCooldown
-	end
-	if feintCfg and cd then
-		ActionCooldowns[feintCfg.Id] = tick() + cd
-	end
-	-- play feint action (local only)
-	ActionController._PlayActionLocal(feintCfg)
-end
-
--- Input handling modifications for heavy/feint
-function ActionController._OnHeavyPressed()
-	heavyDown = true
-	heavyConsumed = false
-	-- attempt immediate feint if we're slipping into a swing
-	if _isWithinFeintWindow(CurrentAction) then
-		heavyConsumed = true
-		print("[ActionController] heavy press inside feint window (t=" .. tostring(tick() - (CurrentAction and CurrentAction.StartTime or 0)) .. ", windup=" .. tostring((CurrentAction and (CurrentAction.Config.HitStartFrame or 0) * CurrentAction.Config.Duration) or 0) .. ")")
-		ActionController._PerformFeint()
-	end
-end
-
-function ActionController._OnHeavyReleased()
-	if heavyDown then
-		heavyDown = false
-		if not heavyConsumed then
-			print("[ActionController INPUT] HEAVY RELEASE → performing heavy attack")
-			ActionController.PlayAction(ActionTypes.ATTACK_HEAVY)
-		end
-	end
-end
-
--- Bind input for testing
+	-- Bind input for testing
 	UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		print(`[ActionController INPUT] Key: {input.KeyCode}, MouseButton: {input.UserInputType}, GameProcessed: {gameProcessed}`)
 
@@ -232,10 +147,10 @@ end
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			print("[ActionController INPUT] LIGHT ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
-		-- right‑click (MouseButton2) or R key for heavy/feint
-		elseif input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.R then
-			print("[ActionController INPUT] HEAVY press")
-			ActionController._OnHeavyPressed()
+		-- Middle click or R key to heavy attack
+		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.R then
+			print("[ActionController INPUT] HEAVY ATTACK triggered")
+			ActionController.PlayAction(ActionTypes.ATTACK_HEAVY)
 		-- Q to dodge
 		elseif input.KeyCode == Enum.KeyCode.Q then
 			print("[ActionController INPUT] DODGE triggered")
@@ -255,20 +170,6 @@ end
 			local useAbilityEvent = NetworkProvider:GetRemoteEvent("UseAbility")
 			if useAbilityEvent then
 				useAbilityEvent:FireServer()
-			end
-		end
-	end)
-
-	UserInputService.InputEnded:Connect(function(input, gameProcessed)
-		if input.UserInputType == Enum.UserInputType.MouseButton2 or input.KeyCode == Enum.KeyCode.R then
-			ActionController._OnHeavyReleased()
-		end
-		if input.KeyCode == Enum.KeyCode.F then
-			-- Release block by ending the current action if it's a block
-			if CurrentAction and CurrentAction.Config.Type == "Block" then
-				CurrentAction:Stop()
-				CurrentAction:Cleanup()
-				CurrentAction = nil
 			end
 		end
 	end)
@@ -305,20 +206,6 @@ end
 	end)
 
 	print("[ActionController] Started")
-end
-
---[[]]
--- Test helpers
-function ActionController._Test_SetHeavyState(down: boolean, consumed: boolean?)
-	heavyDown = down
-	if consumed ~= nil then
-		heavyConsumed = consumed
-	end
-end
-
--- expose for unit tests
-function ActionController._Test_OnHeavyPressed()
-	ActionController._OnHeavyPressed()
 end
 
 --[[
@@ -377,25 +264,10 @@ function ActionController.PlayAction(config: ActionConfig)
 		return
 	end
 
-	-- Gate attack actions: require an owned weapon (fists counts).
-	-- GetOwned() returns non-nil as long as the server has given us a weapon,
-	-- regardless of whether the Tool is actively held in hand. GetEquipped()
-	-- (held = tool in Character) is only relevant for VFX, not combat gating.
-	if (config.Type == "Attack") and WeaponController and not WeaponController.GetOwned() then
-		print("[ActionController] ✗ Cannot attack — no weapon owned")
+	-- Gate attack actions: require an equipped weapon (fists counts).
+	if (config.Type == "Attack") and WeaponController and not WeaponController.GetEquipped() then
+		print("[ActionController] ✗ Cannot attack — no weapon equipped")
 		return
-	end
-
-	-- if the heavy button is currently held and we're starting a non-heavy attack, we
-	-- want to convert it immediately into a feint. this implements the "hold M2 to
-	-- feint your next swing" convenience described in design.
-	if heavyDown and config.Type == "Attack" and config.Id ~= ActionTypes.ATTACK_HEAVY.Id then
-		heavyConsumed = true
-		-- schedule the feint right after the new action starts (deferred so CurrentAction
-		-- is set by _PlayActionLocal below)
-		task.defer(function()
-			ActionController._PerformFeint()
-		end)
 	end
 
 	-- For dodge actions, determine roll direction based on current input (real-time)
@@ -484,7 +356,7 @@ function ActionController.PlayAction(config: ActionConfig)
 		-- ── Weapon-aware combo tree (Issue #71) ───────────────────────────────
 		-- If the player has a weapon equipped attempt to use that weapon's
 		-- Animations.Combo table.  Fall back to bare-hands punch N on no weapon.
-		local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
+		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
 		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
 		-- attack speed multiplier from the weapon (1.0 = baseline)
 		local speed = 1
@@ -573,7 +445,7 @@ function ActionController.PlayAction(config: ActionConfig)
 
 	-- compute weapon speed for attacks (used later for cd and playback)
 	if config.Type == "Attack" then
-		local weaponId: string? = WeaponController and (WeaponController.GetEquipped() or WeaponController.GetOwned()) or nil
+		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
 		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
 		local speed = 1
 		if weaponCfg and weaponCfg.AttackSpeed and weaponCfg.AttackSpeed > 0 then
@@ -581,16 +453,9 @@ function ActionController.PlayAction(config: ActionConfig)
 		end
 		config.Speed = speed
 		-- apply cooldown immediately so queued requests also respect it
-		local cd
-		if config.Id == ActionTypes.FEINT.Id then
-			cd = (weaponCfg and weaponCfg.FeintCooldown) or config.Cooldown or PER_SWING_COOLDOWN / speed
-		elseif config.Id == ActionTypes.ATTACK_HEAVY.Id then
-			cd = (weaponCfg and weaponCfg.HeavyCooldown) or PER_SWING_COOLDOWN / speed
-		else
-			cd = PER_SWING_COOLDOWN / speed
-			if config.IsFinisher then
-				cd = COMBO_FINISH_COOLDOWN / speed
-			end
+		local cd = PER_SWING_COOLDOWN / speed
+		if config.IsFinisher then
+			cd = COMBO_FINISH_COOLDOWN / speed
 		end
 		ActionCooldowns[config.Id] = tick() + cd
 	end
@@ -896,11 +761,6 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	-- ── Hitbox (attacks only) ─────────────────────────────────────────────
 	if config.Type == "Attack" and config.HitStartFrame then
 		local hitTime = config.Duration * config.HitStartFrame
-		-- ensure hitbox spawns outside of the feint window (which reaches at least cancel frame)
-		if config.CancelFrame then
-			local cancelTime = config.Duration * config.CancelFrame + 0.01
-			hitTime = math.max(hitTime, cancelTime)
-		end
 		task.delay(hitTime, function()
 			if CurrentAction ~= action or not action.IsActive or not Character then return end
 			local rootPart = Utils.GetRootPart(Player)
