@@ -71,7 +71,12 @@ return {
                 local player = game:GetService("Players").LocalPlayer
                 local pg = player:WaitForChild("PlayerGui")
                 local hotbar = pg.InventoryUI:FindFirstChild("HotbarRoot")
-                assert(hotbar and #hotbar:GetChildren() == 8, "Hotbar should have 8 slots when open")
+                -- we expect exactly 8 TextButton slots to exist when open
+                local btnCount = 0
+                for _,c in ipairs(hotbar and hotbar:GetChildren() or {}) do
+                    if c:IsA("TextButton") then btnCount += 1 end
+                end
+                assert(btnCount == 8, "Hotbar should have 8 slots when open")
             end,
         },
         {
@@ -287,7 +292,7 @@ return {
             fn = function()
                 InventoryController:RefreshUI()
                 local gui = game:GetService("Players").LocalPlayer.PlayerGui.InventoryUI
-                local hint = gui:FindFirstChild("Hint")
+                local hint = gui:FindFirstChild("OpenHint")
                 assert(hint and string.find(hint.Text, "`"), "hint should mention backquote")
             end,
         },
