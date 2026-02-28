@@ -8,7 +8,7 @@
 	Type definitions for combat actions with animations, hit-stop, and game feel.
 ]]
 
-export type ActionType = "Attack" | "Ability" | "Skill" | "Dodge" | "Parry" | "Block" -- feints are modeled as attacks with a special flag
+export type ActionType = "Attack" | "Ability" | "Skill" | "Dodge" | "Parry" | "Block"
 
 export type ActionConfig = {
 	-- Identity
@@ -41,7 +41,6 @@ export type ActionConfig = {
 	KnockbackPower: number?, -- Knockback force applied on hit
 	CancelFrame: number?,   -- Fraction of Duration after which a queued action can interrupt (e.g. 0.55)
 	AttackImpulse: number?, -- Brief forward studs/s nudge applied at swing start (non-lunge attacks)
-	IsFeint: boolean?,        -- true if this action is a feint/cancel (no hitbox)
 
 	-- Server Validation
 	Cooldown: number?, -- Seconds between uses
@@ -156,25 +155,6 @@ local PARRY: ActionConfig = {
 	RequiredState = "Idle",
 }
 
-local FEINT: ActionConfig = {
-	Id = "feint",
-	Name = "Feint",
-	Type = "Attack",
-	AnimationId = "",
-	AnimationName = "Fists",
-	AnimationAssetName = "Feint", -- placeholder, will be replaced by actual asset later
-	AnimationSpeed = 1.0,
-	Duration = 0.22,        -- slight end‑lag
-	HitStartFrame = nil,    -- no hit
-	HitStopDuration = 0,
-	CancelFrame = nil,
-	AttackImpulse = 0,
-	CameraShake = 0,
-	Cooldown = 1.0, -- longer cooldown to prevent hitting then immediately feinting
-	RequiredState = "Idle",
-	IsFeint = true,
-}
-
 local LUNGE_ATTACK: ActionConfig = {
 	Id = "atk_lunge",
 	Name = "Lunge Attack",
@@ -200,6 +180,5 @@ return {
 	DODGE = DODGE,
 	BLOCK = BLOCK,
 	PARRY = PARRY,
-	FEINT = FEINT,
 	LUNGE_ATTACK = LUNGE_ATTACK,
 }

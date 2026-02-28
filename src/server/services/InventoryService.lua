@@ -82,68 +82,33 @@ end
     - An item already in another slot is moved (not duplicated)
     - Weapons route through EquipWeapon network event to WeaponService as well
 ]]
-function InventoryService.SetEquipped(player: Player, slot: string, itemId: string?): boolean
+function InventoryService.SetEquipped(player: Player, slot: string, itemId: string?)
     local profile = DataService:GetProfile(player)
-    if not profile then return false end
-
-    profile.Inventory = profile.Inventory or {}
-    profile.EquippedItems = profile.EquippedItems or {}
-
-    -- UNEQUIP: return item in slot back to inventory
-    if itemId == nil then
-        local existing = profile.EquippedItems[slot]
-        if existing then
-            profile.EquippedItems[slot] = nil
-            table.insert(profile.Inventory, existing)
-        end
-        _syncInventory(player)
-        return true
-    end
-
-    -- EQUIP: find the item (check free inventory first, then other hotbar slots)
-    local item: ItemTypes.Item? = nil
-    local inventoryIndex: number? = nil
-
-    for i, v in ipairs(profile.Inventory) do
-        if v.Id == itemId then
-            item = v
-            inventoryIndex = i
-            break
-        end
-    end
-
-    -- If not in free inventory, check if it's in another hotbar slot
-    local fromSlot: string? = nil
-    if not item then
-        for k, v in pairs(profile.EquippedItems) do
-            if v and v.Id == itemId then
-                item = v
-                fromSlot = k
-                break
-            end
-        end
-    end
-
-    if not item then
-        warn("[InventoryService] Item not found:", itemId)
+    if not profile then
         return false
     end
 
-    -- Return existing item in this slot back to inventory
-    local displaced = profile.EquippedItems[slot]
-    if displaced and displaced.Id ~= itemId then
-        table.insert(profile.Inventory, displaced)
-    end
+    profile.EquippedItems = profile.EquippedItems or {}
 
-    -- Remove item from its current location
-    if inventoryIndex then
-        table.remove(profile.Inventory, inventoryIndex)
-    elseif fromSlot then
-        profile.EquippedItems[fromSlot] = nil
+    if itemId == nil then
+        profile.EquippedItems[slot] = nil
+    else
+        -- Find the item in the player's inventory and store a reference
+        local found = nil
+        if profile.Inventory then
+            for _, v in ipairs(profile.Inventory) do
+                if v.Id == itemId then
+                    found = v
+                    break
+                end
+            end
+        end
+        if not found then
+            warn(`[InventoryService] SetEquipped: item "{itemId}" not in {player.Name}'s inventory`)
+            return false
+        end
+        profile.EquippedItems[slot] = found
     end
-
-    -- Place item in slot
-    profile.EquippedItems[slot] = item
 
     _syncInventory(player)
     return true
