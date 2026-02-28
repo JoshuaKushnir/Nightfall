@@ -49,6 +49,7 @@ local Fists: WeaponConfig = {
 	-- Reuses the existing punch 1-5 animation assets already in the project.
 	Animations = {
 		Equip = { Folder = "Fists", Asset = "Idle"  }, -- no special equip anim
+		Unequip = { Folder = "Fists", Asset = "Unequip" },
 		Idle  = { Folder = "Idle", Asset = "Idle"  },
 		Walk  = { Folder = "Fists", Asset = "Walk"  },
 		Run   = { Folder = "Fists", Asset = "Run"   },
