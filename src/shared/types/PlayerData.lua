@@ -79,9 +79,19 @@ export type PlayerData = {
 	ResonanceShards: number,          -- in-flight currency, lost on death
 	TotalResonance: number,           -- permanent, never lost
 	
-	-- Discipline
+	-- Discipline (computed soft label — not a locked choice)
 	DisciplineId: string,
-	HasChosenDiscipline: boolean, -- false until first-login selection screen
+
+	-- Stat Allocation (free distribution; no locked class)
+	StatPoints: number,   -- unspent points available to invest
+	Stats: {
+		Strength:     number,
+		Fortitude:    number,
+		Agility:      number,
+		Intelligence: number,
+		Willpower:    number,
+		Charisma:     number,
+	},
 
 	-- Progression System
 	CurrentRing: number,  -- 0–5: which Ring the player is currently in

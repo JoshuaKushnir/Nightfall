@@ -58,16 +58,27 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 	Experience = 0,
 	StatPoints = 0,
 	
-	-- Combat Stats
-	Strength = 5,
-	Fortitude = 5,
-	Agility = 5,
-	Intelligence = 5,
-	Willpower = 5,
-	Charisma = 5,
+	-- Combat Stats (derived from stat allocation; base values before any points spent)
+	Strength = 0,
+	Fortitude = 0,
+	Agility = 0,
+	Intelligence = 0,
+	Willpower = 0,
+	Charisma = 0,
 
-	-- Discipline
+	-- Discipline (computed soft label; updates as stats change)
 	DisciplineId = "Wayward",
+
+	-- Stat Allocation
+	StatPoints = 0,
+	Stats = {
+		Strength     = 0,
+		Fortitude    = 0,
+		Agility      = 0,
+		Intelligence = 0,
+		Willpower    = 0,
+		Charisma     = 0,
+	},
 	
 	-- Components
 	Health = {
@@ -95,9 +106,8 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 	TotalResonance = 0,
 
 	-- Progression
-	CurrentRing = 1,             -- start in Ring 1 (Verdant Shelf)
-	OmenMarks = 0,               -- clean slate; 0-5 via Omen accumulation
-	HasChosenDiscipline = false, -- prompted at character creation
+	CurrentRing = 1,  -- start in Ring 1 (Verdant Shelf)
+	OmenMarks = 0,    -- clean slate; 0-5 via Omen accumulation
 	
 	-- Inventory & Equipment
 	EquippedMantras = {},

@@ -2,11 +2,12 @@
 --[[
     Class: ProgressionTypes
     Description: Type definitions for the Progression system — Resonance,
-                 Ring soft caps, Discipline selection, and Omen marks.
+                 Ring soft caps with diminishing returns, stat-based progression,
+                 and Omen marks. Discipline is a computed soft label, not a lock.
     Dependencies: None
 
     Issue #138: ProgressionService — Resonance grants, Ring soft caps, Shard loss
-    Issue #139: Discipline selection flow
+    Issue #140: Stat-based progression — replace Discipline lock-in
     Epic #51: Phase 4 — World & Narrative
 ]]
 
@@ -16,8 +17,28 @@
 export type RingId = number  -- 0-5
 
 -- ─── Discipline Identifiers ───────────────────────────────────────────────────
-
+-- DisciplineId is now a *computed soft label* derived from the player's stat
+-- allocation — not a locked choice.  It updates every time stats change.
 export type DisciplineId = "Wayward" | "Ironclad" | "Silhouette" | "Resonant"
+
+-- ─── Stat Names ───────────────────────────────────────────────────────────────
+export type StatName =
+    | "Strength"     -- physical power; HealthMax + BreakBase
+    | "Fortitude"    -- defensive endurance; PostureMax + PostureRecovery
+    | "Agility"      -- mobility; Breath pool (Phase 2+)
+    | "Intelligence" -- Aspect / mana; ManaMax + ManaRegen
+    | "Willpower"    -- mana half-rate; DebuffResist (Phase 4+)
+    | "Charisma"     -- social / NPC (Phase 4+, no current game effect)
+
+-- ─── Stat Allocation Map ──────────────────────────────────────────────────────
+export type StatAllocation = {
+    Strength:     number,
+    Fortitude:    number,
+    Agility:      number,
+    Intelligence: number,
+    Willpower:    number,
+    Charisma:     number,
+}
 
 -- ─── Resonance Sources ────────────────────────────────────────────────────────
 
@@ -61,24 +82,29 @@ export type ProgressionSyncPacket = {
     ResonanceShards: number,
     CurrentRing: number,
     SoftCap: number,
-    HasChosenDiscipline: boolean,
-    DisciplineId: DisciplineId,
+    DisciplineId: DisciplineId,  -- computed soft label
     OmenMarks: number,
+    StatPoints: number,          -- unspent points available to allocate
+    Stats: StatAllocation,       -- how many points are in each stat
 }
 
--- Sent server→client when the player hasn't selected a Discipline yet
-export type DisciplineSelectRequiredPacket = {
-    -- empty; presence of the event is the trigger
+-- Sent client→server: request to spend stat points
+export type StatAllocatePacket = {
+    StatName: StatName,
+    Amount: number,  -- number of points to invest (usually 1)
 }
 
--- Sent client→server with the player's Discipline choice
-export type DisciplineSelectedPacket = {
-    DisciplineId: DisciplineId,
-}
-
--- Sent server→client confirming the Discipline lock-in
-export type DisciplineConfirmedPacket = {
-    DisciplineId: DisciplineId,
+-- Sent server→client: confirms allocation + sends updated values
+export type StatAllocatedPacket = {
+    StatName: StatName,
+    NewAmount: number,        -- total points in that stat after this change
+    StatPoints: number,       -- remaining unspent points
+    DisciplineId: DisciplineId, -- recalculated soft label
+    -- Updated derived combat values
+    HealthMax: number,
+    PostureMax: number,
+    ManaMax: number,
+    ManaRegen: number,
 }
 
 -- ─── Ring Config Table (Single Source of Truth) ───────────────────────────────
@@ -140,17 +166,54 @@ local RESONANCE_GRANTS: {[ResonanceSource]: number} = {
 -- SPEC-GAP: tracked in issue #129
 local SHARD_LOSS_FRACTION = 0.15
 
--- Valid Discipline IDs for validation
-local VALID_DISCIPLINES: {[string]: true} = {
-    Wayward   = true,
-    Ironclad  = true,
-    Silhouette = true,
-    Resonant  = true,
+-- Valid stat names for request validation
+local VALID_STAT_NAMES: {[string]: true} = {
+    Strength     = true,
+    Fortitude    = true,
+    Agility      = true,
+    Intelligence = true,
+    Willpower    = true,
+    Charisma     = true,
+}
+
+-- TotalResonance milestone interval for stat point awards
+-- Every STAT_POINT_MILESTONE cumulative Resonance = 1 new unspent StatPoint
+-- SPEC-GAP: value is a placeholder — issue #129
+local STAT_POINT_MILESTONE = 200
+
+-- Maximum points a player may invest in a single stat
+-- SPEC-GAP: cap needs design sign-off — issue #129
+local STAT_MAX_PER_STAT = 20
+
+-- How much each allocated point adds to combat values (server-authoritative)
+-- Layout: { HealthMax, PostureMax, ManaMax, ManaRegen, BreakBase }
+-- SPEC-GAP: scaling values are design placeholders — issue #129
+local STAT_PER_POINT: {[string]: {[string]: number}} = {
+    Strength     = { HealthMax = 5, BreakBase = 2 },
+    Fortitude    = { PostureMax = 6, PostureRecovery = 0.2 },
+    Agility      = {},        -- Breath system (Phase 2+); no current derived value
+    Intelligence = { ManaMax = 8, ManaRegen = 0.3 },
+    Willpower    = { ManaMax = 4, ManaRegen = 0.1 },
+    Charisma     = {},        -- Phase 4 social; no current derived value
+}
+
+-- Which stat dominance maps to which Discipline soft label.
+-- Evaluated server-side in _computeDisciplineLabel().
+-- Fortitude → Ironclad, Agility → Silhouette, Intelligence → Resonant, else Wayward
+local DISCIPLINE_STAT_MAP: {[DisciplineId]: {string}} = {
+    Ironclad   = { "Fortitude" },
+    Silhouette = { "Agility" },
+    Resonant   = { "Intelligence", "Willpower" },
+    Wayward    = { "Strength", "Charisma" },
 }
 
 return {
     RING_CONFIGS          = RING_CONFIGS,
     RESONANCE_GRANTS      = RESONANCE_GRANTS,
     SHARD_LOSS_FRACTION   = SHARD_LOSS_FRACTION,
-    VALID_DISCIPLINES     = VALID_DISCIPLINES,
+    VALID_STAT_NAMES      = VALID_STAT_NAMES,
+    STAT_POINT_MILESTONE  = STAT_POINT_MILESTONE,
+    STAT_MAX_PER_STAT     = STAT_MAX_PER_STAT,
+    STAT_PER_POINT        = STAT_PER_POINT,
+    DISCIPLINE_STAT_MAP   = DISCIPLINE_STAT_MAP,
 }

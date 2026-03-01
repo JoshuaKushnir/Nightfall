@@ -85,11 +85,10 @@ export type NetworkEvent =
 	| "AbilityDataSync"        -- Server → Client: sync current cooldowns on join
 
 	-- Progression
-	| "ResonanceUpdate"          -- Server → Client: Resonance/Shard state change
-	| "ProgressionSync"          -- Server → Client: full progression state on join
-	| "DisciplineSelectRequired" -- Server → Client: player must choose Discipline
-	| "DisciplineSelected"       -- Client → Server: player's Discipline choice
-	| "DisciplineConfirmed"      -- Server → Client: Discipline lock-in confirmed
+	| "ResonanceUpdate"  -- Server → Client: Resonance/Shard state change
+	| "ProgressionSync" -- Server → Client: full progression state on join
+	| "StatAllocate"    -- Client → Server: spend stat points
+	| "StatAllocated"   -- Server → Client: allocation confirmed + new derived values
 
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
@@ -226,7 +225,7 @@ export type AbilityCastRequestPacket = {
 	TargetPosition: Vector3?,
 }
 
--- Progression packets (Issue #138, #139)
+-- Progression packets (Issue #138, #140)
 export type ResonanceUpdatePacket = {
 	TotalResonance: number,
 	ResonanceShards: number,
@@ -747,7 +746,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		Description = "Client interacts with UI",
 	},
 	
-	-- Progression (Issue #138, #139)
+	-- Progression (Issue #138, #140)
 	ResonanceUpdate = {
 		Direction = "ServerToClient",
 		RateLimitPerSecond = nil,
@@ -760,23 +759,17 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Full progression state sync sent to client on join",
 	},
-	DisciplineSelectRequired = {
-		Direction = "ServerToClient",
-		RateLimitPerSecond = nil,
-		RequiresValidation = false,
-		Description = "Prompt client to open Discipline selection UI",
-	},
-	DisciplineSelected = {
+	StatAllocate = {
 		Direction = "ClientToServer",
-		RateLimitPerSecond = 1,
+		RateLimitPerSecond = 5,
 		RequiresValidation = true,
-		Description = "Client submits their Discipline choice (one-time)",
+		Description = "Client spends stat points into a stat (server validates and applies)",
 	},
-	DisciplineConfirmed = {
+	StatAllocated = {
 		Direction = "ServerToClient",
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
-		Description = "Server confirms Discipline lock-in",
+		Description = "Server confirms stat allocation and sends updated derived combat values",
 	},
 
 	-- Abilities

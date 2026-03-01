@@ -3,25 +3,25 @@
     Class: ProgressionService
     Description: Server authority for all player progression — Resonance accumulation,
                  Ring-based soft caps with diminishing returns, Resonance Shard loss on
-                 death, and Discipline selection lock-in.
+                 death, and stat-based progression.
 
     Issue #138: ProgressionService — Resonance grants, Ring soft caps, Shard loss on death
-    Issue #139: Discipline selection flow
+    Issue #140: Stat-based progression — replace Discipline lock-in
     Epic #51: Phase 4 — World & Narrative
 
     Public API:
         ProgressionService.GrantResonance(player, amount, source)
-            → Awards Resonance from a validated source; applies soft cap + diminishing returns.
+            → Awards Resonance; applies soft cap + diminishing returns; grants stat points at milestones.
         ProgressionService.OnPlayerDied(player)
             → Deducts 15% of ResonanceShards; fires update to client.
         ProgressionService.SetPlayerRing(player, ring)
             → Updates CurrentRing; used by world systems when the player enters a new zone.
-        ProgressionService.SelectDiscipline(player, disciplineId)
-            → Validates and locks in the player's Discipline choice (one-time).
+        ProgressionService.AllocateStat(player, statName, amount)
+            → Spends unspent StatPoints into a stat, applies derived values, recomputes DisciplineId.
         ProgressionService.SyncToClient(player)
             → Sends full ProgressionSync packet to client (called on join).
 
-    Dependencies: DataService, NetworkService, DisciplineConfig
+    Dependencies: DataService, NetworkService
 ]]
 
 local Players = game:GetService("Players")
@@ -29,13 +29,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.DataService)
 local NetworkService = require(script.Parent.NetworkService)
-local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 local ProgressionTypes = require(ReplicatedStorage.Shared.types.ProgressionTypes)
 
-local RING_CONFIGS        = ProgressionTypes.RING_CONFIGS
-local RESONANCE_GRANTS    = ProgressionTypes.RESONANCE_GRANTS
-local SHARD_LOSS_FRACTION = ProgressionTypes.SHARD_LOSS_FRACTION
-local VALID_DISCIPLINES   = ProgressionTypes.VALID_DISCIPLINES
+local RING_CONFIGS           = ProgressionTypes.RING_CONFIGS
+local RESONANCE_GRANTS       = ProgressionTypes.RESONANCE_GRANTS
+local SHARD_LOSS_FRACTION    = ProgressionTypes.SHARD_LOSS_FRACTION
+local VALID_STAT_NAMES       = ProgressionTypes.VALID_STAT_NAMES
+local STAT_POINT_MILESTONE   = ProgressionTypes.STAT_POINT_MILESTONE
+local STAT_MAX_PER_STAT      = ProgressionTypes.STAT_MAX_PER_STAT
+local STAT_PER_POINT         = ProgressionTypes.STAT_PER_POINT
+local DISCIPLINE_STAT_MAP    = ProgressionTypes.DISCIPLINE_STAT_MAP
 
 local ProgressionService = {}
 ProgressionService._initialized = false
@@ -104,33 +107,74 @@ local function _syncToClient(player: Player, profile: any, shardDelta: number, s
         ShardDelta      = shardDelta,
         IsSoftCapped    = cfg.SoftCap ~= math.huge and profile.TotalResonance >= cfg.SoftCap,
         Source          = source,
+        StatPoints      = profile.StatPoints or 0,
     })
 end
 
 --[[
-    _applyDisciplineStats(player, profile, disciplineId)
-    Adjusts the player's base Posture and Health pools according to
-    the numeric values in DisciplineConfig. The sourced stats become the
-    player's new values; downstream services read DisciplineConfig by Id.
+    _computeDisciplineLabel(profile) -> string
+    Derives a soft Discipline label from the player's stat allocation.
+    Checks for clear dominance; ties default to Wayward.
 ]]
-local function _applyDisciplineStats(player: Player, profile: any, disciplineId: string)
-    local cfg = DisciplineConfig[disciplineId]
-    if not cfg then
-        warn(("[ProgressionService] No DisciplineConfig entry for '%s'"):format(disciplineId))
-        return
+local function _computeDisciplineLabel(profile: any): string
+    local stats = profile.Stats or {}
+
+    -- Weighted score per label
+    local scores: {[string]: number} = {
+        Ironclad   = (stats.Fortitude or 0),
+        Silhouette = (stats.Agility or 0),
+        Resonant   = (stats.Intelligence or 0) + (stats.Willpower or 0) * 0.5,
+        Wayward    = (stats.Strength or 0) + (stats.Charisma or 0) * 0.3,
+    }
+
+    local best: string = "Wayward"
+    local bestScore = 0
+    for label, score in pairs(scores) do
+        if score > bestScore then
+            bestScore = score
+            best = label
+        end
+    end
+    return best
+end
+
+--[[
+    _applyStats(player, profile)
+    Recomputes Player data component values (Health.Max, Posture.Max, Mana.Max, Mana.Regen)
+    from the current stat allocation, then updates the Humanoid if character is loaded.
+    Base values are defined in DataService DEFAULT_PLAYER_DATA and are the 0-point baseline.
+]]
+local function _applyStats(player: Player, profile: any)
+    local stats = profile.Stats or {}
+
+    -- Base values (before any stat points)
+    local healthMax  = 100
+    local postureMax = 100
+    local manaMax    = 100
+    local manaRegen  = 2.0
+    local breakBase  = 45
+    local postureRecovery: number = 5.0
+
+    for statName, points in pairs(stats) do
+        local scale = STAT_PER_POINT[statName]
+        if scale and points > 0 then
+            healthMax       = healthMax       + (scale.HealthMax       or 0) * points
+            postureMax      = postureMax      + (scale.PostureMax      or 0) * points
+            manaMax         = manaMax         + (scale.ManaMax         or 0) * points
+            manaRegen       = manaRegen       + (scale.ManaRegen       or 0) * points
+            breakBase       = breakBase       + (scale.BreakBase       or 0) * points
+            postureRecovery = postureRecovery + (scale.PostureRecovery  or 0) * points
+        end
     end
 
-    -- Apply posture pool
-    if cfg.postureMax then
-        profile.Posture.Max     = cfg.postureMax
-        profile.Posture.Current = cfg.postureMax
-    end
+    -- Apply to profile components
+    profile.Health.Max     = math.floor(healthMax)
+    profile.Health.Current = math.min(profile.Health.Current or healthMax, profile.Health.Max)
+    profile.Posture.Max    = math.floor(postureMax)
+    profile.Mana.Max       = math.floor(manaMax)
+    profile.Mana.Regen     = manaRegen
 
-    -- Some disciplines have breath pools that map to Mana for now (placeholder)
-    -- SPEC-GAP: Breath is a separate resource — once MovementController is updated
-    --           to track Breath separately, remove this.
-
-    -- Apply character Humanoid health to match the new pool (if character exists)
+    -- Update Humanoid if character is loaded
     local char = player.Character
     if char then
         local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -139,8 +183,6 @@ local function _applyDisciplineStats(player: Player, profile: any, disciplineId:
             humanoid.Health    = math.min(humanoid.Health, profile.Health.Max)
         end
     end
-
-    print(("[ProgressionService] Applied Discipline stats for '%s' to %s"):format(disciplineId, player.Name))
 end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
@@ -164,12 +206,13 @@ function ProgressionService.GrantResonance(player: Player, amount: number, sourc
     if not profile then return end
 
     local ring = profile.CurrentRing or 1
+    local prevTotal = profile.TotalResonance or 0
 
     -- TotalResonance: always grows (permanent accumulation)
-    profile.TotalResonance = (profile.TotalResonance or 0) + amount
+    profile.TotalResonance = prevTotal + amount
 
     -- Shards: subject to soft cap + diminishing returns
-    local shardGrant, isCapped = _computeShardGrant(profile.TotalResonance - amount, ring, amount)
+    local shardGrant, isCapped = _computeShardGrant(prevTotal, ring, amount)
     profile.ResonanceShards = (profile.ResonanceShards or 0) + shardGrant
 
     if isCapped then
@@ -181,6 +224,17 @@ function ProgressionService.GrantResonance(player: Player, amount: number, sourc
     else
         print(("[ProgressionService] %s +%d Resonance / +%d Shards (source: %s)")
             :format(player.Name, amount, shardGrant, source))
+    end
+
+    -- ─── Stat point milestones ───────────────────────────────────────────────────────
+    -- Award 1 StatPoint per STAT_POINT_MILESTONE of TotalResonance crossed
+    local prevMilestone = math.floor(prevTotal / STAT_POINT_MILESTONE)
+    local newMilestone  = math.floor(profile.TotalResonance / STAT_POINT_MILESTONE)
+    local newPoints     = newMilestone - prevMilestone
+    if newPoints > 0 then
+        profile.StatPoints = (profile.StatPoints or 0) + newPoints
+        print(("[ProgressionService] %s earned %d stat point(s) (milestone %d→%d, total unspent: %d)")
+            :format(player.Name, newPoints, prevMilestone, newMilestone, profile.StatPoints))
     end
 
     _syncToClient(player, profile, shardGrant, source)
@@ -238,50 +292,88 @@ function ProgressionService.SetPlayerRing(player: Player, ring: number)
 end
 
 --[[
-    SelectDiscipline(player, disciplineId) -> (boolean, string?)
-    Locks in the player's Discipline choice.
-    Only allowed once — returns false if already chosen.
-    Applies stat modifiers from DisciplineConfig.
+    AllocateStat(player, statName, amount) -> (boolean, string?)
+    Spends `amount` unspent StatPoints into `statName`.
+    Applies derived combat values and recomputes the DisciplineId soft label.
+    Fires StatAllocated to client on success.
 
-    @param player       The choosing player
-    @param disciplineId One of "Wayward" | "Ironclad" | "Silhouette" | "Resonant"
+    @param statName  One of the StatName values (Strength, Fortitude, Agility, …)
+    @param amount    How many points to invest (usually 1)
     @returns (success, errorReason?)
 ]]
-function ProgressionService.SelectDiscipline(player: Player, disciplineId: string): (boolean, string?)
-    -- Validate the id
-    if not VALID_DISCIPLINES[disciplineId] then
-        warn(("[ProgressionService] %s sent invalid DisciplineId: '%s'"):format(player.Name, disciplineId))
-        return false, "InvalidDiscipline"
+function ProgressionService.AllocateStat(player: Player, statName: string, amount: number): (boolean, string?)
+    -- Validate stat name
+    if not VALID_STAT_NAMES[statName] then
+        warn(("[ProgressionService] %s sent invalid stat name: '%s'"):format(player.Name, statName))
+        return false, "InvalidStat"
     end
+
+    amount = math.floor(amount or 1)
+    if amount < 1 then return false, "InvalidAmount" end
 
     local profile = DataService:GetProfile(player)
-    if not profile then
-        return false, "NoProfile"
+    if not profile then return false, "NoProfile" end
+
+    -- Ensure Stats subtable exists (reconcile for old profiles)
+    if not profile.Stats then
+        profile.Stats = { Strength=0, Fortitude=0, Agility=0, Intelligence=0, Willpower=0, Charisma=0 }
     end
 
-    -- One-time selection enforcement
-    if profile.HasChosenDiscipline then
-        warn(("[ProgressionService] %s attempted to re-select Discipline (already: %s)")
-            :format(player.Name, profile.DisciplineId))
-        return false, "AlreadyChosen"
+    -- Validate unspent points
+    local unspent = profile.StatPoints or 0
+    if unspent < amount then
+        warn(("[ProgressionService] %s tried to spend %d points in %s with only %d unspent")
+            :format(player.Name, amount, statName, unspent))
+        return false, "NotEnoughPoints"
     end
 
-    -- Lock in
-    profile.DisciplineId        = disciplineId
-    profile.HasChosenDiscipline = true
+    -- Validate per-stat cap
+    local current = profile.Stats[statName] or 0
+    if current + amount > STAT_MAX_PER_STAT then
+        local allowable = STAT_MAX_PER_STAT - current
+        warn(("[ProgressionService] %s would exceed %s cap (at %d, max %d, requested %d)")
+            :format(player.Name, statName, current, STAT_MAX_PER_STAT, amount))
+        if allowable <= 0 then return false, "StatCapped" end
+        amount = allowable  -- clamp to what's allowed
+    end
 
-    -- Apply stat changes from DisciplineConfig
-    _applyDisciplineStats(player, profile, disciplineId)
+    -- Apply
+    profile.StatPoints          = unspent - amount
+    profile.Stats[statName]     = current + amount
 
-    print(("[ProgressionService] ✓ %s selected Discipline: %s"):format(player.Name, disciplineId))
+    -- Recompute derived combat values
+    _applyStats(player, profile)
 
-    -- Confirm to client
-    NetworkService:SendToClient(player, "DisciplineConfirmed", {
-        DisciplineId = disciplineId,
+    -- Recompute Discipline soft label
+    local newLabel = _computeDisciplineLabel(profile)
+    if profile.DisciplineId ~= newLabel then
+        print(("[ProgressionService] %s Discipline label updated: %s → %s")
+            :format(player.Name, profile.DisciplineId or "?", newLabel))
+    end
+    profile.DisciplineId = newLabel
+
+    print(("[ProgressionService] ✔ %s +%d %s (total: %d / remaining: %d unspent)")
+        :format(player.Name, amount, statName, profile.Stats[statName], profile.StatPoints))
+
+    -- Inform client
+    NetworkService:SendToClient(player, "StatAllocated", {
+        StatName     = statName,
+        NewAmount    = profile.Stats[statName],
+        StatPoints   = profile.StatPoints,
+        DisciplineId = profile.DisciplineId,
+        HealthMax    = profile.Health.Max,
+        PostureMax   = profile.Posture.Max,
+        ManaMax      = profile.Mana.Max,
+        ManaRegen    = profile.Mana.Regen,
     })
 
     return true, nil
 end
+
+--[[
+    SelectDiscipline has been removed (Issue #140).
+    Discipline is now a computed soft label — use AllocateStat instead.
+]]
 
 --[[
     SyncToClient(player)
@@ -295,14 +387,24 @@ function ProgressionService.SyncToClient(player: Player)
     local cfg  = _getRingConfig(ring)
     local softCap = cfg.SoftCap == math.huge and -1 or cfg.SoftCap
 
+    -- Ensure Stats subtable exists on old profiles
+    local stats = profile.Stats or { Strength=0, Fortitude=0, Agility=0, Intelligence=0, Willpower=0, Charisma=0 }
+
+    -- Ensure discipline label is current
+    local label = _computeDisciplineLabel(profile)
+    if profile.DisciplineId ~= label then
+        profile.DisciplineId = label
+    end
+
     NetworkService:SendToClient(player, "ProgressionSync", {
-        TotalResonance      = profile.TotalResonance or 0,
-        ResonanceShards     = profile.ResonanceShards or 0,
-        CurrentRing         = ring,
-        SoftCap             = softCap,
-        HasChosenDiscipline = profile.HasChosenDiscipline or false,
-        DisciplineId        = profile.DisciplineId or "Wayward",
-        OmenMarks           = profile.OmenMarks or 0,
+        TotalResonance  = profile.TotalResonance or 0,
+        ResonanceShards = profile.ResonanceShards or 0,
+        CurrentRing     = ring,
+        SoftCap         = softCap,
+        DisciplineId    = profile.DisciplineId or "Wayward",
+        OmenMarks       = profile.OmenMarks or 0,
+        StatPoints      = profile.StatPoints or 0,
+        Stats           = stats,
     })
 end
 
@@ -340,17 +442,13 @@ local function _onPlayerAdded(player: Player)
     end
     if not profile then return end
 
+    -- Ensure Stats subtable exists on profiles created before Issue #140
+    if not profile.Stats then
+        profile.Stats = { Strength=0, Fortitude=0, Agility=0, Intelligence=0, Willpower=0, Charisma=0 }
+    end
+
     -- Send full state to client
     ProgressionService.SyncToClient(player)
-
-    -- If discipline not yet chosen, prompt the selection UI
-    if not profile.HasChosenDiscipline then
-        task.wait(0.5)  -- slight delay so client UI is ready
-        if player.Parent then
-            NetworkService:SendToClient(player, "DisciplineSelectRequired", {})
-            print(("[ProgressionService] Sent DisciplineSelectRequired to %s"):format(player.Name))
-        end
-    end
 end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -371,13 +469,15 @@ function ProgressionService:Start()
 
     Players.PlayerAdded:Connect(_onPlayerAdded)
 
-    -- Discipline selection handler
-    NetworkService:RegisterHandler("DisciplineSelected", function(player: Player, packet: any)
-        if type(packet) ~= "table" or type(packet.DisciplineId) ~= "string" then
-            warn(("[ProgressionService] Bad DisciplineSelected packet from %s"):format(player.Name))
+    -- Stat allocation handler
+    NetworkService:RegisterHandler("StatAllocate", function(player: Player, packet: any)
+        if type(packet) ~= "table"
+            or type(packet.StatName) ~= "string"
+            or type(packet.Amount) ~= "number" then
+            warn(("[ProgressionService] Bad StatAllocate packet from %s"):format(player.Name))
             return
         end
-        ProgressionService.SelectDiscipline(player, packet.DisciplineId)
+        ProgressionService.AllocateStat(player, packet.StatName, packet.Amount)
     end)
 
     print("[ProgressionService] Started successfully")
