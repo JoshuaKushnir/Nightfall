@@ -34,6 +34,7 @@ local Fists: WeaponConfig = {
 	ToolModelId = "",   -- no visible tool model
 	GripOffset  = CFrame.new(),
 	ToolType    = "Melee",
+	WeightClass = "Light",  -- Fists: lowest weight class, no proficiency restriction
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 6,

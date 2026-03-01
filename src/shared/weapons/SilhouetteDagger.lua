@@ -36,6 +36,7 @@ local SilhouetteDagger: WeaponConfig = {
 	ToolModelId = "",           -- TODO: replace with rbxassetid:// when art is ready
 	GripOffset  = CFrame.new(0, -0.6, 0),
 	ToolType    = "Melee",
+	WeightClass = "Light",       -- Silhouette primary; all disciplines can use freely
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 8,         -- ✏️ lowest per-hit; damage comes from combo frequency

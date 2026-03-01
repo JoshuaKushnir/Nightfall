@@ -32,6 +32,10 @@ local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConf
 
 local WeaponService = {}
 
+-- ─── Injected dependencies ───────────────────────────────────────────────────
+-- Populated in Init(); DataService is the authoritative source for player stats.
+local _DataService: any = nil
+
 -- ─── Storage ─────────────────────────────────────────────────────────────────
 
 -- Keyed by player UserId; value is the weapon Id currently HELD (in Character).
@@ -54,6 +58,7 @@ local EQUIP_EVENT_NAME     = "EquipWeapon"
 local UNEQUIP_EVENT_NAME   = "UnequipWeapon"
 local EQUIPPED_BROADCAST   = "WeaponEquipped"
 local UNEQUIPPED_BROADCAST = "WeaponUnequipped"
+local EQUIP_RESULT_EVENT   = "WeaponEquipResult"
 
 local ATTR_EQUIPPED = "EquippedWeapon"
 
@@ -109,6 +114,75 @@ local function _SheatheTool(player: Player, weaponId: string)
 			end
 		end
 	end
+end
+
+--[[
+	Check proficiency when a player equips a weapon.
+	Returns whether cross-training is active and the applicable penalty multipliers
+	from DisciplineConfig.crossTrainPenalty.
+
+	If the player's computed DisciplineId covers the weapon's WeightClass → full proficiency.
+	If not → cross-train penalty multipliers apply.
+	Returns (isCrossTrain, hpMult, postureMult, speedMult, breathMult).
+]]
+local function _getProficiency(player: Player, config: any): (boolean, number, number, number, number)
+	-- Full proficiency: weapon has no WeightClass restriction
+	if not config.WeightClass then
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	-- Fists always allow without penalty (baseline weapon)
+	if config.Id == "fists" then
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	-- Try to read player's computed DisciplineId from DataService
+	if not _DataService then
+		-- DataService not available — allow without penalty (safe fallback)
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	local profile = _DataService:GetProfile(player)
+	if not profile then
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	local disciplineId: string = profile.DisciplineId or "Wayward"
+	local discCfg = DisciplineConfig.Get(disciplineId)
+
+	if not discCfg or not discCfg.weaponClasses then
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	-- Check if weapon's weight class is in the discipline's allowed list
+	if table.find(discCfg.weaponClasses, config.WeightClass) then
+		return false, 1.0, 1.0, 1.0, 1.0
+	end
+
+	-- Cross-training: apply the global cross-train penalty from DisciplineConfig
+	local penalty = DisciplineConfig.Raw and DisciplineConfig.Raw.crossTrainPenalty
+		or { hpDamageMult = 0.85, postureDamageMult = 0.9, attackSpeedMult = 0.95, breathCostMult = 1.15 }
+
+	local hp     = penalty.hpDamageMult     or 0.85
+	local pos    = penalty.postureDamageMult or 0.90
+	local speed  = penalty.attackSpeedMult  or 0.95
+	local breath = penalty.breathCostMult   or 1.15
+
+	warn((`[WeaponService] {player.Name} cross-training: equipping {config.WeightClass} weapon "{config.Id}" `
+		.. `as {disciplineId} (allowed: {table.concat(discCfg.weaponClasses, ", ")})`)
+		.. (" — penalties: hp=%.0f%% pos=%.0f%% spd=%.0f%% breath=%.0f%%"):format(
+			hp*100, pos*100, speed*100, breath*100))
+
+	return true, hp, pos, speed, breath
+end
+
+-- Apply or clear proficiency penalty attributes on a Tool
+local function _applyProficiencyAttributes(tool: Tool, isCross: boolean, hp: number, pos: number, speed: number, breath: number)
+	tool:SetAttribute("CrossTraining",     isCross)
+	tool:SetAttribute("ProfHpDamageMult",  hp)
+	tool:SetAttribute("ProfPostureMult",   pos)
+	tool:SetAttribute("ProfSpeedMult",     speed)
+	tool:SetAttribute("ProfBreathMult",    breath)
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
@@ -188,25 +262,12 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 		end
 	end
 
-	-- Discipline cross-training warning (kept from original, non-blocking)
+	-- Discipline cross-training check (#133: proficiency system)
 	local config = WeaponRegistry.Get(weaponId)
-	if config and config.WeightClass then
-		local ok, playerData = pcall(function()
-			return StateService and StateService.GetPlayerData
-				and StateService:GetPlayerData(player) or nil
-		end)
-		if ok and playerData then
-			local ok2, discCfg = pcall(function()
-				return DisciplineConfig and DisciplineConfig.Get
-					and DisciplineConfig.Get(playerData.DisciplineId) or nil
-			end)
-			if ok2 and discCfg and discCfg.weaponClasses then
-				if not table.find(discCfg.weaponClasses, config.WeightClass) then
-					warn(`[WeaponService] {player.Name} cross-training: {config.WeightClass}`)
-				end
-			end
-		end
-	end
+	local isCross, hpMult, posMult, speedMult, breathMult = _getProficiency(player, config)
+
+	-- Apply penalty attributes to whichever tool is being equipped
+	-- (We do this after the tool is placed in Character / Backpack below)
 
 	-- Store as held
 	EquippedWeapons[player.UserId] = weaponId
@@ -246,9 +307,35 @@ function WeaponService.EquipWeapon(player: Player, weaponId: string)
 
 	print(`[WeaponService] ✓ {player.Name} equipped "{weaponId}"`)
 
+	-- Apply proficiency attributes to the tool now that it's in the character
+	local char2 = player.Character
+	if char2 then
+		for _, item in char2:GetChildren() do
+			if item:IsA("Tool") and item:GetAttribute("WeaponId") == weaponId then
+				_applyProficiencyAttributes(item :: Tool, isCross, hpMult, posMult, speedMult, breathMult)
+				break
+			end
+		end
+	end
+
+	-- Broadcast that weapon is equipped to all clients
 	local equippedEvent = NetworkProvider:GetRemoteEvent(EQUIPPED_BROADCAST)
 	if equippedEvent then
 		equippedEvent:FireAllClients(player, weaponId)
+	end
+
+	-- Notify the equipping player of the result + proficiency status
+	local resultEvent = NetworkProvider:GetRemoteEvent(EQUIP_RESULT_EVENT)
+	if resultEvent then
+		resultEvent:FireClient(player, {
+			Success          = true,
+			WeaponId         = weaponId,
+			IsCrossTraining  = isCross,
+			HpDamageMult     = hpMult,
+			PostureDamageMult = posMult,
+			AttackSpeedMult  = speedMult,
+			BreathCostMult   = breathMult,
+		})
 	end
 end
 
@@ -303,8 +390,12 @@ local function _EquipDefault(player: Player)
 	end
 end
 
-function WeaponService:Init()
+function WeaponService:Init(dependencies: any)
 	print("[WeaponService] Initializing...")
+
+	if dependencies then
+		_DataService = dependencies.DataService or nil
+	end
 
 	Players.PlayerAdded:Connect(function(player)
 		player.CharacterAdded:Connect(function(_character)

@@ -36,6 +36,7 @@ local ResonantStaff: WeaponConfig = {
 	ToolModelId = "",           -- TODO: replace with rbxassetid:// when art is ready
 	GripOffset  = CFrame.new(0, -1.5, 0),
 	ToolType    = "Melee",      -- physical swings still melee; Aspect abilities are separate
+	WeightClass = "Medium",      -- Resonant primary range; cross-train penalty for Silhouette
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 10,        -- ✏️ modest — Resonant playstyle augments this with cast damage

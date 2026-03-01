@@ -35,6 +35,7 @@ local WaywardSword: WeaponConfig = {
 	ToolModelId = "",           -- TODO: replace with rbxassetid:// when art is ready
 	GripOffset  = CFrame.new(0, -1.0, 0),
 	ToolType    = "Melee",
+	WeightClass = "Medium",      -- Wayward primary range; cross-train penalty for Silhouette
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 14,        -- ✏️ moderate; lower than Iron Sword, higher than Fists

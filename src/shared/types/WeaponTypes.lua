@@ -81,6 +81,8 @@ export type WeaponConfig = {
 	-- CFrame offset applied to the grip weld inside the handle.
 	GripOffset: CFrame?,
 	ToolType: WeaponToolType,
+	-- Determines which Discipline's proficiency applies. Absent = always full proficiency.
+	WeightClass: ("Light" | "Medium" | "Heavy")?
 
 	-- ── Stats (required) ─────────────────────────────────────────────────────
 	BaseDamage: number,

@@ -34,6 +34,7 @@ local IronSword: WeaponConfig = {
 	ToolModelId = "",           -- TODO: replace with rbxassetid:// once art is ready
 	GripOffset  = CFrame.new(0, -1.2, 0),
 	ToolType    = "Melee",
+	WeightClass = "Heavy",       -- Ironclad primary; cross-train penalty for others
 
 	-- ── Stats ─────────────────────────────────────────────────────────────────
 	BaseDamage     = 18,

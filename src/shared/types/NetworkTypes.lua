@@ -55,6 +55,7 @@ export type NetworkEvent =
 	| "UnequipWeapon"
 	| "WeaponEquipped"
 	| "WeaponUnequipped"
+	| "WeaponEquipResult"   -- server→client: result of an equip attempt with proficiency info
 	| "InventorySync"          -- server → client: send full inventory
 
 	-- Dialogue/Quests
@@ -351,6 +352,21 @@ export type EquipItemPacket = {
 
 export type UnequipItemPacket = {
 	Slot: "Weapon" | "Armor" | "Helmet" | "Accessory1" | "Accessory2",
+}
+
+-- Sent server→client after every weapon equip attempt (#133: proficiency system)
+export type WeaponEquipResultPacket = {
+	Success: boolean,
+	WeaponId: string,
+	-- true when the weapon's WeightClass is outside the player's primary discipline
+	IsCrossTraining: boolean,
+	-- Penalty multipliers applied (1.0 = no penalty)
+	HpDamageMult: number,
+	PostureDamageMult: number,
+	AttackSpeedMult: number,
+	BreathCostMult: number,
+	-- Human-readable denial reason when Success=false
+	Reason: string?,
 }
 
 export type UseItemPacket = {
