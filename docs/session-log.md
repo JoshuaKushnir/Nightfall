@@ -4,7 +4,40 @@
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
 
-## Current Session ID: NF-043
+## Current Session ID: NF-044
+**Date:** 2026-03-01
+**Issues:** #133 (WeaponService proficiency checks)
+
+### What Was Built
+
+- **`src/shared/types/WeaponTypes.lua`** — Added `WeightClass: ("Light" | "Medium" | "Heavy")?` field to `WeaponConfig`. Optional so existing weapon files without it compile cleanly.
+- **`src/shared/types/NetworkTypes.lua`** — Added `"WeaponEquipResult"` to the RemoteEvent name union. Added `WeaponEquipResultPacket` type with `Success`, `WeaponId`, `IsCrossTraining`, `HpDamageMult`, `PostureDamageMult`, `AttackSpeedMult`, `BreathCostMult`, `Reason?` fields.
+- **`src/shared/weapons/*.lua`** (all 5) — Added `WeightClass` field: Fists=Light, IronSword=Heavy, WaywardSword=Medium, SilhouetteDagger=Light, ResonantStaff=Medium.
+- **`src/server/services/WeaponService.lua`** — Full proficiency system: added `_DataService` injected dependency (captured in `Init(dependencies)`), `_getProficiency(player, config)` helper reading `DataService:GetProfile()` → `DisciplineId` → `DisciplineConfig.Get().weaponClasses` → cross-train flag + penalty mults from `DisciplineConfig.Raw.crossTrainPenalty`; `_applyProficiencyAttributes(tool, ...)` to set 5 Tool attributes (`CrossTraining`, `ProfHpDamageMult`, `ProfPostureMult`, `ProfSpeedMult`, `ProfBreathMult`); `EquipWeapon` now fires `WeaponEquipResult` event with full proficiency info. Cross-training always allows equip; it never blocks.
+- **`tests/unit/WeaponService.test.lua`** — Rewrote test suite: 9 tests covering basic equip, re-equip no-op, unknown weaponId rejection, string/table payload shapes, and 5 proficiency scenarios (no WeightClass → no penalty; primary discipline → no penalty; Silhouette+Heavy → cross-train allowed; Ironclad all weight classes → all full proficiency; Fists always full).
+
+### Integration Points
+
+- `WeaponService:Init(dependencies)` now correctly receives DataService from the server runtime bootstrap (runtime already passes `dependencies = { DataService = ... }`).
+- Tool attributes set by `_applyProficiencyAttributes` are readable by `WeaponController` (client-side) for UI display (cross-training indicator) and by `CombatService` to apply damage multipliers in a future pass.
+- `WeaponEquipResult` event is ready for `WeaponController` to listen to — it should display a cross-training warning badge when `IsCrossTraining = true`.
+
+### Spec Gaps Encountered
+
+- None. DisciplineConfig.crossTrainPenalty values used as-is (hp=85%, posture=90%, speed=95%, breath=115%). These are labeled as tuning values in DisciplineConfig.
+
+### Tech Debt Created
+
+- CombatService does not yet read `ProfHpDamageMult` / `ProfPostureMult` from the equipped Tool when calculating damage — that reconciliation is a follow-up. Tracked as part of the CombatService DisciplineConfig cleanup noted in NF-043.
+- `WeaponController` client side does not yet display a cross-training indicator when `WeaponEquipResult.IsCrossTraining = true`. Deferred to UI polish pass.
+
+### Next Session Should Start On
+
+Issue #134: Armor registry — define 3–5 starter armors (unblocked). Or pick up #139 (ProgressionService Discipline UI) if stat-panel UX is next priority.
+
+---
+
+## Previous Session ID: NF-043
 **Date:** 2026-02-XX
 **Issues:** #132 (WeaponRegistry starter weapons), debug grant resonance
 
