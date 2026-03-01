@@ -2,7 +2,7 @@
 --[[
     ProgressionService Unit Tests
     Issue #138: ProgressionService — Resonance grants, Ring soft caps, Shard loss on death
-    Issue #139: Discipline selection
+    Issue #140: Stat-based progression — replace Discipline lock-in
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -10,7 +10,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ProgressionTypes = require(ReplicatedStorage.Shared.types.ProgressionTypes)
 local RING_CONFIGS        = ProgressionTypes.RING_CONFIGS
 local SHARD_LOSS_FRACTION = ProgressionTypes.SHARD_LOSS_FRACTION
-local VALID_DISCIPLINES   = ProgressionTypes.VALID_DISCIPLINES
+local VALID_STAT_NAMES    = ProgressionTypes.VALID_STAT_NAMES
+local STAT_POINT_MILESTONE = ProgressionTypes.STAT_POINT_MILESTONE
+local STAT_MAX_PER_STAT   = ProgressionTypes.STAT_MAX_PER_STAT
 
 -- ── Stubs ────────────────────────────────────────────────────────────────────
 
@@ -30,15 +32,16 @@ local ProgressionService = require(ReplicatedStorage.Server.services.Progression
 
 local function makePlayer(overrides: {[string]: any}?): any
     local profile = {
-        TotalResonance      = 0,
-        ResonanceShards     = 0,
-        CurrentRing         = 1,
-        DisciplineId        = "Wayward",
-        HasChosenDiscipline = false,
-        OmenMarks           = 0,
+        TotalResonance  = 0,
+        ResonanceShards = 0,
+        CurrentRing     = 1,
+        DisciplineId    = "Wayward",
+        StatPoints      = 0,
+        OmenMarks       = 0,
+        Stats = { Strength=0, Fortitude=0, Agility=0, Intelligence=0, Willpower=0, Charisma=0 },
         Posture = { Max = 100, Current = 100 },
         Health  = { Max = 100, Current = 100 },
-        Mana    = { Max = 100, Current = 100 },
+        Mana    = { Max = 100, Current = 100, Regen = 2.0 },
     }
     if overrides then
         for k, v in overrides do
@@ -234,13 +237,6 @@ return {
             fn = function()
                 local p = makePlayer({HasChosenDiscipline = false})
                 ProgressionService.SelectDiscipline(p, "Silhouette")
-                local ok, reason = ProgressionService.SelectDiscipline(p, "Resonant")
-                assert(ok == false, "Should reject re-selection")
-                assert(reason == "AlreadyChosen",
-                    "Reason should be AlreadyChosen, got " .. tostring(reason))
-            end,
-        },
-
         -- ─── ProgressionTypes constants ───────────────────────────────────────
 
         {
@@ -264,12 +260,28 @@ return {
         },
 
         {
-            name = "ProgressionTypes: VALID_DISCIPLINES has all four entries",
+            name = "ProgressionTypes: VALID_STAT_NAMES includes all six stats",
             fn = function()
-                for _, discId in ipairs({"Wayward", "Ironclad", "Silhouette", "Resonant"}) do
-                    assert(VALID_DISCIPLINES[discId],
-                        ("Missing discipline: %s"):format(discId))
+                for _, statName in ipairs({"Strength", "Fortitude", "Agility", "Intelligence", "Willpower", "Charisma"}) do
+                    assert(VALID_STAT_NAMES[statName],
+                        ("Missing stat in VALID_STAT_NAMES: %s"):format(statName))
                 end
+            end,
+        },
+
+        {
+            name = "ProgressionTypes: STAT_POINT_MILESTONE is 200",
+            fn = function()
+                assert(STAT_POINT_MILESTONE == 200,
+                    "STAT_POINT_MILESTONE should be 200, got " .. tostring(STAT_POINT_MILESTONE))
+            end,
+        },
+
+        {
+            name = "ProgressionTypes: STAT_MAX_PER_STAT is 20",
+            fn = function()
+                assert(STAT_MAX_PER_STAT == 20,
+                    "STAT_MAX_PER_STAT should be 20, got " .. tostring(STAT_MAX_PER_STAT))
             end,
         },
 
