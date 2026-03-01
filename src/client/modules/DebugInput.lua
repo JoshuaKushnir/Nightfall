@@ -42,6 +42,7 @@ function DebugInput:Init()
 	print("[DebugInput] Press Ctrl+Shift+J to admin-spawn a dummy (dev only)")
 	print("[DebugInput] Press / to open local command prompt (commands are NOT broadcast to chat)")
 	print("[DebugInput] Press Ctrl+Shift+D to list all settings")
+	print("[DebugInput] Press G to grant 200 debug Resonance (earns 1 stat point for panel testing)")
 
 	-- Listen for admin/debug responses from server (DebugInfo)
 	local networkFolder = ReplicatedStorage:FindFirstChild("NetworkEvents")
@@ -101,6 +102,11 @@ function DebugInput:Init()
 		-- Ctrl+Shift+J: Admin spawn dummy (sends AdminCommand - does NOT broadcast chat)
 		if input.KeyCode == Enum.KeyCode.J and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
 			DebugInput._SendAdminSpawnDummy()
+		end
+
+		-- G: Grant 200 debug Resonance (1 stat point) to test stat allocation panel
+		if input.KeyCode == Enum.KeyCode.G then
+			DebugInput._SendAdminCommand({ Command = "grant_resonance", Args = { "200" } })
 		end
 
 		-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
@@ -291,6 +297,11 @@ function DebugInput._HandleCommand(text: string)
 			end
 
 			print("[DebugInput] Invalid args for /admin spawn_dummy")
+			return
+		elseif sub == "grant_resonance" then
+			-- /admin grant_resonance [amount]
+			local amount = tokens[3] or "200"
+			DebugInput._SendAdminCommand({ Command = "grant_resonance", Args = { amount } })
 			return
 		end
 	end

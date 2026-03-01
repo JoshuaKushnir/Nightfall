@@ -234,6 +234,22 @@ if services.NetworkService and services.DummyService then
 			local dummyId = DummyService.SpawnDummy(spawnPos)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = dummyId and "ok" or "failed", DummyId = dummyId } })
 			print(`[AdminCommand] {player.Name} spawned dummy: {dummyId}`)
+
+		elseif cmd == "grant_resonance" then
+			-- Debug: grant resonance directly so devs can earn stat points without combat
+			local amount = tonumber(args[1]) or 200
+			local ProgressionSvc = services.ProgressionService
+			if ProgressionSvc then
+				ProgressionSvc.GrantResonance(player, amount, "Debug")
+				NetworkService:SendToClient(player, "DebugInfo", {
+					Category = "AdminCommand",
+					Data = { Result = ("granted %d resonance"):format(amount) }
+				})
+				print(("[AdminCommand] %s +%d debug Resonance"):format(player.Name, amount))
+			else
+				warn("[AdminCommand] ProgressionService not available")
+				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "progression_unavailable" } })
+			end
 		else
 			warn(`[AdminCommand] Unknown admin command: {cmd}`)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "unknown_command" } })
