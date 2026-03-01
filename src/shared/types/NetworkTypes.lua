@@ -84,6 +84,13 @@ export type NetworkEvent =
 	| "AbilityCastResult"      -- Server → Client: success/failure + target info
 	| "AbilityDataSync"        -- Server → Client: sync current cooldowns on join
 
+	-- Progression
+	| "ResonanceUpdate"          -- Server → Client: Resonance/Shard state change
+	| "ProgressionSync"          -- Server → Client: full progression state on join
+	| "DisciplineSelectRequired" -- Server → Client: player must choose Discipline
+	| "DisciplineSelected"       -- Client → Server: player's Discipline choice
+	| "DisciplineConfirmed"      -- Server → Client: Discipline lock-in confirmed
+
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
 
@@ -217,6 +224,37 @@ export type AspectInvestResultPacket = {
 export type AbilityCastRequestPacket = {
 	AbilityId: string,
 	TargetPosition: Vector3?,
+}
+
+-- Progression packets (Issue #138, #139)
+export type ResonanceUpdatePacket = {
+	TotalResonance: number,
+	ResonanceShards: number,
+	CurrentRing: number,
+	SoftCap: number,     -- -1 signals no cap (Ring 0 / Ring 5)
+	ShardDelta: number,  -- signed: positive = gain, negative = loss
+	IsSoftCapped: boolean,
+	Source: string?,
+}
+
+export type ProgressionSyncPacket = {
+	TotalResonance: number,
+	ResonanceShards: number,
+	CurrentRing: number,
+	SoftCap: number,
+	HasChosenDiscipline: boolean,
+	DisciplineId: string,
+	OmenMarks: number,
+}
+
+export type DisciplineSelectRequiredPacket = {}
+
+export type DisciplineSelectedPacket = {
+	DisciplineId: string,
+}
+
+export type DisciplineConfirmedPacket = {
+	DisciplineId: string,
 }
 
 export type AbilityCastResultPacket = {
@@ -576,6 +614,18 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 	},
 	
 	-- Abilities/Mantras
+	AbilityCastRequest = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 10,
+		RequiresValidation = true,
+		Description = "Client requests an aspect ability cast",
+	},
+	AbilityCastResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = 20,
+		RequiresValidation = false,
+		Description = "Reply to ability cast with success/failure and cooldown",
+	},
 	MantraCast = {
 		Direction = "ClientToServer",
 		RateLimitPerSecond = 10,
@@ -697,6 +747,38 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		Description = "Client interacts with UI",
 	},
 	
+	-- Progression (Issue #138, #139)
+	ResonanceUpdate = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Resonance/Shard state changed — fires after any grant or death loss",
+	},
+	ProgressionSync = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Full progression state sync sent to client on join",
+	},
+	DisciplineSelectRequired = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Prompt client to open Discipline selection UI",
+	},
+	DisciplineSelected = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 1,
+		RequiresValidation = true,
+		Description = "Client submits their Discipline choice (one-time)",
+	},
+	DisciplineConfirmed = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Server confirms Discipline lock-in",
+	},
+
 	-- Abilities
 	UseAbility = {
 		Direction = "ClientToServer",

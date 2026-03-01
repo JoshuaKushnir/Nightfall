@@ -21,6 +21,11 @@ local stubNet = {sent = {}}
 stubNet.SendToServer = function(self, name, pkt)
     table.insert(stubNet.sent, {name=name, pkt=pkt})
 end
+-- also stub NetworkProvider.FireServer so ability modules can use it
+local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+NetworkProvider.FireServer = function(self, name, pkt)
+    table.insert(stubNet.sent, {name=name, pkt=pkt})
+end
 
 -- bootstrap
 InventoryController:Init({AspectController = fakeAspect, NetworkController = stubNet})
@@ -223,6 +228,26 @@ return {
                 assert(type(stubNet.sent[1].pkt) == "table" and stubNet.sent[1].pkt.Slot == "2")
             end,
         },
+        {
+            name = "Hotbar ability activation sends cast request",
+            fn = function()
+                stubNet.sent = {}
+                -- place an ability item in slot 1
+                fakeAspect._equipped = { ["1"] = {Id="ability_IronWill",Category="Abilities",AbilityId="IronWill"} }
+                if fakeAspect._cb then fakeAspect._cb() end
+                InventoryController._isOpen = true
+                InventoryController:RefreshUI()
+                local player = game:GetService("Players").LocalPlayer
+                local hotbar = player.PlayerGui.InventoryUI:FindFirstChild("HotbarRoot")
+                local btn = hotbar and hotbar:FindFirstChild("HotbarSlot1")
+                assert(btn, "ability slot exists")
+                btn.MouseButton1Click:Fire()
+                wait(0.1)
+                assert(#stubNet.sent == 1, "should send cast request")
+                assert(stubNet.sent[1].name == "AbilityCastRequest")
+            end,
+        },
+
         {
             name = "Closed hotbar click still includes slot",
             fn = function()

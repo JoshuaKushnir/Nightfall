@@ -101,6 +101,7 @@ local dependencies = {
 	CombatController    = controllers.CombatController,
 	AspectController    = controllers.AspectController,
 	InventoryController = controllers.InventoryController,
+	ProgressionController = controllers.ProgressionController,
 }
 
 for name, controller in controllers do
@@ -136,6 +137,7 @@ local startOrder = {
 	"CombatController",      -- new combat state machine
 	"AspectController",      -- handles Aspect ability input
 	"InventoryController",    -- displays inventory items
+	"ProgressionController", -- #138/#139: Resonance HUD + Discipline selection
 	"PlayerHUDController",
 	"CombatFeedbackUI",
 }

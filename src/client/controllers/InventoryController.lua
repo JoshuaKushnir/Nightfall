@@ -261,11 +261,18 @@ local function _onHotbarActivate(self: any, slot: number)
     local item = self._equipped[tostring(slot)]
     if not item then return end
     if _isAbility(item) then
+        -- delegate to ability module for network logic
+        local abilityId = item.AbilityId or item.Id
+        local success, ability = pcall(function()
+            return require(ReplicatedStorage.Shared.abilities[abilityId])
+        end)
         local mouse = localPlayer:GetMouse()
-        NetworkProvider:FireServer("AbilityCastRequest", {
-            AbilityId      = item.AbilityId or item.Id,
-            TargetPosition = mouse.Hit.p,
-        })
+        if success and ability and ability.ClientActivate then
+            ability.ClientActivate(mouse.Hit.p)
+        else
+            -- fallback using helper
+            NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = mouse.Hit.p})
+        end
     elseif _isWeapon(item) then
         _toggleHold(self, slot)
         self:RefreshUI()
@@ -283,11 +290,16 @@ local function _onBagClick(self: any, item: any)
         for i = 1, HOTBAR_SLOTS do if self._equipped[tostring(i)] then hasAny = true; break end end
         if hasAny then
             -- Cast immediately if hotbar already occupied
+            local abilityId = item.AbilityId or item.Id
+            local success, ability = pcall(function()
+                return require(ReplicatedStorage.Shared.abilities[abilityId])
+            end)
             local mouse = localPlayer:GetMouse()
-            NetworkProvider:FireServer("AbilityCastRequest", {
-                AbilityId      = item.AbilityId or item.Id,
-                TargetPosition = mouse.Hit.p,
-            })
+            if success and ability and ability.ClientActivate then
+                ability.ClientActivate(mouse.Hit.p)
+            else
+                NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = mouse.Hit.p})
+            end
             return
         end
         local slot = _freeSlot(self) or 1

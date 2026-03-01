@@ -95,6 +95,7 @@ local startOrder = {
 	"DefenseService",      -- Defense mechanics
 	"CombatService",       -- Combat validation and damage application
 	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
+	"ProgressionService",  -- #138/#139: Resonance, Ring caps, Discipline selection
 }
 
 for _, name in startOrder do

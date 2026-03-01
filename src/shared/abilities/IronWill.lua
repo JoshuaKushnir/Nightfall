@@ -43,4 +43,13 @@ function IronWill.OnActivate(player: Player, weapon: any)
 	end)
 end
 
+-- Client helper: fires network request to activate ability (optional selectable target). 
+function IronWill.ClientActivate(targetPosition: Vector3?)
+    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+    local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
+    if remote then
+        remote:FireServer({AbilityId = IronWill.Id, TargetPosition = targetPosition})
+    end
+end
+
 return IronWill

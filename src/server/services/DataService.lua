@@ -93,6 +93,11 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 	AspectData = nil,
 	ResonanceShards = 0,
 	TotalResonance = 0,
+
+	-- Progression
+	CurrentRing = 1,             -- start in Ring 1 (Verdant Shelf)
+	OmenMarks = 0,               -- clean slate; 0-5 via Omen accumulation
+	HasChosenDiscipline = false, -- prompted at character creation
 	
 	-- Inventory & Equipment
 	EquippedMantras = {},

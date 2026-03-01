@@ -133,15 +133,20 @@ return {
                 -- trigger join
                 InventoryService._onPlayerAdded(fakePlayer)
                 local profile = DataService:GetProfile(fakePlayer)
-                -- should have two moves plus fists
-                assert(#profile.Inventory == 3, "Expected two moves and fists")
-                local foundFists = false
+                -- should have two moves, fists, and ability items
+                -- moves: 2, fists:1, abilities: >= 1
+                assert(#profile.Inventory >= 4, "Expected at least two moves, fists, and abilities")
+                local foundFists, foundAbility = false, false
                 for _, v in ipairs(profile.Inventory) do
-                    if v.Id == "fists" then
+                    if v.Id == "weapon_fists" then
                         foundFists = true
+                    end
+                    if v.Category == "Abilities" then
+                        foundAbility = true
                     end
                 end
                 assert(foundFists, "Fists item should be granted")
+                assert(foundAbility, "At least one ability item should be granted")
             end,
         },
         {
@@ -154,13 +159,14 @@ return {
                 }
                 InventoryService._onPlayerAdded(fakePlayer)
                 local profile = DataService:GetProfile(fakePlayer)
-                local foundQuick, foundStrong, foundFists = false, false, false
+                local foundQuick, foundStrong, foundFists, foundAbility = false, false, false, false
                 for _, v in ipairs(profile.Inventory) do
                     if v.Id == "move_Test_Move_Quick" then foundQuick = true end
                     if v.Id == "move_Test_Move_Strong" then foundStrong = true end
-                    if v.Id == "fists" then foundFists = true end
+                    if v.Id == "weapon_fists" then foundFists = true end
+                    if v.Category == "Abilities" then foundAbility = true end
                 end
-                assert(foundQuick and foundStrong and foundFists, "Starter moves and fists should be present")
+                assert(foundQuick and foundStrong and foundFists and foundAbility, "Starter moves, fists and abilities should be present")
             end,
         },
         {

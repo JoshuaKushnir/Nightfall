@@ -195,6 +195,19 @@ function NetworkProvider:GetRemoteFunction(eventName: NetworkEvent): RemoteFunct
 end
 
 --[[
+	Convenience wrapper for clients: fire a RemoteEvent by name.
+	Logs warning if the event does not exist.
+]]
+function NetworkProvider:FireServer(eventName: NetworkEvent, ...)
+	local remote = self:GetRemoteEvent(eventName)
+	if remote then
+		remote:FireServer(...)
+	else
+		warn(`[NetworkProvider] FireServer failed, no RemoteEvent: {eventName}`)
+	end
+end
+
+--[[
 	Get metadata for a network event
 	
 	@param eventName - The name of the network event

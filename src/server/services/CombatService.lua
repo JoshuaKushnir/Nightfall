@@ -24,6 +24,7 @@ local DummyService = require(script.Parent.DummyService)
 local AbilitySystem: any = nil
 local WeaponService: any = nil
 local PostureService: any = nil
+local ProgressionService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
@@ -102,9 +103,10 @@ function CombatService:Start()
 	print("[CombatService] Starting...")
 	
 	-- Resolve lazy dependencies (avoids circular-require at module load time)
-	AbilitySystem = require(script.Parent.AbilitySystem)
-	WeaponService  = require(script.Parent.WeaponService)
-	PostureService = require(script.Parent.PostureService)
+	AbilitySystem     = require(script.Parent.AbilitySystem)
+	WeaponService     = require(script.Parent.WeaponService)
+	PostureService    = require(script.Parent.PostureService)
+	ProgressionService = require(script.Parent.ProgressionService)
 	
 	-- This service is event-driven. Events are received via NetworkProvider
 	-- in the server runtime. This Start is here for consistency with other services.
@@ -131,16 +133,19 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		return false, 0
 	end
 	
-	-- Rate limiting
-	local now = tick()
-	if HitCooldowns[attacker] and now - HitCooldowns[attacker] < HIT_COOLDOWN_MIN then
-		print(`[CombatService] ✗ Hit spam cooldown: {attacker.Name}`)
-		return false, 0
+	-- Rate limiting (skipped for server-initiated ability hits)
+	if hitData.BypassRateLimit ~= true then
+		local now = tick()
+		if HitCooldowns[attacker] and now - HitCooldowns[attacker] < HIT_COOLDOWN_MIN then
+			print(`[CombatService] ✗ Hit spam cooldown: {attacker.Name}`)
+			return false, 0
+		end
+		HitCooldowns[attacker] = now
 	end
-	HitCooldowns[attacker] = now
 
-	-- Anti-cheat: rate, range and damage ceiling (#74)
-	if WeaponService then
+	-- Anti-cheat: weapon range and damage ceiling (#74)
+	-- Skipped for server-initiated ability hits (BypassWeaponValidation = true)
+	if WeaponService and hitData.BypassWeaponValidation ~= true then
 		local ok, clampedDamage = WeaponService.ValidateAttack(attacker, hitData)
 		if not ok then
 			print(`[CombatService] ✗ Anti-cheat blocked hit from {attacker.Name}`)
@@ -225,17 +230,25 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				finalDamage = math.floor(finalDamage * (1 - reduction))
 				print(("[CombatService] DamageReduction %.0f%% applied → %d"):format(reduction * 100, finalDamage))
 			end
+			-- Apply DamageTaken multiplier (BloodRage drawback on target)
+			local damageTaken = targetChar:GetAttribute("DamageTaken")
+			if type(damageTaken) == "number" and damageTaken ~= 1 then
+				finalDamage = math.floor(finalDamage * damageTaken)
+				print(("[CombatService] DamageTaken x%.2f applied (BloodRage) → %d"):format(damageTaken, finalDamage))
+			end
 		end
 	end
 
-	-- Apply attacker's active damage boost (Adrenaline etc.)
+	-- Apply attacker's active damage boost (Adrenaline etc.) OR penalty (Weakened)
 	do
 		local attackerChar = attacker.Character
 		if attackerChar then
 			local boost = attackerChar:GetAttribute("DamageBoost")
-			if type(boost) == "number" and boost > 1 then
+			if type(boost) == "number" and boost ~= 1 then
+				-- boost > 1: damage increase; boost < 1: Weakened damage penalty
 				finalDamage = math.floor(finalDamage * boost)
-				print(("[CombatService] DamageBoost x%.2f applied → %d"):format(boost, finalDamage))
+				local label = boost > 1 and "DamageBoost" or "Weakened"
+				print(("[CombatService] %s x%.2f applied (%s) → %d"):format(label, boost, label, finalDamage))
 			end
 		end
 	end
@@ -328,6 +341,11 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			if targetData.Health <= 0 then
 				StateService:SetPlayerState(targetPlayer, "Dead")
 				print(`[CombatService] ☠️  {targetPlayer.Name} defeated! ({finalDamage} damage)`)
+				-- Grant Resonance to the killer (Issue #138)
+				if ProgressionService then
+					local source = if isDummy then "Kill_Dummy" else "Kill_Player"
+					ProgressionService.GrantResonance(attacker, ProgressionService.RESONANCE_GRANTS[source] or 10, source)
+				end
 			else
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → {targetPlayer.Name} ({finalDamage} damage)`)
 			end
@@ -472,6 +490,42 @@ function CombatService.ResetCooldowns(player: Player?)
 	
 	HitCooldowns[player] = nil
 	print(`[CombatService] Cooldowns reset for {player.Name}`)
+end
+
+--[[
+	ValidateAoEHit — server-initiated multi-target hit batch.
+	Wraps ValidateHit in a loop with rate-limit and weapon-validation bypassed
+	because this path is driven by the server AspectService, not client spam.
+
+	@param attacker   The casting player.
+	@param hitResults Array of {TargetName: string, Damage: number, HitType: string?}
+	@return           Map of TargetName -> {Success: boolean, Damage: number}
+]]
+function CombatService.ValidateAoEHit(
+	attacker: Player?,
+	hitResults: {{TargetName: string, Damage: number, HitType: string?}}
+): {[string]: {Success: boolean, Damage: number}}
+	local results: {[string]: {Success: boolean, Damage: number}} = {}
+	if not attacker or not Utils.IsValidPlayer(attacker) then
+		warn("[CombatService] ValidateAoEHit: invalid attacker")
+		return results
+	end
+	for _, hit in ipairs(hitResults) do
+		if type(hit.TargetName) ~= "string" or type(hit.Damage) ~= "number" then
+			warn("[CombatService] ValidateAoEHit: malformed entry, skipping")
+			continue
+		end
+		local hitData: {[string]: any} = {
+			TargetName             = hit.TargetName,
+			Damage                 = hit.Damage,
+			HitType                = hit.HitType or "Ability",
+			BypassRateLimit        = true,  -- server-initiated, no spam risk
+			BypassWeaponValidation = true,  -- ability damage, not weapon-sourced
+		}
+		local success, damage = CombatService.ValidateHit(attacker, hitData)
+		results[hit.TargetName] = {Success = success, Damage = damage}
+	end
+	return results
 end
 
 return CombatService

@@ -81,11 +81,16 @@ export type PlayerData = {
 	
 	-- Discipline
 	DisciplineId: string,
-	
+	HasChosenDiscipline: boolean, -- false until first-login selection screen
+
+	-- Progression System
+	CurrentRing: number,  -- 0–5: which Ring the player is currently in
+	OmenMarks: number,    -- 0–5 Umbral Marks (Omen system — Phase 4+)
+
 	-- Inventory & equipment (items stored in the player's backpack/config)
 	Inventory: {ItemTypes.Item},      -- items in backpack or stash
 	EquippedItems: {ItemTypes.Item?},  -- slot index -> item (nil if empty)
-	
+
 	-- Metadata
 	Level: number,
 	Experience: number,

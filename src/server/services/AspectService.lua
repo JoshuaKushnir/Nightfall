@@ -21,18 +21,36 @@ local RunService = game:GetService("RunService")
 local DataService = require(script.Parent.DataService)
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local CombatService = require(script.Parent.CombatService)
+local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local NetworkService = require(script.Parent.NetworkService)
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
+local AbilityRegistry = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
+
+-- AbilitySystem required after module definition to avoid circular requires
+local AbilitySystem: any = nil
+local function _requireAbilitySystem()
+    if not AbilitySystem then
+        AbilitySystem = require(script.Parent.AbilitySystem)
+    end
+    return AbilitySystem
+end
 
 -- Forward declarations for lazy dependencies
 
 -- Type aliases
-local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)-- Cooldown tracking is stored on PlayerData.ActiveCooldowns and mana regen
+local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
+
+-- Cooldown tracking is stored on PlayerData.ActiveCooldowns and mana regen
 -- occurs via Heartbeat connection with respect to ManaComponent.RegenDelay.
 -- Internal cooldown tracking will live on player data
 -- Mana regeneration loop implemented in this service
+
+-- Constants
+local MAX_CAST_RANGE           = 50   -- max studs from caster to targetPosition (Issue 3)
+local ABILITY_HIT_RADIUS       = 8    -- default sphere radius (studs) when Range not set on ability
+local ABILITY_HITBOX_LIFETIME  = 0.15 -- seconds hitbox persists before auto-expiry
 
 local AspectService = {}
 AspectService._initialized = false
@@ -216,11 +234,87 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
     StateService:SetState(player, "Casting")
     -- stub VFX
     ability.VFX_Function(player, targetPosition)
-    -- deal damage if expression
-    if ability.BaseDamage then
-        -- simplistic hit: apply posture then HP via CombatService
-        -- we don't have target player, skip; real logic lives elsewhere.
+
+    -- ── Issue 1 / 2: server-side hitbox → CombatService damage pipeline ──────
+    if ability.BaseDamage and ability.BaseDamage > 0 then
+        if targetPosition then
+            local hitRadius = ability.Range or ABILITY_HIT_RADIUS
+            local isAoE = ability.IsAoE == true
+
+            if isAoE then
+                -- AoE path: collect all targets then batch-validate (Issue 2)
+                -- Build a temporary hitbox to identify targets in the sphere.
+                local aoeHitbox = HitboxService.CreateHitbox({
+                    Owner    = player,
+                    Shape    = "Sphere",
+                    Position = targetPosition,
+                    Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
+                    Damage   = ability.BaseDamage,
+                    LifeTime = ABILITY_HITBOX_LIFETIME,
+                })
+                -- Collect targets via OnHit before expiry
+                local aoeHits: {{TargetName: string, Damage: number, HitType: string?}} = {}
+                local origOnHit = aoeHitbox.Config.OnHit
+                aoeHitbox.Config.OnHit = function(target: any, _hd: any)
+                    local targetName: string? = nil
+                    if typeof(target) == "Instance" and target:IsA("Player") then
+                        targetName = (target :: Player).Name
+                    elseif type(target) == "string" then
+                        targetName = target
+                    end
+                    if targetName then
+                        table.insert(aoeHits, {
+                            TargetName = targetName,
+                            Damage     = ability.BaseDamage :: number,
+                            HitType    = "Ability",
+                        })
+                    end
+                    if origOnHit then origOnHit(target, _hd) end
+                end
+                HitboxService.TestHitbox(aoeHitbox)
+                -- Validate all hits server-side, rate-limit bypassed (server-initiated)
+                if #aoeHits > 0 then
+                    task.spawn(function()
+                        CombatService.ValidateAoEHit(player, aoeHits)
+                    end)
+                end
+            else
+                -- Single-target path: Sphere hitbox, hit first valid target (Issue 1)
+                local hitHappened = false
+                local singleHitbox = HitboxService.CreateHitbox({
+                    Owner    = player,
+                    Shape    = "Sphere",
+                    Position = targetPosition,
+                    Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
+                    Damage   = ability.BaseDamage,
+                    LifeTime = ABILITY_HITBOX_LIFETIME,
+                    OnHit    = function(target: any, _hd: any)
+                        if hitHappened then return end  -- first-hit gate
+                        hitHappened = true
+                        local targetName: string? = nil
+                        if typeof(target) == "Instance" and target:IsA("Player") then
+                            targetName = (target :: Player).Name
+                        elseif type(target) == "string" then
+                            targetName = target
+                        end
+                        if not targetName then return end
+                        CombatService.ValidateHit(player, {
+                            TargetName             = targetName,
+                            Damage                 = ability.BaseDamage :: number,
+                            HitType                = "Ability",
+                            BypassWeaponValidation = true,
+                            BypassRateLimit        = true,
+                        })
+                    end,
+                })
+                HitboxService.TestHitbox(singleHitbox)
+            end
+        else
+            warn(`[AspectService] {player.Name} cast {abilityId} with no targetPosition — hitbox skipped`)
+        end
     end
+    -- ─────────────────────────────────────────────────────────────────────────
+
     -- return to idle after cast time
     task.delay(ability.CastTime, function()
         if Utils.IsValidPlayer(player) then
@@ -262,10 +356,86 @@ local function _onInvestRequest(player, aspectId, branch, amount)
     NetworkService:SendToClient(player, "AspectInvestResult", {Success = success, Reason = reason})
 end
 
-local function _onCastRequest(player, abilityId, targetPosition)
-    local success, reason = AspectService.ExecuteAbility(player, abilityId, targetPosition)
-    NetworkService:SendToClient(player, "AbilityCastResult", {Success = success, Reason = reason, AbilityId = abilityId, TargetPosition = targetPosition})
+-- Issue 3: packet validation + authoritative cooldown timestamp ─────────────
+local function _onCastRequest(player: Player, packet: any)
+    -- nil / type guards
+    if type(packet) ~= "table" then
+        warn(`[AspectService] {player.Name} sent non-table AbilityCastRequest`)
+        NetworkService:SendToClient(player, "AbilityCastResult", {
+            Success = false, Reason = "InvalidPacket"
+        })
+        return
+    end
+    if type(packet.AbilityId) ~= "string" or packet.AbilityId == "" then
+        warn(`[AspectService] {player.Name} sent missing/empty AbilityId`)
+        NetworkService:SendToClient(player, "AbilityCastResult", {
+            Success = false, Reason = "InvalidAbilityId"
+        })
+        return
+    end
+    -- TargetPosition: optional but must be a Vector3 if provided
+    local targetPosition: Vector3? = nil
+    if packet.TargetPosition ~= nil then
+        if typeof(packet.TargetPosition) ~= "Vector3" then
+            warn(`[AspectService] {player.Name} sent non-Vector3 TargetPosition`)
+            NetworkService:SendToClient(player, "AbilityCastResult", {
+                Success = false, Reason = "InvalidTargetPosition", AbilityId = packet.AbilityId
+            })
+            return
+        end
+        -- Range sanity check: reject casts beyond MAX_CAST_RANGE studs
+        local char = player.Character
+        if char then
+            local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+            if root then
+                local dist = (root.Position - packet.TargetPosition).Magnitude
+                if dist > MAX_CAST_RANGE then
+                    warn(`[AspectService] {player.Name} exceeded cast range ({dist} studs)`)
+                    NetworkService:SendToClient(player, "AbilityCastResult", {
+                        Success = false, Reason = "OutOfRange", AbilityId = packet.AbilityId
+                    })
+                    return
+                end
+            end
+        end
+        targetPosition = packet.TargetPosition
+    end
+
+    -- Route: general weapon/inventory abilities → AbilitySystem (no AspectData required)
+    --        Aspect-specific abilities              → AspectService.ExecuteAbility
+    local generalAbility = AbilityRegistry.Get(packet.AbilityId)
+    if generalAbility then
+        _requireAbilitySystem().HandleUseAbilityById(player, packet.AbilityId)
+        NetworkService:SendToClient(player, "AbilityCastResult", {
+            Success        = true,
+            Reason         = nil,
+            AbilityId      = packet.AbilityId,
+            TargetPosition = targetPosition,
+            CooldownExpiry = nil,
+        })
+        return
+    end
+
+    local success, reason = AspectService.ExecuteAbility(player, packet.AbilityId, targetPosition)
+
+    -- Return authoritative server-side cooldown expiry so client doesn't recalculate
+    local cooldownExpiry: number? = nil
+    if success then
+        local profile = DataService:GetProfile(player)
+        if profile and profile.ActiveCooldowns then
+            cooldownExpiry = profile.ActiveCooldowns[packet.AbilityId]
+        end
+    end
+
+    NetworkService:SendToClient(player, "AbilityCastResult", {
+        Success        = success,
+        Reason         = reason,
+        AbilityId      = packet.AbilityId,
+        TargetPosition = targetPosition,
+        CooldownExpiry = cooldownExpiry,  -- authoritative server tick() expiry timestamp
+    })
 end
+-- ────────────────────────────────────────────────────────────────────────────
 
 -- sync cooldowns on join
 local function _onPlayerAdded(player)
@@ -292,7 +462,8 @@ function AspectService:Start()
         _onInvestRequest(player, packet.AspectId, packet.Branch, packet.Amount)
     end)
     NetworkService:RegisterHandler("AbilityCastRequest", function(player, packet)
-        _onCastRequest(player, packet.AbilityId, packet.TargetPosition)
+        -- Pass the whole packet table; _onCastRequest performs its own nil/type guards (Issue 3)
+        _onCastRequest(player, packet)
     end)
     RunService.Heartbeat:Connect(_onHeartbeat)
     print("[AspectService] Started successfully")

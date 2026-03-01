@@ -40,6 +40,8 @@ export type AspectAbility = {
     ManaCost: number,
     Cooldown: number,
     CastTime: number,
+    Range: number?,                 -- sphere radius for hitbox (studs); default applied in AspectService
+    IsAoE: boolean?,                -- if true, ValidateAoEHit is used; all targets in Range are hit
     RequiredState: {string},        -- valid PlayerStates to cast from
     VFX_Function: (caster: Player, targetPosition: Vector3?) -> (),
     OnHit_Function: ((caster: Player, target: Player, damage: number) -> ())?,

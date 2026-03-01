@@ -184,6 +184,45 @@ function AbilitySystem.HandleUseAbility(player: Player)
 	end
 end
 
+--[[
+	HandleUseAbilityById — activate a standalone ability by Id directly.
+	Used by InventoryService for AbilityItem category items.
+	Enforces cooldowns server-side, independent of weapon state.
+
+	@param player     The activating player
+	@param abilityId  Ability Id matching a registered module in shared/abilities
+]]
+function AbilitySystem.HandleUseAbilityById(player: Player, abilityId: string)
+	if not player or not abilityId then return end
+
+	local ability = AbilityRegistry.Get(abilityId)
+	if not ability then
+		warn(("[AbilitySystem] HandleUseAbilityById: unknown ability '%s'"):format(abilityId))
+		return
+	end
+
+	if ability.Type ~= "Active" then
+		print(("[AbilitySystem] '%s' is not an Active ability (type: %s)"):format(abilityId, ability.Type))
+		return
+	end
+
+	if _IsActiveCoolingDown(player, abilityId) then
+		print(("[AbilitySystem] %s: '%s' still cooling down"):format(player.Name, abilityId))
+		return
+	end
+
+	_StartActiveCooldown(player, abilityId, ability.Cooldown or 8)
+
+	if ability.OnActivate then
+		local ok, err = pcall(ability.OnActivate, player, nil)  -- no weapon context
+		if not ok then
+			warn(("[AbilitySystem] '%s' OnActivate error: %s"):format(abilityId, tostring(err)))
+		else
+			print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, abilityId))
+		end
+	end
+end
+
 function AbilitySystem:Start()
 	print("[AbilitySystem] Started successfully")
 end

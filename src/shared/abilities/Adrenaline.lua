@@ -48,4 +48,12 @@ function Adrenaline.OnActivate(player: Player, _weapon: any)
 	end)
 end
 
+function Adrenaline.ClientActivate(targetPosition: Vector3?)
+    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+    local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
+    if remote then
+        remote:FireServer({AbilityId = Adrenaline.Id, TargetPosition = targetPosition})
+    end
+end
+
 return Adrenaline

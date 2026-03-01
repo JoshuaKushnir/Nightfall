@@ -16,9 +16,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.DataService)
 local AspectService = require(script.Parent.AspectService)
+local AbilitySystem = require(script.Parent.AbilitySystem)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local NetworkService = require(script.Parent.NetworkService)
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
+local AbilityRegistry = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 
 local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes) :: any
@@ -136,6 +138,11 @@ function InventoryService.UseItem(player: Player, itemId: string, target: Player
             target and target.Character and target.Character.PrimaryPart
                 and target.Character.PrimaryPart.Position)
     end
+    -- Standalone ability item (IronWill, Adrenaline, FrostShield, etc.)
+    if item.Category == "Abilities" then
+        AbilitySystem.HandleUseAbilityById(player, (item :: any).AbilityId)
+        return true, nil
+    end
     return false, "UnhandledCategory"
 end
 
@@ -160,39 +167,64 @@ local function _onEquipWeapon(_player: Player, _packet: any)
 end
 
 local function _onPlayerAdded(player)
+    -- DataService may not have finished loading the profile yet; wait a short
+    -- while to avoid missing the opportunity to seed default items.
     local profile = DataService:GetProfile(player)
-    if not profile then return end
+    local waited = 0
+    while not profile and player.Parent do
+        task.wait(0.1)
+        waited += 0.1
+        profile = DataService:GetProfile(player)
+        -- don't wait indefinitely; after 5 seconds give up
+        if waited >= 5 then
+            warn("[InventoryService] timed out waiting for profile for ", player.Name)
+            return
+        end
+    end
+    if not profile then
+        return
+    end
 
     profile.Inventory = profile.Inventory or {}
     profile.EquippedItems = profile.EquippedItems or {}
 
-    local hasQuick, hasStrong, hasFists = false, false, false
+    -- Build a quick lookup of what's already in inventory or equipped
+    local hasItem: {[string]: boolean} = {}
     for _, v in ipairs(profile.Inventory) do
-        if v.Id == "move_Test_Move_Quick" then hasQuick = true end
-        if v.Id == "move_Test_Move_Strong" then hasStrong = true end
-        if v.Id == "weapon_fists" then hasFists = true end
+        hasItem[v.Id] = true
     end
-    -- also check equipped slots
     for _, v in pairs(profile.EquippedItems) do
-        if v then
-            if v.Id == "move_Test_Move_Quick" then hasQuick = true end
-            if v.Id == "move_Test_Move_Strong" then hasStrong = true end
-            if v.Id == "weapon_fists" then hasFists = true end
+        if v then hasItem[v.Id] = true end
+    end
+
+    -- Seed test AspectMove items (Quick and Strong)
+    for _, move in pairs(AspectRegistry.MoveItems) do
+        if (move.Id == "move_Test_Move_Quick" or move.Id == "move_Test_Move_Strong")
+            and not hasItem[move.Id] then
+            table.insert(profile.Inventory, move)
+            hasItem[move.Id] = true
         end
     end
 
-    if not hasQuick or not hasStrong then
-        for _, move in pairs(AspectRegistry.MoveItems) do
-            if (not hasQuick and move.Id == "move_Test_Move_Quick") or
-               (not hasStrong and move.Id == "move_Test_Move_Strong") then
-                table.insert(profile.Inventory, move)
-                if move.Id == "move_Test_Move_Quick" then hasQuick = true end
-                if move.Id == "move_Test_Move_Strong" then hasStrong = true end
-            end
+    -- Seed ALL registered Active abilities as AbilityItem entries for testing
+    for _, ability in ipairs(AbilityRegistry.GetByType("Active")) do
+        local itemId = "ability_" .. ability.Id
+        if not hasItem[itemId] then
+            table.insert(profile.Inventory, {
+                Id          = itemId,
+                Name        = ability.Id,
+                Description = ability.Description or ability.Id,
+                Category    = "Abilities",
+                Rarity      = "Common",
+                AbilityId   = ability.Id,
+            })
+            hasItem[itemId] = true
+            print(("[InventoryService] Seeded ability item: %s"):format(itemId))
         end
     end
 
-    if not hasFists then
+    -- Seed default fists weapon
+    if not hasItem["weapon_fists"] then
         table.insert(profile.Inventory, {
             Id = "weapon_fists",
             Name = "Fists",

@@ -43,13 +43,18 @@ export type AspectMoveItem = ItemBase & {
     AspectId: AspectTypes.AspectId,
 }
 
--- Union of all item types; currently only AspectMoveItem.
+-- Standalone active/passive ability item — appears in inventory and can be activated directly.
+export type AbilityItem = ItemBase & {
+    Category: "Abilities",
+    AbilityId: string,  -- matches ability module Id field in shared/abilities
+}
+
 export type WeaponItem = ItemBase & {
     Category: "Weapons",
     WeaponId: string,
 }
 
-export type Item = AspectMoveItem | WeaponItem -- future expansions will add other unions
+export type Item = AspectMoveItem | AbilityItem | WeaponItem
 
 -- runtime aliases to satisfy require() calls without building real objects
 local _exports: any = {}
