@@ -4,7 +4,40 @@
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
 
-## Current Session ID: NF-042
+## Current Session ID: NF-043
+**Date:** 2026-02-XX
+**Issues:** #132 (WeaponRegistry starter weapons), debug grant resonance
+
+### What Was Built
+
+- **`src/server/runtime/init.lua`** — Added `grant_resonance` admin command to the `AdminCommand` handler. Calls `ProgressionService.GrantResonance(player, amount, "Debug")` so devs can earn stat points without grinding combat. Accessible via G keybind or `/admin grant_resonance [amount]` command prompt.
+- **`src/client/modules/DebugInput.lua`** — Added `G` keybind to send `grant_resonance` admin command for 200 resonance (1 stat point). Added `/admin grant_resonance [amount]` to the `_HandleCommand` parser. Updated Init() print list.
+- **`src/shared/weapons/WaywardSword.lua`** _(new)_ — Wayward discipline starter: balanced 4-hit combo, BaseDamage=14, AttackSpeed=1.0, Range=5.0, Weight=0.8. Active=Adrenaline, Passive=Stagger.
+- **`src/shared/weapons/SilhouetteDagger.lua`** _(new)_ — Silhouette discipline starter: fastest weapon, 6-hit combo, BaseDamage=8, AttackSpeed=1.6, Range=3.0, Weight=0.2. Active=BloodRage, Passive=Swiftness.
+- **`src/shared/weapons/ResonantStaff.lua`** _(new)_ — Resonant discipline starter: longest range, 2-hit combo, BaseDamage=10, AttackSpeed=0.75, Range=8.0, Weight=0.9. Active=FrostShield, Passive=Regenerate.
+- **`tests/unit/WeaponRegistry.test.lua`** _(new)_ — 9 tests covering: individual WeaponValidator.Validate() pass for all 5 starters, unique IDs, positive stat sanity, Fists empty LootPools, Wayward lighter than Ironclad, Dagger fastest AttackSpeed, Staff longest Range, combo length assertions.
+
+### Integration Points
+
+- WeaponRegistry auto-discovers all files in `src/shared/weapons/` — the 3 new weapon files will register automatically at runtime without any other changes.
+- The 5 starter weapons unblock WeaponService (#133) which can now look up proper weapon configs for equip/unequip proficiency checks.
+- BloodRage, Swiftness, FrostShield, Regenerate, Adrenaline abilities referenced as `Abilities.Active/Passive` — these are already in `src/shared/abilities/`; AbilityRegistry will auto-discover them.
+
+### Spec Gaps Encountered
+
+- None (all weapon stats are explicitly marked ✏️ as placeholder pending Phase 4 balancing pass).
+
+### Tech Debt Created
+
+- CombatService still imports `DisciplineConfig` and calls `DisciplineConfig.Get(data.DisciplineId)` for `breakBase` / `crossTrainPenalty`. Now that Discipline is a soft label, these values may not match stats-driven combat numbers. Needs a reconciliation issue.
+
+### Next Session Should Start On
+
+Issue #133: WeaponService equip/unequip — now unblocked by #132 completion. Implement `EquipWeapon`, `UnequipWeapon`, proficiency checks against `DISCIPLINE_STAT_MAP`, result packet to client.
+
+---
+
+## Previous Session ID: NF-042
 **Date:** 2026-02-XX
 **Issues:** #140
 
