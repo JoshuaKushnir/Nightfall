@@ -810,7 +810,8 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		Direction = "ServerToClient",
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
-		Description = "Player crossed a ring boundary — server fires to the owning client",
+		Description = "Player crossed a ring boundary or entered a named zone (
+		server fires to owning client). Packet includes OldRing/NewRing and optional ZoneName.",
 	},
 
 	-- Admin/Debug

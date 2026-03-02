@@ -202,6 +202,65 @@ test("Folder-based zone part source is supported (multiple parts inside folder)"
     assert_eq(ring, 3, "folder-based zone part detected as Ring 3")
 end)
 
+-- new feature: workspace.Zones named areas
+
+test("ComputeZoneForPosition returns folder name when placed under workspace.Zones", function()
+    local zones = Instance.new("Folder")
+    zones.Name = "Zones"
+    zones.Parent = Workspace
+
+    local pos = Vector3.new(3000, 0, 0)
+    local part = Instance.new("Part")
+    part.Name = "MyZone"
+    part.CFrame = CFrame.new(pos)
+    part.Size = Vector3.new(50, 50, 50)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Parent = zones
+
+    local zoneName = ZoneService._computeZone(pos)
+    zones:Destroy()
+    assert_eq(zoneName, "MyZone", "named zone detection")
+end)
+
+
+test("_updatePlayerRing fires RingChanged with ZoneName when named zone entered", function()
+    resetCaptured()
+
+    local zones = Instance.new("Folder")
+    zones.Name = "Zones"
+    zones.Parent = Workspace
+
+    local pos = Vector3.new(4000, 0, 0)
+    local part = Instance.new("Part")
+    part.Name = "Hellpit"
+    part.CFrame = CFrame.new(pos)
+    part.Size = Vector3.new(10, 10, 10)
+    part.Anchored = true
+    part.CanCollide = false
+    part.Parent = zones
+
+    local fakeChar = Instance.new("Model")
+    local root = Instance.new("Part")
+    root.Name = "HumanoidRootPart"
+    root.Position = pos
+    root.Anchored = true
+    root.Parent = fakeChar
+    fakeChar.Parent = Workspace
+
+    local player = makePlayer(123456)
+    player.Character = fakeChar
+
+    ZoneService._updatePlayerRing(player, pos)
+
+    assert(#_ringChangedFires == 1, "one packet sent")
+    local pkt = _ringChangedFires[1].packet
+    assert_eq(pkt.ZoneName, "Hellpit", "packet contains zone name")
+
+    zones:Destroy()
+    fakeChar:Destroy()
+end)
+
 -- ── Summary ──────────────────────────────────────────────────────────────────
 print(("── ZoneService Tests: %d passed, %d failed ─────────────────────────────"):format(
     passed, failed))

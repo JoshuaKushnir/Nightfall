@@ -406,9 +406,13 @@ local function createHUD()
 	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 135), "State: Loading...")
 
 	-- utility to display ring change
-	local function showZoneChange(ring:number)
+	local function showZoneChange(packet:any)
 		if zoneLabel then
-			zoneLabel.Text = "Ring " .. tostring(ring)
+			if packet.ZoneName and packet.ZoneName ~= "" then
+				zoneLabel.Text = packet.ZoneName
+			else
+				zoneLabel.Text = "Ring " .. tostring(packet.NewRing or 0)
+			end
 			zoneLabel.Visible = true
 			task.delay(2, function()
 				if zoneLabel and zoneLabel.Parent then
@@ -418,9 +422,9 @@ local function createHUD()
 		end
 	end
 
-	-- register network handler for ring change
+	-- register network handler for ring change / named zones
 	NetworkController:RegisterHandler("RingChanged", function(packet:any)
-		showZoneChange(packet.NewRing)
+		showZoneChange(packet)
 	end)
 	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 160), "Coins: 0")
 	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 185), "EXP: 0/100")

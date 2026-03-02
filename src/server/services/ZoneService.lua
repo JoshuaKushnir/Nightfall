@@ -57,6 +57,9 @@ local RING_PRIORITY: {number} = {5, 4, 3, 2, 1}
 -- Current ring cache.   { [UserId]: number }
 local _ringCache: {[number]: number} = {}
 
+-- Current named zone cache. { [UserId]: string }
+local _zoneCache: {[number]: string} = {}
+
 -- Last polled root position.  { [UserId]: Vector3 }
 local _lastPosition: {[number]: Vector3} = {}
 
@@ -125,17 +128,39 @@ end
     Re-compute the ring for `pos`; if it differs from the cached ring,
     update the cache, notify ProgressionService, and fire RingChanged to client.
 ]]
+local function _computeZone(pos: Vector3): string
+    -- any part or folder under workspace.Zones defines a zone; return the first matching name
+    local zonesFolder = Workspace:FindFirstChild("Zones")
+    if zonesFolder then
+        for _, child in pairs(zonesFolder:GetChildren()) do
+            if _positionInsidePart(pos, child) then
+                return child.Name
+            end
+        end
+    end
+    return ""
+end
+
 local function _updatePlayerRing(player: Player, pos: Vector3)
     local uid = player.UserId
     local newRing = _computeRing(pos)
     local oldRing = _ringCache[uid] or 0
 
-    if newRing == oldRing then return end
+    local newZone = _computeZone(pos)
+    local oldZone = _zoneCache[uid] or ""
+
+    if newRing == oldRing and newZone == oldZone then return end
 
     _ringCache[uid] = newRing
+    _zoneCache[uid] = newZone
 
     -- verbose logging for QA
-    print(('[ZoneService] %s changed ring %d → %d'):format(player.Name, oldRing, newRing))
+    if newRing ~= oldRing then
+        print(('[ZoneService] %s changed ring %d → %d'):format(player.Name, oldRing, newRing))
+    end
+    if newZone ~= oldZone then
+        print(('[ZoneService] %s entered zone "%s"'):format(player.Name, newZone))
+    end
 
     -- Notify progression layer (already exists on ProgressionService per NF-042/038)
     if ProgressionService and ProgressionService.SetPlayerRing then
@@ -147,10 +172,14 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
 
     -- Fire event to the owning client so UI can react (HUD ring indicator, etc.)
     if NetworkService and NetworkService.SendToClient then
-        local ok, err = pcall(NetworkService.SendToClient, NetworkService, player, "RingChanged", {
+        local packet = {
             OldRing = oldRing,
             NewRing = newRing,
-        })
+        }
+        if newZone ~= "" then
+            packet.ZoneName = newZone
+        end
+        local ok, err = pcall(NetworkService.SendToClient, NetworkService, player, "RingChanged", packet)
         if not ok then
             warn(("[ZoneService] RingChanged fire error: %s"):format(tostring(err)))
         end
@@ -212,6 +241,10 @@ function ZoneService.GetPlayerRing(player: Player): number
     return _ringCache[player.UserId] or 0
 end
 
+function ZoneService.GetPlayerZone(player: Player): string
+    return _zoneCache[player.UserId] or ""
+end
+
 --[[
     ComputeRingForPosition(pos) → number
     Stateless helper — computes the ring for any world position on demand.
@@ -269,6 +302,11 @@ function ZoneService:Start()
     end)
 
     print("[ZoneService] Started — zone poll interval: " .. POLL_INTERVAL .. "s")
+
+    -- expose internals for testing/debugging
+    ZoneService._computeZone = _computeZone
+    ZoneService._updatePlayerRing = _updatePlayerRing
+
 end
 
 return ZoneService
