@@ -82,7 +82,7 @@ export type WeaponConfig = {
 	GripOffset: CFrame?,
 	ToolType: WeaponToolType,
 	-- Determines which Discipline's proficiency applies. Absent = always full proficiency.
-	WeightClass: ("Light" | "Medium" | "Heavy")?
+	WeightClass: ("Light" | "Medium" | "Heavy")?,
 
 	-- ── Stats (required) ─────────────────────────────────────────────────────
 	BaseDamage: number,
