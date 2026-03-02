@@ -102,6 +102,44 @@ function AspectService.AssignAspect(player: Player, aspectId: AspectTypes.Aspect
 end
 
 --[[
+    DebugSetAspect(player, aspectId)
+    Developer-only helper that force-assigns the given aspect and maxes
+    all branches to depth 3 so the player has the full moveset. Does not
+    perform normal validation (overwrites existing aspect state).
+    Returns true on success.
+]]
+function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.AspectId): boolean
+    if not Utils.IsValidPlayer(player) then
+        return false
+    end
+    local profile = DataService:GetProfile(player)
+    if not profile then
+        return false
+    end
+    local cfg = AspectRegistry.GetAspect(aspectId)
+    if not cfg then
+        warn("[AspectService] DebugSetAspect invalid aspect: "..tostring(aspectId))
+        return false
+    end
+
+    profile.AspectData = {
+        AspectId = aspectId,
+        IsUnlocked = true,
+        Branches = {
+            Expression = {Depth = 3, ShardsInvested = 500},
+            Form       = {Depth = 3, ShardsInvested = 500},
+            Communion  = {Depth = 3, ShardsInvested = 500},
+        },
+        TotalShardsInvested = 1500,
+    }
+    profile.ResonanceShards = profile.ResonanceShards or 0
+
+    AspectService.ApplyPassives(player)
+    NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
+    return true
+end
+
+--[[
     InvestInBranch(player, aspectId, branch, amount) -> (boolean, string?)
     Spend Resonance Shards to deepen a branch. Validates finances, aspect,
     and max depth.
@@ -191,13 +229,24 @@ function AspectService.CanCastAbility(player: Player, abilityId: string)
     if not profile or not profile.AspectData then
         return false, "NoAspect"
     end
-    local ability = AspectRegistry.Abilities[abilityId]
+    -- Moveset abilities registered via AbilityRegistry take priority;
+    -- fall back to legacy AspectRegistry.Abilities for old-format entries.
+    local ability = AbilityRegistry.Get(abilityId) or AspectRegistry.Abilities[abilityId]
     if not ability then
         return false, "UnknownAbility"
     end
-    local depth = profile.AspectData.Branches[ability.Branch].Depth
-    if depth < ability.MinDepth then
-        return false, "DepthTooLow"
+    -- Validate Aspect ownership (moveset format — AspectId must match player's chosen Aspect)
+    if ability.AspectId and ability.AspectId ~= "None" then
+        if profile.AspectData.AspectId ~= ability.AspectId then
+            return false, "WrongAspect"
+        end
+    end
+    -- Legacy branch-depth check (only applies to old-format abilities with Branch set)
+    if ability.Branch and ability.MinDepth then
+        local branchState = profile.AspectData.Branches and profile.AspectData.Branches[ability.Branch]
+        if branchState and branchState.Depth < ability.MinDepth then
+            return false, "DepthTooLow"
+        end
     end
     local state = StateService:GetState(player)
     if state == "Stunned" or state == "Dead" or state == "Attacking" or state == "Ragdolled" then

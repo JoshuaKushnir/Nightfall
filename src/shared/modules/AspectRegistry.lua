@@ -103,117 +103,17 @@ local function emptyEffect(player, playerData)
     -- Form passive stub
 end
 
--- create placeholder abilities for each active Aspect
-for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
-    for depth = 1, 3 do
-        for abilityNum = 1, 2 do
-            local id = aspectId .. "_Expr" .. depth .. "_" .. abilityNum
-            makeAbility({
-                Id = id,
-                Name = aspectId .. " Expression " .. depth .. "-" .. abilityNum,
-                AspectId = aspectId,
-                Branch = "Expression",
-                MinDepth = depth,
-                BaseDamage = if depth == 1 then 15 elseif depth == 2 then 30 else 50,
-                PostureDamage = 0,
-                ManaCost = if depth == 1 then 20 elseif depth == 2 then 35 else 55,
-                Cooldown = 1.5,
-                CastTime = 0.2,
-                RequiredState = {"Idle", "Running"},
-                VFX_Function = emptyVFX,
-            })
-        end
-    end
-end
-
--- add explicit test-only abilities (not tied to depth)
-makeAbility({
-    Id = "Test_Move_Quick",
-    Name = "Quick Test Move",
-    AspectId = "Ash",
-    Branch = "Expression",
-    MinDepth = 1,
-    BaseDamage = 10,
-    PostureDamage = 5,
-    ManaCost = 15,
-    Cooldown = 0.5,
-    CastTime = 0.1,
-    RequiredState = {"Idle"},
-    VFX_Function = emptyVFX,
-})
-makeAbility({
-    Id = "Test_Move_Strong",
-    Name = "Strong Test Move",
-    AspectId = "Tide",
-    Branch = "Expression",
-    MinDepth = 1,
-    BaseDamage = 25,
-    PostureDamage = 10,
-    ManaCost = 30,
-    Cooldown = 2.0,
-    CastTime = 0.5,
-    RequiredState = {"Idle"},
-    VFX_Function = emptyVFX,
-})
-
--- stub passives for Form branch for each active Aspect
-for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
-    for depth = 1, 3 do
-        local id = aspectId .. "_Form" .. depth
-        makePassive({
-            Id = id,
-            Name = aspectId .. " Form " .. depth,
-            AspectId = aspectId,
-            Branch = "Form",
-            MinDepth = depth,
-            ApplyEffect = emptyEffect,
-            RemoveEffect = function(player) end,
-        })
-    end
-end
-
--- stub Communion abilities (no combat effects)
-for _, aspectId in ipairs({"Ash", "Tide", "Ember", "Gale", "Void"}) do
-    for depth = 1, 3 do
-        local id = aspectId .. "_Comm" .. depth
-        makeAbility({
-            Id = id,
-            Name = aspectId .. " Communion " .. depth,
-            AspectId = aspectId,
-            Branch = "Communion",
-            MinDepth = depth,
-            BaseDamage = nil,
-            PostureDamage = nil,
-            ManaCost = 0,
-            Cooldown = 0,
-            CastTime = 0,
-            RequiredState = {},
-            VFX_Function = emptyVFX,
-            -- Communion: Not implemented. Designed behavior: utility effects such as
-            -- creating a small light to reveal hidden paths or charing a shrine.
-        })
-    end
-end
-
 --[[
-    Automatically create an AspectMove item for every ability so the client
-    inventory can contain and equip them interchangeably with loaded moves.
-    The move ID is prefixed with "move_" to avoid colliding with raw ability IDs.
-]]
-for abilityId, ability in pairs(Registry.Abilities) do
-    makeMoveItem({
-        Id = "move_" .. abilityId,
-        Name = ability.Name,
-        Description = ability.Name, -- placeholder; could be fleshed with more info
-        Category = "Abilities",
-        Rarity = "Common",
-        Weight = 0,
-        AbilityId = abilityId,
-        AspectId = ability.AspectId,
-    })
-end
+    Expression abilities are now registered via AbilityRegistry, which auto-discovers
+    the Ash/Tide/Ember/Gale/Void moveset modules and registers each of the 5 moves
+    per Aspect individually. AspectRegistry.Abilities holds only legacy or special-case
+    entries (e.g. test utilities). Do not add hand-registered placeholder loops here.
 
--- no abilities for Marrow yet (locked)
+    Form passives and Communion stubs are deferred tech debt (Phase 4+).
+    Track in respective GitHub issues when scope is resolved.
+]]
+
+-- Marrow: locked Aspect — no abilities until Phase 4 design is finalised
 
 -- cross-aspect synergies data
 Registry.Synergies = {} :: {AspectTypes.AspectSynergy}
