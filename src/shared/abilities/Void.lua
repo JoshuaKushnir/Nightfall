@@ -735,34 +735,6 @@ Void.Moves[5] = {
 
 return Void
 
-    BLINK
-    -----
-    Cast time : instant (0s)
-    Mana cost : 20
-    Cooldown  : 4s
-
-    Teleports the caster up to 10 studs through geometry.  If a valid enemy target
-    is within 10 studs, the caster blinks BEHIND the target (within 2 studs).
-    On arrival:
-        • Interrupts the target's Posture recovery for 1 second (PostureService flag)
-        • Grants the caster a "VoidPostureBonus" charge for their NEXT melee strike:
-          that hit deals +20 additional Posture damage.
-
-    No cast time makes Blink a true gap-closer that's hard to react to.  Its power
-    comes from chaining immediately into a melee follow-up.
-
-    VFX: STUB — animator: void-ripple dissolve at origin, re-materialise at destination,
-         dark particle burst at arrival.
-
-    Talent hooks (stubs):
-        • Nullpoint     — if target is currently Staggered, Blink also silences one
-                          random ability for 1.5s
-        • Phase Residue — for 0.5s after Blink the caster is Dampened-immune
-                          (Momentum can't be reduced below 1×)
-        • Void Slip     — if cast while airborne, destination is directly above the
-                          target (+3 studs Y), enabling aerial follow-up
-]]
-
 local Workspace = game:GetService("Workspace")
 local Players   = game:GetService("Players")
 

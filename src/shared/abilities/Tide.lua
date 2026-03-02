@@ -668,27 +668,6 @@ Tide.Moves[5] = {
 
 return Tide
 
-    CURRENT
-    -------
-    Cast time : 0.1s
-    Mana cost : 20
-    Cooldown  : 7s
-
-    Projects a water surge up to 15 studs in the cast direction.  Any player hit
-    within a 5-stud radius of the surge tip is:
-        • Knocked back 8 studs away from the caster
-        • Dealt 25 Posture damage
-        • If they hit terrain within 1 second of the knockback → additional 20 HP damage
-          and gain Grounded status for 1.5 seconds
-
-    VFX: STUB — animator implements water-ribbon projectile, foam splash on terrain hit
-
-    Talent hooks (stubs — deferred until Talent system exists):
-        • Riptide          — if target is airborne at hit, double knockback distance
-        • Saturating Wave  — applies Saturated status (interacts with Ember cross-Aspect)
-        • Drowning Shore   — halves target Breath regen for 3s
-]]
-
 local Workspace = game:GetService("Workspace")
 local Players   = game:GetService("Players")
 

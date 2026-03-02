@@ -704,29 +704,6 @@ Gale.Moves[5] = {
 
 return Gale
 
-    WIND STRIKE
-    -----------
-    Cast time : 0.1s
-    Mana cost : 20
-    Cooldown  : 6s
-
-    Dash the caster forward up to 12 studs.  On arrival, both the caster AND any
-    target within 5 studs are launched upward.  Deals 20 Posture damage to the target.
-    If cast while the caster is already airborne, damage is increased to 30 and
-    launch height is doubled.
-
-    The dual-launch creates high-air engagements where both parties are airborne —
-    Gale's follow-up kit specialises in aerial pressure and repositioning.
-
-    VFX: STUB — animator implements wind-ribbon dash, upward gust column on impact,
-         spiral particle ascent around both caster and target.
-
-    Talent hooks (stubs):
-        • Updraft    — while target is airborne after Wind Strike, their Breath regen is blocked
-        • Gale Force — if caster was already airborne at cast, gain 1× Momentum on landing
-        • Tempest Dive — follow-up ability (future depth): aerial dive into a downward slam
-]]
-
 local Workspace = game:GetService("Workspace")
 local Players   = game:GetService("Players")
 

@@ -709,29 +709,6 @@ Ember.Moves[5] = {
 
 return Ember
 
-    IGNITE
-    ------
-    Cast time : 0.05s (near-instant)
-    Mana cost : 20
-    Cooldown  : 5s
-
-    Dash the caster forward 8 studs and apply one Heat stack to any target within
-    5 studs of the landing zone.  One Heat stack deals 15 Posture damage and sets
-    a "Burning" status on the target (light HP drain, posture recovery halved).
-    At 2× Momentum (character attribute ≥ 2), the dash applies two stacks instead.
-
-    The Heat stack system is the foundation of Ember's combo engine.  Future
-    Depth-2+ moves interact with stack count (e.g., Scorch at 3 stacks → Break).
-
-    VFX: STUB — animator implements ember-trail dash, fiery impact ring on landing,
-         glowing heat shimmer on Burned targets.
-
-    Talent hooks (stubs):
-        • Heat Transfer    — Burning targets spread 1 Heat stack to adjacent enemies
-        • Torch            — Momentum bonus triggers at 1.5× instead of 2×
-        • Ignition Chain   — Airborne targets hit take +1 extra stack
-]]
-
 local Workspace = game:GetService("Workspace")
 local Players   = game:GetService("Players")
 

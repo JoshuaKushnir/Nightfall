@@ -726,30 +726,6 @@ Ash.Moves[5] = {
 
 return Ash
 
-    ASHEN STEP
-    ----------
-    Cast time : 0.15s
-    Mana cost : 20
-    Cooldown  : 5s
-
-    Dash forward up to 12 studs, leaving a static afterimage Part at the origin.
-    On arrival deals 15 Posture damage to any target within 5 studs.
-    The afterimage persists for 4 seconds; if an enemy attacks and touches it, they
-    receive a 0.3-second BlindFlash screen effect.
-
-    Status conditions applied:
-        • Posture damage (15 pts) on arrival — read by PostureService via character attribute
-        • BlindFlash (0.3s) on afterimage interaction
-
-    VFX: STUB — animator implements particle trail on dash + ash-cloud materialise/dissolve
-         for the afterimage.
-
-    Talent hooks (stubs — full logic deferred until Talent system exists):
-        • Hollow Echo  — if afterimage is struck while attacker is Staggered, blind doubles
-        • Momentum Trace — if cast at ≥2× Momentum, afterimage mimics last sprint direction
-        • Haunting Step  — if cast airborne, afterimage spawns in air and falls slowly
-]]
-
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 

@@ -24,8 +24,8 @@ local BloodRage = {
 	DamageTakenMultiplier = 1.2,
 
     Requirement = {
-        "Strength" = 10,
-        "Willpower" = 5,
+        Strength = 10,
+        Willpower = 5,
     }
 }
 
