@@ -544,9 +544,13 @@ local function createHUD()
 	end
 
 	-- register network handler for ring change / named zones
-	NetworkController:RegisterHandler("RingChanged", function(packet: any)
-		showZoneChange(packet)
-	end)
+	if NetworkController then
+		NetworkController:RegisterHandler("RingChanged", function(packet: any)
+			showZoneChange(packet)
+		end)
+	else
+		warn("[PlayerHUDController] cannot register RingChanged handler; NetworkController missing")
+	end
 	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 160), "Coins: 0")
 	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 185), "EXP: 0/100")
 end
@@ -644,9 +648,13 @@ local PlayerHUDController = {}
 function PlayerHUDController:Init(dependencies)
 	StateSyncController = dependencies.StateSyncController
 	MovementController  = dependencies.MovementController
+	NetworkController   = dependencies.NetworkController
 
 	if not StateSyncController then
 		error("[PlayerHUDController] StateSyncController dependency not provided")
+	end
+	if not NetworkController then
+		error("[PlayerHUDController] NetworkController dependency not provided")
 	end
 
 	print("[PlayerHUDController] Initialized")
