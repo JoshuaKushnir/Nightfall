@@ -32,4 +32,17 @@ describe("NetworkProvider", function()
         assert(NetworkProvider:GetRemoteEvent("AbilityCastRequest"))
         assert(NetworkProvider:GetRemoteEvent("AbilityCastResult"))
     end)
+
+    it("provides a FireClient helper that proxies to remote", function()
+        NetworkProvider:Init()
+        local evt = NetworkProvider:GetRemoteEvent("AbilityCastResult")
+        local called = false
+        -- monkey-patch FireClient on the remote so we can detect invocation
+        evt.FireClient = function(self, player, ...)
+            called = true
+        end
+
+        NetworkProvider:FireClient("AbilityCastResult", {} )
+        assert(called, "FireClient did not call underlying remote")
+    end)
 end)

@@ -208,6 +208,28 @@ function NetworkProvider:FireServer(eventName: NetworkEvent, ...)
 end
 
 --[[
+	Convenience wrapper for server-to-client traffic. Fires the named
+	remote event to a specific player. Logs warning if event missing or
+	player argument is nil.
+]]
+function NetworkProvider:FireClient(eventName: NetworkEvent, player: Player?, ...)
+	if not RunService:IsServer() then
+		error("NetworkProvider:FireClient may only be called from server")
+	end
+
+	local remote = self:GetRemoteEvent(eventName)
+	if not remote then
+		warn(`[NetworkProvider] FireClient failed, no RemoteEvent: {eventName}`)
+		return
+	end
+	if not player then
+		warn("[NetworkProvider] FireClient called without player")
+		return
+	end
+	remote:FireClient(player, ...)
+end
+
+--[[
 	Get metadata for a network event
 	
 	@param eventName - The name of the network event

@@ -43,6 +43,7 @@ function DebugInput:Init()
 	print("[DebugInput] Press / to open local command prompt (commands are NOT broadcast to chat)")
 	print("[DebugInput] Press Ctrl+Shift+D to list all settings")
 	print("[DebugInput] Press G to grant 200 debug Resonance (earns 1 stat point for panel testing)")
+	print("[DebugInput] Press Y to cycle debug aspect (assign & max branches)")
 
 	-- Listen for admin/debug responses from server (DebugInfo)
 	local networkFolder = ReplicatedStorage:FindFirstChild("NetworkEvents")
@@ -108,7 +109,10 @@ function DebugInput:Init()
 		if input.KeyCode == Enum.KeyCode.G then
 			DebugInput._SendAdminCommand({ Command = "grant_resonance", Args = { "200" } })
 		end
-
+		-- Y: cycle through aspects and assign debug aspect
+		if input.KeyCode == Enum.KeyCode.Y then
+			DebugInput._CycleAspect()
+		end
 		-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
 		if input.KeyCode == Enum.KeyCode.Slash then
 			DebugInput._OpenCommandPrompt()
@@ -196,6 +200,22 @@ function DebugInput._SendAdminCommand(packet: { Command: string, Args: {string}?
 	-- Fire server-only admin command (server will validate permissions)
 	adminEvent:FireServer(packet)
 	print(`[DebugInput] AdminCommand sent: {packet.Command} ({table.concat(packet.Args or {}, " ")})`)
+end
+
+--[[
+	Cycle through the list of aspect IDs and send an admin command to set the
+	current aspect in debug mode. This gives full branches so the client has all
+	moves available immediately.
+]]
+function DebugInput._CycleAspect()
+	local aspectIds = {"Ash","Tide","Ember","Gale","Void","Marrow"}
+	DebugInput._lastAspectIndex = (DebugInput._lastAspectIndex or 0) + 1
+	if DebugInput._lastAspectIndex > #aspectIds then
+		DebugInput._lastAspectIndex = 1
+	end
+	local id = aspectIds[DebugInput._lastAspectIndex]
+	DebugInput._SendAdminCommand({ Command = "set_aspect", Args = { id } })
+	print("[DebugInput] cycling debug aspect -> "..id)
 end
 
 --[[
@@ -302,6 +322,14 @@ function DebugInput._HandleCommand(text: string)
 			-- /admin grant_resonance [amount]
 			local amount = tokens[3] or "200"
 			DebugInput._SendAdminCommand({ Command = "grant_resonance", Args = { amount } })
+			return
+		else
+			-- fallback: forward any other admin command verbatim
+			local args = {}
+			for i = 3, #tokens do
+				table.insert(args, tokens[i])
+			end
+			DebugInput._SendAdminCommand({ Command = sub, Args = args })
 			return
 		end
 	end

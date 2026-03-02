@@ -1,4 +1,3 @@
-# Nightfall: Development Roadmap
 **Project:** Nightfall/Nightbound - Dark Fantasy Roblox RPG  
 **Architecture:** Rojo + Luau (Strict Typing, DRY, Modular)  
 **Goal:** Published MVP with Combat, Magic (Mantras), and Narrative Systems

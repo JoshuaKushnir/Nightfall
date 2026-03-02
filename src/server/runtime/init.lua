@@ -252,6 +252,26 @@ if services.NetworkService and services.DummyService then
 				warn("[AdminCommand] ProgressionService not available")
 				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "progression_unavailable" } })
 			end
+		elseif cmd == "set_aspect" then
+			-- Developer helper: give player the specified aspect with all branches
+			local aspectId = args[1]
+			if not aspectId then
+				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "missing_aspect" } })
+			else
+				local AspectSvc = services.AspectService
+				if AspectSvc then
+					local ok = AspectSvc.DebugSetAspect(player, aspectId)
+					if ok then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("set aspect %s"):format(aspectId) } })
+						print(`[AdminCommand] {player.Name} debug set aspect to {aspectId}`)
+					else
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "invalid_aspect" } })
+					end
+				else
+					warn("[AdminCommand] AspectService not available")
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "aspect_unavailable" } })
+				end
+			end
 		else
 			warn(`[AdminCommand] Unknown admin command: {cmd}`)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "unknown_command" } })
