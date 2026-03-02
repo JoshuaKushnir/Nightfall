@@ -164,7 +164,9 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
 
     -- Notify progression layer (already exists on ProgressionService per NF-042/038)
     if ProgressionService and ProgressionService.SetPlayerRing then
-        local ok, err = pcall(ProgressionService.SetPlayerRing, ProgressionService, player, newRing)
+        local ok, err = pcall(function()
+            return ProgressionService.SetPlayerRing(player, newRing)
+        end)
         if not ok then
             warn(("[ZoneService] ProgressionService.SetPlayerRing error: %s"):format(tostring(err)))
         end
