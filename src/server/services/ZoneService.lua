@@ -129,7 +129,8 @@ end
     update the cache, notify ProgressionService, and fire RingChanged to client.
 ]]
 local function _computeZone(pos: Vector3): string
-    -- any part or folder under workspace.Zones defines a zone; return the first matching name
+    -- any part or group under workspace.Zones defines a zone; return the first matching
+    -- child name.  The child may be a BasePart or a Folder/Model containing parts.
     local zonesFolder = Workspace:FindFirstChild("Zones")
     if zonesFolder then
         for _, child in pairs(zonesFolder:GetChildren()) do
@@ -137,9 +138,19 @@ local function _computeZone(pos: Vector3): string
             if child.Name:match("^ZoneTrigger") then
                 continue
             end
-            if _positionInsidePart(pos, child) then
-                return child.Name
+
+            if child:IsA("BasePart") then
+                if _positionInsidePart(pos, child) then
+                    return child.Name
+                end
+            elseif child:IsA("Folder") or child:IsA("Model") then
+                for _, desc in pairs(child:GetDescendants()) do
+                    if desc:IsA("BasePart") and _positionInsidePart(pos, desc) then
+                        return child.Name
+                    end
+                end
             end
+            -- other instance types ignored (Bindable, StringValue, etc.)
         end
     end
     return ""
