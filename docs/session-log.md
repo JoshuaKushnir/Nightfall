@@ -4,7 +4,61 @@
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
 
-## Current Session ID: NF-044
+## Current Session ID: NF-045
+**Date:** 2026-03-02
+**Issues:** #142 (ZoneService), #123 (Ash), #124 (Tide), #125 (Ember), #126 (Gale), #127 (Void)
+
+### What Was Built
+
+- **`src/shared/types/NetworkTypes.lua`** — Added `"RingChanged"` to `NetworkEvent` union, `RingChangedPacket` type `{OldRing: number, NewRing: number}`, and metadata entry `{Direction="ServerToClient", RequiresValidation=false}`.
+- **`src/server/services/ZoneService.lua`** *(new)* — Full ring-boundary detection service. Workspace-part-based zone lookup: scans `workspace.ZoneTrigger_Ring1..5` (supports single BasePart or Folder/Model container). CFrame AABB containment handles arbitrarily rotated parts. Polls every 0.5s (`POLL_INTERVAL`), skips re-check if player moved < 10 studs (`MOVEMENT_THRESHOLD`). On ring change: calls `ProgressionService.SetPlayerRing(player, newRing)` and fires `RingChanged` to owning client. `Init(dependencies)` accepts injected `NetworkService` + `ProgressionService`; lazy-requires as fallback.
+- **`src/server/runtime/init.lua`** — Two additions: `ProgressionService` added to the `dependencies` table; `"ZoneService"` added to `startOrder` after `"ProgressionService"`.
+- **`src/server/services/AbilitySystem.lua`** — Added `HandleExpressionAbility(player, abilityId, targetPos)` public function (~55 lines). Validates `Type == "Expression"`, checks/starts cooldown, calls `ability.OnActivate(player, targetPos)`.
+- **`src/server/services/AspectService.lua`** — Modified `_onCastRequest` routing: if `AbilityRegistry.Get(id).Type == "Expression"` routes to `AbilitySystem.HandleExpressionAbility(player, id, packet.TargetPosition)` instead of `HandleUseAbilityById`. This preserves `targetPosition` that Expression abilities need for spatial effects.
+- **`src/shared/abilities/Ash.lua`** *(new)* — `AshenStep` (Type=Expression): 12-stud forward dash (0.15s cast), afterimage BasePart at origin (4s lifetime, `Touched` fires `BlindFlash` attribute on striker), 15 posture (`IncomingPostureDamage`) to players within 5 studs of landing zone. Talent hooks: Hollow Echo, Momentum Trace, Haunting Step (all stubbed with design notes).
+- **`src/shared/abilities/Tide.lua`** *(new)* — `Current` (Type=Expression): 15-stud water surge to `targetPos` or look-vector, sphere overlap at surge tip, knockback via `AssemblyLinearVelocity`, 25 posture via `IncomingPostureDamage`, Touched monitor 1s after cast → terrain collision → 20 HP via `IncomingHPDamage` + `StatusGrounded=true` / `GroundedExpiry`. Talent hooks: Riptide, Saturating Wave, Drowning Shore (stubbed).
+- **`src/shared/abilities/Ember.lua`** *(new)* — `Ignite` (Type=Expression): 8-stud dash, reads `Momentum` character attribute, 2 Heat stacks if Momentum≥2 else 1. Each stack: 15 posture via `IncomingPostureDamage`, increment `HeatStacks`, set `StatusBurning`/`BurningExpiry`/`BurningHPPerSecond=2`. Talent hooks: Heat Transfer, Torch, Ignition Chain (stubbed).
+- **`src/shared/abilities/Gale.lua`** *(new)* — `WindStrike` (Type=Expression): airborne check via 1.5-stud downward raycast, 12-stud dash, launches BOTH caster and target upward (`AssemblyLinearVelocity.Y = 60` ground / `120` airborne), 20 posture ground (30 airborne). Talent hooks: Updraft, Gale Force, Tempest Dive with `TempestDiveReady` attribute stub (stubbed).
+- **`src/shared/abilities/Void.lua`** *(new)* — `Blink` (Type=Expression, CastTime=0): instant teleport to 2 studs behind nearest enemy in 10-stud radius (falls back to 10 studs forward). Sets `VoidPostureBonusCharge=20` + `VoidPostureBonusExpiry` on caster (8s window, CombatService consumes on melee). Sets `PostureRegenBlocked=true` + `PostureRegenBlockExpiry=tick()+1` on target within 3 studs. Talent hooks: Nullpoint, Phase Residue, Void Slip (stubbed).
+- **`tests/unit/ZoneService.test.lua`** *(new)* — 7 tests: no parts→ring0, inside part→ring1, outside→0, nested zones highest wins, unregistered player→0, RingChangedPacket shape, folder-based detection.
+- **`tests/unit/AshExpression.test.lua`** *(new)* — 9 tests: Id, Type, ManaCost, Cooldown, Range, OnActivate valid char, OnActivate nil char, ClientActivate function, CastTime.
+- **`tests/unit/TideExpression.test.lua`** *(new)* — 9 tests.
+- **`tests/unit/EmberExpression.test.lua`** *(new)* — 9 tests.
+- **`tests/unit/GaleExpression.test.lua`** *(new)* — 9 tests.
+- **`tests/unit/VoidExpression.test.lua`** *(new)* — 11 tests.
+
+### Integration Points
+
+- **ZoneService → ProgressionService**: `SetPlayerRing(player, ring)` was already implemented in ProgressionService (NF-040). ZoneService calls it on every ring change. Zero changes needed in ProgressionService.
+- **ZoneService → HollowedService (#143)**: `ZoneService.GetPlayerRing(player)` and `ZoneService.ComputeRingForPosition(Vector3)` provide the ring lookups HollowedService needs for spawn boundaries and difficulty scaling. HollowedService is now fully unblocked.
+- **ZoneService → Death/respawn (#144)**: Ring-aware Ember Point lookup uses `ZoneService.GetPlayerRing(player)` to identify which ring's checkpoint to respawn at. Death/respawn is now fully unblocked.
+- **Expression abilities → CombatService**: CombatService must read `VoidPostureBonusCharge` attribute on attacker's character when processing a melee hit, apply the bonus posture damage, and then clear the attribute. Flagged as tech debt below.
+- **Expression abilities → PostureService**: PostureService must respect `PostureRegenBlocked` attribute (and `PostureRegenBlockExpiry`) — skip posture regen tick when flag is set and not expired. Flagged as tech debt below.
+- **Expression abilities → aspected Heartbeat tick**: `StatusBurning`/`BurningHPPerSecond` + `StatusGrounded`/`GroundedExpiry` need a periodic server Heartbeat processor — either in CombatService or a dedicated StatusEffectService — to drain HP for Burning and clear flags on expiry.
+- **AbilityRegistry auto-discovery**: All 5 new Expression ability files return `{Id, Type}` in expected format. AbilityRegistry discovers them with zero config change.
+
+### Spec Gaps Encountered
+
+- Burning HP-per-second tick processor not yet implemented — `BurningHPPerSecond=2` attribute set but nothing consumes it yet → Created placeholder in StatusEffectService slot (no issue # yet, flag as tech debt).
+- VoidPostureBonusCharge consumption in CombatService not implemented — charge set but CombatService doesn't read it yet.
+- TempestDiveReady attribute stub in Gale: sets attribute with 2s expiry but there is no TempestDive follow-up ability yet (Depth-2 talent deferred).
+
+### Tech Debt Created
+
+- **CombatService must read `VoidPostureBonusCharge`**: When processing melee hit, check attacker's character for this attribute. If present and not expired, add bonus posture damage, clear attribute.
+- **PostureService must respect `PostureRegenBlocked`**: Check `PostureRegenBlocked` attribute + `PostureRegenBlockExpiry` on each regen tick; skip regen if flag is set and `tick() < expiry`.
+- **Status effect heartbeat processor**: `StatusBurning`/`BurningHPPerSecond` and `StatusGrounded`/`GroundedExpiry` need a Heartbeat loop (CombatService or new StatusEffectService) to drain HP and clear flags.
+- **ZoneService zone bounds are stubs**: Studio team must place `workspace.ZoneTrigger_Ring1` through `workspace.ZoneTrigger_Ring5` BaseParts (or Folders of parts) before ring detection works in Play mode. ZoneService silently returns ring 0 until parts exist.
+
+### Next Session Should Start On
+
+Issue #143: HollowedService — now fully unblocked by ZoneService. Uses `ZoneService.GetPlayerRing()` for spawn boundaries and difficulty scaling. Pure Lua, no Studio dependencies.
+
+Alternatively: Issue #141 (Character creation Aspect picker) — client UI, `AspectService.AssignAspect` already exists server-side.
+
+---
+
+## Previous Session ID: NF-044
 **Date:** 2026-03-01
 **Issues:** #133 (WeaponService proficiency checks)
 
