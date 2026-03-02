@@ -4,7 +4,49 @@
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
 
-## Current Session ID: NF-045
+## Current Session ID: NF-046
+**Date:** 2026-03-02
+**Issues:** #149
+
+### What Was Built
+
+- **`src/shared/types/AspectTypes.lua`** — Added `MoveType` union (`"Offensive" | "Defensive" | "UtilityProc" | "SelfBuff"`), `AspectTalent` type (`{Id, Name, InteractsWith, Description, IsUnlocked: false, OnActivate: nil}`), `AspectMoveset` type (`{AspectId, DisplayName, Moves: {AspectAbility}}`). Expanded `AspectAbility` with `Slot`, `MoveType`, `Talents`, `OnActivate`, `ClientActivate`. Made `Branch` and `MinDepth` optional for backward compatibility.
+- **`src/shared/modules/AbilityRegistry.lua`** — Added dual-format detection: `module.AspectId ~= nil and type(module.Moves) == "table"` registers each of the 5 moves individually by `Id`; also stores moveset in `_movesets[aspectId]`. Added `GetMoveset(aspectId)` and `GetMovesForAspect(aspectId)` (sorted by Slot) to public API. Original single-ability format preserved for Stagger/Adrenaline/BloodRage.
+- **`src/shared/abilities/Ash.lua`** *(rewritten)* — Full 5-move moveset: `AshenStep` (Offensive, preserved original OnActivate), `CinderBurst`, `Fade`, `Trace`, `GreyVeil`. Each with 3 talent stubs.
+- **`src/shared/abilities/Tide.lua`** *(rewritten)* — Full 5-move moveset: `Current` (Offensive, preserved original OnActivate), `Undertow`, `Swell`, `FloodMark`, `Pressure`. Each with 3 talent stubs.
+- **`src/shared/abilities/Ember.lua`** *(rewritten)* — Full 5-move moveset: `Ignite` (UtilityProc, stack builder), `Flashfire` (AoE stack detonation), `HeatShield` (Defensive, HP→Posture conversion), `Surge` (SelfBuff, +Momentum), `CinderField` (area DOT + stack pressure). Heat stack system implemented via character attributes (`HeatStacks`, `StatusBurning`, `BurningHPPerSecond`). Each move with 3 talent stubs.
+- **`src/shared/abilities/Gale.lua`** *(rewritten)* — Full 5-move moveset: `WindStrike` (Offensive, launch both parties), `Crosswind` (lateral push, aerial bonus), `Windwall` (Defensive, deflect + auto-reposition), `Updraft` (SelfBuff, vertical launch + next-ability buff), `Shear` (180° arc, doubled vs airborne). Each with 3 talent stubs.
+- **`src/shared/abilities/Void.lua`** *(rewritten)* — Full 5-move moveset: `Blink` (phase-teleport, regen interrupt + melee boost window), `Silence` (ability lock, random slot), `PhaseShift` (Defensive, 0.6s true invulnerability), `VoidPulse` (slow projectile, Silenced target = 2× posture), `IsolationField` (SelfBuff, mark target: no healing + CDR slow + +15% dmg). Each with 3 talent stubs.
+- **`src/shared/modules/AspectRegistry.lua`** — Removed all placeholder generation loops (Expression, Form, Communion stubs and auto-MoveItem loop). Replaced with comment block documenting delegation to AbilityRegistry. Public API (`GetAspect`, `GetAbilitiesForAspect`, `GetPassivesForAspect`, `GetSynergy`) retained. `Registry.Abilities` now stays empty (moveset abilities are in AbilityRegistry).
+- **`src/server/services/AspectService.lua`** (`CanCastAbility`) — Replaced branch-depth lookup with: `AbilityRegistry.Get(id) or AspectRegistry.Abilities[id]`, then Aspect ownership check (`ability.AspectId ~= profile.AspectData.AspectId → "WrongAspect"`), then optional legacy branch check (only if `ability.Branch and ability.MinDepth` are set).
+- **`tests/unit/AshExpression.test.lua`** *(rewritten)* — 15 tests: moveset structure, Moves[1] fields, OnActivate behaviors, talent structure (all 5 moves × 3 talents), sequential Slots, AspectId per move.
+- **`tests/unit/TideExpression.test.lua`** *(rewritten)* — 14 tests in same pattern.
+- **`tests/unit/EmberExpression.test.lua`** *(rewritten)* — 14 tests in same pattern.
+- **`tests/unit/GaleExpression.test.lua`** *(rewritten)* — 15 tests in same pattern.
+- **`tests/unit/VoidExpression.test.lua`** *(rewritten)* — 17 tests: Blink-specific attribute assertions (`StatusBlinkBoost=true`, `BlinkPostureBonus=0.30`, `BlinkBoostExpiry` future tick), PhaseShift and IsolationField spot-checks.
+
+### Integration Points
+- AbilityRegistry.GetMoveset("Ash") → returns full ASH moveset table (5 moves)
+- AspectService.CanCastAbility now routes moveset abilities correctly without requiring Branch depth
+- All 25 abilities (5 per Aspect × 5 Aspects) are registered individually by Id for AbilityRegistry.Get(id) lookup at cast time
+- Heat stack system (Ember) lives on character attributes and is read by CombatService/PostureService on Heartbeat
+- Status conditions per Aspect: Ash (`StatusFade`, `AshTraceOwner`, `StatusGreyVeil`), Tide (`StatusSwell`, `StatusSaturated`, `StatusPressure`), Ember (`HeatStacks`, `StatusBurning`, `StatusOverheat`, `StatusSurge`), Gale (`StatusWeightless`, `StatusUpdraftBuff`, `StatusWindwall`), Void (`StatusBlinkBoost`, `StatusSilenced`, `StatusPhaseShift`, `IsolationTarget`)
+
+### Spec Gaps Encountered
+- Momentum system referenced by Ember (Surge +1, Torch +2 stacks) — currently just a character attribute integer; no formalised system yet → spec-gap tracked conceptually, talent stubs mark it
+- Talent system infrastructure entirely deferred — all `OnActivate = nil` and `IsUnlocked = false` pending Phase 4+
+
+### Tech Debt Created
+- 75 talent stubs across 25 abilities — all functional shells with design doc description; require talent unlock infrastructure (Phase 4)
+- CinderField uses a task.spawn + task.wait(0.1) polling loop — should be migrated to a centralised ZoneService heartbeat when that service supports damage ticks
+- Gale wall-collision detection in Crosswind is a simple velocity-drop heuristic → needs proper collision event from physics engine
+
+### Next Session Should Start On
+Issue #150 or next-priority open issue — Custom Inventory UI (InventoryController equipment panel, bag grid). Run `gh issue list --state open` first.
+
+---
+
+## Session NF-045
 **Date:** 2026-03-02
 **Issues:** #142 (ZoneService), #123 (Ash), #124 (Tide), #125 (Ember), #126 (Gale), #127 (Void)
 
