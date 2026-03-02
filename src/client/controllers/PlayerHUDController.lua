@@ -45,6 +45,7 @@ local levelLabel: TextLabel
 local stateLabel: TextLabel
 local coinsLabel: TextLabel
 local expLabel: TextLabel
+local zoneLabel: TextLabel  -- shows current ring on zone change
 
 -- Movement HUD elements (#95)
 local movementGui: ScreenGui
@@ -361,6 +362,21 @@ local function createHUD()
 	hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 	hudFrame.BorderSizePixel = 0
 	hudFrame.Parent = screenGui
+
+	-- Zone change label (top‑center)
+	zoneLabel = Instance.new("TextLabel")
+	zoneLabel.Name = "ZoneLabel"
+	zoneLabel.AnchorPoint = Vector2.new(0.5, 0)
+	zoneLabel.Position = UDim2.new(0.5, 0, 0, 10)
+	zoneLabel.Size = UDim2.new(0, 200, 0, 30)
+	zoneLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	zoneLabel.BackgroundTransparency = 0.4
+	zoneLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	zoneLabel.TextSize = 24
+	zoneLabel.Font = Enum.Font.GothamBold
+	zoneLabel.Text = ""
+	zoneLabel.Visible = false
+	zoneLabel.Parent = screenGui
 	
 	-- Add corner
 	local corner = Instance.new("UICorner")
@@ -388,6 +404,24 @@ local function createHUD()
 	-- Create info labels
 	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 20, 0, 110), "Level: 1")
 	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 135), "State: Loading...")
+
+	-- utility to display ring change
+	local function showZoneChange(ring:number)
+		if zoneLabel then
+			zoneLabel.Text = "Ring " .. tostring(ring)
+			zoneLabel.Visible = true
+			task.delay(2, function()
+				if zoneLabel and zoneLabel.Parent then
+					zoneLabel.Visible = false
+				end
+			end)
+		end
+	end
+
+	-- register network handler for ring change
+	NetworkController:RegisterHandler("RingChanged", function(packet:any)
+		showZoneChange(packet.NewRing)
+	end)
 	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 160), "Coins: 0")
 	expLabel = createInfoLabel("ExpLabel", UDim2.new(0, 20, 0, 185), "EXP: 0/100")
 end

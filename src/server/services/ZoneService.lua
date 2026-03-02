@@ -134,6 +134,9 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
 
     _ringCache[uid] = newRing
 
+    -- verbose logging for QA
+    print(('[ZoneService] %s changed ring %d → %d'):format(player.Name, oldRing, newRing))
+
     -- Notify progression layer (already exists on ProgressionService per NF-042/038)
     if ProgressionService and ProgressionService.SetPlayerRing then
         local ok, err = pcall(ProgressionService.SetPlayerRing, ProgressionService, player, newRing)
