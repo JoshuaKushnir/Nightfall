@@ -20,6 +20,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage.Shared
 
@@ -45,7 +46,12 @@ local levelLabel: TextLabel
 local stateLabel: TextLabel
 local coinsLabel: TextLabel
 local expLabel: TextLabel
-local zoneLabel: TextLabel  -- shows current ring on zone change
+-- Zone notification UI (Deepwoken-style)
+local zoneFrame: Frame
+local zoneTopDiv: Frame
+local zoneBotDiv: Frame
+local zoneNameLabel: TextLabel
+local zoneFadeThread: thread? = nil
 
 -- Movement HUD elements (#95)
 local movementGui: ScreenGui
@@ -363,20 +369,53 @@ local function createHUD()
 	hudFrame.BorderSizePixel = 0
 	hudFrame.Parent = screenGui
 
-	-- Zone change label (top‑center)
-	zoneLabel = Instance.new("TextLabel")
-	zoneLabel.Name = "ZoneLabel"
-	zoneLabel.AnchorPoint = Vector2.new(0.5, 0)
-	zoneLabel.Position = UDim2.new(0.5, 0, 0, 10)
-	zoneLabel.Size = UDim2.new(0, 200, 0, 30)
-	zoneLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-	zoneLabel.BackgroundTransparency = 0.4
-	zoneLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	zoneLabel.TextSize = 24
-	zoneLabel.Font = Enum.Font.GothamBold
-	zoneLabel.Text = ""
-	zoneLabel.Visible = false
-	zoneLabel.Parent = screenGui
+	-- Zone notification (Deepwoken-style) — invisible container anchored upper-center
+	zoneFrame = Instance.new("Frame")
+	zoneFrame.Name = "ZoneNotification"
+	zoneFrame.AnchorPoint = Vector2.new(0.5, 0)
+	zoneFrame.Position = UDim2.new(0.5, 0, 0, 80)
+	zoneFrame.Size = UDim2.new(0, 340, 0, 52)
+	zoneFrame.BackgroundTransparency = 1
+	zoneFrame.BorderSizePixel = 0
+	zoneFrame.Visible = false
+	zoneFrame.Parent = screenGui
+
+	-- Top divider line
+	zoneTopDiv = Instance.new("Frame")
+	zoneTopDiv.Name = "TopDivider"
+	zoneTopDiv.AnchorPoint = Vector2.new(0.5, 0)
+	zoneTopDiv.Position = UDim2.new(0.5, 0, 0, 0)
+	zoneTopDiv.Size = UDim2.new(0, 0, 0, 1)
+	zoneTopDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+	zoneTopDiv.BackgroundTransparency = 1
+	zoneTopDiv.BorderSizePixel = 0
+	zoneTopDiv.Parent = zoneFrame
+
+	-- Zone name label (center)
+	zoneNameLabel = Instance.new("TextLabel")
+	zoneNameLabel.Name = "ZoneName"
+	zoneNameLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+	zoneNameLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+	zoneNameLabel.Size = UDim2.new(1, 0, 1, -10)
+	zoneNameLabel.BackgroundTransparency = 1
+	zoneNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	zoneNameLabel.TextTransparency = 1
+	zoneNameLabel.TextSize = 28
+	zoneNameLabel.Font = Enum.Font.GothamBold
+	zoneNameLabel.Text = ""
+	zoneNameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	zoneNameLabel.Parent = zoneFrame
+
+	-- Bottom divider line
+	zoneBotDiv = Instance.new("Frame")
+	zoneBotDiv.Name = "BotDivider"
+	zoneBotDiv.AnchorPoint = Vector2.new(0.5, 1)
+	zoneBotDiv.Position = UDim2.new(0.5, 0, 1, 0)
+	zoneBotDiv.Size = UDim2.new(0, 0, 0, 1)
+	zoneBotDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+	zoneBotDiv.BackgroundTransparency = 1
+	zoneBotDiv.BorderSizePixel = 0
+	zoneBotDiv.Parent = zoneFrame
 	
 	-- Add corner
 	local corner = Instance.new("UICorner")
@@ -405,25 +444,107 @@ local function createHUD()
 	levelLabel = createInfoLabel("LevelLabel", UDim2.new(0, 20, 0, 110), "Level: 1")
 	stateLabel = createInfoLabel("StateLabel", UDim2.new(0, 20, 0, 135), "State: Loading...")
 
-	-- utility to display ring change
-	local function showZoneChange(packet:any)
-		if zoneLabel then
+	--[[
+		showZoneChange(packet)
+		Deepwoken-style zone/ring notification.
+
+		Ring change  (OldRing ~= NewRing):
+		  • Large gold text
+		  • Two thin gold divider lines expand from center
+		  • Visible for 3 s then fades out
+
+		Zone-only change (ZoneName set but ring unchanged):
+		  • Smaller white text, no dividers
+		  • Visible for 3 s then fades out
+	]]
+	local function showZoneChange(packet: any)
+		print("[PlayerHUD] showZoneChange", packet)
+		if not zoneFrame then return end
+
+		-- cancel any in-flight fade
+		if zoneFadeThread then
+			task.cancel(zoneFadeThread)
+			zoneFadeThread = nil
+		end
+
+		local isRingChange: boolean = (packet.OldRing ~= nil)
+			and (packet.NewRing ~= nil)
+			and (packet.OldRing ~= packet.NewRing)
+
+		-- decide display text
+		local displayText: string
+		if isRingChange then
+			displayText = "Ring " .. tostring(packet.NewRing)
+			-- include zone name as subtitle if present
 			if packet.ZoneName and packet.ZoneName ~= "" then
-				zoneLabel.Text = packet.ZoneName
-			else
-				zoneLabel.Text = "Ring " .. tostring(packet.NewRing or 0)
+				displayText = packet.ZoneName .. "\n" .. "Ring " .. tostring(packet.NewRing)
 			end
-			zoneLabel.Visible = true
-			task.delay(2, function()
-				if zoneLabel and zoneLabel.Parent then
-					zoneLabel.Visible = false
+		elseif packet.ZoneName and packet.ZoneName ~= "" then
+			displayText = packet.ZoneName
+		else
+			-- ring 0 or unchanged — nothing meaningful to show
+			return
+		end
+
+		-- configure style
+		if isRingChange then
+			zoneFrame.Size = UDim2.new(0, 340, 0, 58)
+			zoneNameLabel.TextColor3 = Color3.fromRGB(255, 210, 80)
+			zoneNameLabel.TextSize = 30
+			zoneNameLabel.Font = Enum.Font.GothamBold
+			zoneTopDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+			zoneBotDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+		else
+			zoneFrame.Size = UDim2.new(0, 280, 0, 40)
+			zoneNameLabel.TextColor3 = Color3.fromRGB(210, 210, 210)
+			zoneNameLabel.TextSize = 20
+			zoneNameLabel.Font = Enum.Font.Gotham
+		end
+
+		-- reset to fully transparent before show
+		zoneNameLabel.Text = displayText
+		zoneNameLabel.TextTransparency = 1
+		zoneTopDiv.Size = UDim2.new(0, 0, 0, 1)
+		zoneTopDiv.BackgroundTransparency = 1
+		zoneBotDiv.Size = UDim2.new(0, 0, 0, 1)
+		zoneBotDiv.BackgroundTransparency = 1
+		zoneFrame.Visible = true
+
+		-- fade-in text
+		local inInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		TweenService:Create(zoneNameLabel, inInfo, { TextTransparency = 0 }):Play()
+
+		if isRingChange then
+			-- divider lines slide outward from center
+			local divInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			TweenService:Create(zoneTopDiv, divInfo, {
+				Size = UDim2.new(0, 300, 0, 1),
+				BackgroundTransparency = 0,
+			}):Play()
+			TweenService:Create(zoneBotDiv, divInfo, {
+				Size = UDim2.new(0, 300, 0, 1),
+				BackgroundTransparency = 0,
+			}):Play()
+		end
+
+		-- hold 3 s then fade out
+		zoneFadeThread = task.delay(3, function()
+			local outInfo = TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			TweenService:Create(zoneNameLabel, outInfo, { TextTransparency = 1 }):Play()
+			TweenService:Create(zoneTopDiv, outInfo, { BackgroundTransparency = 1 }):Play()
+			local finTween = TweenService:Create(zoneBotDiv, outInfo, { BackgroundTransparency = 1 })
+			finTween.Completed:Connect(function(state)
+				if state == Enum.PlaybackState.Completed then
+					zoneFrame.Visible = false
 				end
 			end)
-		end
+			finTween:Play()
+			zoneFadeThread = nil
+		end)
 	end
 
 	-- register network handler for ring change / named zones
-	NetworkController:RegisterHandler("RingChanged", function(packet:any)
+	NetworkController:RegisterHandler("RingChanged", function(packet: any)
 		showZoneChange(packet)
 	end)
 	coinsLabel = createInfoLabel("CoinsLabel", UDim2.new(0, 20, 0, 160), "Coins: 0")

@@ -133,6 +133,10 @@ local function _computeZone(pos: Vector3): string
     local zonesFolder = Workspace:FindFirstChild("Zones")
     if zonesFolder then
         for _, child in pairs(zonesFolder:GetChildren()) do
+            -- ignore any ring-trigger helpers placed under Zones
+            if child.Name:match("^ZoneTrigger") then
+                continue
+            end
             if _positionInsidePart(pos, child) then
                 return child.Name
             end
