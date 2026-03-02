@@ -94,6 +94,9 @@ export type NetworkEvent =
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
 
+	-- Zone
+	| "RingChanged"          -- Server → Client: player entered a new ring boundary
+
 	-- Admin/Debug
 	| "AdminCommand"
 	| "DebugInfo"
@@ -431,6 +434,12 @@ export type DebugInfoPacket = {
 export type SlideRequestPacket = {
 	Type: "Start" | "Leap",
 	Timestamp: number?,
+}
+
+-- Zone ring change notification (#142)
+export type RingChangedPacket = {
+	OldRing: number,  -- 0–5, previous ring the player was in
+	NewRing: number,  -- 0–5, ring the player just entered
 }
 
 -- Unified packet type for type safety
@@ -794,6 +803,14 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 2,
 		RequiresValidation = true,
 		Description = "Client activates their weapon's active ability",
+	},
+
+	-- Zone (#142)
+	RingChanged = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Player crossed a ring boundary — server fires to the owning client",
 	},
 
 	-- Admin/Debug

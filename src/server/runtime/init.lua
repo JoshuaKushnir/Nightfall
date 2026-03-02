@@ -59,6 +59,7 @@ local dependencies = {
 	StateSyncService = services.StateSyncService,
 	AspectService = services.AspectService,
 	InventoryService = services.InventoryService,
+	ProgressionService = services.ProgressionService,
 }
 
 for name, service in services do
@@ -96,6 +97,7 @@ local startOrder = {
 	"CombatService",       -- Combat validation and damage application
 	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
 	"ProgressionService",  -- #138/#139: Resonance, Ring caps, Discipline selection
+	"ZoneService",         -- #142: Ring boundary detection (after ProgressionService)
 }
 
 for _, name in startOrder do

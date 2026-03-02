@@ -223,6 +223,56 @@ function AbilitySystem.HandleUseAbilityById(player: Player, abilityId: string)
 	end
 end
 
+--[[
+	HandleExpressionAbility — activate a Depth-1 Expression ability with target position.
+	Called by AspectService when AbilityRegistry resolves an Expression-type ability.
+	Enforces cooldowns server-side.  Passes targetPosition to OnActivate so spatial
+	effects (dash direction, target seek radius, etc.) work correctly.
+
+	Issue #123–127: Depth-1 Expression abilities (Ash / Tide / Ember / Gale / Void)
+
+	@param player        The activating player
+	@param abilityId     Ability Id ("AshenStep", "Current", "Ignite", "WindStrike", "Blink")
+	@param targetPos     Optional Vector3 sent by the client as a cast direction / aim hint
+]]
+function AbilitySystem.HandleExpressionAbility(
+	player: Player,
+	abilityId: string,
+	targetPos: Vector3?
+)
+	if not player or not abilityId then return end
+
+	local ability = AbilityRegistry.Get(abilityId)
+	if not ability then
+		warn(("[AbilitySystem] HandleExpressionAbility: unknown ability '%s'"):format(abilityId))
+		return
+	end
+
+	if ability.Type ~= "Expression" then
+		warn(("[AbilitySystem] '%s' is not an Expression ability (type: %s)"):format(
+			abilityId, ability.Type))
+		return
+	end
+
+	if _IsActiveCoolingDown(player, abilityId) then
+		print(("[AbilitySystem] %s: '%s' still cooling down"):format(player.Name, abilityId))
+		return
+	end
+
+	-- ManaCost deduction is handled upstream by AspectService; here we only own cooldowns
+	_StartActiveCooldown(player, abilityId, ability.Cooldown or 6)
+
+	if ability.OnActivate then
+		local ok, err = pcall(ability.OnActivate, player, targetPos)
+		if not ok then
+			warn(("[AbilitySystem] Expression '%s' OnActivate error: %s"):format(
+				abilityId, tostring(err)))
+		else
+			print(("[AbilitySystem] ✓ %s cast Expression ability %s"):format(player.Name, abilityId))
+		end
+	end
+end
+
 function AbilitySystem:Start()
 	print("[AbilitySystem] Started successfully")
 end

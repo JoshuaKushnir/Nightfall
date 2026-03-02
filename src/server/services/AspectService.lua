@@ -402,10 +402,16 @@ local function _onCastRequest(player: Player, packet: any)
     end
 
     -- Route: general weapon/inventory abilities → AbilitySystem (no AspectData required)
-    --        Aspect-specific abilities              → AspectService.ExecuteAbility
+    --        Expression (Depth-1) abilities     → AbilitySystem.HandleExpressionAbility (with targetPos)
+    --        Aspect-specific abilities          → AspectService.ExecuteAbility
     local generalAbility = AbilityRegistry.Get(packet.AbilityId)
     if generalAbility then
-        _requireAbilitySystem().HandleUseAbilityById(player, packet.AbilityId)
+        if generalAbility.Type == "Expression" then
+            -- Expression abilities need the targetPosition for spatial effects (dash direction, etc.)
+            _requireAbilitySystem().HandleExpressionAbility(player, packet.AbilityId, targetPosition)
+        else
+            _requireAbilitySystem().HandleUseAbilityById(player, packet.AbilityId)
+        end
         NetworkService:SendToClient(player, "AbilityCastResult", {
             Success        = true,
             Reason         = nil,
