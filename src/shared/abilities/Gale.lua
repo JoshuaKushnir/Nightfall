@@ -702,37 +702,6 @@ Gale.Moves[5] = {
     end,
 }
 
-return Gale
-
-local Workspace = game:GetService("Workspace")
-local Players   = game:GetService("Players")
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local DASH_DISTANCE        : number = 12
-local CAST_TIME            : number = 0.1
-local HIT_RADIUS           : number = 5    -- studs from landing
-local POSTURE_DAMAGE_GROUND: number = 20
-local POSTURE_DAMAGE_AIR   : number = 30   -- bonus when cast airborne
-local LAUNCH_VELOCITY      : number = 60   -- studs/s upward (ground cast)
-local LAUNCH_VELOCITY_AIR  : number = 120  -- studs/s upward (airborne cast)
-local AIRBORNE_THRESHOLD   : number = 1.5  -- studs above ground to count as airborne
-
--- ─── Ability definition ──────────────────────────────────────────────────────
-
-local Gale = {
-    Id          = "WindStrike",
-    Type        = "Expression",
-    AspectId    = "Gale",
-    Description = "Dash 12 studs and launch both you and the target upward. "
-                .. "Deals 20 posture (30 if cast airborne). "
-                .. "Enables aerial follow-up pressure.",
-
-    Cooldown = 6,
-    ManaCost = 20,
-    CastTime = CAST_TIME,
-    Range    = DASH_DISTANCE,
-}
 
 -- ─── VFX stubs ───────────────────────────────────────────────────────────────
 

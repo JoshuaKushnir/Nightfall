@@ -707,36 +707,7 @@ Ember.Moves[5] = {
     end,
 }
 
-return Ember
 
-local Workspace = game:GetService("Workspace")
-local Players   = game:GetService("Players")
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local DASH_DISTANCE    : number = 8
-local CAST_TIME        : number = 0.05
-local HIT_RADIUS       : number = 5    -- studs from landing to detect targets
-local POSTURE_PER_HEAT : number = 15   -- posture damage per Heat stack
-local BURNING_DURATION : number = 4    -- seconds Burning status lasts
-local BURNING_HP_TICK  : number = 2    -- HP drained per second while Burning
-local MOMENTUM_THRESHOLD: number = 2   -- ×Momentum required for double stack
-
--- ─── Ability definition ──────────────────────────────────────────────────────
-
-local Ember = {
-    Id          = "Ignite",
-    Type        = "Expression",
-    AspectId    = "Ember",
-    Description = "Dash 8 studs and apply Heat (15 posture). "
-                .. "At 2× Momentum, apply 2 Heat stacks. "
-                .. "Burning targets lose HP over time and recover posture slower.",
-
-    Cooldown = 5,
-    ManaCost = 20,
-    CastTime = CAST_TIME,
-    Range    = DASH_DISTANCE,
-}
 
 -- ─── VFX stubs ───────────────────────────────────────────────────────────────
 

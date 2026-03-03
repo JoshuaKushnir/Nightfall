@@ -724,39 +724,6 @@ Ash.Moves[5] = {
     end,
 }
 
-return Ash
-
-local Workspace = game:GetService("Workspace")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
--- Lazy-required server-only dependencies (safe: OnActivate is only called server-side)
-local function _getNetworkProvider()
-    return require(ReplicatedStorage.Shared.network.NetworkProvider)
-end
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local DASH_DISTANCE     : number = 12   -- studs forward
-local CAST_TIME         : number = 0.15 -- seconds before dash lands
-local POSTURE_DAMAGE    : number = 15   -- on-arrival posture
-local POSTURE_RADIUS    : number = 5    -- studs around landing to hit
-local AFTERIMAGE_LIFE   : number = 4    -- seconds afterimage persists
-local BLIND_DURATION    : number = 0.3  -- seconds of BlindFlash effect
-
--- ─── Ability definition ──────────────────────────────────────────────────────
-
-local Ash = {
-    Id          = "AshenStep",
-    Type        = "Expression",
-    AspectId    = "Ash",
-    Description = "Dash 12 studs and leave a decoy afterimage. Arrival deals 15 posture. "
-                .. "Afterimage blind-flashes anyone who strikes it.",
-
-    Cooldown  = 5,              -- seconds; enforced by AbilitySystem
-    ManaCost  = 20,             -- deducted by AspectService / AbilitySystem
-    CastTime  = CAST_TIME,
-    Range     = DASH_DISTANCE,
-}
 
 -- ─── VFX stubs ───────────────────────────────────────────────────────────────
 

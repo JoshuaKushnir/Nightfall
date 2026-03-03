@@ -733,35 +733,6 @@ Void.Moves[5] = {
     end,
 }
 
-return Void
-
-local Workspace = game:GetService("Workspace")
-local Players   = game:GetService("Players")
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local BLINK_DISTANCE          : number = 10  -- max studs teleport
-local TARGET_SEEK_RADIUS      : number = 10  -- studs to look for a target for behind-blink
-local BEHIND_OFFSET           : number = 2   -- studs behind target
-local POSTURE_RECOVERY_BLOCK  : number = 1   -- seconds to suppress target's posture regen
-local VOID_POSTURE_BONUS      : number = 20  -- extra posture on next melee (caster buff)
-local VOID_BONUS_WINDOW       : number = 8   -- seconds the bonus charge lasts
-
--- ─── Ability definition ──────────────────────────────────────────────────────
-
-local Void = {
-    Id          = "Blink",
-    Type        = "Expression",
-    AspectId    = "Void",
-    Description = "Instantly teleport up to 10 studs (behind a target if in range). "
-                .. "Interrupts target posture recovery for 1s. "
-                .. "Next melee gains +20 posture damage.",
-
-    Cooldown = 4,
-    ManaCost = 20,
-    CastTime = 0,     -- instant
-    Range    = BLINK_DISTANCE,
-}
 
 -- ─── VFX stubs ───────────────────────────────────────────────────────────────
 

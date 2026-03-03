@@ -668,36 +668,6 @@ Tide.Moves[5] = {
 
 return Tide
 
-local Workspace = game:GetService("Workspace")
-local Players   = game:GetService("Players")
-
--- ─── Constants ────────────────────────────────────────────────────────────────
-
-local SURGE_RANGE       : number = 15  -- max studs forward
-local SURGE_RADIUS      : number = 5   -- sphere radius for hit detection at tip
-local KNOCKBACK_DIST    : number = 8   -- studs target is pushed
-local POSTURE_DAMAGE    : number = 25  -- pts
-local TERRAIN_HP_BONUS  : number = 20  -- HP damage if target hits terrain
-local GROUNDED_DURATION : number = 1.5 -- seconds of Grounded status
-local CAST_TIME         : number = 0.1 -- seconds before surge is emitted
-
--- ─── Ability definition ──────────────────────────────────────────────────────
-
-local Tide = {
-    Id          = "Current",
-    Type        = "Expression",
-    AspectId    = "Tide",
-    Description = "Launch a water surge up to 15 studs. Targets hit are knocked back, "
-                .. "take 25 posture, and may be Grounded if they hit terrain.",
-
-    Cooldown = 7,
-    ManaCost = 20,
-    CastTime = CAST_TIME,
-    Range    = SURGE_RANGE,
-}
-
--- ─── VFX stubs ───────────────────────────────────────────────────────────────
-
 local function _VFX_SurgeProjectile(_origin: Vector3, _direction: Vector3)
     -- VFX STUB — animator: water-ribbon projectile travelling in direction over 0.15s
 end
