@@ -205,7 +205,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
 
     -- ── Swap the inventory moveset ───────────────────────────────────────
     local InventoryService = require(script.Parent.InventoryService)
-    InventoryService.ClearAspectMoves(player)
+    InventoryService.ClearAspectMoves(player, true)
 
     if aspectId ~= nil then
         -- Set new AspectData (preserve investment if same aspect; fresh if new)
@@ -219,14 +219,15 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
             },
             TotalShardsInvested = 0,
         }
-        InventoryService.GrantAspectMoves(player, aspectId)
+        InventoryService.GrantAspectMoves(player, aspectId, true)
         AspectService.ApplyPassives(player)
         -- VFX STUB: aspect attune shimmer — fire to client character when animator implements
     else
         -- Clear aspect
         profile.AspectData = nil
-        InventoryService.RestoreBaseItems(player)
+        InventoryService.RestoreBaseItems(player, true)
     end
+    InventoryService.SyncInventory(player)
 
     -- ── Notify client ────────────────────────────────────────────────────
     NetworkProvider:FireClient(player, "AspectAssigned", aspectId) -- existing event reused

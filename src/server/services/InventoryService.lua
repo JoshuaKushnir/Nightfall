@@ -237,6 +237,10 @@ local function _onPlayerAdded(player)
     _syncInventory(player)
 end
 
+function InventoryService.SyncInventory(player: Player)
+    _syncInventory(player)
+end
+
 --[[
     ClearAspectMoves(player)
     Removes all Category == "AspectMove" items from:
@@ -245,7 +249,7 @@ end
     Then fires a fresh InventorySync to the client.
     Returns the count of items removed.
 ]]
-function InventoryService.ClearAspectMoves(player: Player): number
+function InventoryService.ClearAspectMoves(player: Player, skipSync: boolean?): number
     if not Utils.IsValidPlayer(player) then return 0 end
     local profile = DataService:GetProfile(player)
     if not profile then return 0 end
@@ -273,7 +277,7 @@ function InventoryService.ClearAspectMoves(player: Player): number
         end
     end
 
-    if removed > 0 then
+    if removed > 0 and not skipSync then
         _syncInventory(player)
     end
     return removed
@@ -286,7 +290,7 @@ end
     Skips any move whose derived item Id already exists (duplicate guard).
     Returns the count of items added, or (0, reason) on failure.
 ]]
-function InventoryService.GrantAspectMoves(player: Player, aspectId: string): (number, string?)
+function InventoryService.GrantAspectMoves(player: Player, aspectId: string, skipSync: boolean?): (number, string?)
     if not Utils.IsValidPlayer(player) then return 0, "InvalidPlayer" end
     local profile = DataService:GetProfile(player)
     if not profile then return 0, "NoProfile" end
@@ -325,7 +329,7 @@ function InventoryService.GrantAspectMoves(player: Player, aspectId: string): (n
         end
     end
 
-    if added > 0 then
+    if added > 0 and not skipSync then
         _syncInventory(player)
     end
     return added, nil
@@ -338,7 +342,7 @@ end
     Safe to call when the player clears their Aspect (aspectId = nil).
     Skips any item that already exists (duplicate guard).
 ]]
-function InventoryService.RestoreBaseItems(player: Player): number
+function InventoryService.RestoreBaseItems(player: Player, skipSync: boolean?): number
     if not Utils.IsValidPlayer(player) then return 0 end
     local profile = DataService:GetProfile(player)
     if not profile then return 0 end
@@ -370,7 +374,7 @@ function InventoryService.RestoreBaseItems(player: Player): number
         end
     end
 
-    if added > 0 then
+    if added > 0 and not skipSync then
         _syncInventory(player)
     end
     return added
