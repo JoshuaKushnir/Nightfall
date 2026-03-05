@@ -2024,3 +2024,24 @@ Client Layer:
 ### Next Session Should Start On
 
 Issue #138: ProgressionService � close after Studio manual verification, then move to Custom Inventory UI (issue #116) or Aspect stub ? real ability implementations (depth 1 per Aspect, issue #123�#127).
+
+## Session NF-041: Aspect Switching & Inventory Integration Debug
+**Date:** 2026-03-05
+**Issues:** #149, #151
+
+### What Was Built
+- **src/shared/abilities/ modules** — Refactored to include full 'AspectId' and 'Moves' list arrays containing definition items for all 5 aspects.
+- **src/shared/modules/AbilityRegistry.lua** — Updated '_Discover' method to detect export schemas where '.AspectId' and '.Moves' array exist, building '_movesets'.
+- **src/server/services/AspectService.lua** — Implemented 'SwitchAspectRequest' via 'SwitchAspect(player, aspectId)': Resets state/passives, calls 'InventoryService', saves 'AspectData'.
+- **src/server/services/InventoryService.lua** — Added 'ClearAspectMoves', 'GrantAspectMoves' using 'Category = "AspectMove"', syncing natively to the UI.
+- **src/client/controllers/AspectController.lua** — Bound G key to rotate Aspect dynamically.
+- **tests/unit/AspectSwitching.test.lua** — Validated state clearing securely.
+
+### Bug Fixes
+- Added 'skipSync' parameters to 'InventoryService' allowing Aspect switch batch operations to strictly broadcast exactely ONE 'InventorySync' packet per flip. This resolved a data-race bug on the Client where consecutive synchronization overlapping caused UI element clearance clobbering, resulting in invisible tools in the visual inventory loop.
+
+### Integration Points
+- Hot-equipping an Aspect instantly networks its entire kit dynamically scaling the client GUI bag without manual reload!
+
+### Next Session Should Start On
+Implement custom drag/drop layout or continue refining actual physical Aspect combat implementations (VFX/hitboxes).
