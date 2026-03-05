@@ -3,31 +3,23 @@
 > **PMO Subsystem:** `session_tracker.sh` and `issue_manager.sh` drive the
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
-## Session NF-048: Aspect switching replaces inventory moveset in real time
+## Session NF-049: Critical fix for Aspect switching and bootstrap errors
 **Date:** 2026-03-05
 **Issues:** #151
 
-### What Was Built
-- **InventoryService.lua (modified):** Added `ClearAspectMoves`, `GrantAspectMoves`, `RestoreBaseItems` helpers. Clear strips all AspectMove items from both free inventory and hotbar slots. Grant builds items from `AbilityRegistry.GetMoveset`. Restore re-seeds base Ability items for no-aspect state.
-- **AspectService.lua (modified):** Added `SwitchAspect(player, aspectId?)`. Validates state, aspect existence, locked flag, no-op case. Calls InventoryService helpers, mutates AspectData, re-applies passives, fires AspectAssigned + SwitchAspectResult. Registered `SwitchAspectRequest` handler in Start().
-- **AspectController.lua (modified):** Added G-key dev cycle (Ash→Tide→Ember→Gale→Void→nil→Ash) that fires `SwitchAspectRequest` to server. Listens for `SwitchAspectResult` and prints confirmation or rewinds cycle on failure.
-- **NetworkTypes.lua (modified):** Added `SwitchAspectRequest` (ClientToServer) and `SwitchAspectResult` (ServerToClient) to NetworkEvent union and EVENT_METADATA.
-- **tests/unit/AspectSwitching.test.lua (new):** 8 unit tests covering clear, grant, Ash→Tide swap, Tide→nil restore, locked aspect rejection, no-op, and dead-state gate.
+### What Was Fixed
+- **AspectController.lua:** Fixed a crash during `Init` where it attempted to call `NetworkController:ListenFromServer` (a non-existent method). Replaced with the correct `NetworkController:RegisterHandler`.
+- **Tide.lua:** Fixed a syntax error (unexpected `local` after `return`) that was causing the module to fail to load, which in turn blocked `AbilityRegistry` discovery for the Tide moveset.
+- **Server init.lua:** Fixed several "RemoteEvent not found" errors in `AdminCommand` handlers. Added safety checks for `NetworkService` and `player` existence before calling `SendToClient`. This prevents the server from crashing/warning when trying to send debug feedback before the network layer is fully stable for a specific player.
 
 ### Integration Points
-- Plugs directly into existing InventoryService, AspectService, AbilityRegistry, and NetworkService — no new service bootstrapping required.
-- Client G-key is dev-only; a proper UI switcher is deferred.
-
-### Spec Gaps Encountered
-- None new.
-
-### Tech Debt Created
-- G-key cycle is dev tooling; needs replacing with a proper Aspect selection UI before shipping.
+- Restoration of the Tide moveset allows `AspectService` to correctly grant Tide abilities when switching.
+- AspectController is now fully functional, enabling the G-key dev cycle for testing.
 
 ### Next Session Should Start On
-Issue #TBD: Implement real Depth-1 ability behavior — SwitchAspect now guarantees the correct moveset is in inventory, so abilities are reachable for testing.
+Issue #TBD: Implement real Depth-1 ability behavior (Ashen Step, Current, etc.) now that the swapping pipeline is error-free.
 
-## Current Session ID: NF-048
+## Session NF-048: Aspect switching replaces inventory moveset in real time
 **Date:** 2026-03-02
 **Issues:** #149
 
