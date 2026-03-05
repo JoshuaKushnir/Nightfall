@@ -3,6 +3,68 @@
 > **PMO Subsystem:** `session_tracker.sh` and `issue_manager.sh` drive the
 > chat→issue pipeline. See `docs/PMO_README.md` for details.
 
+## Session NF-048: Aspect switching replaces inventory moveset in real time
+**Date:** 2026-03-05
+**Issues:** #151
+
+### What Was Built
+- **InventoryService.lua (modified):** Added `ClearAspectMoves`, `GrantAspectMoves`, `RestoreBaseItems` helpers. Clear strips all AspectMove items from both free inventory and hotbar slots. Grant builds items from `AbilityRegistry.GetMoveset`. Restore re-seeds base Ability items for no-aspect state.
+- **AspectService.lua (modified):** Added `SwitchAspect(player, aspectId?)`. Validates state, aspect existence, locked flag, no-op case. Calls InventoryService helpers, mutates AspectData, re-applies passives, fires AspectAssigned + SwitchAspectResult. Registered `SwitchAspectRequest` handler in Start().
+- **AspectController.lua (modified):** Added G-key dev cycle (Ash→Tide→Ember→Gale→Void→nil→Ash) that fires `SwitchAspectRequest` to server. Listens for `SwitchAspectResult` and prints confirmation or rewinds cycle on failure.
+- **NetworkTypes.lua (modified):** Added `SwitchAspectRequest` (ClientToServer) and `SwitchAspectResult` (ServerToClient) to NetworkEvent union and EVENT_METADATA.
+- **tests/unit/AspectSwitching.test.lua (new):** 8 unit tests covering clear, grant, Ash→Tide swap, Tide→nil restore, locked aspect rejection, no-op, and dead-state gate.
+
+### Integration Points
+- Plugs directly into existing InventoryService, AspectService, AbilityRegistry, and NetworkService — no new service bootstrapping required.
+- Client G-key is dev-only; a proper UI switcher is deferred.
+
+### Spec Gaps Encountered
+- None new.
+
+### Tech Debt Created
+- G-key cycle is dev tooling; needs replacing with a proper Aspect selection UI before shipping.
+
+### Next Session Should Start On
+Issue #TBD: Implement real Depth-1 ability behavior — SwitchAspect now guarantees the correct moveset is in inventory, so abilities are reachable for testing.
+
+## Current Session ID: NF-048
+**Date:** 2026-03-02
+**Issues:** #149
+
+### What Was Fixed
+
+- Corrected syntax errors introduced during the moveset refactor:
+  - **`src/shared/abilities/BloodRage.lua`**: fixed malformed `Requirement` table keys.
+  - Removed extraneous design-comment blocks that were accidentally left after the `return` statement in all five expression ability modules (`Ash.lua`, `Tide.lua`, `Ember.lua`, `Gale.lua`, `Void.lua`). These leftovers were causing parse errors at runtime.
+
+### Result
+- Server now loads all ability modules successfully; `AbilityRegistry` no longer logs errors during startup.
+- No gameplay or behavior changes; only cleanup of developer mistakes.
+
+---
+
+## Current Session ID: NF-047
+**Date:** 2026-03-02
+**Issues:** #150
+
+### What Was Built
+
+- **`src/client/modules/DebugInput.lua`** — Added Y keybind to cycle debug aspect for rapid testing; implemented `_CycleAspect` helper with admin command. Also added new print message in Init instructions.
+- **`src/server/runtime/init.lua`** — Added `set_aspect` admin command handler which calls `AspectService.DebugSetAspect` and sends feedback via `DebugInfo` event.
+- **`src/shared/modules/NetworkProvider.lua`** — Added `FireClient` helper method with input validation and warning logs; updated unit test accordingly.
+- **`src/shared/abilities/BloodRage.lua`** — Added `Requirement` table specifying Strength 10 and Willpower 5.
+- **`tests/unit/NetworkProvider.test.lua`** — Added new test verifying `FireClient` proxies correctly.
+- **`tests/unit/AspectService.test.lua`** *(new)* — Covers `AssignAspect` and `DebugSetAspect` behaviors, including invalid aspect handling.
+- **`docs/BACKLOG.md`** — Removed redundant top-level title heading.
+
+### Integration Points
+- DebugInput cycle command relies on server-side `set_aspect` admin command which in turn requires `AspectService` to support `DebugSetAspect`.
+- NetworkProvider improvements extend existing networking utilities used throughout the codebase.
+
+### Notes
+- Changes are purely developer-facing; no gameplay behavior altered.
+
+---
 
 ## Current Session ID: NF-046
 **Date:** 2026-03-02
@@ -42,50 +104,32 @@
 - Gale wall-collision detection in Crosswind is a simple velocity-drop heuristic → needs proper collision event from physics engine
 
 ### Next Session Should Start On
-Issue #150 or next-priority open issue — Custom Inventory UI (InventoryController equipment panel, bag grid). Run `gh issue list --state open` first.
+Issue #152 or next-priority open issue — Setup GitHub Actions CI with Roblox Open Cloud. Run `gh issue list --state open` first.
 
 ---
 
-## Session NF-045
-**Date:** 2026-03-02
-**Issues:** #142 (ZoneService), #123 (Ash), #124 (Tide), #125 (Ember), #126 (Gale), #127 (Void)
+## Session NF-046
+**Date:** 2026-03-05
+**Issues:** #152
 
 ### What Was Built
-
-- **`src/shared/types/NetworkTypes.lua`** — Added `"RingChanged"` to `NetworkEvent` union, `RingChangedPacket` type `{OldRing: number, NewRing: number}`, and metadata entry `{Direction="ServerToClient", RequiresValidation=false}`.
-- **`src/server/services/ZoneService.lua`** *(new)* — Full ring-boundary detection service. Workspace-part-based zone lookup: scans `workspace.ZoneTrigger_Ring1..5` (supports single BasePart or Folder/Model container). CFrame AABB containment handles arbitrarily rotated parts. Polls every 0.5s (`POLL_INTERVAL`), skips re-check if player moved < 10 studs (`MOVEMENT_THRESHOLD`). On ring change: calls `ProgressionService.SetPlayerRing(player, newRing)` and fires `RingChanged` to owning client. `Init(dependencies)` accepts injected `NetworkService` + `ProgressionService`; lazy-requires as fallback.
-- **`src/server/runtime/init.lua`** — Two additions: `ProgressionService` added to the `dependencies` table; `"ZoneService"` added to `startOrder` after `"ProgressionService"`.
-- **`src/server/services/AbilitySystem.lua`** — Added `HandleExpressionAbility(player, abilityId, targetPos)` public function (~55 lines). Validates `Type == "Expression"`, checks/starts cooldown, calls `ability.OnActivate(player, targetPos)`.
-- **`src/server/services/AspectService.lua`** — Modified `_onCastRequest` routing: if `AbilityRegistry.Get(id).Type == "Expression"` routes to `AbilitySystem.HandleExpressionAbility(player, id, packet.TargetPosition)` instead of `HandleUseAbilityById`. This preserves `targetPosition` that Expression abilities need for spatial effects.
-- **`src/shared/abilities/Ash.lua`** *(new)* — `AshenStep` (Type=Expression): 12-stud forward dash (0.15s cast), afterimage BasePart at origin (4s lifetime, `Touched` fires `BlindFlash` attribute on striker), 15 posture (`IncomingPostureDamage`) to players within 5 studs of landing zone. Talent hooks: Hollow Echo, Momentum Trace, Haunting Step (all stubbed with design notes).
-- **`src/shared/abilities/Tide.lua`** *(new)* — `Current` (Type=Expression): 15-stud water surge to `targetPos` or look-vector, sphere overlap at surge tip, knockback via `AssemblyLinearVelocity`, 25 posture via `IncomingPostureDamage`, Touched monitor 1s after cast → terrain collision → 20 HP via `IncomingHPDamage` + `StatusGrounded=true` / `GroundedExpiry`. Talent hooks: Riptide, Saturating Wave, Drowning Shore (stubbed).
-- **`src/shared/abilities/Ember.lua`** *(new)* — `Ignite` (Type=Expression): 8-stud dash, reads `Momentum` character attribute, 2 Heat stacks if Momentum≥2 else 1. Each stack: 15 posture via `IncomingPostureDamage`, increment `HeatStacks`, set `StatusBurning`/`BurningExpiry`/`BurningHPPerSecond=2`. Talent hooks: Heat Transfer, Torch, Ignition Chain (stubbed).
-- **`src/shared/abilities/Gale.lua`** *(new)* — `WindStrike` (Type=Expression): airborne check via 1.5-stud downward raycast, 12-stud dash, launches BOTH caster and target upward (`AssemblyLinearVelocity.Y = 60` ground / `120` airborne), 20 posture ground (30 airborne). Talent hooks: Updraft, Gale Force, Tempest Dive with `TempestDiveReady` attribute stub (stubbed).
-- **`src/shared/abilities/Void.lua`** *(new)* — `Blink` (Type=Expression, CastTime=0): instant teleport to 2 studs behind nearest enemy in 10-stud radius (falls back to 10 studs forward). Sets `VoidPostureBonusCharge=20` + `VoidPostureBonusExpiry` on caster (8s window, CombatService consumes on melee). Sets `PostureRegenBlocked=true` + `PostureRegenBlockExpiry=tick()+1` on target within 3 studs. Talent hooks: Nullpoint, Phase Residue, Void Slip (stubbed).
-- **`tests/unit/ZoneService.test.lua`** *(new)* — 7 tests: no parts→ring0, inside part→ring1, outside→0, nested zones highest wins, unregistered player→0, RingChangedPacket shape, folder-based detection.
-- **`tests/unit/AshExpression.test.lua`** *(new)* — 9 tests: Id, Type, ManaCost, Cooldown, Range, OnActivate valid char, OnActivate nil char, ClientActivate function, CastTime.
-- **`tests/unit/TideExpression.test.lua`** *(new)* — 9 tests.
-- **`tests/unit/EmberExpression.test.lua`** *(new)* — 9 tests.
-- **`tests/unit/GaleExpression.test.lua`** *(new)* — 9 tests.
-- **`tests/unit/VoidExpression.test.lua`** *(new)* — 11 tests.
+- **`.github/workflows/ci.yml`** — New GitHub Actions workflow. Triggers on push/PR to `main`. Executes `ci/poll_task.py` with repository secrets for API key and universe/place IDs. Ensures automated testing on every code change.
+- **`default.project.json`** — Modified Rojo configuration to sync the `tests/` directory to `ServerScriptService.tests`. This ensures unit tests are available in the Roblox environment for the Open Cloud test runner.
+- **`docs/CI_SETUP.md`** — Comprehensive setup guide for the CI system. Includes secret/variable requirements, architecture overview, and instructions for adding/skipping tests.
 
 ### Integration Points
-
-- **ZoneService → ProgressionService**: `SetPlayerRing(player, ring)` was already implemented in ProgressionService (NF-040). ZoneService calls it on every ring change. Zero changes needed in ProgressionService.
-- **ZoneService → HollowedService (#143)**: `ZoneService.GetPlayerRing(player)` and `ZoneService.ComputeRingForPosition(Vector3)` provide the ring lookups HollowedService needs for spawn boundaries and difficulty scaling. HollowedService is now fully unblocked.
-- **ZoneService → Death/respawn (#144)**: Ring-aware Ember Point lookup uses `ZoneService.GetPlayerRing(player)` to identify which ring's checkpoint to respawn at. Death/respawn is now fully unblocked.
-- **Expression abilities → CombatService**: CombatService must read `VoidPostureBonusCharge` attribute on attacker's character when processing a melee hit, apply the bonus posture damage, and then clear the attribute. Flagged as tech debt below.
-- **Expression abilities → PostureService**: PostureService must respect `PostureRegenBlocked` attribute (and `PostureRegenBlockExpiry`) — skip posture regen tick when flag is set and not expired. Flagged as tech debt below.
-- **Expression abilities → aspected Heartbeat tick**: `StatusBurning`/`BurningHPPerSecond` + `StatusGrounded`/`GroundedExpiry` need a periodic server Heartbeat processor — either in CombatService or a dedicated StatusEffectService — to drain HP for Burning and clear flags on expiry.
-- **AbilityRegistry auto-discovery**: All 5 new Expression ability files return `{Id, Type}` in expected format. AbilityRegistry discovers them with zero config change.
+- **GitHub Actions → Roblox Open Cloud**: The workflow connects the local repository to the Roblox cloud environment, allowing for real-time validation of Luau code.
+- **Rojo → Roblox**: The `default.project.json` update bridges the gap between the local file system and the Roblox DataModel for testing purposes.
 
 ### Spec Gaps Encountered
-
-- Burning HP-per-second tick processor not yet implemented — `BurningHPPerSecond=2` attribute set but nothing consumes it yet → Created placeholder in StatusEffectService slot (no issue # yet, flag as tech debt).
-- VoidPostureBonusCharge consumption in CombatService not implemented — charge set but CombatService doesn't read it yet.
-- TempestDiveReady attribute stub in Gale: sets attribute with 2s expiry but there is no TempestDive follow-up ability yet (Depth-2 talent deferred).
+- None.
 
 ### Tech Debt Created
+- None.
+
+### Next Session Should Start On
+Issue #151: feat: Aspect switching r... — Continuing Phase 3 development.
+
 
 - **CombatService must read `VoidPostureBonusCharge`**: When processing melee hit, check attacker's character for this attribute. If present and not expired, add bonus posture damage, clear attribute.
 - **PostureService must respect `PostureRegenBlocked`**: Check `PostureRegenBlocked` attribute + `PostureRegenBlockExpiry` on each regen tick; skip regen if flag is set and `tick() < expiry`.
