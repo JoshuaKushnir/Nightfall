@@ -1,59 +1,79 @@
 {
   "rules": [
     {
-      "name": "Strict Typing Mandatory",
+      "name": "No Code Without Issue",
+      "pattern": "^(?!.*#\\d+)",
+      "message": "No code without a GitHub issue reference. Every commit must reference an issue."
+    },
+    {
+      "name": "Session Log Must Be Updated",
+      "pattern": "(?i)\\b(update|change|modify)\\b.*\\bdocs/session-log.md\\b",
+      "message": "After every task, update docs/session-log.md with completed work, new types created, and pending technical debt."
+    },
+    {
+      "name": "Strict Typing Required",
       "pattern": "^(?!.*--!strict)",
       "message": "Strict typing mandatory (--!strict). Add --!strict at the top of the file."
     },
     {
-      "name": "Use Export Type",
-      "pattern": "(?i)\\blocal\\s+type\\b",
-      "message": "Use export type for all data schemas instead of local type."
-    },
-    {
-      "name": "No Direct Cross-Talk Server to Client",
-      "pattern": "require.*src/client",
-      "message": "No direct cross-talk; use src/shared/network for Remote communication. Server logic should not require client modules."
-    },
-    {
-      "name": "No Direct Cross-Talk Client to Server",
-      "pattern": "require.*src/server",
-      "message": "No direct cross-talk; use src/shared/network for Remote communication. Client logic should not require server modules."
-    },
-    {
-      "name": "Dependency Injection",
-      "pattern": "wait\\(",
-      "message": "Do not use wait() for loading; use a signal-based provider."
-    },
-    {
-      "name": "State Validation",
-      "pattern": "(?i)\\bif\\s+State\\s*==\\s*\"(Stunned|Attacking)\"\\s+then\\s+return\\b",
-      "message": "Ensure action validation: if State == \"Stunned\" then return, if State == \"Attacking\" then return."
-    },
-    {
-      "name": "Mantra Framework",
-      "pattern": "(?i)\\bmantra\\b.*\\b(BaseDamage|CastTime|Cooldown|VFX_Function)\\b",
-      "message": "Mantras must contain: BaseDamage, CastTime, Cooldown, and VFX_Function."
-    },
-    {
-      "name": "Composition over Large Classes",
-      "pattern": "(?i)\\bclass\\s+Player\\b",
-      "message": "Avoid large 'Player' classes. Use a Component system for attributes like Health, Mana, and Posture."
-    },
-    {
-      "name": "Boilerplate Header",
+      "name": "Boilerplate Header Required",
       "pattern": "^(?!.*-- Class:)",
       "message": "Every new module must include the standard documentation header (Class, Description, Dependencies)."
     },
     {
-      "name": "Session Log Update",
-      "pattern": "(?i)\\b(update|change|modify)\\b.*\\bdocs/session-log.md\\b",
-      "message": "After every task, UPDATE docs/session-log.md with completed work, new types created, and pending technical debt."
+      "name": "Export Type Only",
+      "pattern": "(?i)\\blocal\\s+type\\b",
+      "message": "Use export type for all shared types. Never use local type for shared data."
     },
     {
-      "name": "Reference Shared Types",
+      "name": "Shared Types Location",
       "pattern": "(?i)\\btype\\b.*\\b(not in src/shared/types)\\b",
-      "message": "Always reference src/shared/types to ensure data structures remain consistent across the server/client boundary."
+      "message": "All shared types must be defined in src/shared/types."
+    },
+    {
+      "name": "No Direct Server-Client Require",
+      "pattern": "require.*src/client",
+      "message": "No direct cross-boundary requires. Use src/shared/network for Remote communication."
+    },
+    {
+      "name": "No Direct Client-Server Require",
+      "pattern": "require.*src/server",
+      "message": "No direct cross-boundary requires. Use src/shared/network for Remote communication."
+    },
+    {
+      "name": "No wait() Usage",
+      "pattern": "wait\\(",
+      "message": "Do not use wait(). Use task.wait() or signal-based provider."
+    },
+    {
+      "name": "StateService for State Changes",
+      "pattern": "(?i)playerData\\.State\\s*=\\s*",
+      "message": "Use StateService for all player state changes. Never mutate state directly."
+    },
+    {
+      "name": "Server Validates Client Actions",
+      "pattern": "(?i)NetworkService:RegisterHandler",
+      "message": "Server must validate all client-sent actions: existence, type, state, resources, range."
+    },
+    {
+      "name": "Functions Under 50 Lines",
+      "pattern": "(?s)function\\s+\\w+\\(.*\\)[^{]*{[^}]{51,}}",
+      "message": "Functions over 50 lines should be split. If not possible, add a comment explaining why."
+    },
+    {
+      "name": "No Damage Calculation on Client",
+      "pattern": "(?i)damage\\s*=.*client",
+      "message": "Damage is never calculated by the client. Server only."
+    },
+    {
+      "name": "No VFX Implementation",
+      "pattern": "(?i)VFX_Function\\s*=\\s*function",
+      "message": "VFX functions must be empty stubs with a comment describing the intended effect."
+    },
+    {
+      "name": "No Communion Ability Implementation",
+      "pattern": "(?i)Communion",
+      "message": "Communion abilities must be stubs only. No implementation."
     }
   ]
 }
