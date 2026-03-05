@@ -271,6 +271,7 @@ if services.NetworkService and services.DummyService then
 					local ok = AspectSvc.DebugSetAspect(player, aspectId)
 					if ok then
 						if NetworkService and player then
+							NetworkService:SendToClient(player, "SwitchAspectResult", { Success = true, AspectId = aspectId })
 							NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("set aspect %s"):format(aspectId) } })
 						end
 						print(`[AdminCommand] {player.Name} debug set aspect to {aspectId}`)

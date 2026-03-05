@@ -134,8 +134,16 @@ function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.Aspe
     }
     profile.ResonanceShards = profile.ResonanceShards or 0
 
+    local InventoryService = require(script.Parent.InventoryService)
+    InventoryService.ClearAspectMoves(player, true)
+    InventoryService.GrantAspectMoves(player, aspectId)
+
     AspectService.ApplyPassives(player)
     NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
+    NetworkProvider:FireClient(player, "SwitchAspectResult", {
+        Success = true,
+        AspectId = aspectId
+    })
     return true
 end
 
@@ -170,7 +178,13 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
     end
 
     -- State gate: cannot switch mid-combat
-    local state = StateService:GetState(player)
+    local success, state = pcall(function()
+        return StateService:GetState(player)
+    end)
+    if not success then
+        state = "Idle" -- fallback if service not ready
+    end
+    
     if state == "Dead" or state == "Stunned" or state == "Ragdolled" then
         return false, "BadState"
     end
