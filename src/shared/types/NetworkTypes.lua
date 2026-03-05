@@ -84,6 +84,8 @@ export type NetworkEvent =
 	| "AbilityCastRequest"     -- Client → Server: request to cast an ability
 	| "AbilityCastResult"      -- Server → Client: success/failure + target info
 	| "AbilityDataSync"        -- Server → Client: sync current cooldowns on join
+	| "SwitchAspectRequest"    -- Client → Server: request to switch aspect
+	| "SwitchAspectResult"     -- Server → Client: result of switching aspect
 
 	-- Progression
 	| "ResonanceUpdate"  -- Server → Client: Resonance/Shard state change
@@ -227,6 +229,16 @@ export type AspectInvestResultPacket = {
 export type AbilityCastRequestPacket = {
 	AbilityId: string,
 	TargetPosition: Vector3?,
+}
+
+export type SwitchAspectRequestPacket = {
+	AspectId: string?, -- nil means base moves
+}
+
+export type SwitchAspectResultPacket = {
+	Success: boolean,
+	Reason: string?,
+	AspectId: string?,
 }
 
 -- Progression packets (Issue #138, #140)
@@ -649,6 +661,18 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 20,
 		RequiresValidation = false,
 		Description = "Reply to ability cast with success/failure and cooldown",
+	},
+	SwitchAspectRequest = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 5,
+		RequiresValidation = true,
+		Description = "Client requests to switch aspect (dev feature)",
+	},
+	SwitchAspectResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = 10,
+		RequiresValidation = false,
+		Description = "Result of aspect swap",
 	},
 	MantraCast = {
 		Direction = "ClientToServer",

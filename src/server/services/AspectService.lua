@@ -140,6 +140,109 @@ function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.Aspe
 end
 
 --[[
+    SwitchAspect(player, aspectId)
+    Switch the player's active Aspect in real time.
+
+    aspectId = nil  → clear Aspect, restore base Ability items
+    aspectId = str  → equip that Aspect, replace inventory with its moves
+
+    Validation order:
+      1. player exists
+      2. not dead / stunned / ragdolled
+      3. if aspectId given: aspect exists in registry and is not locked
+      4. same aspect already active → early-out (no-op)
+
+    Side effects:
+      • profile.AspectData updated (or nilled)
+      • InventoryService.ClearAspectMoves called
+      • InventoryService.GrantAspectMoves OR RestoreBaseItems called
+      • passives applied / removed
+      • AspectAssigned + SwitchAspectResult fired to client
+]]
+function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.AspectId?): (boolean, string?)
+    if not Utils.IsValidPlayer(player) then
+        return false, "InvalidPlayer"
+    end
+
+    local profile = DataService:GetProfile(player)
+    if not profile then
+        return false, "NoProfile"
+    end
+
+    -- State gate: cannot switch mid-combat
+    local state = StateService:GetState(player)
+    if state == "Dead" or state == "Stunned" or state == "Ragdolled" then
+        return false, "BadState"
+    end
+
+    -- Validate the requested aspect (skip if clearing)
+    if aspectId ~= nil then
+        local cfg = AspectRegistry.GetAspect(aspectId)
+        if not cfg then
+            return false, "UnknownAspect"
+        end
+        if cfg.IsLocked then
+            return false, "AspectLocked"
+        end
+        -- No-op: already on this aspect
+        if profile.AspectData and profile.AspectData.AspectId == aspectId then
+            return true, nil
+        end
+    else
+        -- No-op: already has no aspect
+        if not profile.AspectData then
+            return true, nil
+        end
+    end
+
+    -- ── Remove existing passives before we change AspectData ────────────
+    if profile.AspectData then
+        local oldPassives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
+        for _, passive in ipairs(oldPassives) do
+            passive.RemoveEffect(player)
+        end
+    end
+
+    -- ── Swap the inventory moveset ───────────────────────────────────────
+    local InventoryService = require(script.Parent.InventoryService)
+    InventoryService.ClearAspectMoves(player)
+
+    if aspectId ~= nil then
+        -- Set new AspectData (preserve investment if same aspect; fresh if new)
+        profile.AspectData = {
+            AspectId           = aspectId,
+            IsUnlocked         = true,
+            Branches           = {
+                Expression = {Depth = 0, ShardsInvested = 0},
+                Form       = {Depth = 0, ShardsInvested = 0},
+                Communion  = {Depth = 0, ShardsInvested = 0},
+            },
+            TotalShardsInvested = 0,
+        }
+        InventoryService.GrantAspectMoves(player, aspectId)
+        AspectService.ApplyPassives(player)
+        -- VFX STUB: aspect attune shimmer — fire to client character when animator implements
+    else
+        -- Clear aspect
+        profile.AspectData = nil
+        InventoryService.RestoreBaseItems(player)
+    end
+
+    -- ── Notify client ────────────────────────────────────────────────────
+    NetworkProvider:FireClient(player, "AspectAssigned", aspectId) -- existing event reused
+    NetworkService:SendToClient(player, "SwitchAspectResult", {
+        Success  = true,
+        Reason   = nil,
+        AspectId = aspectId,  -- nil signals "no aspect"
+    })
+
+    print(("[AspectService] %s switched aspect to: %s"):format(
+        player.Name, tostring(aspectId or "nil")))
+
+    return true, nil
+end
+
+--[[
     InvestInBranch(player, aspectId, branch, amount) -> (boolean, string?)
     Spend Resonance Shards to deepen a branch. Validates finances, aspect,
     and max depth.
@@ -520,6 +623,30 @@ function AspectService:Start()
         -- Pass the whole packet table; _onCastRequest performs its own nil/type guards (Issue 3)
         _onCastRequest(player, packet)
     end)
+    NetworkService:RegisterHandler("SwitchAspectRequest", function(player, packet)
+        if type(packet) ~= "table" then
+            NetworkService:SendToClient(player, "SwitchAspectResult", {
+                Success = false, Reason = "InvalidPacket"
+            })
+            return
+        end
+        -- packet.AspectId may be a string or nil (explicit nil = clear)
+        local requestedId = packet.AspectId  -- nil is valid (clear aspect)
+        if requestedId ~= nil and type(requestedId) ~= "string" then
+            NetworkService:SendToClient(player, "SwitchAspectResult", {
+                Success = false, Reason = "InvalidAspectId"
+            })
+            return
+        end
+        local success, reason = AspectService.SwitchAspect(player, requestedId)
+        if not success then
+            NetworkService:SendToClient(player, "SwitchAspectResult", {
+                Success = false, Reason = reason, AspectId = requestedId
+            })
+        end
+        -- success path already fires SwitchAspectResult inside SwitchAspect()
+    end)
+
     RunService.Heartbeat:Connect(_onHeartbeat)
     print("[AspectService] Started successfully")
 end

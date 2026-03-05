@@ -237,6 +237,145 @@ local function _onPlayerAdded(player)
     _syncInventory(player)
 end
 
+--[[
+    ClearAspectMoves(player)
+    Removes all Category == "AspectMove" items from:
+      • profile.Inventory (free bag)
+      • profile.EquippedItems (hotbar slots)
+    Then fires a fresh InventorySync to the client.
+    Returns the count of items removed.
+]]
+function InventoryService.ClearAspectMoves(player: Player): number
+    if not Utils.IsValidPlayer(player) then return 0 end
+    local profile = DataService:GetProfile(player)
+    if not profile then return 0 end
+
+    local removed = 0
+
+    -- Clear from free inventory
+    profile.Inventory = profile.Inventory or {}
+    local kept: {any} = {}
+    for _, item in ipairs(profile.Inventory) do
+        if item.Category == "AspectMove" then
+            removed += 1
+        else
+            table.insert(kept, item)
+        end
+    end
+    profile.Inventory = kept
+
+    -- Clear from equipped slots
+    profile.EquippedItems = profile.EquippedItems or {}
+    for slot, item in pairs(profile.EquippedItems) do
+        if item and item.Category == "AspectMove" then
+            profile.EquippedItems[slot] = nil
+            removed += 1
+        end
+    end
+
+    if removed > 0 then
+        _syncInventory(player)
+    end
+    return removed
+end
+
+--[[
+    GrantAspectMoves(player, aspectId)
+    Looks up the AspectMoveset in AbilityRegistry and inserts one
+    AspectMoveItem per move into the player's free inventory.
+    Skips any move whose derived item Id already exists (duplicate guard).
+    Returns the count of items added, or (0, reason) on failure.
+]]
+function InventoryService.GrantAspectMoves(player: Player, aspectId: string): (number, string?)
+    if not Utils.IsValidPlayer(player) then return 0, "InvalidPlayer" end
+    local profile = DataService:GetProfile(player)
+    if not profile then return 0, "NoProfile" end
+
+    local moveset = AbilityRegistry.GetMoveset(aspectId)
+    if not moveset then
+        return 0, "NoMoveset"
+    end
+
+    profile.Inventory = profile.Inventory or {}
+
+    -- Build a quick lookup of existing ids
+    local hasItem: {[string]: boolean} = {}
+    for _, v in ipairs(profile.Inventory) do
+        hasItem[v.Id] = true
+    end
+    for _, v in pairs(profile.EquippedItems or {}) do
+        if v then hasItem[v.Id] = true end
+    end
+
+    local added = 0
+    for _, move in ipairs(moveset.Moves) do
+        local itemId = "move_" .. move.Id
+        if not hasItem[itemId] then
+            table.insert(profile.Inventory, {
+                Id          = itemId,
+                Name        = move.Name,
+                Description = move.Description or move.Name,
+                Category    = "AspectMove",
+                Rarity      = "Common",
+                AbilityId   = move.Id,
+                AspectId    = aspectId,
+            })
+            hasItem[itemId] = true
+            added += 1
+        end
+    end
+
+    if added > 0 then
+        _syncInventory(player)
+    end
+    return added, nil
+end
+
+--[[
+    RestoreBaseItems(player)
+    Re-seeds every "Active" ability from AbilityRegistry as an Abilities
+    category item — mirrors the join seeding in _onPlayerAdded.
+    Safe to call when the player clears their Aspect (aspectId = nil).
+    Skips any item that already exists (duplicate guard).
+]]
+function InventoryService.RestoreBaseItems(player: Player): number
+    if not Utils.IsValidPlayer(player) then return 0 end
+    local profile = DataService:GetProfile(player)
+    if not profile then return 0 end
+
+    profile.Inventory = profile.Inventory or {}
+
+    local hasItem: {[string]: boolean} = {}
+    for _, v in ipairs(profile.Inventory) do
+        hasItem[v.Id] = true
+    end
+    for _, v in pairs(profile.EquippedItems or {}) do
+        if v then hasItem[v.Id] = true end
+    end
+
+    local added = 0
+    for _, ability in ipairs(AbilityRegistry.GetByType("Active")) do
+        local itemId = "ability_" .. ability.Id
+        if not hasItem[itemId] then
+            table.insert(profile.Inventory, {
+                Id          = itemId,
+                Name        = ability.Id,
+                Description = ability.Description or ability.Id,
+                Category    = "Abilities",
+                Rarity      = "Common",
+                AbilityId   = ability.Id,
+            })
+            hasItem[itemId] = true
+            added += 1
+        end
+    end
+
+    if added > 0 then
+        _syncInventory(player)
+    end
+    return added
+end
+
 -- exposed for testing
 InventoryService._onPlayerAdded = _onPlayerAdded
 

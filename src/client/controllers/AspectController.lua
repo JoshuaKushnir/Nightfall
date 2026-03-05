@@ -46,6 +46,11 @@ AspectController._keybinds = {
     [Enum.KeyCode.V] = nil,
 }
 
+local ASPECT_CYCLE: {AspectTypes.AspectId?} = {
+    "Ash", "Tide", "Ember", "Gale", "Void", nil,
+}
+local _cycleIndex = 0  -- starts before "Ash"; first G press → "Ash"
+
 function AspectController:GetEquippedAbilities(): {string}
     local out = {}
     for _, abilityId in pairs(self._keybinds) do
@@ -158,7 +163,43 @@ function AspectController:Init(dependencies: {[string]: any}?)
     if dependencies then
         NetworkController = dependencies.NetworkController
     end
+    -- G key: cycle through Ash → Tide → Ember → Gale → Void → nil → Ash …
+    UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+        if gameProcessed then return end
+        if input.KeyCode ~= Enum.KeyCode.G then return end
+    
+        _cycleIndex = (_cycleIndex % #ASPECT_CYCLE) + 1
+        local nextAspect: AspectTypes.AspectId? = ASPECT_CYCLE[_cycleIndex]
+    
+        -- Fire to server
+        if NetworkController then
+            NetworkController:SendToServer("SwitchAspectRequest", {
+                AspectId = nextAspect,   -- nil = clear
+            })
+        end
+    
+        -- Local feedback so the dev can see what was requested
+        local label = nextAspect or "None"
+        print(("[AspectController] Switching aspect → %s"):format(label))
+    end)
+    
+    -- Listen for the server result and print confirmation
+    -- (full UI feedback is deferred; this is the MVP dev path)
+    if NetworkController then
+        NetworkController:ListenFromServer("SwitchAspectResult", function(packet)
+            if packet.Success then
+                print(("[AspectController] Aspect switch confirmed → %s"):format(
+                    tostring(packet.AspectId or "None")))
+            else
+                warn(("[AspectController] Aspect switch failed: %s"):format(
+                    tostring(packet.Reason)))
+                -- Rewind cycle index so next press retries the same aspect
+                _cycleIndex = math.max(0, _cycleIndex - 1)
+            end
+        end)
+    end
     _registerHandlers()
+
     print("[AspectController] Initialized")
     -- could read user settings for keybinds later
 end
