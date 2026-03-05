@@ -214,29 +214,33 @@ Tide.Moves[1] = {
         local direction = root.CFrame.LookVector
         local tipPos    = origin + direction * CURRENT_RANGE
 
-        -- Find targets in sphere at surge tip
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            if (tRoot.Position - tipPos).Magnitude > CURRENT_RADIUS then continue end
-
-            -- Posture damage
-            tChar:SetAttribute("IncomingPostureDamage",
-                (tChar:GetAttribute("IncomingPostureDamage") or 0) + CURRENT_POSTURE_DMG)
-            tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Current")
-
-            -- Knockback and terrain-collision monitor
-            _applyKnockbackAndMonitor(player, target, direction)
-
-            -- TALENT HOOK STUB: Riptide — if target is airborne, knock downward instead
-            -- TALENT HOOK STUB: SaturatingWave — leave wet zone along path
-            -- TALENT HOOK STUB: DrowningShore — if target Breath ≤25%, also apply Dampened
-
-            _VFX_Current_Hit(tRoot.Position)
-        end
+        -- Use HitboxService for physical collision detection
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        pcall(function()
+            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+            
+            HitboxService.CreateHitbox({
+                Shape = "Sphere",
+                Owner = player,
+                Position = tipPos,
+                Size = Vector3.new(CURRENT_RADIUS, CURRENT_RADIUS, CURRENT_RADIUS),
+                Damage = CURRENT_POSTURE_DMG,
+                LifeTime = 0.5,
+                CanHitTwice = false,
+                OnHit = function(target: any)
+                    local tPlayer = typeof(target) == "Instance" and target:IsA("Player") and target or nil
+                    if tPlayer then
+                        PostureService.DrainPosture(tPlayer, CURRENT_POSTURE_DMG, "Aspect")
+                        _applyKnockbackAndMonitor(player, tPlayer, direction)
+                    elseif type(target) == "string" then
+                        -- Dummy dummyId
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        DummyService.ApplyDamage(target, 0, root.Position)
+                    end
+                end
+            })
+        end)
+        
         _VFX_Current_Surge(origin, direction)
     end,
 

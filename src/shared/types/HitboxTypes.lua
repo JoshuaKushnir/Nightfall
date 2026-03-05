@@ -18,7 +18,8 @@ export type HitboxConfig = {
 	
 	-- Box/Sphere properties
 	Position: Vector3?,
-	Size: Vector3?, -- For Box: width, height, depth; For Sphere: radius in all axes
+	CFrame: CFrame?, -- For rotated boxes
+	Size: Vector3?, -- For Box: width, height, depth; For Sphere: radius in X axis
 	
 	-- Raycast properties
 	Origin: Vector3?,

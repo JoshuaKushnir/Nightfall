@@ -92,11 +92,11 @@ local RARITY_COLOR: {[string]: Color3} = {
 }
 
 local CAT_ORDER = {
-    "Abilities","AspectMove","Weapons","Tools","Equipment",
+    "Abilities","Weapons","Tools","Equipment",
     "TrainingGear","Schematics","QuestItems","Consumables","Relics","Materials",
 }
 local CAT_LABEL: {[string]: string} = {
-    Abilities="Abilities", AspectMove="Abilities", Weapons="Weapons",
+    Abilities="Abilities", Weapons="Weapons",
     Tools="Tools", Equipment="Equipment", TrainingGear="Training Gear",
     Schematics="Schematics", QuestItems="Quest Items",
     Consumables="Consumables", Relics="Relics", Materials="Materials",
@@ -637,6 +637,7 @@ function InventoryController:RefreshUI()
         if slottedIds[item.Id] then continue end
         if search ~= "" and not string.find(string.lower(item.Name or ""), search, 1, true) then continue end
         local cat = item.Category or "Materials"
+        if cat == "AspectMove" then cat = "Abilities" end
         if not groups[cat] then groups[cat] = {} end
         table.insert(groups[cat], item)
     end

@@ -342,33 +342,49 @@ Ash.Moves[2] = {
         local origin  = root.Position
         local forward = root.CFrame.LookVector
 
-        -- Apply posture to targets within cone range (30° arc approximated as sphere + dot check)
-        for _, target in game:GetService("Players"):GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            local toTarget = (tRoot.Position - origin)
-            if toTarget.Magnitude > CINDER_BURST_RANGE then continue end
-            -- 30° arc check via dot product (cos30 ≈ 0.866)
-            if toTarget.Magnitude > 0.01 and forward:Dot(toTarget.Unit) < 0.866 then continue end
-
-            tChar:SetAttribute("IncomingPostureDamage",
-                (tChar:GetAttribute("IncomingPostureDamage") or 0) + CINDER_BURST_POSTURE_DAMAGE)
-            tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_CinderBurst")
-            -- Apply Exposed status
-            tChar:SetAttribute("StatusExposed", true)
-            tChar:SetAttribute("ExposedExpiry", tick() + CINDER_BURST_EXPOSED_DUR)
-            task.delay(CINDER_BURST_EXPOSED_DUR, function()
-                if tChar and tChar.Parent then
-                    tChar:SetAttribute("StatusExposed", nil)
-                    tChar:SetAttribute("ExposedExpiry", nil)
+        local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
+        pcall(function()
+            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+            
+            HitboxService.CreateHitbox({
+                Shape = "Sphere",
+                Owner = player,
+                Position = origin + forward * (CINDER_BURST_RANGE/2),
+                Size = Vector3.new(CINDER_BURST_RANGE, CINDER_BURST_RANGE, CINDER_BURST_RANGE),
+                Damage = CINDER_BURST_POSTURE_DAMAGE,
+                LifeTime = 0.5,
+                CanHitTwice = false,
+                OnHit = function(target: any)
+                    local targetModel = nil
+                    if typeof(target) == "Instance" and target:IsA("Player") then
+                        targetModel = target.Character
+                        PostureService.DrainPosture(target, CINDER_BURST_POSTURE_DAMAGE, "Aspect")
+                    elseif type(target) == "string" then
+                        -- Dummy
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        DummyService.ApplyDamage(target, 0, origin)
+                        targetModel = workspace:FindFirstChild("Dummy_" .. target)
+                    end
+                    
+                    if targetModel then
+                        local tRoot = targetModel:FindFirstChild("HumanoidRootPart")
+                        if tRoot then
+                            local toTarget = tRoot.Position - origin
+                            if toTarget.Magnitude > 0.01 and forward:Dot(toTarget.Unit) >= 0.866 then
+                                targetModel:SetAttribute("StatusExposed", true)
+                                targetModel:SetAttribute("ExposedExpiry", tick() + CINDER_BURST_EXPOSED_DUR)
+                                task.delay(CINDER_BURST_EXPOSED_DUR, function()
+                                    if targetModel and targetModel.Parent then
+                                        targetModel:SetAttribute("StatusExposed", nil)
+                                        targetModel:SetAttribute("ExposedExpiry", nil)
+                                    end
+                                end)
+                            end
+                        end
+                    end
                 end
-            end)
-            -- TALENT HOOK STUB: ChokingVeil — if hit from behind (≥120° rear), apply Slow
-            -- TALENT HOOK STUB: AshLung — halve target Breath regen for 3s
-        end
+            })
+        end)
         _VFX_CinderBurst(player, origin)
     end,
 

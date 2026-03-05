@@ -212,42 +212,47 @@ Gale.Moves[1] = {
             root.CFrame = CFrame.new(dest, dest + forward)
             _VFX_WindStrike_Dash(origin, dest)
 
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - dest).Magnitude > WINDSTRIKE_HIT_RADIUS then continue end
+            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            pcall(function()
+                local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+                
+                HitboxService.CreateHitbox({
+                    Shape = "Sphere",
+                    Owner = player,
+                    Position = dest,
+                    Size = Vector3.new(WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS),
+                    Damage = 0,
+                    LifeTime = 0.5,
+                    CanHitTwice = false,
+                    OnHit = function(hitTarget: any)
+                        local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
+                        if not tPlayer then return end
+                        
+                        local tChar = tPlayer.Character
+                        if not tChar then return end
+                        
+                        local targetAirborne = _isAirborne(tChar)
+                        local aerialBonus = (casterAirborne or targetAirborne) and WINDSTRIKE_AERIAL_MULT or 1
+                        local postureDmg = math.floor(WINDSTRIKE_POSTURE_BASE * aerialBonus)
 
-                local targetAirborne = _isAirborne(tChar)
-                local aerialBonus = (casterAirborne or targetAirborne) and WINDSTRIKE_AERIAL_MULT or 1
-                local postureDmg = math.floor(WINDSTRIKE_POSTURE_BASE * aerialBonus)
+                        PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                        _VFX_WindStrike_Impact(dest)
 
-                tChar:SetAttribute("IncomingPostureDamage",
-                    (tChar:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
-                tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_WindStrike")
+                        -- Launch both caster and target (Weightless)
+                        _applyWeightless(tChar, WINDSTRIKE_LAUNCH_DUR)
+                        _applyWeightless(char,  WINDSTRIKE_LAUNCH_DUR)
 
-                _VFX_WindStrike_Impact(dest)
-
-                -- Launch both caster and target (Weightless)
-                _applyWeightless(tChar, WINDSTRIKE_LAUNCH_DUR)
-                _applyWeightless(char,  WINDSTRIKE_LAUNCH_DUR)
-
-                -- Apply upward velocity impulse
-                local tHum = tChar:FindFirstChildOfClass("Humanoid")
-                local cHum = char:FindFirstChildOfClass("Humanoid")
-                if tRoot and tHum then
-                    tRoot.AssemblyLinearVelocity = Vector3.new(0, 55, 0)
-                end
-                if root and cHum then
-                    root.AssemblyLinearVelocity = Vector3.new(0, 35, 0)
-                end
-
-                -- TALENT HOOK STUB: GaleForce     — taller launch at 2× Momentum
-                -- TALENT HOOK STUB: TempestDive   — +20 HP if Y-axis advantage ≥ 5 studs
-                -- TALENT HOOK STUB: Updraft(pass) — restore 10 Breath on hit
-            end
+                        -- Apply upward velocity impulse
+                        local tRoot = tChar:FindFirstChild("HumanoidRootPart")
+                        if tRoot then
+                            tRoot.AssemblyLinearVelocity = Vector3.new(0, 55, 0)
+                        end
+                        if root then
+                            root.AssemblyLinearVelocity = Vector3.new(0, 35, 0)
+                        end
+                    end
+                })
+            end)
         end)
     end,
 

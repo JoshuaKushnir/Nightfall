@@ -136,32 +136,25 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 		end,
 
 		CheckShape = function(self: Hitbox, targetPosition: Vector3): boolean
+			-- Deprecated in favor of native Roblox spatial queries in TestHitbox
+			-- Keeping for backward compatibility or simple distance tests
 			local shape = self.Config.Shape
 
 			if shape == "Sphere" then
-				if not self.Config.Position or not self.Config.Size then
-					return false
-				end
-
+				if not self.Config.Position or not self.Config.Size then return false end
 				local radius = self.Config.Size.X
 				return Utils.PointInSphere(targetPosition, self.Config.Position, radius)
-
 			elseif shape == "Box" then
-				if not self.Config.Position or not self.Config.Size then
-					return false
-				end
-
-				return Utils.PointInBox(targetPosition, self.Config.Position, self.Config.Size)
-
+				if not self.Config.Position or not self.Config.Size then return false end
+				local cf = self.Config.CFrame or CFrame.new(self.Config.Position)
+				local localPos = cf:PointToObjectSpace(targetPosition)
+				local halfSize = self.Config.Size / 2
+				return math.abs(localPos.X) <= halfSize.X and math.abs(localPos.Y) <= halfSize.Y and math.abs(localPos.Z) <= halfSize.Z
 			elseif shape == "Raycast" then
-				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then
-					return false
-				end
-
+				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then return false end
 				local _, distance = Utils.ClosestPointOnRay(self.Config.Origin, self.Config.Direction, self.Config.Length, targetPosition)
-				return distance <= 3 -- 3 stud radius for raycast
+				return distance <= 3
 			end
-
 			return false
 		end,
 	}
@@ -200,7 +193,7 @@ function HitboxService.GetPlayerHitboxes(player: Player): {Hitbox}
 end
 
 --[[
-	Test hitbox against all players and process hits
+	Test hitbox against the world using spatial queries and process hits
 	@param hitbox The hitbox to test
 	@return Number of targets hit
 ]]
@@ -210,52 +203,80 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 	end
 
 	local hitCount = 0
+	local config = hitbox.Config
+	local shape = config.Shape
 
-	-- Test against players
-	for _, player in Players:GetPlayers() do
-		if player == hitbox.Config.Owner then
-			continue
+	-- Setup OverlapParams for performant spatial queries
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	-- Exclude the owner's character
+	local ownerChar = typeof(config.Owner) == "Instance" and config.Owner:IsA("Player") and config.Owner.Character
+	if ownerChar then
+		params.FilterDescendantsInstances = {ownerChar}
+	end
+	
+	-- We only care about characters or dummies, usually stored in workspace, but let's query everything
+	local results: {BasePart} = {}
+
+	if shape == "Sphere" then
+		if not config.Position or not config.Size then return 0 end
+		local radius = config.Size.X
+		results = workspace:GetPartBoundsInRadius(config.Position, radius, params)
+
+	elseif shape == "Box" then
+		if not config.Position or not config.Size then return 0 end
+		-- Use CFrame if provided, else construct from Position
+		local cf = config.CFrame or CFrame.new(config.Position)
+		results = workspace:GetPartBoundsInBox(cf, config.Size, params)
+
+	elseif shape == "Raycast" then
+		if not config.Origin or not config.Direction or not config.Length then return 0 end
+		local rayParams = RaycastParams.new()
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+		if ownerChar then
+			rayParams.FilterDescendantsInstances = {ownerChar}
 		end
-
-		if not hitbox:IsValidTarget(player) then
-			continue
-		end
-
-		-- Get target position using Utils
-		local humanoidRootPart = Utils.GetRootPart(player)
-		if not humanoidRootPart then
-			continue
-		end
-
-		-- Check shape collision
-		if hitbox:CheckShape(humanoidRootPart.Position) then
-			if hitbox:Hit(player) then
-				hitCount += 1
-			end
+		
+		-- Use Blockcast for a 'thick' ray (3x3 default, could parameterise later)
+		local castSize = Vector3.new(3, 3, 0.1)
+		local castDir = config.Direction.Unit * config.Length
+		
+		-- LookAt CFrame so the Z axis aligns with direction
+		local startCF = CFrame.lookAt(config.Origin, config.Origin + config.Direction)
+		
+		local blockCastResult = workspace:Blockcast(startCF, castSize, castDir, rayParams)
+		if blockCastResult and blockCastResult.Instance then
+			table.insert(results, blockCastResult.Instance)
 		end
 	end
 
-	-- Test against dummies
-	for _, model in Workspace:GetChildren() do
-		if model:IsA("Model") and model.Name:match("^Dummy_") then
-			local dummyId = model.Name:match("^Dummy_(.*)")
-			if not dummyId then
-				continue
-			end
+	-- Process hit parts to find valid characters/dummies
+	local processedModels = {}
+	for _, part in ipairs(results) do
+		local model = part:FindFirstAncestorOfClass("Model")
+		if not model or processedModels[model] then continue end
 
-			if not hitbox:IsValidTarget(model) then
-				continue
-			end
+		-- Ensure it's a character or dummy
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if not humanoid then continue end
 
-			-- Get position from Torso (or HumanoidRootPart as fallback)
-			local bodyPart = model:FindFirstChild("Torso") or model:FindFirstChild("HumanoidRootPart")
-			if not bodyPart then
-				continue
-			end
+		-- Extract target identifier
+		local target: any = nil
+		local player = Players:GetPlayerFromCharacter(model)
+		
+		if player then
+			target = player
+		elseif model.Name:match("^Dummy_") then
+			target = model.Name:match("^Dummy_(.*)")
+		end
 
-			-- Check shape collision
-			if hitbox:CheckShape(bodyPart.Position) then
-				if hitbox:Hit(dummyId) then -- Pass dummyId as target
+		if target then
+			-- Mark model as processed to avoid multiple hits per cast
+			processedModels[model] = true
+			
+			if hitbox:IsValidTarget(target) then
+				if hitbox:Hit(target) then
 					hitCount += 1
 				end
 			end
