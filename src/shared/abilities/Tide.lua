@@ -666,8 +666,6 @@ Tide.Moves[5] = {
     end,
 }
 
-return Tide
-
 local function _VFX_SurgeProjectile(_origin: Vector3, _direction: Vector3)
     -- VFX STUB — animator: water-ribbon projectile travelling in direction over 0.15s
 end
@@ -678,6 +676,9 @@ end
 
 local function _VFX_TerrainImpact(_targetPos: Vector3)
     -- VFX STUB — animator: heavy water-crash landing wave when target hits terrain
+end
+
+return Tide
 end
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -234,7 +234,9 @@ if services.NetworkService and services.DummyService then
 			end
 
 			local dummyId = DummyService.SpawnDummy(spawnPos)
-			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = dummyId and "ok" or "failed", DummyId = dummyId } })
+			if NetworkService and player then
+				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = dummyId and "ok" or "failed", DummyId = dummyId } })
+			end
 			print(`[AdminCommand] {player.Name} spawned dummy: {dummyId}`)
 
 		elseif cmd == "grant_resonance" then
@@ -243,38 +245,52 @@ if services.NetworkService and services.DummyService then
 			local ProgressionSvc = services.ProgressionService
 			if ProgressionSvc then
 				ProgressionSvc.GrantResonance(player, amount, "Debug")
-				NetworkService:SendToClient(player, "DebugInfo", {
-					Category = "AdminCommand",
-					Data = { Result = ("granted %d resonance"):format(amount) }
-				})
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", {
+						Category = "AdminCommand",
+						Data = { Result = ("granted %d resonance"):format(amount) }
+					})
+				end
 				print(("[AdminCommand] %s +%d debug Resonance"):format(player.Name, amount))
 			else
 				warn("[AdminCommand] ProgressionService not available")
-				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "progression_unavailable" } })
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "progression_unavailable" } })
+				end
 			end
 		elseif cmd == "set_aspect" then
 			-- Developer helper: give player the specified aspect with all branches
 			local aspectId = args[1]
 			if not aspectId then
-				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "missing_aspect" } })
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "missing_aspect" } })
+				end
 			else
 				local AspectSvc = services.AspectService
 				if AspectSvc then
 					local ok = AspectSvc.DebugSetAspect(player, aspectId)
 					if ok then
-						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("set aspect %s"):format(aspectId) } })
+						if NetworkService and player then
+							NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("set aspect %s"):format(aspectId) } })
+						end
 						print(`[AdminCommand] {player.Name} debug set aspect to {aspectId}`)
 					else
-						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "invalid_aspect" } })
+						if NetworkService and player then
+							NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "invalid_aspect" } })
+						end
 					end
 				else
 					warn("[AdminCommand] AspectService not available")
-					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "aspect_unavailable" } })
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "aspect_unavailable" } })
+					end
 				end
 			end
 		else
 			warn(`[AdminCommand] Unknown admin command: {cmd}`)
-			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "unknown_command" } })
+			if NetworkService and player then
+				NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "unknown_command" } })
+			end
 		end
 	end)
 	print("[Server] ✓ AdminCommand handler registered")

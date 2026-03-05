@@ -186,7 +186,7 @@ function AspectController:Init(dependencies: {[string]: any}?)
     -- Listen for the server result and print confirmation
     -- (full UI feedback is deferred; this is the MVP dev path)
     if NetworkController then
-        NetworkController:ListenFromServer("SwitchAspectResult", function(packet)
+        NetworkController:RegisterHandler("SwitchAspectResult", function(packet)
             if packet.Success then
                 print(("[AspectController] Aspect switch confirmed → %s"):format(
                     tostring(packet.AspectId or "None")))
