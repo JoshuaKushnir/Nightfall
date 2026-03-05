@@ -678,9 +678,6 @@ local function _VFX_TerrainImpact(_targetPos: Vector3)
     -- VFX STUB — animator: heavy water-crash landing wave when target hits terrain
 end
 
-return Tide
-end
-
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
 --[[
