@@ -9,8 +9,9 @@
 
 ### What Was Built
 - **ActionController.lua (Final approach):** Completely eliminated flinging by removing physics collisions during dodge.
-  - Disables `CanCollide` on HumanoidRootPart before dodge starts
-  - Movement applied via CFrame directly (not BodyVelocity), so no physics engine interference
+- Disables `CanCollide` on every `BasePart` descendant of the character during dodge
+- Movement applied via CFrame directly (not BodyVelocity), eliminating physics collisions
+- CFrame fallback now reads `AssemblyLinearVelocity` each frame to honor the fallback velocity
   - Natural damping: velocity factor decays from 1.0 to 0.7 over dodge duration
   - Restores original `CanCollide` state when dodge ends or animation stops
   - Result: Zero flinging, perfect control, clean collision-free movement
