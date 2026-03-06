@@ -355,10 +355,14 @@ function AspectService.ApplyPassives(player: Player)
         local unlockedBefore = prevDepth >= passive.MinDepth
 
         if unlockedBefore and not unlockedNow then
-            passive.RemoveEffect(player)
+            if passive.RemoveEffect then
+                passive.RemoveEffect(player)
+            end
             state[passive.Id] = currentDepth
         elseif not unlockedBefore and unlockedNow then
-            passive.ApplyEffect(player, profile)
+            if passive.ApplyEffect then
+                passive.ApplyEffect(player, profile)
+            end
             state[passive.Id] = currentDepth
         else
             state[passive.Id] = currentDepth
@@ -372,7 +376,9 @@ local function _clearPassives(player: Player)
 
     local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
     for _, passive in ipairs(passives) do
-        passive.RemoveEffect(player)
+        if passive.RemoveEffect then
+            passive.RemoveEffect(player)
+        end
     end
     _activePassives[player] = nil
 end
