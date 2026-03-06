@@ -9,12 +9,13 @@
 
 ### What Was Built
 - **AspectService.lua:** Added `ClearAspectMoves` calls in `SwitchAspect` to remove old aspect abilities before granting new ones, preventing ability accumulation on aspect switches.
+- **AspectService.lua:** Actually invoked `ability.OnActivate(player, targetPosition)`! Previously it was skipped entirely and only the legacy `Sphere` generic fallback was running (which spawned off the camera/mouse hit position). This fixes the issue where abilities felt like they were coming from the camera instead of the HRM.
+- **HitboxService.lua:** Removed the `if RunService:IsClient()` wrapper around the `Heartbeat` TestHitbox loop. Server-spawned hitboxes (with a lifespan > 0) now correctly tick and detect hits, fixing the issue where they "rendered but didn't do damage."
+- **HitboxService.lua:** Enhanced `Cone` shape to accept `Width` and `Height` or `Radius` (for elliptical bases), freeing cones from strict `Angle` geometry limits.
+- **Gale.lua:** Fixed `Shear` hitbox relying on `Radius` instead of `Length`, now utilizing correct Cone parameters and avoiding silent lookup failures.
 
 ### Integration Points
-- Ensures pressing G properly replaces abilities instead of adding to them.
-
-### Tech Debt Created
-- Hitboxes render but OnHit callbacks not triggering damage; needs debug prints in OnHit functions to verify detection.
+- True hitboxes attached to the player's HumanoidRootPart are fully active.
 
 ### Next Session Should Start On
 Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
