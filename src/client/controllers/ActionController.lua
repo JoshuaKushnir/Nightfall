@@ -584,6 +584,23 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
+	-- Special handling for dodge: add collision detection to stop on hit
+	if config.Type == "Dodge" then
+		action.OnFrame = function(self: Action, deltaTime: number)
+			local rootPart = Character and Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if not rootPart then return end
+			local touching = rootPart:GetTouchingParts()
+			for _, part in touching do
+				if part:IsDescendantOf(Character) or part:IsA("Terrain") then continue end
+				-- Hit an obstacle, stop dodge
+				print("[ActionController] Dodge hit obstacle, stopping")
+				self:Stop()
+				rootPart.AssemblyLinearVelocity = Vector3.zero
+				break
+			end
+		end
+	end
+
 	-- Track dodge in Blackboard (readable by MovementController dispatcher and VFX)
 	if config.Type == "Dodge" then
 		Blackboard.IsDodging = true

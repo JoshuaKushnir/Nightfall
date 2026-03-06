@@ -139,7 +139,7 @@ MovementConfig.WallRun = {
 	MaxDuration = 5.0,          
 	WallDetectDistance = 5.5,
 	-- temporarily disable wall-running for repro/testing
-	DisableWallRun = false,   -- Increased from 4.5: wider catch window
+	DisableWallRun = true,   -- Increased from 4.5: wider catch window
 	GravityScale = 0.12,        
 	SpeedMultiplier = 1.05,
 	
@@ -154,7 +154,7 @@ MovementConfig.WallRun = {
 MovementConfig.Vault = {
 	MaxObstacleHeight = 5.5,       -- studs — tallest obstacle to vault
 	MinObstacleHeight = 1.5,       -- studs — ignore tiny bumps below this
-	ForwardDetectDistance = 3.5,   -- studs ahead to raycast (wider vault window)
+	ForwardDetectDistance = 5.0,   -- studs ahead to raycast (wider vault window)
 	Duration = 0.40,               -- seconds for vault tween (smoother)
 	MomentumPreservePct = 0.85,    -- fraction of sprint speed kept after vault
 	Cooldown = 1.0,                -- seconds before another vault can trigger

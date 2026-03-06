@@ -1027,13 +1027,13 @@ function MovementController._OnJumpRequest()
 	if not isMovementRestricted() then
 		local ctx = _buildCtx(lastMoveDirection, onGround, isSprinting)
 
-		-- 1. Ledge Catch (High Priority)
-		if LedgeCatchState.TryStart and LedgeCatchState.TryStart(ctx) then
+		-- 1. Vaulting (High Priority)
+		if VaultState.TryStart and VaultState.TryStart(ctx) then
 			return
 		end
 
-		-- 2. Vaulting (Manual)
-		if VaultState.TryStart and VaultState.TryStart(ctx) then
+		-- 2. Ledge Catch (Manual)
+		if LedgeCatchState.TryStart and LedgeCatchState.TryStart(ctx) then
 			return
 		end
 
