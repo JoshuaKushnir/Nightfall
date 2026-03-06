@@ -3,6 +3,19 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-052: AspectService Runtime Nil Fix
+**Date:** 2026-03-07
+**Issues:** #153
+
+### What Was Built
+- **AspectService.lua:** Moved `_clearPassives` function definition and `_activePassives` variable definition before their usage in `SwitchAspect` to prevent nil runtime errors. In Lua, local variables are hoisted but assignments occur at runtime, so definitions must precede calls.
+
+### Integration Points
+- Fixes aspect switching functionality by ensuring `_clearPassives` is defined when called during `SwitchAspectRequest` handling.
+
+### Next Session Should Start On
+Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
+
 ## Session NF-051: Aspect Transition Fix & Debug Command Stability
 **Date:** 2026-03-06
 **Issues:** #153
