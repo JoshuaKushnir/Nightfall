@@ -155,17 +155,8 @@ function WallRunState.Detect(dt: number, ctx: any)
 		end
 	end
 
-	-- Passive detection only if not running
-	if not _isWallRunning and not ctx.OnGround then
-		-- Only auto-wallrun if sprinting and fast enough (#95)
-		if ctx.Blackboard.IsSprinting then
-			local vel = rootPart.AssemblyLinearVelocity
-			local speed = Vector3.new(vel.X, 0, vel.Z).Magnitude
-			if speed > MIN_ENTRY_SPEED then
-				WallRunState.TryStart(ctx)
-			end
-		end
-	end
+	-- Passive wall-run activation was removed to make the mechanic more intentional.
+	-- Wall runs are now only initiated via an explicit Jump press in the air (in MovementController).
 end
 
 --[[
@@ -395,7 +386,8 @@ function WallRunState.TryStart(ctx: any): boolean
 				continue
 			end
 
-			if hit.Normal.Y < 0.707 then
+			-- Ensure surface is vertical enough (steeper than 60 degrees)
+			if math.abs(hit.Normal.Y) < 0.5 then
 				firstCandidateNormal = hit.Normal
 				print(("[WallRunState] Hit wall at angle %d! Normal: %s"):format(probe[1], tostring(hit.Normal)))
 				break

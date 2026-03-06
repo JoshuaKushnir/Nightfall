@@ -50,6 +50,8 @@ end
 -- Forward declarations for functions defined later but called earlier
 local _clearPassives: (player: Player) -> ()
 
+local _activePassives = {} :: {[Player]: {[string]: number}} -- passiveId -> depthApplied
+
 -- Type aliases
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
 
@@ -193,6 +195,20 @@ end
       • passives applied / removed
       • AspectAssigned + SwitchAspectResult fired to client
 ]]
+
+local function _clearPassives(player: Player)
+    local profile = DataService:GetProfile(player)
+    if not profile or not profile.AspectData then return end
+
+    local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
+    for _, passive in ipairs(passives) do
+        if passive.RemoveEffect then
+            passive.RemoveEffect(player)
+        end
+    end
+    _activePassives[player] = nil
+end
+
 function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.AspectId?): (boolean, string?)
     if not Utils.IsValidPlayer(player) then
         return false, "InvalidPlayer"
@@ -344,8 +360,6 @@ end
     Iterate form passives and call ApplyEffect for those unlocked.
     Should also remove any effects not granted anymore. Simplest: clear all then reapply.
 ]]
-local _activePassives = {} :: {[Player]: {[string]: number}} -- passiveId -> depthApplied
-
 local function _getPassiveState(player: Player)
     _activePassives[player] = _activePassives[player] or {}
     return _activePassives[player]
@@ -378,19 +392,6 @@ function AspectService.ApplyPassives(player: Player)
             state[passive.Id] = currentDepth
         end
     end
-end
-
-local function _clearPassives(player: Player)
-    local profile = DataService:GetProfile(player)
-    if not profile or not profile.AspectData then return end
-
-    local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
-    for _, passive in ipairs(passives) do
-        if passive.RemoveEffect then
-            passive.RemoveEffect(player)
-        end
-    end
-    _activePassives[player] = nil
 end
 
 
