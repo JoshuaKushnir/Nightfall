@@ -8,7 +8,7 @@
 	Type definitions for hitbox system supporting multiple shapes and configurations.
 ]]
 
-export type HitboxShape = "Box" | "Sphere" | "Raycast"
+export type HitboxShape = "Box" | "Sphere" | "Raycast" | "Circle" | "Square" | "Cylinder" | "Cone"
 
 export type HitboxConfig = {
 	-- Core properties
@@ -25,6 +25,8 @@ export type HitboxConfig = {
 	Origin: Vector3?,
 	Direction: Vector3?,
 	Length: number?,
+	Angle: number?, -- For Cones
+	Radius: number?, -- For Circles/Cylinders (can also use Size.X)
 	
 	-- Behavior
 	Blacklist: {Player}?, -- Players to not hit (teammates, self)

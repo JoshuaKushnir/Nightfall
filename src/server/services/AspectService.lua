@@ -48,7 +48,7 @@ local function _requireInventoryService()
 end
 
 -- Forward declarations for functions defined later but called earlier
-local _clearPassives: (player: Player) -> () = nil :: any
+local _clearPassives: (player: Player) -> ...ANY_VALUE...
 
 -- Type aliases
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
@@ -358,7 +358,6 @@ function AspectService.ApplyPassives(player: Player)
     local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
     local state = _getPassiveState(player)
 
-
     for _, passive in ipairs(passives) do
         local currentDepth = profile.AspectData.Branches[passive.Branch].Depth
         local prevDepth = state[passive.Id] or 0
@@ -381,7 +380,7 @@ function AspectService.ApplyPassives(player: Player)
     end
 end
 
-_clearPassives = function(player: Player)
+local function _clearPassives(player: Player)
     local profile = DataService:GetProfile(player)
     if not profile or not profile.AspectData then return end
 

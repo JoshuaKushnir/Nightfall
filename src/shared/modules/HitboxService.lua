@@ -144,12 +144,28 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				if not self.Config.Position or not self.Config.Size then return false end
 				local radius = self.Config.Size.X
 				return Utils.PointInSphere(targetPosition, self.Config.Position, radius)
-			elseif shape == "Box" then
+			elseif shape == "Box" or shape == "Square" then
 				if not self.Config.Position or not self.Config.Size then return false end
 				local cf = self.Config.CFrame or CFrame.new(self.Config.Position)
 				local localPos = cf:PointToObjectSpace(targetPosition)
-				local halfSize = self.Config.Size / 2
+				local size = shape == "Square" and Vector3.new(self.Config.Size.X, 0.5, self.Config.Size.Z or self.Config.Size.X) or self.Config.Size
+				local halfSize = size / 2
 				return math.abs(localPos.X) <= halfSize.X and math.abs(localPos.Y) <= halfSize.Y and math.abs(localPos.Z) <= halfSize.Z
+			elseif shape == "Cylinder" or shape == "Circle" then
+				if not self.Config.Position then return false end
+				local radius = self.Config.Radius or (self.Config.Size and self.Config.Size.X) or 5
+				local height = shape == "Circle" and 0.5 or (self.Config.Size and self.Config.Size.Y) or 10
+				local cf = self.Config.CFrame or CFrame.new(self.Config.Position)
+				local localPos = cf:PointToObjectSpace(targetPosition)
+				return math.abs(localPos.Y) <= height/2 and math.sqrt(localPos.X^2 + localPos.Z^2) <= radius
+			elseif shape == "Cone" then
+				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then return false end
+				local toTarget = targetPosition - self.Config.Origin
+				local fwdDist = toTarget:Dot(self.Config.Direction.Unit)
+				if fwdDist < 0 or fwdDist > self.Config.Length then return false end
+				local radiusAtDist = (fwdDist / self.Config.Length) * (math.tan(math.rad(self.Config.Angle or 45)) * self.Config.Length)
+				local proj = toTarget - self.Config.Direction.Unit * fwdDist
+				return proj.Magnitude <= radiusAtDist
 			elseif shape == "Raycast" then
 				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then return false end
 				local _, distance = Utils.ClosestPointOnRay(self.Config.Origin, self.Config.Direction, self.Config.Length, targetPosition)
@@ -224,11 +240,54 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 		local radius = config.Size.X
 		results = workspace:GetPartBoundsInRadius(config.Position, radius, params)
 
-	elseif shape == "Box" then
+	elseif shape == "Box" or shape == "Square" then
 		if not config.Position or not config.Size then return 0 end
 		-- Use CFrame if provided, else construct from Position
 		local cf = config.CFrame or CFrame.new(config.Position)
-		results = workspace:GetPartBoundsInBox(cf, config.Size, params)
+		local size = shape == "Square" and Vector3.new(config.Size.X, 0.5, config.Size.Z or config.Size.X) or config.Size
+		results = workspace:GetPartBoundsInBox(cf, size, params)
+
+	elseif shape == "Cylinder" or shape == "Circle" then
+		if not config.Position then return 0 end
+		local radius = config.Radius or (config.Size and config.Size.X) or 5
+		local height = shape == "Circle" and 0.5 or (config.Size and config.Size.Y) or 10
+		local cf = config.CFrame or CFrame.new(config.Position)
+		local boxSize = Vector3.new(radius * 2, height, radius * 2)
+		local potentialResults = workspace:GetPartBoundsInBox(cf, boxSize, params)
+		
+		for _, part in ipairs(potentialResults) do
+			-- Basic filtering for cylinder shape
+			local localPos = cf:PointToObjectSpace(part.Position)
+			local dist = math.sqrt(localPos.X^2 + localPos.Z^2)
+			-- Add part size into consideration roughly
+			if dist <= radius + (part.Size.Magnitude / 2) then
+				table.insert(results, part)
+			end
+		end
+
+	elseif shape == "Cone" then
+		if not config.Origin or not config.Direction or not config.Length then return 0 end
+		local length = config.Length
+		local angle = math.rad(config.Angle or 45)
+		local reach = math.tan(angle) * length
+		local fwd = config.Direction.Unit
+		
+		local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
+		local centerCf = cf * CFrame.new(0, 0, -length/2)
+		local boxSize = Vector3.new(reach * 2, reach * 2, length)
+		local potentialResults = workspace:GetPartBoundsInBox(centerCf, boxSize, params)
+		
+		for _, part in ipairs(potentialResults) do
+			local toPart = part.Position - config.Origin
+			local fwdDist = toPart:Dot(fwd)
+			if fwdDist > 0 and fwdDist <= length then
+				local proj = toPart - fwd * fwdDist
+				local maxRadius = (fwdDist / length) * reach
+				if proj.Magnitude <= maxRadius + (part.Size.Magnitude / 2) then
+					table.insert(results, part)
+				end
+			end
+		end
 
 	elseif shape == "Raycast" then
 		if not config.Origin or not config.Direction or not config.Length then return 0 end
@@ -332,6 +391,9 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Size = (config.Size or Vector3.new(1, 1, 1)) * 2
 		part.Position = config.Position or Vector3.new(0, 0, 0)
 		part.CanCollide = false
+		part.Anchored = true
+		part.CanQuery = false
+		part.Massless = true
 		part.CFrame = CFrame.new(config.Position or Vector3.new(0, 0, 0))
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth
@@ -343,16 +405,76 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		visual = part
 		print(`[HitboxService] Sphere visual created at {part.Position}`)
 
-	elseif config.Shape == "Box" then
+	elseif config.Shape == "Box" or config.Shape == "Square" then
 		local part = Instance.new("Part")
 		part.Shape = Enum.PartType.Block
-		part.Size = config.Size or Vector3.new(1, 1, 1)
+		part.Size = config.Shape == "Square" and Vector3.new((config.Size and config.Size.X) or 1, 0.5, (config.Size and (config.Size.Z or config.Size.X)) or 1) or (config.Size or Vector3.new(1, 1, 1))
 		part.Position = config.Position or Vector3.new(0, 0, 0)
 		part.CanCollide = false
+		part.Anchored = true
+		part.CanQuery = false
+		part.Massless = true
+		part.CFrame = config.CFrame or CFrame.new(config.Position or Vector3.new(0, 0, 0))
 		part.TopSurface = Enum.SurfaceType.Smooth
 		part.BottomSurface = Enum.SurfaceType.Smooth
 		part.Material = Enum.Material.Neon
 		part.Color = Color3.fromRGB(0, 0, 255) -- Blue
+		part.Transparency = 0.7
+		part.Name = `Hitbox_{hitbox.Id}`
+		part.Parent = HitboxService._VisualFolder
+		visual = part
+
+	elseif config.Shape == "Cylinder" or config.Shape == "Circle" then
+		local part = Instance.new("Part")
+		part.Shape = Enum.PartType.Cylinder
+		local r = config.Radius or (config.Size and config.Size.X) or 5
+		local h = config.Shape == "Circle" and 0.5 or (config.Size and config.Size.Y) or 10
+		-- Cylinder shape in Roblox uses X for height, Y/Z for diameter
+		part.Size = Vector3.new(h, r * 2, r * 2)
+		part.CanCollide = false
+		part.Anchored = true
+		part.CanQuery = false
+		part.Massless = true
+		
+		local baseCf = config.CFrame or CFrame.new(config.Position or Vector3.new(0, 0, 0))
+		-- Orient so it stands up like a typical cylinder/circle instead of on its side
+		part.CFrame = baseCf * CFrame.Angles(0, 0, math.pi/2)
+		
+		part.Material = Enum.Material.Neon
+		part.Color = Color3.fromRGB(255, 165, 0) -- Orange
+		part.Transparency = 0.7
+		part.Name = `Hitbox_{hitbox.Id}`
+		part.Parent = HitboxService._VisualFolder
+		visual = part
+
+	elseif config.Shape == "Cone" then
+		-- Visualize cone using a WedgePart or Cone mesh
+		local part = Instance.new("Part")
+		-- We use a SpecialMesh for Cone
+		local mesh = Instance.new("SpecialMesh")
+		mesh.MeshType = Enum.MeshType.Wedge
+		mesh.Parent = part
+		
+		-- Just making it a Wedge part to roughly show the area or we can just use a generic part
+		local length = config.Length or 10
+		local angle = math.rad(config.Angle or 45)
+		local reach = math.tan(angle) * length
+		
+		part.Size = Vector3.new(reach * 2, reach * 2, length)
+		part.CanCollide = false
+		part.Anchored = true
+		part.CanQuery = false
+		part.Massless = true
+		
+		if config.Origin and config.Direction then
+			local fwd = config.Direction.Unit
+			local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
+			-- center of visual
+			part.CFrame = cf * CFrame.new(0, 0, -length/2)
+		end
+		
+		part.Material = Enum.Material.Neon
+		part.Color = Color3.fromRGB(255, 0, 255) -- Magenta
 		part.Transparency = 0.7
 		part.Name = `Hitbox_{hitbox.Id}`
 		part.Parent = HitboxService._VisualFolder
@@ -364,6 +486,9 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Shape = Enum.PartType.Cylinder
 		part.Size = Vector3.new(0.3, config.Length or 10, 0.3)
 		part.CanCollide = false
+		part.Anchored = true
+		part.CanQuery = false
+		part.Massless = true
 		part.Material = Enum.Material.Neon
 		part.Color = Color3.fromRGB(255, 0, 0) -- Red
 		part.Transparency = 0.7
@@ -395,9 +520,20 @@ function HitboxService._UpdateVisual(hitbox: Hitbox)
 
 	local config = hitbox.Config
 
-	if config.Shape == "Sphere" or config.Shape == "Box" then
+	if config.Shape == "Sphere" or config.Shape == "Box" or config.Shape == "Square" then
 		if config.Position then
-			visual.Position = config.Position
+			visual.CFrame = config.CFrame or CFrame.new(config.Position)
+		end
+	elseif config.Shape == "Cylinder" or config.Shape == "Circle" then
+		if config.Position then
+			local baseCf = config.CFrame or CFrame.new(config.Position)
+			visual.CFrame = baseCf * CFrame.Angles(0, 0, math.pi/2)
+		end
+	elseif config.Shape == "Cone" then
+		if config.Origin and config.Direction and config.Length then
+			local fwd = config.Direction.Unit
+			local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
+			visual.CFrame = cf * CFrame.new(0, 0, -config.Length/2)
 		end
 	elseif config.Shape == "Raycast" then
 		if config.Origin and config.Direction then
