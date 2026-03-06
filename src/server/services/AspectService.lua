@@ -47,7 +47,8 @@ local function _requireInventoryService()
     return _InventoryService
 end
 
--- Forward declarations for lazy dependencies
+-- Forward declarations for functions defined later but called earlier
+local _clearPassives: (player: Player) -> ()
 
 -- Type aliases
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
