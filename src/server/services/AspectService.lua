@@ -55,6 +55,22 @@ local ABILITY_HITBOX_LIFETIME  = 0.15 -- seconds hitbox persists before auto-exp
 local AspectService = {}
 AspectService._initialized = false
 
+-- At top of AspectService
+local function _getAbility(abilityId: string)
+    -- Prefer new registry, fall back to legacy
+    local ability = AbilityRegistry.Get(abilityId) or AspectRegistry.Abilities[abilityId]
+    if not ability then return nil end
+
+    -- Optionally normalize shape so all fields exist
+    ability.Cooldown = ability.Cooldown or 5
+    ability.ManaCost = ability.ManaCost or 0
+    ability.IsAoE = ability.IsAoE == true
+    ability.Range = ability.Range or ABILITY_HIT_RADIUS
+
+    return ability
+end
+
+
 -- helper to fetch aspect data table from player profile
 local function _getAspectData(player: Player): AspectTypes.PlayerAspectData?
     local profile = DataService:GetProfile(player)
@@ -210,37 +226,34 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
     end
 
     -- ── Remove existing passives before we change AspectData ────────────
-    if profile.AspectData then
-        local oldPassives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
-        for _, passive in ipairs(oldPassives) do
-            passive.RemoveEffect(player)
+    _clearPassives(player)
+
+    local aspects = profile.Aspects or {}
+    profile.Aspects = aspects
+
+    if aspectId == nil then
+        profile.ActiveAspectId = nil
+        InventoryService.RestoreBaseItems(player, true)
+    else
+        if not aspects[aspectId] then
+            aspects[aspectId] = {
+                AspectId = aspectId,
+                IsUnlocked = true,
+                Branches = {
+                    Expression = {Depth = 0, ShardsInvested = 0},
+                    Form       = {Depth = 0, ShardsInvested = 0},
+                    Communion  = {Depth = 0, ShardsInvested = 0},
+                },
+                TotalShardsInvested = 0,
+            }
         end
-    end
+        profile.ActiveAspectId = aspectId
+        profile.AspectData = aspects[aspectId] -- keep existing access path for now
 
-    -- ── Swap the inventory moveset ───────────────────────────────────────
-    local InventoryService = require(script.Parent.InventoryService)
-    InventoryService.ClearAspectMoves(player, true)
-
-    if aspectId ~= nil then
-        -- Set new AspectData (preserve investment if same aspect; fresh if new)
-        profile.AspectData = {
-            AspectId           = aspectId,
-            IsUnlocked         = true,
-            Branches           = {
-                Expression = {Depth = 0, ShardsInvested = 0},
-                Form       = {Depth = 0, ShardsInvested = 0},
-                Communion  = {Depth = 0, ShardsInvested = 0},
-            },
-            TotalShardsInvested = 0,
-        }
         InventoryService.GrantAspectMoves(player, aspectId, true)
         AspectService.ApplyPassives(player)
-        -- VFX STUB: aspect attune shimmer — fire to client character when animator implements
-    else
-        -- Clear aspect
-        profile.AspectData = nil
-        InventoryService.RestoreBaseItems(player, true)
     end
+
     InventoryService.SyncInventory(player)
 
     -- ── Notify client ────────────────────────────────────────────────────
@@ -321,22 +334,49 @@ end
     Iterate form passives and call ApplyEffect for those unlocked.
     Should also remove any effects not granted anymore. Simplest: clear all then reapply.
 ]]
+local _activePassives = {} :: {[Player]: {[string]: number}} -- passiveId -> depthApplied
+
+local function _getPassiveState(player: Player)
+    _activePassives[player] = _activePassives[player] or {}
+    return _activePassives[player]
+end
+
 function AspectService.ApplyPassives(player: Player)
     local profile = DataService:GetProfile(player)
     if not profile or not profile.AspectData then return end
-    -- remove all first by reloading state (this is rudimentary)
-    -- For now we don't track active ones individually; assume idempotent.
+
+    local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
+    local state = _getPassiveState(player)
+
+    for _, passive in ipairs(passives) do
+        local currentDepth = profile.AspectData.Branches[passive.Branch].Depth
+        local prevDepth = state[passive.Id] or 0
+        local unlockedNow = currentDepth >= passive.MinDepth
+        local unlockedBefore = prevDepth >= passive.MinDepth
+
+        if unlockedBefore and not unlockedNow then
+            passive.RemoveEffect(player)
+            state[passive.Id] = currentDepth
+        elseif not unlockedBefore and unlockedNow then
+            passive.ApplyEffect(player, profile)
+            state[passive.Id] = currentDepth
+        else
+            state[passive.Id] = currentDepth
+        end
+    end
+end
+
+local function _clearPassives(player: Player)
+    local profile = DataService:GetProfile(player)
+    if not profile or not profile.AspectData then return end
+
     local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
     for _, passive in ipairs(passives) do
         passive.RemoveEffect(player)
     end
-    for _, passive in ipairs(passives) do
-        local depth = profile.AspectData.Branches[passive.Branch].Depth
-        if depth >= passive.MinDepth then
-            passive.ApplyEffect(player, profile)
-        end
-    end
+    _activePassives[player] = nil
 end
+
 
 --[[
     CanCastAbility(player, abilityId) -> (boolean, string?)
@@ -347,40 +387,42 @@ function AspectService.CanCastAbility(player: Player, abilityId: string)
     if not profile or not profile.AspectData then
         return false, "NoAspect"
     end
-    -- Moveset abilities registered via AbilityRegistry take priority;
-    -- fall back to legacy AspectRegistry.Abilities for old-format entries.
-    local ability = AbilityRegistry.Get(abilityId) or AspectRegistry.Abilities[abilityId]
+
+    local ability = _getAbility(abilityId)
     if not ability then
         return false, "UnknownAbility"
     end
-    -- Validate Aspect ownership (moveset format — AspectId must match player's chosen Aspect)
+
     if ability.AspectId and ability.AspectId ~= "None" then
         if profile.AspectData.AspectId ~= ability.AspectId then
             return false, "WrongAspect"
         end
     end
-    -- Legacy branch-depth check (only applies to old-format abilities with Branch set)
+
     if ability.Branch and ability.MinDepth then
         local branchState = profile.AspectData.Branches and profile.AspectData.Branches[ability.Branch]
-        if branchState and branchState.Depth < ability.MinDepth then
+        if not branchState or branchState.Depth < ability.MinDepth then
             return false, "DepthTooLow"
         end
     end
-    local state = StateService:GetState(player)
-    if state == "Stunned" or state == "Dead" or state == "Attacking" or state == "Ragdolled" then
+
+    if not StateService:IsActionAllowed(player, "CastAbility") then
         return false, "BadState"
     end
+
     if profile.Mana.Current < ability.ManaCost then
         return false, "InsufficientMana"
     end
-    -- cooldown map stored on profile
+
     profile.ActiveCooldowns = profile.ActiveCooldowns or {}
     local now = tick()
     if profile.ActiveCooldowns[abilityId] and profile.ActiveCooldowns[abilityId] > now then
         return false, "OnCooldown"
     end
+
     return true
 end
+
 
 --[[
     ExecuteAbility(player, abilityId, targetPosition) -> boolean
@@ -391,20 +433,24 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
     if not ok then
         return false, reason
     end
+
     local profile = DataService:GetProfile(player)
-    local ability = AspectRegistry.Abilities[abilityId]
-    -- consume mana
+    local ability = _getAbility(abilityId)
+    if not ability then
+        return false, "UnknownAbility"
+    end
+
     profile.Mana.Current -= ability.ManaCost
-    -- put on cooldown
-    local cdExpiry = tick() + (ability.Cooldown or 5)
+
+    local cdExpiry = tick() + ability.Cooldown
     profile.ActiveCooldowns[abilityId] = cdExpiry
+
     local char = player.Character
     if char then
         char:SetAttribute("CD_" .. abilityId, cdExpiry)
     end
-    -- set player state
+
     StateService:SetState(player, "Casting")
-    -- stub VFX
     ability.VFX_Function(player, targetPosition)
 
     -- ── Issue 1 / 2: server-side hitbox → CombatService damage pipeline ──────
@@ -488,11 +534,12 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
     -- ─────────────────────────────────────────────────────────────────────────
 
     -- return to idle after cast time
-    task.delay(ability.CastTime, function()
+    task.delay(ability.CastTime or 0, function()
         if Utils.IsValidPlayer(player) then
             StateService:SetState(player, "Idle")
         end
     end)
+
     return true
 end
 

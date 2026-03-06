@@ -147,7 +147,7 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	local bar = Instance.new("Frame")
 	bar.Name = "PostureBar"
 	bar.Size = UDim2.new(0, 300, 0, 18)
-	bar.Position = UDim2.new(0.5, -150, 1, -85)  -- above the bottom edge
+	bar.Position = UDim2.new(0.5, -150, 1, -125)  -- Raised to clear hotbar (Issue #153)
 	bar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 	bar.BorderSizePixel = 0
 	bar.Parent = gui

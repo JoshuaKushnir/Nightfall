@@ -51,6 +51,46 @@ local ASPECT_CYCLE: {AspectTypes.AspectId?} = {
 }
 local _cycleIndex = 0  -- starts before "Ash"; first G press → "Ash"
 
+
+local _inputConnections = {}
+
+local function _onKeyInput(input: InputObject, gameProcessed: boolean)
+    if gameProcessed then return end
+    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+
+    local key = input.KeyCode
+
+    if key == Enum.KeyCode.G then
+        AspectController:_cycleAspect()
+        return
+    end
+
+    local abilityId = AspectController._keybinds[key]
+    if abilityId and not AspectController:IsOnCooldown(abilityId) then
+        local mouse = localPlayer and localPlayer:GetMouse()
+        local pos = mouse and mouse.Hit and mouse.Hit.p
+        NetworkProvider:FireServer("AbilityCastRequest", {
+            AbilityId = abilityId,
+            TargetPosition = pos,
+        })
+    end
+end
+
+function AspectController:_cycleAspect()
+    _cycleIndex = (_cycleIndex % #ASPECT_CYCLE) + 1
+    local nextAspect = ASPECT_CYCLE[_cycleIndex]
+
+    if NetworkController then
+        NetworkController:SendToServer("SwitchAspectRequest", {
+            AspectId = nextAspect,
+        })
+    end
+
+    local label = nextAspect or "None"
+    print(("[AspectController] Switching aspect → %s"):format(label))
+end
+
+
 function AspectController:GetEquippedAbilities(): {string}
     local out = {}
     for _, abilityId in pairs(self._keybinds) do
@@ -85,8 +125,9 @@ end
 
 function AspectController:IsOnCooldown(abilityId: string)
     local expiry = self._cooldowns[abilityId]
-    return expiry and expiry > tick() or false
+    return expiry ~= nil and expiry > tick()
 end
+
 
 -- network event handlers will be registered during Init when dependencies arrive
 
@@ -158,51 +199,35 @@ function AspectController:OnInventoryChanged(callback: ()->())
     end
 end
 
-function AspectController:Init(dependencies: {[string]: any}?)
+function AspectController:Init(dependencies)
     print("[AspectController] Initializing...")
     if dependencies then
         NetworkController = dependencies.NetworkController
     end
-    -- G key: cycle through Ash → Tide → Ember → Gale → Void → nil → Ash …
-    UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
-        if gameProcessed then return end
-        if input.KeyCode ~= Enum.KeyCode.G then return end
-    
-        _cycleIndex = (_cycleIndex % #ASPECT_CYCLE) + 1
-        local nextAspect: AspectTypes.AspectId? = ASPECT_CYCLE[_cycleIndex]
-    
-        -- Fire to server
-        if NetworkController then
-            NetworkController:SendToServer("SwitchAspectRequest", {
-                AspectId = nextAspect,   -- nil = clear
-            })
-        end
-    
-        -- Local feedback so the dev can see what was requested
-        local label = nextAspect or "None"
-        print(("[AspectController] Switching aspect → %s"):format(label))
-    end)
-    
-    -- Listen for the server result and print confirmation
-    -- (full UI feedback is deferred; this is the MVP dev path)
+
+    table.insert(_inputConnections,
+        UserInputService.InputBegan:Connect(_onKeyInput)
+    )
+
     if NetworkController then
         NetworkController:RegisterHandler("SwitchAspectResult", function(packet)
             if packet.Success then
                 print(("[AspectController] Aspect switch confirmed → %s"):format(
-                    tostring(packet.AspectId or "None")))
+                    tostring(packet.AspectId or "None")
+                ))
             else
                 warn(("[AspectController] Aspect switch failed: %s"):format(
-                    tostring(packet.Reason)))
-                -- Rewind cycle index so next press retries the same aspect
+                    tostring(packet.Reason)
+                ))
                 _cycleIndex = math.max(0, _cycleIndex - 1)
             end
         end)
     end
-    _registerHandlers()
 
+    _registerHandlers()
     print("[AspectController] Initialized")
-    -- could read user settings for keybinds later
 end
+
 
 function AspectController:Start()
     print("[AspectController] Started")

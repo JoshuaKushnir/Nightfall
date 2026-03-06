@@ -708,6 +708,41 @@ function InventoryController:RefreshUI()
 
             -- Rarity border — thin, sharp
             _stroke(card, rarityCol, 1, 0.4)
+            
+            -- Cooldown Overlay for Bag
+            if _isAbility(item) then
+                local cdOverlay = Instance.new("Frame")
+                cdOverlay.Name               = "CooldownOverlay"
+                cdOverlay.Size               = UDim2.fromScale(1, 0) 
+                cdOverlay.Position           = UDim2.fromScale(0, 0)
+                cdOverlay.BackgroundColor3   = Color3.new(0,0,0)
+                cdOverlay.BackgroundTransparency = 0.6
+                cdOverlay.BorderSizePixel    = 0
+                cdOverlay.ZIndex             = card.ZIndex + 2
+                cdOverlay.Visible            = false
+                cdOverlay.Parent             = card
+
+                task.spawn(function()
+                    while card and card.Parent do
+                        local char = localPlayer.Character
+                        if not char then task.wait(0.5); continue end
+                        local abilityId = item.AbilityId or item.Id
+                        local cdTag = char:GetAttribute("CD_" .. abilityId) :: number?
+                        
+                        if cdTag and cdTag > tick() then
+                            local remaining = cdTag - tick()
+                            local totalCd = item.Cooldown or 5
+                            local progress = math.clamp(remaining / totalCd, 0, 1)
+                            
+                            cdOverlay.Visible = true
+                            cdOverlay.Size    = UDim2.fromScale(1, progress)
+                        else
+                            cdOverlay.Visible = false
+                        end
+                        task.wait(0.1)
+                    end
+                end)
+            end
 
             -- Left category stripe — 3px wide, full height
             local stripe = Instance.new("Frame")
@@ -850,6 +885,7 @@ function InventoryController:RefreshUI()
                             
                             cdOverlay.Visible = true
                             cdOverlay.Size    = UDim2.fromScale(1, progress)
+                            cdOverlay.Position = UDim2.fromScale(0, 0) -- Stays at top, fills downwards
                             
                             cdLabel.Visible = true
                             cdLabel.Text    = string.format("%.1f", remaining)

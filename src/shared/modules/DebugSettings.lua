@@ -22,7 +22,7 @@ local DebugSettings = {}
 
 -- Settings storage
 local Settings: {[string]: boolean | number | string} = {
-	ShowHitboxes = false,
+	ShowHitboxes = true,
 	ShowStateLabels = false,
 	ShowNetworkEvents = false,
 	SlowMotion = false,
