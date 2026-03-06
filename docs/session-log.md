@@ -3,21 +3,24 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
-## Session NF-053: Dodge Collision Fix
+## Session NF-053: Dodge Collision Fix & Robustness Improvement
 **Date:** 2026-03-06
-**Issues:** #155
+**Issues:** #155, #156
 
 ### What Was Built
-- **ActionController.lua:** Added collision detection to dodge actions via OnFrame callback. Checks GetTouchingParts on HumanoidRootPart every frame during dodge (0.35s duration). If touching a part that's not part of the character or Terrain, stops the animation and sets AssemblyLinearVelocity to zero, preventing flinging on obstacle collision.
+- **ActionController.lua:** Improved dodge collision detection. Switched from `GetTouchingParts` to predictive raycasting.
+- **ActionController.lua:** Every frame during a dodge, the controller now casts a ray 80ms ahead in the direction of the character's velocity.
+- **ActionController.lua:** If an obstacle is detected, the dodge animation is stopped, and `AssemblyLinearVelocity` is zeroed.
+- **ActionController.lua:** Clears any active `_impulse_` BodyVelocity objects to ensure the stop is immediate and permanent.
 
 ### Integration Points
-- Client-side physics override during dodge to ensure clean stops instead of bounces.
+- Predictive physics handling on the client to avoid deep collisions and subsequent flinging.
 
 ### Spec Gaps Encountered
 - None.
 
 ### Tech Debt Created
-- GetTouchingParts called every frame during dodge; monitor performance in crowded scenes.
+- Raycast frequency check: Performing one `workspace:Raycast` per frame during a 0.35s dodge. Negligible performance hit for much-improved feel.
 
 ### Next Session Should Start On
 Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
