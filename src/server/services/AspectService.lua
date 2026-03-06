@@ -259,6 +259,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
 
     if aspectId == nil then
         profile.ActiveAspectId = nil
+        _requireInventoryService().ClearAspectMoves(player, true)
         _requireInventoryService().RestoreBaseItems(player, true)
     else
         if not aspects[aspectId] then
@@ -276,6 +277,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
         profile.ActiveAspectId = aspectId
         profile.AspectData = aspects[aspectId] -- keep existing access path for now
 
+        _requireInventoryService().ClearAspectMoves(player, true)
         _requireInventoryService().GrantAspectMoves(player, aspectId, true)
         AspectService.ApplyPassives(player)
     end
