@@ -48,7 +48,7 @@ local function _requireInventoryService()
 end
 
 -- Forward declarations for functions defined later but called earlier
-local _clearPassives: (player: Player) -> ...ANY_VALUE...
+local _clearPassives: (player: Player) -> () = nil :: any
 
 -- Type aliases
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
