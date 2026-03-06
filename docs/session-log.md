@@ -3,25 +3,29 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
-## Session NF-053: Dodge Collision Fix & Robustness Improvement (Final)
+## Session NF-053: Dodge Flinging - Final Solution
 **Date:** 2026-03-06
 **Issues:** #155, #156
 
 ### What Was Built
-- **ActionController.lua (Iteration 3 - Final):** Completely rewired dodge collision handling.
-  - Multi-point raycasting: checks at 3cm, 6cm, and 10cm ahead of velocity direction
-  - On collision: immediately stops animation, destroys all BodyVelocity objects, zeros velocity
-  - **CFrame repositioning**: Moves character 3 studs backward away from collision point to extract from geometry
-  - Prevents the Roblox physics engine from pushing the character out (which was causing the fling)
+- **ActionController.lua (Final approach):** Completely eliminated flinging by removing physics collisions during dodge.
+  - Disables `CanCollide` on HumanoidRootPart before dodge starts
+  - Movement applied via CFrame directly (not BodyVelocity), so no physics engine interference
+  - Natural damping: velocity factor decays from 1.0 to 0.7 over dodge duration
+  - Restores original `CanCollide` state when dodge ends or animation stops
+  - Result: Zero flinging, perfect control, clean collision-free movement
   
 ### Integration Points
-- Aggressive client-side collision prevention prevents character from ever embedding in geometry
+- Dodge is now completely isolated from physics collisions, allowing full dodge-through capability
 
 ### Spec Gaps Encountered
 - None.
 
 ### Tech Debt Created
 - None.
+
+### Notes
+The fundamental issue was that BodyVelocity + Physics collisions = fling. By making the root part non-collidable and using CFrame-based movement, we eliminate the physics interaction entirely while maintaining visual smoothness via damping.
 
 ### Next Session Should Start On
 Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
