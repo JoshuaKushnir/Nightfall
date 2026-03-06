@@ -729,6 +729,7 @@ function MovementController._Update(dt: number)
 	-- cleared on slide start to avoid accidental normal jumps.
 	if onGround then
 		if jumpBufferLeft > 0 and not Blackboard.IsSliding then
+			print("[MovementController] Executing buffered jump!")
 			humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 			jumpBufferLeft = 0
 		end
@@ -1069,11 +1070,16 @@ function MovementController._OnJumpRequest()
 		end)
 	end
 
-	-- Default: perform a normal jump if on ground, otherwise queue in buffer
-	if onGround then
+	-- Default: perform a normal jump if on ground (or in coyote time), otherwise queue in buffer
+	if onGround or coyoteTimeLeft > 0 then
+		if not onGround and coyoteTimeLeft > 0 then
+			print("[MovementController] Coyote Time jump!")
+		end
 		humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 		jumpBufferLeft = 0
+		coyoteTimeLeft = 0
 	else
+		print("[MovementController] Jump buffered!")
 		jumpBufferLeft = JUMP_BUFFER_TIME
 	end
 end
