@@ -3,15 +3,18 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
-## Session NF-052: AspectService Runtime Nil Fix
+## Session NF-052: Aspect Switching Ability Clearing & Hitbox Damage Debug
 **Date:** 2026-03-07
 **Issues:** #153
 
 ### What Was Built
-- **AspectService.lua:** Moved `_clearPassives` function definition and `_activePassives` variable definition before their usage in `SwitchAspect` to prevent nil runtime errors. In Lua, local variables are hoisted but assignments occur at runtime, so definitions must precede calls.
+- **AspectService.lua:** Added `ClearAspectMoves` calls in `SwitchAspect` to remove old aspect abilities before granting new ones, preventing ability accumulation on aspect switches.
 
 ### Integration Points
-- Fixes aspect switching functionality by ensuring `_clearPassives` is defined when called during `SwitchAspectRequest` handling.
+- Ensures pressing G properly replaces abilities instead of adding to them.
+
+### Tech Debt Created
+- Hitboxes render but OnHit callbacks not triggering damage; needs debug prints in OnHit functions to verify detection.
 
 ### Next Session Should Start On
 Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
