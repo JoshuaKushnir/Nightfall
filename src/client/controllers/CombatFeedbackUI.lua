@@ -32,9 +32,10 @@ local NORMAL_COLOR = Color3.fromRGB(255, 255, 255) -- White
 local HEAL_COLOR = Color3.fromRGB(0, 255, 0) -- Green
 
 -- Posture bar colours
-local POSTURE_COLOR_NORMAL   = Color3.fromRGB(100, 200, 255) -- Blue
-local POSTURE_COLOR_CRITICAL = Color3.fromRGB(255, 120,  50) -- Orange when low
-local POSTURE_LOW_THRESHOLD  = 0.25  -- switch colour below 25% posture
+-- NEW (#157: bar fills with danger, empty = safe)
+local POSTURE_COLOR_SAFE     = Color3.fromRGB(180, 180, 220) -- cool grey = low pressure
+local POSTURE_COLOR_WARNING  = Color3.fromRGB(255, 140,  50) -- orange = building up
+local POSTURE_COLOR_DANGER   = Color3.fromRGB(220,  50,  50) -- red = about to be suppressed
 
 -- Active floating numbers
 local FloatingNumbers: {{
@@ -177,10 +178,9 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	label.Text = "POSTURE"
 	label.Parent = bar
 
-	-- Immediately render at full posture so the bar is visible on spawn
-	-- before the first PostureChanged event arrives from the server.
-	fill.Size = UDim2.new(1, 0, 1, 0)
-	fill.BackgroundColor3 = POSTURE_COLOR_NORMAL
+	-- NEW: bar starts empty (0 pressure on spawn)
+	fill.Size = UDim2.new(0, 0, 1, 0)
+	fill.BackgroundColor3 = POSTURE_COLOR_SAFE
 
 	print("[CombatFeedbackUI] Posture bar created")
 	return { bar = bar, fill = fill }
@@ -188,16 +188,19 @@ end
 
 --[[
 	Update the fill width and colour of the posture bar.
+	NEW (#157)
 ]]
 function CombatFeedbackUI._UpdatePostureBar(postureBar: {bar: Frame, fill: Frame}, current: number, max: number)
 	if not postureBar then return end
 	local ratio = if max > 0 then math.clamp(current / max, 0, 1) else 0
 	postureBar.fill.Size = UDim2.new(ratio, 0, 1, 0)
-	postureBar.fill.BackgroundColor3 = ratio <= POSTURE_LOW_THRESHOLD
-		and POSTURE_COLOR_CRITICAL
-		or POSTURE_COLOR_NORMAL
+	-- High posture = danger (inverted model: full bar = suppressed)
+	postureBar.fill.BackgroundColor3 = if ratio >= 0.75
+		then POSTURE_COLOR_DANGER
+		elseif ratio >= 0.40
+		then POSTURE_COLOR_WARNING
+		else POSTURE_COLOR_SAFE
 end
-
 --[[
 	Play a brief red flash on the character who was just staggered.
 	We find the player by UserId and flash their parts.

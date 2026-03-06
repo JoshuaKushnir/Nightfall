@@ -117,8 +117,9 @@ function CombatService:Start()
 		end
 		if DummyService.GetAllDummies then
 			for _, dummyData in DummyService.GetAllDummies() do
-				if dummyData.Model then
-					CombatService._ProcessDamageAttributes(dummyData.Model, dummyData.Id)
+				local model = DummyService.GetDummyModel(dummyData.Id)
+				if model then
+					CombatService._ProcessDamageAttributes(model, dummyData.Id)
 				end
 			end
 		end
