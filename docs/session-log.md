@@ -8,7 +8,7 @@
 **Issues:** #153
 
 ### What Was Built
-- **AspectService.lua:** Fixed a critical bug where `_clearPassives` was forward-declared but remained nil because Luau does not automatically hoist local function definitions. Initialized the forward-declaration to `(nil :: any)` to allow it to be called from `SetPlayerAspect` without a nil-ref exception.
+- **AspectService.lua:** Fixed a critical bug where `_clearPassives` was forward-declared but remained nil. Use `local _clearPassives: (player: Player) -> () = nil :: any` to satisfy the type checker and ensure a valid reference is available if called before its actual definition later in the file.
 - **AspectService.lua:** Validated that `AssignAspect` properly calls `_clearPassives` before updating player state to prevent passive stacking.
 
 ### Integration Points
