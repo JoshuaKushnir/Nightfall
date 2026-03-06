@@ -378,9 +378,8 @@ function AspectService.ApplyPassives(player: Player)
             state[passive.Id] = currentDepth
         end
     end
-end
 
-local function _clearPassives(player: Player)
+_clearPassives = function(player: Player)
     local profile = DataService:GetProfile(player)
     if not profile or not profile.AspectData then return end
 
