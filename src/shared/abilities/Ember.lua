@@ -259,7 +259,7 @@ Ember.Moves[1] = {
                             tChar = hitTarget.Character
                         elseif type(hitTarget) == "string" then
                             local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                            tChar = DummyService:GetDummyModel(hitTarget)
+                            tChar = DummyService.GetDummyModel(hitTarget)
                         end
                         if not tChar then return end
 
@@ -368,7 +368,7 @@ Ember.Moves[2] = {
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        tChar = DummyService:GetDummyModel(hitTarget)
+                        tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
 
@@ -708,7 +708,7 @@ Ember.Moves[5] = {
                         if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
                             tChar = hitTarget.Character
                         elseif type(hitTarget) == "string" and DummyService then
-                            tChar = DummyService:GetDummyModel(hitTarget)
+                            tChar = DummyService.GetDummyModel(hitTarget)
                         end
                         if not tChar then return end
 

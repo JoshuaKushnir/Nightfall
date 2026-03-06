@@ -584,7 +584,7 @@ Void.Moves[4] = {
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        tChar = DummyService:GetDummyModel(hitTarget)
+                        tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
 

@@ -232,7 +232,7 @@ Gale.Moves[1] = {
                             tChar = hitTarget.Character
                         elseif type(hitTarget) == "string" then
                             local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                            tChar = DummyService:GetDummyModel(hitTarget)
+                            tChar = DummyService.GetDummyModel(hitTarget)
                         end
                         if not tChar then return end
                         
@@ -367,7 +367,7 @@ Gale.Moves[2] = {
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        tChar = DummyService:GetDummyModel(hitTarget)
+                        tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
                     local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -717,7 +717,7 @@ Gale.Moves[5] = {
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        tChar = DummyService:GetDummyModel(hitTarget)
+                        tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
 

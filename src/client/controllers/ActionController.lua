@@ -584,60 +584,44 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
-	-- Special handling for dodge: aggressive collision detection and stopping
+	-- Special handling for dodge: non-collidable movement to avoid fling
 	if config.Type == "Dodge" then
-		action.OnFrame = function(self: Action, deltaTime: number)
-			local rootPart = Character and Character:FindFirstChild("HumanoidRootPart") :: BasePart?
-			if not rootPart then return end
+		local rootPart = Utils.GetRootPart(Player)
+		if rootPart then
+			-- Save original CanCollide state
+			local originalCanCollide = rootPart.CanCollide
+			local dogeStartTime = tick()
+			local dodgeDuration = config.Duration
 			
-			-- Multi-point collision check: raycast forward aggressively
+			-- Disable collision to prevent physics from flinging the character
+			rootPart.CanCollide = false
+			print("[ActionController] Dodge: Collision disabled for non-collidable movement")
+			
+			-- Store movement parameters for the OnFrame update
 			local velocity = rootPart.AssemblyLinearVelocity
-			if velocity.Magnitude < 0.1 then return end
 			
-			-- Cast multiple raycasts at different distances for redundancy
-			local checkDistances = {0.03, 0.06, 0.10}
-			local params = RaycastParams.new()
-			params.FilterType = Enum.RaycastFilterType.Exclude
-			params.FilterDescendantsInstances = {Character}
-			
-			for _, checkDist in ipairs(checkDistances) do
-				local direction = velocity.Unit * checkDist
-				local result = workspace:Raycast(rootPart.Position, direction, params)
+			action.OnFrame = function(self: Action, deltaTime: number)
+				if not rootPart or not rootPart.Parent then return end
 				
-				if result and result.Instance then
-					-- Ignore other characters
-					local targetModel = result.Instance:FindFirstAncestorOfClass("Model")
-					if targetModel and targetModel:FindFirstChildOfClass("Humanoid") then
-						continue
-					end
-					
-					-- Hit detected - aggressive stop
-					print("[ActionController] Dodge collision detected at distance " .. tostring(checkDist) .. ", stopping immediately")
-					
-					-- Stop animation
-					self:Stop()
-					
-					-- Immediately zero all velocity
-					rootPart.AssemblyLinearVelocity = Vector3.zero
-					
-					-- Destroy all active impulse BodyVelocities
-					for _, child in ipairs(rootPart:GetChildren()) do
-						if child:IsA("BodyVelocity") then
-							child.Velocity = Vector3.zero
-							child:Destroy()
-						end
-					end
-					
-					-- Move character back away from collision point
-					local pushBackDist = 3 -- push back 3 studs to get clear
-					local pushBackDir = -velocity.Unit
-					local newPos = rootPart.Position + (pushBackDir * pushBackDist)
-					rootPart.CFrame = CFrame.new(newPos) * (rootPart.CFrame - rootPart.Position)
-					
-					-- Re-zero velocity after repositioning
-					rootPart.AssemblyLinearVelocity = Vector3.zero
-					return
+				-- Continue moving in the dodge direction via CFrame (collision-free)
+				-- Damp slightly over time (so dodge doesn't feel infinite)
+				local elapsed = tick() - dogeStartTime
+				local progress = math.min(1, elapsed / dodgeDuration)
+				local dampFactor = 1 - (progress * 0.3) -- fade to 70% by end
+				
+				-- Apply incremental movement
+				local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
+				rootPart.CFrame = rootPart.CFrame + moveDir
+			end
+			
+			-- Hook into cleanup to restore collision
+			local originalCleanup = action.Cleanup
+			action.Cleanup = function(self: Action)
+				if rootPart then
+					rootPart.CanCollide = originalCanCollide
+					print("[ActionController] Dodge: Collision restored")
 				end
+				originalCleanup(self)
 			end
 		end
 	end
