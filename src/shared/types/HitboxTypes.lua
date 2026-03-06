@@ -21,12 +21,14 @@ export type HitboxConfig = {
 	CFrame: CFrame?, -- For rotated boxes
 	Size: Vector3?, -- For Box: width, height, depth; For Sphere: radius in X axis
 	
-	-- Raycast properties
+	-- Raycast & Cone/Cylinder properties
 	Origin: Vector3?,
 	Direction: Vector3?,
 	Length: number?,
 	Angle: number?, -- For Cones
-	Radius: number?, -- For Circles/Cylinders (can also use Size.X)
+	Radius: number?, -- For Circles/Cylinders/Cones (can also use Size.X)
+	Width: number?, -- Explicit width for elliptical cones
+	Height: number?, -- Explicit height for elliptical cones
 	
 	-- Behavior
 	Blacklist: {Player}?, -- Players to not hit (teammates, self)

@@ -163,9 +163,19 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				local toTarget = targetPosition - self.Config.Origin
 				local fwdDist = toTarget:Dot(self.Config.Direction.Unit)
 				if fwdDist < 0 or fwdDist > self.Config.Length then return false end
-				local radiusAtDist = (fwdDist / self.Config.Length) * (math.tan(math.rad(self.Config.Angle or 45)) * self.Config.Length)
-				local proj = toTarget - self.Config.Direction.Unit * fwdDist
-				return proj.Magnitude <= radiusAtDist
+				
+				local baseWidth = self.Config.Width or (self.Config.Radius and self.Config.Radius * 2) or (math.tan(math.rad(self.Config.Angle or 45)) * self.Config.Length * 2)
+				local baseHeight = self.Config.Height or (self.Config.Radius and self.Config.Radius * 2) or baseWidth
+				
+				local cf = CFrame.lookAt(self.Config.Origin, self.Config.Origin + self.Config.Direction.Unit)
+				local projLocal = cf:VectorToObjectSpace(toTarget - self.Config.Direction.Unit * fwdDist)
+				local maxW = (fwdDist / self.Config.Length) * (baseWidth / 2)
+				local maxH = (fwdDist / self.Config.Length) * (baseHeight / 2)
+				
+				if maxW > 0 and maxH > 0 then
+					return (projLocal.X^2 / maxW^2) + (projLocal.Y^2 / maxH^2) <= 1
+				end
+				return false
 			elseif shape == "Raycast" then
 				if not self.Config.Origin or not self.Config.Direction or not self.Config.Length then return false end
 				local _, distance = Utils.ClosestPointOnRay(self.Config.Origin, self.Config.Direction, self.Config.Length, targetPosition)
@@ -268,13 +278,13 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 	elseif shape == "Cone" then
 		if not config.Origin or not config.Direction or not config.Length then return 0 end
 		local length = config.Length
-		local angle = math.rad(config.Angle or 45)
-		local reach = math.tan(angle) * length
+		local baseWidth = config.Width or (config.Radius and config.Radius * 2) or (math.tan(math.rad(config.Angle or 45)) * length * 2)
+		local baseHeight = config.Height or (config.Radius and config.Radius * 2) or baseWidth
 		local fwd = config.Direction.Unit
 		
 		local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
 		local centerCf = cf * CFrame.new(0, 0, -length/2)
-		local boxSize = Vector3.new(reach * 2, reach * 2, length)
+		local boxSize = Vector3.new(baseWidth, baseHeight, length)
 		local potentialResults = workspace:GetPartBoundsInBox(centerCf, boxSize, params)
 		
 		for _, part in ipairs(potentialResults) do
@@ -282,9 +292,20 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 			local fwdDist = toPart:Dot(fwd)
 			if fwdDist > 0 and fwdDist <= length then
 				local proj = toPart - fwd * fwdDist
-				local maxRadius = (fwdDist / length) * reach
-				if proj.Magnitude <= maxRadius + (part.Size.Magnitude / 2) then
-					table.insert(results, part)
+				local projLocal = cf:VectorToObjectSpace(proj)
+				
+				local maxW = (fwdDist / length) * (baseWidth / 2)
+				local maxH = (fwdDist / length) * (baseHeight / 2)
+				
+				-- Ellipsoid logic
+				local rX = maxW + (part.Size.Magnitude / 2)
+				local rY = maxH + (part.Size.Magnitude / 2)
+				
+				if rX > 0 and rY > 0 then
+					local val = (projLocal.X^2 / rX^2) + (projLocal.Y^2 / rY^2)
+					if val <= 1 then
+						table.insert(results, part)
+					end
 				end
 			end
 		end
@@ -457,10 +478,10 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		
 		-- Just making it a Wedge part to roughly show the area or we can just use a generic part
 		local length = config.Length or 10
-		local angle = math.rad(config.Angle or 45)
-		local reach = math.tan(angle) * length
+		local baseWidth = config.Width or (config.Radius and config.Radius * 2) or (math.tan(math.rad(config.Angle or 45)) * length * 2)
+		local baseHeight = config.Height or (config.Radius and config.Radius * 2) or baseWidth
 		
-		part.Size = Vector3.new(reach * 2, reach * 2, length)
+		part.Size = Vector3.new(baseWidth, baseHeight, length)
 		part.CanCollide = false
 		part.Anchored = true
 		part.CanQuery = false
@@ -587,17 +608,15 @@ DebugSettings.OnChanged("ShowHitboxes", function(_, enabled)
 	HitboxService._UpdateVisualVisibility()
 end)
 
--- Auto-test all active hitboxes every frame (client-side hit detection)
-if RunService:IsClient() then
-	RunService.Heartbeat:Connect(function()
-		-- Iterate a snapshot so Expire() mutations don't break the loop
-		local snapshot = table.clone(ActiveHitboxes)
-		for _, hitbox in snapshot do
-			if hitbox.Active then
-				HitboxService.TestHitbox(hitbox)
-			end
+-- Auto-test all active hitboxes every frame
+RunService.Heartbeat:Connect(function()
+	-- Iterate a snapshot so Expire() mutations don't break the loop
+	local snapshot = table.clone(ActiveHitboxes)
+	for _, hitbox in snapshot do
+		if hitbox.Active then
+			HitboxService.TestHitbox(hitbox)
 		end
-	end)
-end
+	end
+end)
 
 return HitboxService

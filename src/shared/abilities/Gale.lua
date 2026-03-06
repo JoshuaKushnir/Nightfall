@@ -704,10 +704,10 @@ Gale.Moves[5] = {
             HitboxService.CreateHitbox({
                 Shape = "Cone",
                 Owner = player,
-                Position = origin,
+                Origin = origin,
                 Direction = forward,
-                Radius = SHEAR_RANGE,   -- This parameter acts as length/radius for the sector
-                Angle = SHEAR_ARC_DEGREES,
+                Length = SHEAR_RANGE,
+                Angle = 85, -- Wide arc
                 Damage = 0,
                 LifeTime = 0.5,
                 CanHitTwice = false,

@@ -470,10 +470,13 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
     end
 
     StateService:SetState(player, "Casting")
+    if ability.OnActivate then
+        task.spawn(ability.OnActivate, player, targetPosition)
+    end
     ability.VFX_Function(player, targetPosition)
 
     -- ── Issue 1 / 2: server-side hitbox → CombatService damage pipeline ──────
-    if ability.BaseDamage and ability.BaseDamage > 0 then
+    if not ability.OnActivate and ability.BaseDamage and ability.BaseDamage > 0 then
         if targetPosition then
             local hitRadius = ability.Range or ABILITY_HIT_RADIUS
             local isAoE = ability.IsAoE == true
