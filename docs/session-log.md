@@ -3,6 +3,21 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-051: Aspect Transition Fix & Debug Command Stability
+**Date:** 2026-03-06
+**Issues:** #153
+
+### What Was Built
+- **AspectService.lua:** Fixed a critical bug where `_clearPassives` was forward-declared but remained nil because Luau does not automatically hoist local function definitions. Initialized the forward-declaration to `(nil :: any)` to allow it to be called from `SetPlayerAspect` without a nil-ref exception.
+- **AspectService.lua:** Validated that `AssignAspect` properly calls `_clearPassives` before updating player state to prevent passive stacking.
+
+### Integration Points
+- Restores functionality for the "G" key aspect switching.
+- Ensures that when a player switches from Ash to Tide, Ash's passives (like Fire Trails) are correctly removed.
+
+### Next Session Should Start On
+- Aspect stub -> real ability implementations (Depth 1 per Aspect)
+
 ## Session NF-050: Hitbox Overhaul & Ability Logic Wire-up
 **Date:** 2026-03-05
 **Issues:** #153
