@@ -396,7 +396,12 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
     -- consume mana
     profile.Mana.Current -= ability.ManaCost
     -- put on cooldown
-    profile.ActiveCooldowns[abilityId] = tick() + ability.Cooldown
+    local cdExpiry = tick() + (ability.Cooldown or 5)
+    profile.ActiveCooldowns[abilityId] = cdExpiry
+    local char = player.Character
+    if char then
+        char:SetAttribute("CD_" .. abilityId, cdExpiry)
+    end
     -- set player state
     StateService:SetState(player, "Casting")
     -- stub VFX

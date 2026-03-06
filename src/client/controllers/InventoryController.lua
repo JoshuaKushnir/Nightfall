@@ -809,6 +809,59 @@ function InventoryController:RefreshUI()
             stripe.BorderSizePixel = 0
             stripe.Parent = bg
 
+            -- Cooldown Overlay — scales top to bottom based on remaining time
+            if _isAbility(item) then
+                local cdOverlay = Instance.new("Frame")
+                cdOverlay.Name               = "CooldownOverlay"
+                cdOverlay.Size               = UDim2.fromScale(1, 1) -- default full
+                cdOverlay.Position           = UDim2.fromScale(0, 0)
+                cdOverlay.BackgroundColor3   = Color3.new(0,0,0)
+                cdOverlay.BackgroundTransparency = 0.6
+                cdOverlay.BorderSizePixel    = 0
+                cdOverlay.ZIndex             = bg.ZIndex + 2
+                cdOverlay.Visible            = false
+                cdOverlay.Parent             = bg
+
+                local cdLabel = Instance.new("TextLabel")
+                cdLabel.Name               = "CooldownLabel"
+                cdLabel.Size               = UDim2.fromScale(1, 1)
+                cdLabel.BackgroundTransparency = 1
+                cdLabel.TextColor3         = Color3.new(1, 1, 1)
+                cdLabel.TextSize           = 14
+                cdLabel.Font               = Enum.Font.Antique
+                cdLabel.ZIndex             = cdOverlay.ZIndex + 1
+                cdLabel.Visible            = false
+                cdLabel.Parent             = bg
+
+                task.spawn(function()
+                    while bg.Parent do
+                        local char = localPlayer.Character
+                        if not char then task.wait(0.5); continue end
+                        local abilityId = item.AbilityId or item.Id
+                        local cdTag = char:GetAttribute("CD_" .. abilityId) :: number?
+                        
+                        if cdTag and cdTag > tick() then
+                            local remaining = cdTag - tick()
+                            -- Logic: server sets CD to total time. We need the "started at" to do a proper percentage.
+                            -- For now, we'll assume a standard 5s if we don't know, or just show the text.
+                            -- Better: The server provides "Cooldown" in the item data.
+                            local totalCd = item.Cooldown or 5
+                            local progress = math.clamp(remaining / totalCd, 0, 1)
+                            
+                            cdOverlay.Visible = true
+                            cdOverlay.Size    = UDim2.fromScale(1, progress)
+                            
+                            cdLabel.Visible = true
+                            cdLabel.Text    = string.format("%.1f", remaining)
+                        else
+                            cdOverlay.Visible = false
+                            cdLabel.Visible   = false
+                        end
+                        task.wait(0.05)
+                    end
+                end)
+            end
+
             -- "HELD" indicator — small dot bottom-left when weapon is drawn
             if isHeld then
                 local dot = Instance.new("Frame")

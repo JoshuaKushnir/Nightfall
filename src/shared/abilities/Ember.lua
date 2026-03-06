@@ -240,19 +240,32 @@ Ember.Moves[1] = {
             root.CFrame = CFrame.new(destination, destination + forward)
             _VFX_Ignite_Dash(origin, destination)
 
-            -- Detect targets at landing
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - destination).Magnitude > IGNITE_HIT_RADIUS then continue end
-                -- TALENT HOOK STUB: IgnitionChain — if both airborne, skip knockback
-                -- TALENT HOOK STUB: HeatTransfer  — if Burning, reapply + reset duration
-                _applyHeatStack(target, tChar, stacksToApply, player.Name)
-                _VFX_Ignite_Impact(destination, stacksToApply)
-            end
+            -- Use HitboxService for landing detection
+            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            pcall(function()
+                local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+                
+                HitboxService.CreateHitbox({
+                    Shape = "Sphere",
+                    Owner = player,
+                    Position = destination,
+                    Size = Vector3.new(IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS),
+                    Damage = 0,
+                    LifeTime = 0.5,
+                    CanHitTwice = false,
+                    OnHit = function(hitTarget: any)
+                        local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
+                        if not tPlayer then return end
+                        
+                        local tChar = tPlayer.Character
+                        if not tChar then return end
+
+                        PostureService.DrainPosture(tPlayer, IGNITE_POSTURE_PER_HEAT * stacksToApply, "Aspect")
+                        _applyHeatStack(tPlayer, tChar, stacksToApply, player.Name)
+                        _VFX_Ignite_Impact(destination, stacksToApply)
+                    end
+                })
+            end)
         end)
     end,
 

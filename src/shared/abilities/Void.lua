@@ -542,45 +542,50 @@ Void.Moves[4] = {
 
         -- TALENT HOOK STUB: PhaseChain — if Blink within last 2s, skip cast time (instant)
 
-        _VFX_VoidPulse_Spawn(origin, dest)
+        -- Use HitboxService for physical collision detection
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        pcall(function()
+            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+            
+            HitboxService.CreateHitbox({
+                Shape = "Sphere",
+                Owner = player,
+                Position = dest,
+                Size = Vector3.new(VOIDPULSE_RADIUS, VOIDPULSE_RADIUS, VOIDPULSE_RADIUS),
+                Damage = 0,
+                LifeTime = travelTime + 0.1,
+                CanHitTwice = false,
+                OnHit = function(hitTarget: any)
+                    local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
+                    if not tPlayer then return end
+                    
+                    local tChar = tPlayer.Character
+                    if not tChar then return end
 
-        -- Simulate slow projectile travel
-        local travelTime = VOIDPULSE_RANGE / VOIDPULSE_SPEED
+                    -- Check Silenced: double posture
+                    local silenced    = tChar:GetAttribute("StatusSilenced") == true
+                    local postureDmg  = silenced and (VOIDPULSE_POSTURE_DMG * 2) or VOIDPULSE_POSTURE_DMG
+
+                    PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                    _VFX_VoidPulse_Hit(dest)
+
+                    -- Posture regen interrupt
+                    tChar:SetAttribute("PostureRegenBlocked", true)
+                    tChar:SetAttribute("PostureRegenBlockExpiry", tick() + VOIDPULSE_REGEN_INTERRUPT)
+                    task.delay(VOIDPULSE_REGEN_INTERRUPT, function()
+                        if tChar and tChar.Parent then
+                            tChar:SetAttribute("PostureRegenBlocked", nil)
+                            tChar:SetAttribute("PostureRegenBlockExpiry", nil)
+                        end
+                    end)
+                end
+            })
+        end)
+        
+        -- VFX STUB — projectiles still simulate travel
         task.delay(travelTime, function()
             if not char or not char.Parent then return end
-
             _VFX_VoidPulse_Hit(dest)
-
-            -- Hit detection at destination
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - dest).Magnitude > VOIDPULSE_RADIUS then continue end
-
-                -- Check Silenced: double posture
-                local silenced    = tChar:GetAttribute("StatusSilenced") == true
-                local postureDmg  = silenced and (VOIDPULSE_POSTURE_DMG * 2) or VOIDPULSE_POSTURE_DMG
-
-                tChar:SetAttribute("IncomingPostureDamage",
-                    (tChar:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
-                tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_VoidPulse")
-
-                -- Posture regen interrupt
-                tChar:SetAttribute("PostureRegenBlocked", true)
-                tChar:SetAttribute("PostureRegenBlockExpiry", tick() + VOIDPULSE_REGEN_INTERRUPT)
-                task.delay(VOIDPULSE_REGEN_INTERRUPT, function()
-                    if tChar and tChar.Parent then
-                        tChar:SetAttribute("PostureRegenBlocked", nil)
-                        tChar:SetAttribute("PostureRegenBlockExpiry", nil)
-                    end
-                end)
-
-                -- TALENT HOOK STUB: GravityWell    — if airborne at impact, Grounded on land
-                -- TALENT HOOK STUB: ResonanceDrain — decrement ResonanceStreakTimer -5s
-            end
         end)
     end,
 

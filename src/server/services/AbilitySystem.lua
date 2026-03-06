@@ -72,7 +72,14 @@ end
 local function _StartActiveCooldown(player: Player, abilityId: string, cooldown: number)
 	local uid = player.UserId
 	if not _activeCooldowns[uid] then _activeCooldowns[uid] = {} end
-	_activeCooldowns[uid][abilityId] = tick() + cooldown
+	local endTime = tick() + cooldown
+	_activeCooldowns[uid][abilityId] = endTime
+	
+	-- Sync to character attribute for client UI reflection
+	local char = player.Character
+	if char then
+		char:SetAttribute("CD_" .. abilityId, endTime)
+	end
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
