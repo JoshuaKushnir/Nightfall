@@ -35,6 +35,7 @@ local BURNING_DURATION       : number = 4    -- seconds of Burning at max stacks
 local IGNITE_DASH_DIST      : number = 8
 local IGNITE_POSTURE_PER_HEAT: number = 15
 local IGNITE_HIT_RADIUS     : number = 5
+local IGNITE_HP_DMG         : number = 5   -- HP per stack on contact (placeholder)
 
 -- VFX STUB — animator: ember-trail dash + ground-ring burst at landing
 local function _VFX_Ignite_Dash(_origin: Vector3, _dest: Vector3) end
@@ -42,47 +43,79 @@ local function _VFX_Ignite_Impact(_pos: Vector3, _stacks: number) end
 -- VFX STUB — animator: persistent flame shimmer on character while Burning
 local function _VFX_BurningStatus(_char: Model) end
 
-local function _applyHeatStack(target: any, char: Model, stacks: number, casterName: string)
+local function _applyHeatStack(target: any, char: Model, stacks: number, casterPos: Vector3)
     local currentStacks = (char:GetAttribute("HeatStacks") :: number?) or 0
     local newStacks = math.min(HEAT_STACK_MAX, currentStacks + stacks)
     char:SetAttribute("HeatStacks", newStacks)
 
-    -- Posture damage per stack applied
-    local postureDmg = IGNITE_POSTURE_PER_HEAT * stacks
-    char:SetAttribute("IncomingPostureDamage",
-        (char:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
-    char:SetAttribute("IncomingPostureDamageSource", casterName .. "_Ignite")
+    -- Posture drain via PostureService (direct server call, safe from OnActivate)
+    local ok1, PostureService = pcall(function()
+        return require(game:GetService("ServerScriptService").Server.services.PostureService)
+    end)
+    if ok1 and PostureService then
+        PostureService.DrainPosture(
+            typeof(target) == "Instance" and target:IsA("Player") and target or nil,
+            IGNITE_POSTURE_PER_HEAT * stacks,
+            "Aspect"
+        )
+    end
 
-    -- Refresh stack decay timer
-    char:SetAttribute("HeatStackExpiry", tick() + HEAT_STACK_DECAY_TIME)
+    -- Real HP damage via DummyService (dummies) or CombatService.ApplyBreakDamage (players)
+    local ok2, CombatService = pcall(function()
+        return require(game:GetService("ServerScriptService").Server.services.CombatService)
+    end)
 
-    -- Trigger Burning at max stacks
+    if typeof(target) == "Instance" and target:IsA("Player") then
+        -- Player target — apply HP damage directly through CombatService
+        if ok2 and CombatService then
+            CombatService.ApplyBreakDamage(target, IGNITE_HP_DMG * stacks)
+        end
+    elseif type(target) == "string" then
+        -- Dummy target
+        local ok3, DummyService = pcall(function()
+            return require(game:GetService("ServerScriptService").Server.services.DummyService)
+        end)
+        if ok3 and DummyService then
+            DummyService.ApplyDamage(target, IGNITE_HP_DMG * stacks, casterPos)
+        end
+    end
+
+    -- Apply / refresh Burning at max stacks
     if newStacks >= HEAT_STACK_MAX then
         char:SetAttribute("StatusBurning", true)
         char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
-        char:SetAttribute("BurningHPPerSecond", BURNING_HP_PER_SEC)
         _VFX_BurningStatus(char)
-        task.delay(BURNING_DURATION, function()
-            if char and char.Parent then
-                local expiry = (char:GetAttribute("BurningExpiry") :: number?) or 0
-                if tick() >= expiry then
-                    char:SetAttribute("StatusBurning", nil)
-                    char:SetAttribute("BurningExpiry", nil)
-                    char:SetAttribute("BurningHPPerSecond", nil)
+
+        -- Burning HP tick loop (server-side, self-contained)
+        task.spawn(function()
+            local startExpiry = char:GetAttribute("BurningExpiry") :: number?
+            while char and char.Parent do
+                task.wait(1)
+                local expiry = char:GetAttribute("BurningExpiry") :: number?
+                if not expiry or tick() >= expiry then break end
+                -- HP drain per second
+                if typeof(target) == "Instance" and target:IsA("Player") then
+                    if ok2 and CombatService then
+                        CombatService.ApplyBreakDamage(target, BURNING_HP_PER_SEC)
+                    end
+                elseif type(target) == "string" then
+                    local ok3, DS = pcall(function()
+                        return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                    end)
+                    if ok3 and DS then DS.ApplyDamage(target, BURNING_HP_PER_SEC, nil) end
                 end
+            end
+            if char and char.Parent then
+                char:SetAttribute("StatusBurning", nil)
+                char:SetAttribute("BurningExpiry", nil)
             end
         end)
     end
 
-    -- Decay stacks after HEAT_STACK_DECAY_TIME if not refreshed
-    task.delay(HEAT_STACK_DECAY_TIME, function()
-        if not char or not char.Parent then return end
-        local expiry = (char:GetAttribute("HeatStackExpiry") :: number?) or 0
-        if tick() >= expiry then
-            char:SetAttribute("HeatStacks", 0)
-            char:SetAttribute("HeatStackExpiry", nil)
-        end
-    end)
+    print(("[Ignite] %s ← %d Heat stack(s) → %d total (+%d HP, Burning: %s)"):format(
+        tostring(target), stacks, newStacks,
+        IGNITE_HP_DMG * stacks,
+        tostring(newStacks >= HEAT_STACK_MAX)))
 end
 
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -264,7 +297,9 @@ Ember.Moves[1] = {
                         if not tChar then return end
 
                         PostureService.DrainPosture(hitTarget, IGNITE_POSTURE_PER_HEAT * stacksToApply, "Aspect")
-                        _applyHeatStack(hitTarget, tChar, stacksToApply, player.Name)
+                        -- In the HitboxService OnHit callback:
+                        _applyHeatStack(hitTarget, tChar, stacksToApply, destination)
+                        -- (was: _applyHeatStack(hitTarget, tChar, stacksToApply, player.Name))
                         _VFX_Ignite_Impact(destination, stacksToApply)
                     end
                 })

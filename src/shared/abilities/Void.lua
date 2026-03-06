@@ -29,6 +29,9 @@ local BLINK_RANGE           : number = 10
 local BLINK_REGEN_INTERRUPT : number = 1     -- seconds of Posture regen block
 local BLINK_BOOST_DURATION  : number = 1.5
 local BLINK_POSTURE_BONUS   : number = 0.30
+local BLINK_POSTURE_HIT     : number = 15   -- posture gained by target on Blink arrival (placeholder)
+local BLINK_HP_HIT          : number = 10   -- HP damage to dummies on Blink arrival (placeholder)
+
 
 -- VFX STUB — animator: void/dark flash at origin, reappear with void ripple at dest
 local function _VFX_Blink_Vanish(_origin: Vector3) end
@@ -226,6 +229,30 @@ Void.Moves[1] = {
         if bestChar then
             local interruptDur = BLINK_REGEN_INTERRUPT
             -- TALENT HOOK STUB: Nullpoint — if bestDist < 3, interruptDur = 2.5
+
+            -- #154: apply real posture gain to the target (fills their pressure gauge)
+            local targetPlayer = Players:GetPlayerFromCharacter(bestChar)
+            if targetPlayer then
+                local ok, PostureService = pcall(function()
+                    return require(game:GetService("ServerScriptService").Server.services.PostureService)
+                end)
+                if ok and PostureService then
+                    -- Blink arrival = pressure on the target (posture gain for them = danger)
+                    PostureService.GainPosture(targetPlayer, BLINK_POSTURE_HIT)
+                end
+            else
+                -- Dummy target — no posture system, apply small HP hit instead
+                local dummyId = bestChar.Name:match("^Dummy_(.+)$")
+                if dummyId then
+                    local ok, DummyService = pcall(function()
+                        return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                    end)
+                    if ok and DummyService then
+                        DummyService.ApplyDamage(dummyId, BLINK_HP_HIT, dest)
+                    end
+                end
+            end
+
             bestChar:SetAttribute("PostureRegenBlocked", true)
             bestChar:SetAttribute("PostureRegenBlockExpiry", tick() + interruptDur)
             task.delay(interruptDur, function()
