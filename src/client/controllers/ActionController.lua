@@ -587,40 +587,47 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	-- Special handling for dodge: non-collidable movement to avoid fling
 	if config.Type == "Dodge" then
 		local rootPart = Utils.GetRootPart(Player)
-		if rootPart then
-			-- Save original CanCollide state
-			local originalCanCollide = rootPart.CanCollide
-			local dogeStartTime = tick()
+		if rootPart and Character then
+			local dodgeStartTime = tick()
 			local dodgeDuration = config.Duration
-			
-			-- Disable collision to prevent physics from flinging the character
-			rootPart.CanCollide = false
-			print("[ActionController] Dodge: Collision disabled for non-collidable movement")
-			
-			-- Store movement parameters for the OnFrame update
+
+			-- ── Disable CanCollide on EVERY BasePart in character ──────────
+			-- HumanoidRootPart alone is not enough; arms/legs still collide
+			-- and cause flings when brushing another character's physics body.
+			local savedCollide: { [BasePart]: boolean } = {}
+			for _, part in ipairs(Character:GetDescendants()) do
+				if part:IsA("BasePart") then
+					local bp = part :: BasePart
+					savedCollide[bp] = bp.CanCollide
+					bp.CanCollide = false
+				end
+			end
+			print("[ActionController] Dodge: CanCollide disabled on all character parts")
+
+			-- Store initial velocity for CFrame movement
 			local velocity = rootPart.AssemblyLinearVelocity
-			
+
 			action.OnFrame = function(self: Action, deltaTime: number)
 				if not rootPart or not rootPart.Parent then return end
-				
-				-- Continue moving in the dodge direction via CFrame (collision-free)
-				-- Damp slightly over time (so dodge doesn't feel infinite)
-				local elapsed = tick() - dogeStartTime
+				local elapsed = tick() - dodgeStartTime
 				local progress = math.min(1, elapsed / dodgeDuration)
 				local dampFactor = 1 - (progress * 0.3) -- fade to 70% by end
-				
-				-- Apply incremental movement
-				local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
-				rootPart.CFrame = rootPart.CFrame + moveDir
+
+				if velocity.Magnitude > 0.1 then
+					local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
+					rootPart.CFrame = rootPart.CFrame + moveDir
+				end
 			end
-			
-			-- Hook into cleanup to restore collision
+
+			-- Restore CanCollide for ALL parts on cleanup
 			local originalCleanup = action.Cleanup
 			action.Cleanup = function(self: Action)
-				if rootPart then
-					rootPart.CanCollide = originalCanCollide
-					print("[ActionController] Dodge: Collision restored")
+				for bp, original in pairs(savedCollide) do
+					if bp and bp.Parent then
+						bp.CanCollide = original
+					end
 				end
+				print("[ActionController] Dodge: CanCollide restored on all character parts")
 				originalCleanup(self)
 			end
 		end
@@ -722,16 +729,13 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		local didApply = MovementController and MovementController.ApplyImpulse
 			and MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, DODGE_DUR, "dodge")
 
-		-- Fallback BodyVelocity
+		-- Fallback: store velocity on rootPart so OnFrame CFrame movement picks it up.
+		-- Do NOT use BodyVelocity here — it reintroduces physics collision forces
+		-- that cause flinging even with CanCollide = false on individual parts.
 		if not didApply and rootPart then
-			local bv = Instance.new("BodyVelocity")
-			bv.MaxForce = Vector3.new(30000, 0, 30000)
-			bv.Velocity  = dodgeDir * DODGE_SPEED
-			bv.P = 5000
-			bv.Parent = rootPart
-			task.delay(config.Duration, function()
-				if bv.Parent then bv:Destroy() end
-			end)
+			rootPart.AssemblyLinearVelocity = dodgeDir * DODGE_SPEED
+			-- OnFrame will read this velocity and move via CFrame (collision-free)
+			print("[ActionController] Dodge: Using CFrame fallback movement, velocity set")
 		end
 
 		-- FOV punch
