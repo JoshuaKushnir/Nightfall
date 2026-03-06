@@ -207,7 +207,14 @@ if services.NetworkService and services.DummyService then
 			return
 		end
 
-		if cmd == "spawn_dummy" then
+		if cmd == "toggle_hitboxes" then
+			local newState = args[1] == "true"
+			local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
+			DebugSettings.Set("ShowHitboxes", newState)
+			print(`[AdminCommand] {player.Name} toggled server hitboxes {newState and "ON" or "OFF"}`)
+			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "ok" } })
+			
+		elseif cmd == "spawn_dummy" then
 			-- Determine spawn position
 			local spawnPos: Vector3? = nil
 			if #args >= 3 then

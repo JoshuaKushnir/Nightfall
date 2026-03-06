@@ -581,17 +581,25 @@ end
 ]]
 function HitboxService._UpdateVisualVisibility()
 	if not HitboxService._VisualFolder then
-		return
+		HitboxService._VisualFolder = workspace:FindFirstChild("HitboxVisuals") or ReplicatedStorage:FindFirstChild("HitboxVisuals")
 	end
+	
+	if not HitboxService._VisualFolder then return end
 
 	local showHitboxes = DebugSettings.Get("ShowHitboxes")
 
+	-- If on client, reparenting the folder to ReplicatedStorage or Camera instead of nil 
+	-- prevents constant server replication from bringing pieces back when the folder syncs
 	if showHitboxes then
-		-- Show all visuals
 		HitboxService._VisualFolder.Parent = workspace
 	else
-		-- Hide all visuals by removing folder from workspace
-		HitboxService._VisualFolder.Parent = nil
+		-- Hide all visuals. If client, move to CurrentCamera so it disappears without destroying server sync
+		local RunService = game:GetService("RunService")
+		if RunService:IsClient() then
+			HitboxService._VisualFolder.Parent = workspace.CurrentCamera
+		else
+			HitboxService._VisualFolder.Parent = ReplicatedStorage
+		end
 	end
 end
 

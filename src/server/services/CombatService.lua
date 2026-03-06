@@ -108,10 +108,79 @@ function CombatService:Start()
 	PostureService    = require(script.Parent.PostureService)
 	ProgressionService = require(script.Parent.ProgressionService)
 	
+	local RunService = game:GetService("RunService")
+	RunService.Heartbeat:Connect(function()
+		for _, player in Players:GetPlayers() do
+			if player.Character then
+				CombatService._ProcessDamageAttributes(player.Character, player.Name)
+			end
+		end
+		if DummyService.GetAllDummies then
+			for _, dummyData in DummyService.GetAllDummies() do
+				if dummyData.Model then
+					CombatService._ProcessDamageAttributes(dummyData.Model, dummyData.Id)
+				end
+			end
+		end
+	end)
+
 	-- This service is event-driven. Events are received via NetworkProvider
 	-- in the server runtime. This Start is here for consistency with other services.
 	
 	print("[CombatService] Started successfully")
+end
+
+--[[
+	Reads attribute damage placed by abilities ("IncomingHPDamage") and executes correctly
+]]
+function CombatService._ProcessDamageAttributes(character: Model, targetName: string)
+	local hpVal = character:GetAttribute("IncomingHPDamage") :: number?
+	local postVal = character:GetAttribute("IncomingPostureDamage") :: number?
+	
+	if (not hpVal or hpVal <= 0) and (not postVal or postVal <= 0) then return end
+	
+	local hpSource = (character:GetAttribute("IncomingHPDamageSource") or "Unknown") :: string
+	local postSource = (character:GetAttribute("IncomingPostureDamageSource") or "Unknown") :: string
+
+	-- Clear attributes
+	character:SetAttribute("IncomingHPDamage", 0)
+	character:SetAttribute("IncomingPostureDamage", 0)
+
+	local sourceStr = (hpVal and hpVal > 0) and hpSource or postSource
+	local attackerName = string.split(sourceStr, "_")[1] or "Unknown"
+	local attacker = Players:FindFirstChild(attackerName)
+	
+	if hpVal and hpVal > 0 then
+		local hitData = {
+			TargetName = targetName,
+			Damage = hpVal,
+			HitType = "Ability",
+			BypassRateLimit = true,
+			BypassWeaponValidation = true,
+			BypassPosture = true
+		}
+		if attacker then
+			CombatService.ValidateHit(attacker, hitData)
+		else
+			-- Fallback to applying damage directly if attacker left
+			if Players:FindFirstChild(targetName) then
+				local targetPlayer = Players:FindFirstChild(targetName)
+				if targetPlayer then
+					local pd = StateService:GetPlayerData(targetPlayer)
+					if pd then pd.Health = math.max(0, pd.Health - hpVal) end
+				end
+			elseif DummyService.GetDummyData(targetName) then
+				DummyService.ApplyDamage(targetName, hpVal)
+			end
+		end
+	end
+	
+	if postVal and postVal > 0 then
+		local targetPlayer = Players:FindFirstChild(targetName)
+		if targetPlayer and PostureService then
+			PostureService.DrainPosture(targetPlayer, postVal, "Aspect")
+		end
+	end
 end
 
 --[[
@@ -282,8 +351,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			print(`[CombatService] 🛡️  Blocked — draining posture instead of HP`)
 
 			-- Drain posture on the blocker
-			if PostureService then
-				local broke = PostureService.DrainPosture(targetPlayer, nil, "Blocked")
+			if PostureService and not hitData.BypassPosture then
+				local broke = PostureService.DrainPosture(targetPlayer, hitData.PostureDamage, "Blocked")
 				if broke then
 					print(`[CombatService] ⚡ {targetPlayer.Name}'s posture broken by blocked hit!`)
 				end
@@ -320,8 +389,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 -- Before applying HP, handle posture drain and potential Breaks
 		local preStagger = PostureService and PostureService.IsStaggered(targetPlayer)
 		local broke, overflow = false, 0
-		if PostureService then
-			broke, overflow = PostureService.DrainPosture(targetPlayer, nil, "Unguarded")
+		if PostureService and not hitData.BypassPosture then
+			broke, overflow = PostureService.DrainPosture(targetPlayer, hitData.PostureDamage, "Unguarded")
 		end
 		if preStagger or broke then
 			local breakDmg = CombatService.CalculateBreakDamage(attacker, overflow)

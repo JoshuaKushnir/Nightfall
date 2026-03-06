@@ -584,42 +584,59 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
-	-- Special handling for dodge: add collision detection to stop on hit
+	-- Special handling for dodge: aggressive collision detection and stopping
 	if config.Type == "Dodge" then
 		action.OnFrame = function(self: Action, deltaTime: number)
 			local rootPart = Character and Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if not rootPart then return end
 			
-			-- Predictive Raycast: Check if we will hit an obstacle in the next 0.1s
-			-- Velocity is applied via BodyVelocity/AssemblyLinearVelocity, we can use it to determine direction.
+			-- Multi-point collision check: raycast forward aggressively
 			local velocity = rootPart.AssemblyLinearVelocity
 			if velocity.Magnitude < 0.1 then return end
 			
-			local checkDistance = velocity.Magnitude * 0.08 -- check ~80ms ahead (slight buffer)
-			local direction = velocity.Unit * checkDistance
-			
+			-- Cast multiple raycasts at different distances for redundancy
+			local checkDistances = {0.03, 0.06, 0.10}
 			local params = RaycastParams.new()
 			params.FilterType = Enum.RaycastFilterType.Exclude
 			params.FilterDescendantsInstances = {Character}
 			
-			local result = workspace:Raycast(rootPart.Position, direction, params)
-			if result and result.Instance then
-				-- Check if the part is part of another character (ignore hits on players for now to allow clipping/pushing)
-				local targetModel = result.Instance:FindFirstAncestorOfClass("Model")
-				if targetModel and targetModel:FindFirstChildOfClass("Humanoid") then
-					return
-				end
+			for _, checkDist in ipairs(checkDistances) do
+				local direction = velocity.Unit * checkDist
+				local result = workspace:Raycast(rootPart.Position, direction, params)
 				
-				-- Hit an obstacle (wall, static object), stop dodge
-				print("[ActionController] Dodge raycast hit obstacle: " .. result.Instance.Name .. ", stopping")
-				self:Stop()
-				rootPart.AssemblyLinearVelocity = Vector3.zero
-				
-				-- Clear any BodyVelocity impulses
-				for _, child in ipairs(rootPart:GetChildren()) do
-					if child:IsA("BodyVelocity") and child.Name:find("_impulse_") then
-						child:Destroy()
+				if result and result.Instance then
+					-- Ignore other characters
+					local targetModel = result.Instance:FindFirstAncestorOfClass("Model")
+					if targetModel and targetModel:FindFirstChildOfClass("Humanoid") then
+						continue
 					end
+					
+					-- Hit detected - aggressive stop
+					print("[ActionController] Dodge collision detected at distance " .. tostring(checkDist) .. ", stopping immediately")
+					
+					-- Stop animation
+					self:Stop()
+					
+					-- Immediately zero all velocity
+					rootPart.AssemblyLinearVelocity = Vector3.zero
+					
+					-- Destroy all active impulse BodyVelocities
+					for _, child in ipairs(rootPart:GetChildren()) do
+						if child:IsA("BodyVelocity") then
+							child.Velocity = Vector3.zero
+							child:Destroy()
+						end
+					end
+					
+					-- Move character back away from collision point
+					local pushBackDist = 3 -- push back 3 studs to get clear
+					local pushBackDir = -velocity.Unit
+					local newPos = rootPart.Position + (pushBackDir * pushBackDist)
+					rootPart.CFrame = CFrame.new(newPos) * (rootPart.CFrame - rootPart.Position)
+					
+					-- Re-zero velocity after repositioning
+					rootPart.AssemblyLinearVelocity = Vector3.zero
+					return
 				end
 			end
 		end

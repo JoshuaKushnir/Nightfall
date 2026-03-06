@@ -65,7 +65,8 @@ function DebugInput:Init()
 
 		-- L: Toggle hitbox visualization
 		if input.KeyCode == Enum.KeyCode.L then
-			DebugSettings.Toggle("ShowHitboxes")
+			local newState = DebugSettings.Toggle("ShowHitboxes")
+			DebugInput._SendAdminCommand({ Command = "toggle_hitboxes", Args = { tostring(newState) } })
 		end
 
 		-- K: Toggle state labels
