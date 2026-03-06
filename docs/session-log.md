@@ -12,6 +12,10 @@
 - Disables `CanCollide` on every `BasePart` descendant of the character during dodge
 - Movement applied via CFrame directly (not BodyVelocity), eliminating physics collisions
 - CFrame fallback now reads `AssemblyLinearVelocity` each frame to honor the fallback velocity
+- Added overlap corrections:
+  * initial push-back along dodgeDir if starting overlapped
+  * secondary push-back after final dodgeDir calculation
+  * cleanup moves rootPart back to lastSafeCFrame then nudges until no overlap
   - Natural damping: velocity factor decays from 1.0 to 0.7 over dodge duration
   - Restores original `CanCollide` state when dodge ends or animation stops
   - Result: Zero flinging, perfect control, clean collision-free movement
