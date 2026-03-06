@@ -3,24 +3,25 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
-## Session NF-053: Dodge Collision Fix & Robustness Improvement
+## Session NF-053: Dodge Collision Fix & Robustness Improvement (Final)
 **Date:** 2026-03-06
 **Issues:** #155, #156
 
 ### What Was Built
-- **ActionController.lua:** Improved dodge collision detection. Switched from `GetTouchingParts` to predictive raycasting.
-- **ActionController.lua:** Every frame during a dodge, the controller now casts a ray 80ms ahead in the direction of the character's velocity.
-- **ActionController.lua:** If an obstacle is detected, the dodge animation is stopped, and `AssemblyLinearVelocity` is zeroed.
-- **ActionController.lua:** Clears any active `_impulse_` BodyVelocity objects to ensure the stop is immediate and permanent.
-
+- **ActionController.lua (Iteration 3 - Final):** Completely rewired dodge collision handling.
+  - Multi-point raycasting: checks at 3cm, 6cm, and 10cm ahead of velocity direction
+  - On collision: immediately stops animation, destroys all BodyVelocity objects, zeros velocity
+  - **CFrame repositioning**: Moves character 3 studs backward away from collision point to extract from geometry
+  - Prevents the Roblox physics engine from pushing the character out (which was causing the fling)
+  
 ### Integration Points
-- Predictive physics handling on the client to avoid deep collisions and subsequent flinging.
+- Aggressive client-side collision prevention prevents character from ever embedding in geometry
 
 ### Spec Gaps Encountered
 - None.
 
 ### Tech Debt Created
-- Raycast frequency check: Performing one `workspace:Raycast` per frame during a 0.35s dodge. Negligible performance hit for much-improved feel.
+- None.
 
 ### Next Session Should Start On
 Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
