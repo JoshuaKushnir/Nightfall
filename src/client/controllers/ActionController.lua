@@ -589,14 +589,38 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		action.OnFrame = function(self: Action, deltaTime: number)
 			local rootPart = Character and Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 			if not rootPart then return end
-			local touching = rootPart:GetTouchingParts()
-			for _, part in touching do
-				if part:IsDescendantOf(Character) or part:IsA("Terrain") then continue end
-				-- Hit an obstacle, stop dodge
-				print("[ActionController] Dodge hit obstacle, stopping")
+			
+			-- Predictive Raycast: Check if we will hit an obstacle in the next 0.1s
+			-- Velocity is applied via BodyVelocity/AssemblyLinearVelocity, we can use it to determine direction.
+			local velocity = rootPart.AssemblyLinearVelocity
+			if velocity.Magnitude < 0.1 then return end
+			
+			local checkDistance = velocity.Magnitude * 0.08 -- check ~80ms ahead (slight buffer)
+			local direction = velocity.Unit * checkDistance
+			
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = {Character}
+			
+			local result = workspace:Raycast(rootPart.Position, direction, params)
+			if result and result.Instance then
+				-- Check if the part is part of another character (ignore hits on players for now to allow clipping/pushing)
+				local targetModel = result.Instance:FindFirstAncestorOfClass("Model")
+				if targetModel and targetModel:FindFirstChildOfClass("Humanoid") then
+					return
+				end
+				
+				-- Hit an obstacle (wall, static object), stop dodge
+				print("[ActionController] Dodge raycast hit obstacle: " .. result.Instance.Name .. ", stopping")
 				self:Stop()
 				rootPart.AssemblyLinearVelocity = Vector3.zero
-				break
+				
+				-- Clear any BodyVelocity impulses
+				for _, child in ipairs(rootPart:GetChildren()) do
+					if child:IsA("BodyVelocity") and child.Name:find("_impulse_") then
+						child:Destroy()
+					end
+				end
 			end
 		end
 	end
