@@ -604,8 +604,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end
 			print("[ActionController] Dodge: CanCollide disabled on all character parts")
 
-			-- Store initial velocity for CFrame movement
-			local velocity = rootPart.AssemblyLinearVelocity
+			-- No longer cache velocity; read every frame so fallback updates are respected
 
 			action.OnFrame = function(self: Action, deltaTime: number)
 				if not rootPart or not rootPart.Parent then return end
@@ -613,6 +612,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				local progress = math.min(1, elapsed / dodgeDuration)
 				local dampFactor = 1 - (progress * 0.3) -- fade to 70% by end
 
+				local velocity = rootPart.AssemblyLinearVelocity
 				if velocity.Magnitude > 0.1 then
 					local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
 					rootPart.CFrame = rootPart.CFrame + moveDir
