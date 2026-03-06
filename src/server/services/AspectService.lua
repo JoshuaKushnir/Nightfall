@@ -358,6 +358,7 @@ function AspectService.ApplyPassives(player: Player)
     local passives = AspectRegistry.GetPassivesForAspect(profile.AspectData.AspectId)
     local state = _getPassiveState(player)
 
+
     for _, passive in ipairs(passives) do
         local currentDepth = profile.AspectData.Branches[passive.Branch].Depth
         local prevDepth = state[passive.Id] or 0
@@ -378,6 +379,7 @@ function AspectService.ApplyPassives(player: Player)
             state[passive.Id] = currentDepth
         end
     end
+end
 
 _clearPassives = function(player: Player)
     local profile = DataService:GetProfile(player)
