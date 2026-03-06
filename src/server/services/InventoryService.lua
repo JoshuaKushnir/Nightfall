@@ -217,6 +217,7 @@ local function _onPlayerAdded(player)
                 Category    = "Abilities",
                 Rarity      = "Common",
                 AbilityId   = ability.Id,
+                Cooldown    = ability.Cooldown,
             })
             hasItem[itemId] = true
             print(("[InventoryService] Seeded ability item: %s"):format(itemId))
@@ -323,6 +324,7 @@ function InventoryService.GrantAspectMoves(player: Player, aspectId: string, ski
                 Rarity      = "Common",
                 AbilityId   = move.Id,
                 AspectId    = aspectId,
+                Cooldown    = move.Cooldown,
             })
             hasItem[itemId] = true
             added += 1
@@ -368,6 +370,7 @@ function InventoryService.RestoreBaseItems(player: Player, skipSync: boolean?): 
                 Category    = "Abilities",
                 Rarity      = "Common",
                 AbilityId   = ability.Id,
+                Cooldown    = ability.Cooldown,
             })
             hasItem[itemId] = true
             added += 1

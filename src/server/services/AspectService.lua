@@ -37,6 +37,16 @@ local function _requireAbilitySystem()
     return AbilitySystem
 end
 
+-- InventoryService lazy-required to break circular dependency
+-- (InventoryService → AspectService.ExecuteAbility at its top level)
+local _InventoryService: any = nil
+local function _requireInventoryService()
+    if not _InventoryService then
+        _InventoryService = require(script.Parent.InventoryService)
+    end
+    return _InventoryService
+end
+
 -- Forward declarations for lazy dependencies
 
 -- Type aliases
@@ -150,9 +160,8 @@ function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.Aspe
     }
     profile.ResonanceShards = profile.ResonanceShards or 0
 
-    local InventoryService = require(script.Parent.InventoryService)
-    InventoryService.ClearAspectMoves(player, true)
-    InventoryService.GrantAspectMoves(player, aspectId)
+    _requireInventoryService().ClearAspectMoves(player, true)
+    _requireInventoryService().GrantAspectMoves(player, aspectId)
 
     AspectService.ApplyPassives(player)
     NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
@@ -233,7 +242,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
 
     if aspectId == nil then
         profile.ActiveAspectId = nil
-        InventoryService.RestoreBaseItems(player, true)
+        _requireInventoryService().RestoreBaseItems(player, true)
     else
         if not aspects[aspectId] then
             aspects[aspectId] = {
@@ -250,11 +259,11 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
         profile.ActiveAspectId = aspectId
         profile.AspectData = aspects[aspectId] -- keep existing access path for now
 
-        InventoryService.GrantAspectMoves(player, aspectId, true)
+        _requireInventoryService().GrantAspectMoves(player, aspectId, true)
         AspectService.ApplyPassives(player)
     end
 
-    InventoryService.SyncInventory(player)
+    _requireInventoryService().SyncInventory(player)
 
     -- ── Notify client ────────────────────────────────────────────────────
     NetworkProvider:FireClient(player, "AspectAssigned", aspectId) -- existing event reused
