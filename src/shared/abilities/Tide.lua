@@ -214,16 +214,20 @@ Tide.Moves[1] = {
         local direction = root.CFrame.LookVector
         local tipPos    = origin + direction * CURRENT_RANGE
 
+        local midPos    = origin + direction * (CURRENT_RANGE / 2)
+
         -- Use HitboxService for physical collision detection
         local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
         pcall(function()
             local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
             
             HitboxService.CreateHitbox({
-                Shape = "Sphere",
+                Shape = "Cylinder",
                 Owner = player,
-                Position = tipPos,
-                Size = Vector3.new(CURRENT_RADIUS, CURRENT_RADIUS, CURRENT_RADIUS),
+                Position = midPos,
+                CFrame = CFrame.lookAt(midPos, tipPos) * CFrame.Angles(math.pi/2, 0, 0),
+                Radius = CURRENT_RADIUS,
+                Size = Vector3.new(0, CURRENT_RANGE, 0), -- Y is used for height
                 Damage = CURRENT_POSTURE_DMG,
                 LifeTime = 0.5,
                 CanHitTwice = false,
@@ -312,59 +316,73 @@ Tide.Moves[2] = {
         if not root then return end
 
         local myPos = root.Position
-
-        -- Find nearest target within range
-        local bestTarget: Player? = nil
-        local bestDist = UNDERTOW_BASE_RANGE + 1
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            local d = (tRoot.Position - myPos).Magnitude
-            if d < bestDist then bestDist = d; bestTarget = target end
-        end
-
-        if not bestTarget then return end
-        local tChar = bestTarget.Character
-        if not tChar then return end
-        local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-        if not tRoot then return end
-
-        -- Detect if retreating (velocity.dot(towardMe) < 0 means moving away)
-        local towardMe = (myPos - tRoot.Position)
-        local vel = tRoot.AssemblyLinearVelocity
-        local isRetreating = vel.Magnitude > 0.5 and vel.Unit:Dot(towardMe.Unit) < -0.3
-        local pullDist = if isRetreating then UNDERTOW_BASE_RANGE * 2 else UNDERTOW_BASE_RANGE
-        local slowDur  = if isRetreating then UNDERTOW_SLOW_BONUS else UNDERTOW_SLOW_BASE
-
-        -- Pull: set velocity toward caster
-        local pullDir = (myPos - tRoot.Position).Unit
-        tRoot.AssemblyLinearVelocity = pullDir * pullDist * 12  -- scaled
-
-        -- HP damage
-        tChar:SetAttribute("IncomingHPDamage",
-            (tChar:GetAttribute("IncomingHPDamage") or 0) + UNDERTOW_HP_DMG)
-        tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_Undertow")
-
-        -- Arrival Slow
-        task.delay(0.4, function()
-            if not tChar or not tChar.Parent then return end
-            tChar:SetAttribute("StatusSlow", true)
-            tChar:SetAttribute("SlowExpiry", tick() + slowDur)
-            -- TALENT HOOK STUB: FloodSense — if Saturated, double slow duration
-            -- TALENT HOOK STUB: TidalLock — grant caster block-bypass for 2s
-            -- TALENT HOOK STUB: SurfaceTension — if wet zone crossed, Grounded instead
-            task.delay(slowDur, function()
-                if tChar and tChar.Parent then
-                    tChar:SetAttribute("StatusSlow", nil)
-                    tChar:SetAttribute("SlowExpiry", nil)
+        local direction = root.CFrame.LookVector
+        
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        
+        local pulled = false
+        HitboxService.CreateHitbox({
+            Shape = "Raycast",
+            Owner = player,
+            Origin = myPos,
+            Direction = direction,
+            Length = UNDERTOW_BASE_RANGE,
+            Damage = 0,
+            LifeTime = 0.2,
+            CanHitTwice = false,
+            OnHit = function(target: any)
+                if pulled then return end
+                
+                local tChar = nil
+                local tPlayer = nil
+                if typeof(target) == "Instance" and target:IsA("Player") then
+                    tChar = target.Character
+                    tPlayer = target
+                elseif type(target) == "string" then
+                    tChar = workspace:FindFirstChild("Dummy_" .. target)
                 end
-            end)
-        end)
+                
+                if not tChar then return end
+                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+                if not tRoot then return end
+                
+                pulled = true
 
-        _VFX_Undertow(myPos, tRoot.Position)
+                -- Detect if retreating (velocity.dot(towardMe) < 0 means moving away)
+                local towardMe = (myPos - tRoot.Position)
+                local vel = tRoot.AssemblyLinearVelocity
+                local isRetreating = vel.Magnitude > 0.5 and vel.Unit:Dot(towardMe.Unit) < -0.3
+                local pullDist = if isRetreating then UNDERTOW_BASE_RANGE * 2 else UNDERTOW_BASE_RANGE
+                local slowDur  = if isRetreating then UNDERTOW_SLOW_BONUS else UNDERTOW_SLOW_BASE
+
+                -- Pull: set velocity toward caster
+                local pullDir = (myPos - tRoot.Position).Unit
+                tRoot.AssemblyLinearVelocity = pullDir * pullDist * 12  -- scaled
+
+                -- HP damage
+                tChar:SetAttribute("IncomingHPDamage",
+                    (tChar:GetAttribute("IncomingHPDamage") or 0) + UNDERTOW_HP_DMG)
+                tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_Undertow")
+
+                -- Arrival Slow
+                task.delay(0.4, function()
+                    if not tChar or not tChar.Parent then return end
+                    tChar:SetAttribute("StatusSlow", true)
+                    tChar:SetAttribute("SlowExpiry", tick() + slowDur)
+                    -- TALENT HOOK STUB: FloodSense — if Saturated, double slow duration
+                    -- TALENT HOOK STUB: TidalLock — grant caster block-bypass for 2s
+                    -- TALENT HOOK STUB: SurfaceTension — if wet zone crossed, Grounded instead
+                    task.delay(slowDur, function()
+                        if tChar and tChar.Parent then
+                            tChar:SetAttribute("StatusSlow", nil)
+                            tChar:SetAttribute("SlowExpiry", nil)
+                        end
+                    end)
+                end)
+
+                _VFX_Undertow(myPos, tRoot.Position)
+            end
+        })
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
@@ -454,17 +472,33 @@ Tide.Moves[3] = {
 
             -- Pushback nearby targets
             local myPos = root.Position
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - myPos).Magnitude > SWELL_PUSHBACK_RADIUS then continue end
-                local pushDir = (tRoot.Position - myPos).Unit
-                tRoot.AssemblyLinearVelocity = pushDir * SWELL_PUSHBACK_DIST * 15
-                -- TALENT HOOK STUB: TidalSurge — if Momentum ≥2×, extend to 7 studs + Slow
-            end
+            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            HitboxService.CreateHitbox({
+                Shape = "Circle",
+                Radius = SWELL_PUSHBACK_RADIUS,
+                Owner = player,
+                Position = myPos,
+                Damage = 0,
+                LifeTime = 0.2,
+                CanHitTwice = false,
+                OnHit = function(target: any)
+                    local tChar = nil
+                    if typeof(target) == "Instance" and target:IsA("Player") then
+                        tChar = target.Character
+                    elseif type(target) == "string" then
+                        tChar = workspace:FindFirstChild("Dummy_" .. target)
+                    end
+                    if not tChar then return end
+                    local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+                    if not tRoot then return end
+
+                    local hitDir = (tRoot.Position - myPos)
+                    if hitDir.Magnitude < 0.001 then hitDir = Vector3.new(1,0,0) end
+                    local pushDir = hitDir.Unit
+                    tRoot.AssemblyLinearVelocity = pushDir * SWELL_PUSHBACK_DIST * 15
+                    -- TALENT HOOK STUB: TidalSurge — if Momentum ≥2×, extend to 7 studs + Slow
+                end
+            })
             _VFX_Swell_Release(myPos, SWELL_PUSHBACK_RADIUS)
         end
 
@@ -555,16 +589,28 @@ Tide.Moves[4] = {
         _VFX_FloodMark_Create(targetPos, FLOOD_MARK_RADIUS)
 
         -- Apply Saturated to any player already in zone
-        for _, target in Players:GetPlayers() do
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            if (tRoot.Position - targetPos).Magnitude <= FLOOD_MARK_RADIUS then
-                tChar:SetAttribute("StatusSaturated", true)
-                -- TALENT HOOK STUB: PhantomDepth — if airborne, pull 2 studs down + Grounded
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        HitboxService.CreateHitbox({
+            Shape = "Circle",
+            Radius = FLOOD_MARK_RADIUS,
+            Owner = player,
+            Position = targetPos,
+            Damage = 0,
+            LifeTime = 0.2,
+            CanHitTwice = false,
+            OnHit = function(target: any)
+                local tChar = nil
+                if typeof(target) == "Instance" and target:IsA("Player") then
+                    tChar = target.Character
+                elseif type(target) == "string" then
+                    tChar = workspace:FindFirstChild("Dummy_" .. target)
+                end
+                if tChar then
+                    tChar:SetAttribute("StatusSaturated", true)
+                    -- TALENT HOOK STUB: PhantomDepth — if airborne, pull 2 studs down + Grounded
+                end
             end
-        end
+        })
 
         -- TALENT HOOK STUBS: StagnantPool — wire to CombatService hit events
         --                    RisingTide   — wire to PostureService regen calculation

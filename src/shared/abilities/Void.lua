@@ -50,8 +50,8 @@ local SILENCE_POSTURE_DMG   : number = 10
 -- VFX STUB — animator: void pulse wave expands 8 studs, targets get dark orb mouth effect
 local function _VFX_Silence_Pulse(_origin: Vector3) end
 -- VFX STUB — animator: grey-out animation on one random slot in target's hotbar
-local function _VFX_SilenceStatus(_target: Player, _lockedSlot: number) end
-local function _VFX_SilenceExpire(_target: Player) end
+local function _VFX_SilenceStatus(_target: any, _lockedSlot: number) end
+local function _VFX_SilenceExpire(_target: any) end
 
 -- Picks a random ability slot to lock (1-5; server authoritative)
 local function _pickSilenceSlot(): number
@@ -102,8 +102,8 @@ local ISOLATION_CDR_SLOW    : number = 0.50   -- CDR operates at 50% of normal r
 local ISOLATION_BREAK_RANGE : number = 20     -- mark breaks if target flees this far
 
 -- VFX STUB — animator: dark void ring around target, caster has dark sigil on hand
-local function _VFX_IsolationField_Apply(_target: Player) end
-local function _VFX_IsolationField_Expire(_target: Player) end
+local function _VFX_IsolationField_Apply(_target: any) end
+local function _VFX_IsolationField_Expire(_target: any) end
 
 -- ═════════════════════════════════════════════════════════════════════════════
 -- MOVESET MODULE
@@ -201,10 +201,19 @@ Void.Moves[1] = {
         -- Interrupt nearest target's Posture regen
         local bestDist = math.huge
         local bestChar: Model? = nil
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
+
+        local targets = {}
+        for _, t in Players:GetPlayers() do
+            if t ~= player and t.Character then table.insert(targets, t.Character) end
+        end
+        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        if DummyService and DummyService.activeDummies then
+            for _, dummyData in pairs(DummyService.activeDummies) do
+                table.insert(targets, dummyData.model)
+            end
+        end
+
+        for _, tChar in ipairs(targets) do
             local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
             if not tRoot then continue end
             local dist = (tRoot.Position - rawDest).Magnitude
@@ -316,18 +325,27 @@ Void.Moves[2] = {
 
         -- Find nearest target in range
         local bestDist = math.huge
-        local bestTarget: Player? = nil
+        local bestTarget: any = nil
         local bestChar: Model? = nil
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
+
+        local targets = {}
+        for _, t in Players:GetPlayers() do
+            if t ~= player and t.Character then table.insert(targets, t.Character) end
+        end
+        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        if DummyService and DummyService.activeDummies then
+            for _, dummyData in pairs(DummyService.activeDummies) do
+                table.insert(targets, dummyData.model)
+            end
+        end
+
+        for _, tChar in ipairs(targets) do
             local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
             if not tRoot then continue end
             local dist = (tRoot.Position - origin).Magnitude
             if dist <= SILENCE_RANGE and dist < bestDist then
                 bestDist  = dist
-                bestTarget = target
+                bestTarget = Players:GetPlayerFromCharacter(tChar) or tChar.Name:match("^Dummy_(.*)")
                 bestChar   = tChar
             end
         end
@@ -362,7 +380,7 @@ Void.Moves[2] = {
             bestChar:SetAttribute("StatusSilenced", nil)
             bestChar:SetAttribute("SilenceExpiry", nil)
             bestChar:SetAttribute("SilencedSlot", nil)
-            _VFX_SilenceExpire(bestTarget :: Player)
+            _VFX_SilenceExpire(bestTarget)
         end)
     end,
 
@@ -539,6 +557,7 @@ Void.Moves[4] = {
         local origin  = root.Position
         local forward = root.CFrame.LookVector
         local dest    = targetPos or (origin + forward * VOIDPULSE_RANGE)
+        local travelTime = (dest - origin).Magnitude / VOIDPULSE_SPEED
 
         -- TALENT HOOK STUB: PhaseChain — if Blink within last 2s, skip cast time (instant)
 
@@ -548,25 +567,43 @@ Void.Moves[4] = {
             local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
             
             HitboxService.CreateHitbox({
-                Shape = "Sphere",
+                Shape = "Raycast",
                 Owner = player,
-                Position = dest,
-                Size = Vector3.new(VOIDPULSE_RADIUS, VOIDPULSE_RADIUS, VOIDPULSE_RADIUS),
+                Position = origin,
+                Direction = (dest - origin).Unit,
+                Range = (dest - origin).Magnitude,
+                Radius = VOIDPULSE_RADIUS,
                 Damage = 0,
                 LifeTime = travelTime + 0.1,
                 CanHitTwice = false,
                 OnHit = function(hitTarget: any)
-                    local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
-                    if not tPlayer then return end
-                    
-                    local tChar = tPlayer.Character
+                    local tChar
+                    local tPlayer
+                    if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                        tPlayer = hitTarget
+                        tChar = hitTarget.Character
+                    elseif type(hitTarget) == "string" then
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        tChar = DummyService:GetDummyModel(hitTarget)
+                    end
                     if not tChar then return end
 
                     -- Check Silenced: double posture
                     local silenced    = tChar:GetAttribute("StatusSilenced") == true
                     local postureDmg  = silenced and (VOIDPULSE_POSTURE_DMG * 2) or VOIDPULSE_POSTURE_DMG
 
-                    PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                    if tPlayer then
+                        PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                    else
+                        local currPosture = tChar:GetAttribute("Posture")
+                        if currPosture then
+                            tChar:SetAttribute("Posture", math.max(0, currPosture - postureDmg))
+                        else
+                            tChar:SetAttribute("IncomingPostureDamage", (tChar:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
+                            tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_VoidPulse")
+                        end
+                    end
+                    
                     _VFX_VoidPulse_Hit(dest)
 
                     -- Posture regen interrupt
@@ -664,18 +701,27 @@ Void.Moves[5] = {
 
         -- Find nearest valid target within ISOLATION_RANGE
         local bestDist   = math.huge
-        local bestTarget : Player? = nil
+        local bestTarget : any = nil
         local bestChar   : Model? = nil
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
+
+        local targets = {}
+        for _, t in Players:GetPlayers() do
+            if t ~= player and t.Character then table.insert(targets, t.Character) end
+        end
+        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        if DummyService and DummyService.activeDummies then
+            for _, dummyData in pairs(DummyService.activeDummies) do
+                table.insert(targets, dummyData.model)
+            end
+        end
+
+        for _, tChar in ipairs(targets) do
             local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
             if not tRoot then continue end
             local dist = (tRoot.Position - origin).Magnitude
             if dist <= ISOLATION_RANGE and dist < bestDist then
                 bestDist   = dist
-                bestTarget = target
+                bestTarget = Players:GetPlayerFromCharacter(tChar) or tChar.Name:match("^Dummy_(.*)")
                 bestChar   = tChar
             end
         end

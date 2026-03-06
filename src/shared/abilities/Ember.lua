@@ -42,7 +42,7 @@ local function _VFX_Ignite_Impact(_pos: Vector3, _stacks: number) end
 -- VFX STUB — animator: persistent flame shimmer on character while Burning
 local function _VFX_BurningStatus(_char: Model) end
 
-local function _applyHeatStack(target: Player, char: Model, stacks: number, casterName: string)
+local function _applyHeatStack(target: any, char: Model, stacks: number, casterName: string)
     local currentStacks = (char:GetAttribute("HeatStacks") :: number?) or 0
     local newStacks = math.min(HEAT_STACK_MAX, currentStacks + stacks)
     char:SetAttribute("HeatStacks", newStacks)
@@ -254,14 +254,17 @@ Ember.Moves[1] = {
                     LifeTime = 0.5,
                     CanHitTwice = false,
                     OnHit = function(hitTarget: any)
-                        local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
-                        if not tPlayer then return end
-                        
-                        local tChar = tPlayer.Character
+                        local tChar
+                        if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                            tChar = hitTarget.Character
+                        elseif type(hitTarget) == "string" then
+                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            tChar = DummyService:GetDummyModel(hitTarget)
+                        end
                         if not tChar then return end
 
-                        PostureService.DrainPosture(tPlayer, IGNITE_POSTURE_PER_HEAT * stacksToApply, "Aspect")
-                        _applyHeatStack(tPlayer, tChar, stacksToApply, player.Name)
+                        PostureService.DrainPosture(hitTarget, IGNITE_POSTURE_PER_HEAT * stacksToApply, "Aspect")
+                        _applyHeatStack(hitTarget, tChar, stacksToApply, player.Name)
                         _VFX_Ignite_Impact(destination, stacksToApply)
                     end
                 })
@@ -349,31 +352,45 @@ Ember.Moves[2] = {
         -- TALENT HOOK STUB: Flashpoint — at 3× Momentum, radius = 8, overheatDur = 3.5
 
         -- AoE hit detection
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            if (tRoot.Position - origin).Magnitude > radius then continue end
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        pcall(function()
+            HitboxService.CreateHitbox({
+                Shape = "Sphere",
+                Owner = player,
+                Position = origin,
+                Size = Vector3.new(radius, radius, radius),
+                Damage = 0,
+                LifeTime = 0.5,
+                CanHitTwice = false,
+                OnHit = function(hitTarget: any)
+                    local tChar
+                    if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                        tChar = hitTarget.Character
+                    elseif type(hitTarget) == "string" then
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        tChar = DummyService:GetDummyModel(hitTarget)
+                    end
+                    if not tChar then return end
 
-            -- Posture damage
-            tChar:SetAttribute("IncomingPostureDamage",
-                (tChar:GetAttribute("IncomingPostureDamage") or 0) + FLASHFIRE_POSTURE_DMG)
-            tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Flashfire")
+                    -- Posture damage
+                    tChar:SetAttribute("IncomingPostureDamage",
+                        (tChar:GetAttribute("IncomingPostureDamage") or 0) + FLASHFIRE_POSTURE_DMG)
+                    tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Flashfire")
 
-            -- Consume Heat stacks → HP damage
-            local stacks = (tChar:GetAttribute("HeatStacks") :: number?) or 0
-            if stacks > 0 then
-                local hpDmg = stacks * FLASHFIRE_HP_PER_STACK
-                tChar:SetAttribute("IncomingHPDamage",
-                    (tChar:GetAttribute("IncomingHPDamage") or 0) + hpDmg)
-                tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_FlashfireStacks")
-                tChar:SetAttribute("HeatStacks", 0)
-                tChar:SetAttribute("HeatStackExpiry", nil)
-            end
-            -- TALENT HOOK STUB: ScorchMark — create burning ground tile at origin
-        end
+                    -- Consume Heat stacks → HP damage
+                    local stacks = (tChar:GetAttribute("HeatStacks") :: number?) or 0
+                    if stacks > 0 then
+                        local hpDmg = stacks * FLASHFIRE_HP_PER_STACK
+                        tChar:SetAttribute("IncomingHPDamage",
+                            (tChar:GetAttribute("IncomingHPDamage") or 0) + hpDmg)
+                        tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_FlashfireStacks")
+                        tChar:SetAttribute("HeatStacks", 0)
+                        tChar:SetAttribute("HeatStackExpiry", nil)
+                    end
+                    -- TALENT HOOK STUB: ScorchMark — create burning ground tile at origin
+                end
+            })
+        end)
 
         _VFX_Flashfire(origin, 0)
 
@@ -665,6 +682,9 @@ Ember.Moves[5] = {
         _VFX_CinderField_Create(fieldCenter, CINDER_FIELD_RADIUS)
 
         -- Periodic damage + stack application to targets inside zone
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+
         local elapsed = 0
         local stackTimer = 0
         local function _tick(dt: number)
@@ -673,23 +693,38 @@ Ember.Moves[5] = {
             if elapsed >= CINDER_FIELD_DURATION then
                 return true  -- done
             end
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end  -- caster immune to own field
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - fieldCenter).Magnitude > CINDER_FIELD_RADIUS then continue end
-                -- HP drain per tick
-                tChar:SetAttribute("IncomingHPDamage",
-                    (tChar:GetAttribute("IncomingHPDamage") or 0) + CINDER_FIELD_HP_PER_S * dt)
-                tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CinderFieldDOT")
-                -- Heat stack per interval
-                if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
-                    _applyHeatStack(target, tChar, 1, player.Name)
-                    -- TALENT HOOK STUB: Bonfire — if reached 3 stacks, apply Grounded 2s
-                end
-            end
+            
+            pcall(function()
+                HitboxService.CreateHitbox({
+                    Shape = "Cylinder",
+                    Owner = player,
+                    Position = fieldCenter,
+                    Size = Vector3.new(CINDER_FIELD_RADIUS, 10, CINDER_FIELD_RADIUS),
+                    Damage = 0,
+                    LifeTime = 0.1,  -- just a single tick
+                    CanHitTwice = false,
+                    OnHit = function(hitTarget: any)
+                        local tChar
+                        if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                            tChar = hitTarget.Character
+                        elseif type(hitTarget) == "string" and DummyService then
+                            tChar = DummyService:GetDummyModel(hitTarget)
+                        end
+                        if not tChar then return end
+
+                        -- HP drain per tick
+                        tChar:SetAttribute("IncomingHPDamage",
+                            (tChar:GetAttribute("IncomingHPDamage") or 0) + CINDER_FIELD_HP_PER_S * dt)
+                        tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CinderFieldDOT")
+                        -- Heat stack per interval
+                        if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
+                            _applyHeatStack(hitTarget, tChar, 1, player.Name)
+                            -- TALENT HOOK STUB: Bonfire — if reached 3 stacks, apply Grounded 2s
+                        end
+                    end
+                })
+            end)
+            
             if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
                 stackTimer -= CINDER_FIELD_STACK_INTERVAL
             end

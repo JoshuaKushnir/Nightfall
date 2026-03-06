@@ -94,17 +94,27 @@ local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
 end
 
 local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector3)
-    for _, target in game:GetService("Players"):GetPlayers() do
-        if target == caster then continue end
-        local char = target.Character
-        if not char then continue end
-        local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-        if not root then continue end
-        if (root.Position - landingPos).Magnitude > ASHEN_STEP_POSTURE_RADIUS then continue end
-        char:SetAttribute("IncomingPostureDamage",
-            (char:GetAttribute("IncomingPostureDamage") or 0) + ASHEN_STEP_POSTURE_DAMAGE)
-        char:SetAttribute("IncomingPostureDamageSource", caster.Name .. "_AshenStep")
-    end
+    local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+    pcall(function()
+        local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+        HitboxService.CreateHitbox({
+            Shape = "Circle",
+            Owner = caster,
+            Position = landingPos,
+            Radius = ASHEN_STEP_POSTURE_RADIUS,
+            Damage = ASHEN_STEP_POSTURE_DAMAGE,
+            LifeTime = 0.2,
+            CanHitTwice = false,
+            OnHit = function(target: any)
+                if typeof(target) == "Instance" and target:IsA("Player") then
+                    PostureService.DrainPosture(target, ASHEN_STEP_POSTURE_DAMAGE, "Aspect")
+                elseif type(target) == "string" then
+                    local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                    DummyService.ApplyDamage(target, 0, landingPos)
+                end
+            end
+        })
+    end)
 end
 
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -347,10 +357,12 @@ Ash.Moves[2] = {
             local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
             
             HitboxService.CreateHitbox({
-                Shape = "Sphere",
+                Shape = "Cone",
                 Owner = player,
-                Position = origin + forward * (CINDER_BURST_RANGE/2),
-                Size = Vector3.new(CINDER_BURST_RANGE, CINDER_BURST_RANGE, CINDER_BURST_RANGE),
+                Origin = origin,
+                Direction = forward,
+                Length = CINDER_BURST_RANGE,
+                Angle = 15, -- 30 degree arc means 15 degrees from center
                 Damage = CINDER_BURST_POSTURE_DAMAGE,
                 LifeTime = 0.5,
                 CanHitTwice = false,
@@ -367,20 +379,15 @@ Ash.Moves[2] = {
                     end
                     
                     if targetModel then
-                        local tRoot = targetModel:FindFirstChild("HumanoidRootPart")
-                        if tRoot then
-                            local toTarget = tRoot.Position - origin
-                            if toTarget.Magnitude > 0.01 and forward:Dot(toTarget.Unit) >= 0.866 then
-                                targetModel:SetAttribute("StatusExposed", true)
-                                targetModel:SetAttribute("ExposedExpiry", tick() + CINDER_BURST_EXPOSED_DUR)
-                                task.delay(CINDER_BURST_EXPOSED_DUR, function()
-                                    if targetModel and targetModel.Parent then
-                                        targetModel:SetAttribute("StatusExposed", nil)
-                                        targetModel:SetAttribute("ExposedExpiry", nil)
-                                    end
-                                end)
+                        -- Since we matched them with a Cone hit, we assume they are within the cone
+                        targetModel:SetAttribute("StatusExposed", true)
+                        targetModel:SetAttribute("ExposedExpiry", tick() + CINDER_BURST_EXPOSED_DUR)
+                        task.delay(CINDER_BURST_EXPOSED_DUR, function()
+                            if targetModel and targetModel.Parent then
+                                targetModel:SetAttribute("StatusExposed", nil)
+                                targetModel:SetAttribute("ExposedExpiry", nil)
                             end
-                        end
+                        end)
                     end
                 end
             })
@@ -475,23 +482,36 @@ Ash.Moves[3] = {
 
                 -- Exit Slow to nearby targets
                 local myPos = root.Position
-                for _, target in game:GetService("Players"):GetPlayers() do
-                    if target == player then continue end
-                    local tChar = target.Character
-                    if not tChar then continue end
-                    local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                    if not tRoot then continue end
-                    if (tRoot.Position - myPos).Magnitude > FADE_EXIT_SLOW_RADIUS then continue end
-                    tChar:SetAttribute("StatusSlow", true)
-                    tChar:SetAttribute("SlowExpiry", tick() + FADE_EXIT_SLOW_DUR)
-                    -- TALENT HOOK STUB: Exhale — also apply Exposed (2s) here
-                    task.delay(FADE_EXIT_SLOW_DUR, function()
-                        if tChar and tChar.Parent then
-                            tChar:SetAttribute("StatusSlow", nil)
-                            tChar:SetAttribute("SlowExpiry", nil)
+                local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+                HitboxService.CreateHitbox({
+                    Shape = "Circle",
+                    Radius = FADE_EXIT_SLOW_RADIUS,
+                    Owner = player,
+                    Position = myPos,
+                    Damage = 0,
+                    LifeTime = 0.2,
+                    CanHitTwice = false,
+                    OnHit = function(target: any)
+                        local tChar = nil
+                        if typeof(target) == "Instance" and target:IsA("Player") then
+                            tChar = target.Character
+                        elseif type(target) == "string" then
+                            tChar = workspace:FindFirstChild("Dummy_" .. target)
                         end
-                    end)
-                end
+                        
+                        if tChar then
+                            tChar:SetAttribute("StatusSlow", true)
+                            tChar:SetAttribute("SlowExpiry", tick() + FADE_EXIT_SLOW_DUR)
+                            -- TALENT HOOK STUB: Exhale — also apply Exposed (2s) here
+                            task.delay(FADE_EXIT_SLOW_DUR, function()
+                                if tChar and tChar.Parent then
+                                    tChar:SetAttribute("StatusSlow", nil)
+                                    tChar:SetAttribute("SlowExpiry", nil)
+                                end
+                            end)
+                        end
+                    end
+                })
                 _VFX_Fade_Exit(myPos)
             end
         end)
@@ -708,24 +728,37 @@ Ash.Moves[5] = {
 
             local myPos = root.Position
 
-            -- Exit burst: apply Dampened to nearby targets
-            for _, target in game:GetService("Players"):GetPlayers() do
-                if target == player then continue end
-                local tChar = target.Character
-                if not tChar then continue end
-                local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-                if not tRoot then continue end
-                if (tRoot.Position - myPos).Magnitude > GREY_VEIL_EXIT_RADIUS then continue end
-                tChar:SetAttribute("StatusDampened", true)
-                tChar:SetAttribute("DampenedExpiry", tick() + GREY_VEIL_DAMPENED_DUR)
-                -- TALENT HOOK STUB: LingeringVeil — also apply Slow here
-                task.delay(GREY_VEIL_DAMPENED_DUR, function()
-                    if tChar and tChar.Parent then
-                        tChar:SetAttribute("StatusDampened", nil)
-                        tChar:SetAttribute("DampenedExpiry", nil)
+            -- Exit burst: apply Dampened to nearby targets using a Hitbox
+            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            HitboxService.CreateHitbox({
+                Shape = "Circle",
+                Radius = GREY_VEIL_EXIT_RADIUS,
+                Owner = player,
+                Position = myPos,
+                Damage = 0,
+                LifeTime = 0.2,
+                CanHitTwice = false,
+                OnHit = function(target: any)
+                    local tChar = nil
+                    if typeof(target) == "Instance" and target:IsA("Player") then
+                        tChar = target.Character
+                    elseif type(target) == "string" then
+                        tChar = workspace:FindFirstChild("Dummy_" .. target)
                     end
-                end)
-            end
+                    
+                    if tChar then
+                        tChar:SetAttribute("StatusDampened", true)
+                        tChar:SetAttribute("DampenedExpiry", tick() + GREY_VEIL_DAMPENED_DUR)
+                        -- TALENT HOOK STUB: LingeringVeil — also apply Slow here
+                        task.delay(GREY_VEIL_DAMPENED_DUR, function()
+                            if tChar and tChar.Parent then
+                                tChar:SetAttribute("StatusDampened", nil)
+                                tChar:SetAttribute("DampenedExpiry", nil)
+                            end
+                        end)
+                    end
+                end
+            })
 
             _VFX_GreyVeil_Exit(myPos, GREY_VEIL_EXIT_RADIUS)
         end)

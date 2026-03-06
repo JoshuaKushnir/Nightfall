@@ -225,17 +225,34 @@ Gale.Moves[1] = {
                     LifeTime = 0.5,
                     CanHitTwice = false,
                     OnHit = function(hitTarget: any)
-                        local tPlayer = typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") and hitTarget or nil
-                        if not tPlayer then return end
-                        
-                        local tChar = tPlayer.Character
+                        local tChar
+                        local tPlayer
+                        if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                            tPlayer = hitTarget
+                            tChar = hitTarget.Character
+                        elseif type(hitTarget) == "string" then
+                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            tChar = DummyService:GetDummyModel(hitTarget)
+                        end
                         if not tChar then return end
                         
                         local targetAirborne = _isAirborne(tChar)
                         local aerialBonus = (casterAirborne or targetAirborne) and WINDSTRIKE_AERIAL_MULT or 1
                         local postureDmg = math.floor(WINDSTRIKE_POSTURE_BASE * aerialBonus)
 
-                        PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                        if tPlayer then
+                            PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                        elseif tChar:FindFirstChildWhichIsA("Humanoid") then
+                            -- Dummy posture damage
+                            local dummyPosture = tChar:GetAttribute("Posture")
+                            if dummyPosture then
+                                tChar:SetAttribute("Posture", math.max(0, dummyPosture - postureDmg))
+                            else
+                                tChar:SetAttribute("IncomingPostureDamage", (tChar:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
+                                tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_WindStrike")
+                            end
+                        end
+                        
                         _VFX_WindStrike_Impact(dest)
 
                         -- Launch both caster and target (Weightless)
@@ -334,60 +351,78 @@ Gale.Moves[2] = {
 
         _VFX_Crosswind(origin, rightDir)
 
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
-            if (tRoot.Position - origin).Magnitude > CROSSWIND_HIT_RADIUS then continue end
-
-            local airborne = _isAirborne(tChar)
-
-            if airborne then
-                -- Aerial version: HP + camera spin, no posture
-                tChar:SetAttribute("IncomingHPDamage",
-                    (tChar:GetAttribute("IncomingHPDamage") or 0) + CROSSWIND_AERIAL_HP_DMG)
-                tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CrosswindAerial")
-                -- Camera spin is client-side debuff signal
-                tChar:SetAttribute("StatusCameraSpun", true)
-                tChar:SetAttribute("CameraSpinExpiry", tick() + 1)
-                _VFX_CameraSpinDebuff(target)
-                task.delay(1, function()
-                    if tChar and tChar.Parent then
-                        tChar:SetAttribute("StatusCameraSpun", nil)
-                        tChar:SetAttribute("CameraSpinExpiry", nil)
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        pcall(function()
+            HitboxService.CreateHitbox({
+                Shape = "Circle",
+                Owner = player,
+                Position = origin,
+                Radius = CROSSWIND_HIT_RADIUS,
+                Damage = 0,
+                LifeTime = 0.5,
+                CanHitTwice = false,
+                OnHit = function(hitTarget: any)
+                    local tChar
+                    if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                        tChar = hitTarget.Character
+                    elseif type(hitTarget) == "string" then
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        tChar = DummyService:GetDummyModel(hitTarget)
                     end
-                end)
-            else
-                tChar:SetAttribute("IncomingPostureDamage",
-                    (tChar:GetAttribute("IncomingPostureDamage") or 0) + CROSSWIND_POSTURE_DMG)
-                tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Crosswind")
-            end
+                    if not tChar then return end
+                    local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
+                    if not tRoot then return end
 
-            -- Lateral impulse (push right relative to caster)
-            tRoot.AssemblyLinearVelocity = rightDir * (CROSSWIND_PUSH_DIST * 20)
+                    local airborne = _isAirborne(tChar)
 
-            -- TALENT HOOK STUB: GustWarning — if Momentum == 1, apply Dampened
-            -- TALENT HOOK STUB: AirPocket   — reset air redirect CD on hit
-            -- Wall hit detection (STUB — requires onCollision event or raycast polling)
-            -- TALENT HOOK STUB: SlipDraft   — if wall hit, +30 HP + Grounded
-            task.delay(0.05, function()
-                if not tChar or not tChar.Parent then return end
-                if not tRoot or not tRoot.Parent then return end
-                -- Simple wall-proximity check: if velocity dropped sharply, apply Grounded
-                if tRoot.AssemblyLinearVelocity.Magnitude < 2 then
-                    tChar:SetAttribute("StatusGrounded", true)
-                    tChar:SetAttribute("GroundedExpiry", tick() + CROSSWIND_GROUNDED_DUR)
-                    task.delay(CROSSWIND_GROUNDED_DUR, function()
-                        if tChar and tChar.Parent then
-                            tChar:SetAttribute("StatusGrounded", nil)
-                            tChar:SetAttribute("GroundedExpiry", nil)
+                    if airborne then
+                        -- Aerial version: HP + camera spin, no posture
+                        tChar:SetAttribute("IncomingHPDamage",
+                            (tChar:GetAttribute("IncomingHPDamage") or 0) + CROSSWIND_AERIAL_HP_DMG)
+                        tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CrosswindAerial")
+                        -- Camera spin is client-side debuff signal
+                        tChar:SetAttribute("StatusCameraSpun", true)
+                        tChar:SetAttribute("CameraSpinExpiry", tick() + 1)
+                        if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                            _VFX_CameraSpinDebuff(hitTarget)
+                        end
+                        task.delay(1, function()
+                            if tChar and tChar.Parent then
+                                tChar:SetAttribute("StatusCameraSpun", nil)
+                                tChar:SetAttribute("CameraSpinExpiry", nil)
+                            end
+                        end)
+                    else
+                        tChar:SetAttribute("IncomingPostureDamage",
+                            (tChar:GetAttribute("IncomingPostureDamage") or 0) + CROSSWIND_POSTURE_DMG)
+                        tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Crosswind")
+                    end
+
+                    -- Lateral impulse (push right relative to caster)
+                    tRoot.AssemblyLinearVelocity = rightDir * (CROSSWIND_PUSH_DIST * 20)
+
+                    -- TALENT HOOK STUB: GustWarning — if Momentum == 1, apply Dampened
+                    -- TALENT HOOK STUB: AirPocket   — reset air redirect CD on hit
+                    -- Wall hit detection (STUB — requires onCollision event or raycast polling)
+                    -- TALENT HOOK STUB: SlipDraft   — if wall hit, +30 HP + Grounded
+                    task.delay(0.05, function()
+                        if not tChar or not tChar.Parent then return end
+                        if not tRoot or not tRoot.Parent then return end
+                        -- Simple wall-proximity check: if velocity dropped sharply, apply Grounded
+                        if tRoot.AssemblyLinearVelocity.Magnitude < 2 then
+                            tChar:SetAttribute("StatusGrounded", true)
+                            tChar:SetAttribute("GroundedExpiry", tick() + CROSSWIND_GROUNDED_DUR)
+                            task.delay(CROSSWIND_GROUNDED_DUR, function()
+                                if tChar and tChar.Parent then
+                                    tChar:SetAttribute("StatusGrounded", nil)
+                                    tChar:SetAttribute("GroundedExpiry", nil)
+                                end
+                            end)
                         end
                     end)
                 end
-            end)
-        end
+            })
+        end)
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
@@ -664,40 +699,48 @@ Gale.Moves[5] = {
         local halfArcRad = math.rad(SHEAR_ARC_DEGREES / 2)
         _VFX_Shear(origin, forward)
 
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            local tChar = target.Character
-            if not tChar then continue end
-            local tRoot = tChar:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if not tRoot then continue end
+        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        pcall(function()
+            HitboxService.CreateHitbox({
+                Shape = "Cone",
+                Owner = player,
+                Position = origin,
+                Direction = forward,
+                Radius = SHEAR_RANGE,   -- This parameter acts as length/radius for the sector
+                Angle = SHEAR_ARC_DEGREES,
+                Damage = 0,
+                LifeTime = 0.5,
+                CanHitTwice = false,
+                OnHit = function(hitTarget: any)
+                    local tChar
+                    if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
+                        tChar = hitTarget.Character
+                    elseif type(hitTarget) == "string" then
+                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        tChar = DummyService:GetDummyModel(hitTarget)
+                    end
+                    if not tChar then return end
 
-            local diff = (tRoot.Position - origin)
-            if diff.Magnitude > SHEAR_RANGE then continue end
+                    local airborne = _isAirborne(tChar)
+                    local hpDmg    = airborne and (SHEAR_HP_DMG * SHEAR_AERIAL_HP_MULT) or SHEAR_HP_DMG
 
-            -- Angle check
-            local flatDiff = Vector3.new(diff.X, 0, diff.Z).Unit
-            local flatFwd  = Vector3.new(forward.X, 0, forward.Z).Unit
-            local dot      = flatFwd:Dot(flatDiff)
-            if dot < math.cos(halfArcRad) then continue end  -- outside arc
+                    tChar:SetAttribute("IncomingHPDamage",
+                        (tChar:GetAttribute("IncomingHPDamage") or 0) + hpDmg)
+                    tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_Shear")
 
-            local airborne = _isAirborne(tChar)
-            local hpDmg    = airborne and (SHEAR_HP_DMG * SHEAR_AERIAL_HP_MULT) or SHEAR_HP_DMG
+                    tChar:SetAttribute("IncomingPostureDamage",
+                        (tChar:GetAttribute("IncomingPostureDamage") or 0) + SHEAR_POSTURE_DMG)
+                    tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_ShearPosture")
 
-            tChar:SetAttribute("IncomingHPDamage",
-                (tChar:GetAttribute("IncomingHPDamage") or 0) + hpDmg)
-            tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_Shear")
-
-            tChar:SetAttribute("IncomingPostureDamage",
-                (tChar:GetAttribute("IncomingPostureDamage") or 0) + SHEAR_POSTURE_DMG)
-            tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_ShearPosture")
-
-            -- Airborne → Grounded on landing
-            if airborne then
-                tChar:SetAttribute("StatusGroundedOnLand", true)
-                tChar:SetAttribute("GroundedOnLandDuration", SHEAR_GROUNDED_DUR)
-                -- TALENT HOOK STUB: Condor — if Weightless, extend Weightless 1.5s
-            end
-        end
+                    -- Airborne → Grounded on landing
+                    if airborne then
+                        tChar:SetAttribute("StatusGroundedOnLand", true)
+                        tChar:SetAttribute("GroundedOnLandDuration", SHEAR_GROUNDED_DUR)
+                        -- TALENT HOOK STUB: Condor — if Weightless, extend Weightless 1.5s
+                    end
+                end
+            })
+        end)
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
