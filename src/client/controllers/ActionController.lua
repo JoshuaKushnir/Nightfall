@@ -590,6 +590,20 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		if rootPart and Character then
 			local dodgeStartTime = tick()
 			local dodgeDuration = config.Duration
+			-- ensure we aren't already overlapping something by stepping back a bit
+			local dodgeDir = rootPart.CFrame.LookVector
+			if rootPart and rootPart:IsA("BasePart") then
+				local function isOverlapping(): boolean
+					for _, p in ipairs(rootPart:GetTouchingParts()) do
+						if not p:IsDescendantOf(Character) then
+							return true
+						end
+					end
+					return false
+				end
+				if isOverlapping() then
+					rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
+				end
 
 			-- ── Disable CanCollide on EVERY BasePart in character ──────────
 			-- HumanoidRootPart alone is not enough; arms/legs still collide
@@ -605,6 +619,8 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			print("[ActionController] Dodge: CanCollide disabled on all character parts")
 
 			-- No longer cache velocity; read every frame so fallback updates are respected
+			-- also track last safe CFrame to avoid popping into objects when collisions
+			local lastSafeCFrame = rootPart.CFrame
 
 			action.OnFrame = function(self: Action, deltaTime: number)
 				if not rootPart or not rootPart.Parent then return end
@@ -615,19 +631,43 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				local velocity = rootPart.AssemblyLinearVelocity
 				if velocity.Magnitude > 0.1 then
 					local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
-					rootPart.CFrame = rootPart.CFrame + moveDir
+					local newCFrame = rootPart.CFrame + moveDir
+					rootPart.CFrame = newCFrame
+					lastSafeCFrame = newCFrame
 				end
 			end
 
 			-- Restore CanCollide for ALL parts on cleanup
 			local originalCleanup = action.Cleanup
 			action.Cleanup = function(self: Action)
+				-- if we overlapped anything during the dodge, slide back to last safe spot
+				-- before re-enabling collisions to avoid post-dodge flings.
+				if rootPart and lastSafeCFrame then
+					rootPart.CFrame = lastSafeCFrame
+				end
+				
 				for bp, original in pairs(savedCollide) do
 					if bp and bp.Parent then
 						bp.CanCollide = original
 					end
 				end
 				print("[ActionController] Dodge: CanCollide restored on all character parts")
+				-- if re-enabling put us inside something, nudge backwards along dodgeDir
+				if rootPart and dodgeDir and dodgeDir.Magnitude > 0.1 then
+					local tries = 0
+					while tries < 5 do
+						local overlapping = false
+						for _, p in ipairs(rootPart:GetTouchingParts()) do
+							if not p:IsDescendantOf(Character) then
+								overlapping = true
+								break
+							end
+						end
+						if not overlapping then break end
+						rootPart.CFrame = rootPart.CFrame - dodgeDir.Unit * 0.5
+						tries += 1
+					end
+				end
 				originalCleanup(self)
 			end
 		end
@@ -703,7 +743,21 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	-- ── Dodge: directional impulse + iframes ──────────────────────────────
 	if config.Type == "Dodge" then
 		local rootPart = Utils.GetRootPart(Player)
-		local dodgeDir = (rootPart and rootPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
+		-- use outer dodgeDir variable (initialized earlier) and update based on input
+		dodgeDir = (rootPart and rootPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
+		-- secondary overlap check using final dodgeDir
+		if rootPart and rootPart:IsA("BasePart") then
+			local function isOverlapping(): boolean
+				for _, p in ipairs(rootPart:GetTouchingParts()) do
+					if not p:IsDescendantOf(Character) then
+						return true
+					end
+				end
+				return false
+			end
+			if isOverlapping() then
+				rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
+			end
 
 		-- Resolve direction from current input + camera
 		local cam = workspace.CurrentCamera
