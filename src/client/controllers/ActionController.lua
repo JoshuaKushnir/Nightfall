@@ -415,6 +415,7 @@ function ActionController.PlayAction(config: ActionConfig)
 			-- Setting it here would block the action before it even plays.
 		else
 			config.IsFinisher = false
+			config.KnockbackPower = nil  -- Ensure no knockback on non-finisher hits
 		end
 	end
 		-- ── Stun input buffer ────────────────────────────────────────────────────
