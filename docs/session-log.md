@@ -3,6 +3,36 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-055: Public-server polish pass — ability dead code, stat wiring, security gates
+**Date:** 2026-03-07
+**Issues:** #161, #162, #163, #164, #165, #166, #167
+
+### What Was Built
+- **DebugInput.lua (#166):** All developer commands gated behind `RunService:IsStudio()`. Commands silently no-op in live servers — no exploit surface for non-developer players.
+- **DummyService.lua (#163):** Fixed structural corruption where service functions were defined inside other functions and therefore unreachable. Added `_IsPlayerAllowed` check using `CreatorId OR IsStudio()` to prevent public-server abuse of dummy spawn commands.
+- **AspectService.lua (#164):** Added 5-second rate limit on `SwitchAspect` to prevent rapid-spam cooldown-bypass. Registered `Players.PlayerRemoving` listener to clean up `_lastSwitchTime` table entries and prevent memory accumulation.
+- **ProgressionService.lua + MovementController.lua (#165):** Wired Agility stat to `humanoid:SetAttribute("BaseWalkSpeed", n)` and `humanoid.WalkSpeed` in `_applyStats`. MovementController `OnCharacterAdded` now reads `humanoid:GetAttribute("BaseWalkSpeed")` as the movement speed constant — Agility progression now actually affects how fast characters move.
+- **CombatFeedbackUI.lua (#167):** Added black-overlay death screen (TweenService fade) that activates when player health hits 0 / state transitions to Dead. Added Suppressed vignette (screen-edge glow) that activates on `Suppressed` attribute and auto-clears. Partial implementation of #144 death respawn flow.
+- **DefenseService.lua (#161):** `StartBlock` now applies `BLOCK_SPEED_REDUCTION (0.6)` to `humanoid.WalkSpeed`. `ReleaseBlock` restores to `BaseWalkSpeed` attribute value. Previously `GetBlockSpeedMultiplier()` existed but was never called anywhere.
+- **Ash.lua + Ember.lua + Gale.lua + Tide.lua + Void.lua (#162):** All 5 Aspect ability files had identical dead-code pattern: second VFX stubs section + duplicate helper functions + module-level `Aspect.OnActivate`/`ClientActivate` referencing undefined constants (e.g., `DASH_DISTANCE` vs the actual `WINDSTRIKE_DASH_DIST`). Under `--!strict` these caused type errors preventing module load. Removed dead code sections entirely (PowerShell file truncation to Moves table closing `}`). Additionally fixed Ember.lua `CinderField.OnActivate` which called `_applyHeatStack` with 4 args in wrong order vs the valid 5-parameter signature.
+
+### Integration Points
+- Aspect ability files now load cleanly under `--!strict` — AspectService can require all 5 modules without type-check failures
+- Block speed is now server-authoritative and consistent with ProgressionService's stat model
+- DebugInput and DummyService are now live-server safe
+- MovementController + ProgressionService form a complete Agility→speed pipeline
+
+### Spec Gaps Encountered
+- None
+
+### Tech Debt Created
+- Death respawn flow (#144) still needs: Ember Point respawn logic, shard deduction UI, admin cancel command — only the screen overlay was implemented
+
+### Next Session Should Start On
+Issue #157: `refactor(posture): Invert posture model` — highest-priority open issue, directly enables correct HP/posture display
+
+---
+
 ## Session NF-054: Live-game bug sweep — cooldown epoch, climb phasing, breath drain
 **Date:** 2026-03-07
 **Issues:** #158, #159, #160
