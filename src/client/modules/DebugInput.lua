@@ -16,14 +16,15 @@
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 
 local DebugInput = {}
 
--- Track if we're in debug mode
-local DebugMode = true -- Change to false to disable in production
+-- Debug mode is ONLY active inside Roblox Studio — never in public servers
+local DebugMode = RunService:IsStudio()
 
 --[[
 	Initialize debug input handler
