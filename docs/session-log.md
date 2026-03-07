@@ -3,6 +3,32 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-054: Live-game bug sweep — cooldown epoch, climb phasing, breath drain
+**Date:** 2026-03-07
+**Issues:** #158, #159, #160
+
+### What Was Built
+- **AspectService.lua (GetCooldowns):** Changed from returning raw `profile.ActiveCooldowns` (absolute server tick() timestamps) to returning remaining duration per ability (`expiry - tick()`). Server/client tick() epochs differ by ~20,000 s in a live game → raw timestamps appeared as ~20,000 s cooldowns.
+- **AspectController.lua (AbilityDataSync handler):** Reconstructs absolute expiry using `tick() + remaining` (local client epoch) instead of directly assigning the packet. AbilityCastResult path was already using local tick() correctly — no change needed there.
+- **ClimbState.lua (TryStart + Update + Exit):** Removed `RootPart.Anchored = true`. Replaced per-frame CFrame positional override in Update with `AssemblyLinearVelocity`-based movement (physics-simulated, collision active). Rotation/facing still updated via `CFrame.new(root.Position, lookAt)` (orientation only — no positional teleport). Initial CFrame snap in TryStart retained (one-time, safe). `Anchored = false` removed from Exit (was already the default).
+- **MovementController.lua (UpdateBreath):** Added `if Blackboard.IsClimbing then return end` guard matching the existing `IsWallRunning` guard. Without it, breath regenerated every frame during climb (negating ClimbState's per-frame DrainBreath calls).
+
+### Integration Points
+- AspectService ↔ AspectController: cooldown sync now epoch-agnostic — works identically in Studio and live games
+- ClimbState ↔ MovementController: breath drain/regen now consistent between WallRun and Climb states
+- ClimbState ↔ Roblox Physics: character participates in collision detection during climb (no more wall phasing)
+
+### Spec Gaps Encountered
+- None
+
+### Tech Debt Created
+- None
+
+### Next Session Should Start On
+Issue #157: Posture refactor (invert model) — highest-priority open issue, unblocked
+
+---
+
 ## Session NF-053: Dodge Flinging - Final Solution
 **Date:** 2026-03-06
 **Issues:** #155, #156
