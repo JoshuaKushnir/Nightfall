@@ -97,6 +97,7 @@ local startOrder = {
 	"CombatService",       -- Combat validation and damage application
 	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
 	"ProgressionService",  -- #138/#139: Resonance, Ring caps, Discipline selection
+	"DeathService",        -- #144: death→respawn pipeline (needs ProgressionService for shard loss)
 	"ZoneService",         -- #142: Ring boundary detection (after ProgressionService)
 }
 

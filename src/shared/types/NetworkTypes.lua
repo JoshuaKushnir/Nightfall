@@ -96,6 +96,10 @@ export type NetworkEvent =
 	| "StatAllocate"    -- Client → Server: spend stat points
 	| "StatAllocated"   -- Server → Client: allocation confirmed + new derived values
 
+	-- Death & Respawn (#144)
+	| "ShardLost"        -- Server → Client: shards deducted on death (amount + new total)
+	| "PlayerRespawned"  -- Server → Client: player respawned at Ember Point or default spawn
+
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
 
@@ -226,6 +230,17 @@ export type SelectAspectResultPacket = {
 	Success: boolean,
 	AspectId: string?,
 	Reason: string?,
+}
+
+-- Death & Respawn packets (#144)
+export type ShardLostPacket = {
+	Loss: number,           -- absolute shards lost
+	NewTotal: number,       -- shards remaining after loss
+	Fraction: number,       -- fraction lost (e.g. 0.15)
+}
+
+export type PlayerRespawnedPacket = {
+	SpawnPosition: Vector3?,  -- nil = default team spawn
 }
 
 -- Aspect system packets
@@ -855,6 +870,20 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Server confirms stat allocation and sends updated derived combat values",
+	},
+
+	-- Death & Respawn (#144)
+	ShardLost = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notifies client of Shard loss amount on death — separate from ResonanceUpdate so the popup can be specifically triggered",
+	},
+	PlayerRespawned = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Server signals the client that the player has been respawned (LoadCharacter completed)",
 	},
 
 	-- Abilities

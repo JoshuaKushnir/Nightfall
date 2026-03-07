@@ -274,6 +274,13 @@ function ProgressionService.OnPlayerDied(player: Player)
         :format(player.Name, loss, SHARD_LOSS_FRACTION * 100, currentShards, profile.ResonanceShards))
 
     _syncToClient(player, profile, -loss, nil)
+
+    -- #144: fire dedicated ShardLost event so DeathController can show popup
+    NetworkService:SendToClient(player, "ShardLost", {
+        Loss     = loss,
+        NewTotal = profile.ResonanceShards,
+        Fraction = SHARD_LOSS_FRACTION,
+    })
 end
 
 --[[
