@@ -415,7 +415,7 @@ function ActionController.PlayAction(config: ActionConfig)
 			-- Setting it here would block the action before it even plays.
 		else
 			config.IsFinisher = false
-			config.KnockbackPower = nil  -- Ensure no knockback on non-finisher hits
+			config.KnockbackPower = 0  -- Explicitly zero knockback on non-finisher hits
 		end
 	end
 		-- ── Stun input buffer ────────────────────────────────────────────────────
@@ -885,14 +885,14 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 					print(`[ActionController] ✓ Hit {targetName} with {config.Name}`)
 
 					-- Finisher knockback
-					if config.IsFinisher and typeof(target) == "Instance" then
+					if config.IsFinisher and typeof(target) == "Instance" and (config.KnockbackPower and config.KnockbackPower > 0) then
 						local targetChar = (target :: Player).Character
 						if targetChar then
 							local tRoot = targetChar:FindFirstChild("HumanoidRootPart")
 							local myRoot = Utils.GetRootPart(Player)
 							if tRoot and myRoot and tRoot:IsA("BasePart") then
 								local dir = (tRoot.Position - myRoot.Position).Unit
-								local force = dir * (config.KnockbackPower or 50)
+								local force = dir * config.KnockbackPower
 								tRoot.AssemblyLinearVelocity = Vector3.new(force.X, 20, force.Z)
 							end
 						end
