@@ -31,6 +31,7 @@ end
 local ASHEN_STEP_DASH_DISTANCE  : number = 12   -- studs forward
 local ASHEN_STEP_CAST_TIME      : number = 0.15 -- seconds before dash lands
 local ASHEN_STEP_POSTURE_DAMAGE : number = 15   -- on-arrival posture
+local ASHEN_STEP_HP_DAMAGE      : number = 15   -- HP damage placeholder
 local ASHEN_STEP_POSTURE_RADIUS : number = 5    -- studs around landing
 local ASHEN_STEP_AFTERIMAGE_LIFE: number = 4    -- seconds afterimage persists
 local ASHEN_STEP_BLIND_DURATION : number = 0.3  -- seconds of BlindFlash
@@ -107,10 +108,17 @@ local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector
             CanHitTwice = false,
             OnHit = function(target: any)
                 if typeof(target) == "Instance" and target:IsA("Player") then
-                    PostureService.DrainPosture(target, ASHEN_STEP_POSTURE_DAMAGE, "Aspect")
+                    -- HP + posture on hit
+                    PostureService.GainPosture(target, ASHEN_STEP_POSTURE_DAMAGE)
+                    local ok2, CS = pcall(function()
+                        return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                    end)
+                    if ok2 and CS then
+                        CS.ApplyBreakDamage(target, ASHEN_STEP_HP_DAMAGE)
+                    end
                 elseif type(target) == "string" then
                     local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                    DummyService.ApplyDamage(target, 0, landingPos)
+                    DummyService.ApplyDamage(target, ASHEN_STEP_HP_DAMAGE, landingPos)
                 end
             end
         })
@@ -126,6 +134,7 @@ end
 
 local CINDER_BURST_RANGE          : number = 6
 local CINDER_BURST_POSTURE_DAMAGE : number = 35
+local CINDER_BURST_HP_DAMAGE      : number = 15   -- HP placeholder
 local CINDER_BURST_EXPOSED_DUR    : number = 3
 
 -- VFX STUB — animator: tight forward cone of compressed ash particles, 0.1s burst
@@ -370,11 +379,18 @@ Ash.Moves[2] = {
                     local targetModel = nil
                     if typeof(target) == "Instance" and target:IsA("Player") then
                         targetModel = target.Character
-                        PostureService.DrainPosture(target, CINDER_BURST_POSTURE_DAMAGE, "Aspect")
+                        -- apply posture + HP
+                        PostureService.GainPosture(target, CINDER_BURST_POSTURE_DAMAGE)
+                        local ok2, CS = pcall(function()
+                            return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                        end)
+                        if ok2 and CS then
+                            CS.ApplyBreakDamage(target, CINDER_BURST_HP_DAMAGE or 15)
+                        end
                     elseif type(target) == "string" then
                         -- Dummy
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        DummyService.ApplyDamage(target, 0, origin)
+                        DummyService.ApplyDamage(target, CINDER_BURST_HP_DAMAGE or 15, origin)
                         targetModel = workspace:FindFirstChild("Dummy_" .. target)
                     end
                     

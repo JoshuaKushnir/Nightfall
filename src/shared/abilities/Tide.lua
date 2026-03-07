@@ -28,6 +28,7 @@ local CURRENT_RANGE         : number = 15   -- studs forward
 local CURRENT_RADIUS        : number = 5    -- hit sphere at tip
 local CURRENT_KNOCKBACK     : number = 8    -- studs of pushback
 local CURRENT_POSTURE_DMG   : number = 25
+local CURRENT_HP_DMG        : number = 15   -- HP damage on hit (placeholder)
 local CURRENT_WALL_HP_DMG   : number = 20   -- bonus if target hits terrain
 local CURRENT_GROUNDED_DUR  : number = 1.5
 local CURRENT_WET_ZONE_SIZE : number = 4    -- studs wide (talent stub)
@@ -234,12 +235,19 @@ Tide.Moves[1] = {
                 OnHit = function(target: any)
                     local tPlayer = typeof(target) == "Instance" and target:IsA("Player") and target or nil
                     if tPlayer then
-                        PostureService.DrainPosture(tPlayer, CURRENT_POSTURE_DMG, "Aspect")
+                        -- #157: ability hits fill target posture and deal HP
+                        PostureService.GainPosture(tPlayer, CURRENT_POSTURE_DMG)
+                        local ok2, CS = pcall(function()
+                            return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                        end)
+                        if ok2 and CS then
+                            CS.ApplyBreakDamage(tPlayer, CURRENT_HP_DMG)
+                        end
                         _applyKnockbackAndMonitor(player, tPlayer, direction)
                     elseif type(target) == "string" then
-                        -- Dummy dummyId
+                        -- Dummy hit: HP damage only (posture handled by server-loop?)
                         local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                        DummyService.ApplyDamage(target, 0, root.Position)
+                        DummyService.ApplyDamage(target, CURRENT_HP_DMG, root.Position)
                     end
                 end
             })

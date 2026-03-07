@@ -28,6 +28,7 @@ local Players = game:GetService("Players")
 
 local WINDSTRIKE_DASH_DIST      : number = 12
 local WINDSTRIKE_POSTURE_BASE   : number = 20
+local WINDSTRIKE_HP_DMG          : number = 15   -- HP damage placeholder
 local WINDSTRIKE_HIT_RADIUS     : number = 5
 local WINDSTRIKE_LAUNCH_DUR     : number = 0.5
 local WINDSTRIKE_AERIAL_MULT    : number = 1.5
@@ -241,9 +242,16 @@ Gale.Moves[1] = {
                         local postureDmg = math.floor(WINDSTRIKE_POSTURE_BASE * aerialBonus)
 
                         if tPlayer then
-                            PostureService.DrainPosture(tPlayer, postureDmg, "Aspect")
+                            -- apply posture + HP
+                            PostureService.GainPosture(tPlayer, postureDmg)
+                            local ok2, CS = pcall(function()
+                                return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                            end)
+                            if ok2 and CS then
+                                CS.ApplyBreakDamage(tPlayer, WINDSTRIKE_HP_DMG)
+                            end
                         elseif tChar:FindFirstChildWhichIsA("Humanoid") then
-                            -- Dummy posture damage
+                            -- Dummy posture/HP damage
                             local dummyPosture = tChar:GetAttribute("Posture")
                             if dummyPosture then
                                 tChar:SetAttribute("Posture", math.max(0, dummyPosture - postureDmg))
@@ -251,6 +259,9 @@ Gale.Moves[1] = {
                                 tChar:SetAttribute("IncomingPostureDamage", (tChar:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
                                 tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_WindStrike")
                             end
+                            -- HP damage
+                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            DummyService.ApplyDamage(tChar.Name:gsub("Dummy_", ""), WINDSTRIKE_HP_DMG, dest)
                         end
                         
                         _VFX_WindStrike_Impact(dest)
