@@ -440,11 +440,6 @@ return dummyId
 end
 
 --[[
-Remove a dummy from the world.
-]]
-function DummyService.DespawnDummy(dummyId: string)
-
---[[
     SpawnStateDummies(origin: Vector3) -> nil
 
     Development helper that places one dummy for each player-visible state in a
@@ -476,7 +471,7 @@ function DummyService.SpawnStateDummies(origin: Vector3)
             MaxHealth = DUMMY_HEALTH,
             Posture = DUMMY_POSTURE,
             MaxPosture = DUMMY_POSTURE,
-            IsActive = true,   -- keep dummy considered alive
+            IsActive = true,
         }
         ActiveDummies[dummyId] = dd
         local model = DummyService._CreateDummyModel(dd)
@@ -486,6 +481,11 @@ function DummyService.SpawnStateDummies(origin: Vector3)
         end
     end
 end
+
+--[[
+Remove a dummy from the world.
+]]
+function DummyService.DespawnDummy(dummyId: string)
 local dummyData = ActiveDummies[dummyId]
 if not dummyData then
 print(`[DummyService] Dummy not found: {dummyId}`)
@@ -566,6 +566,8 @@ end
 Return data for a dummy by ID.
 ]]
 function DummyService.GetDummyData(dummyId: string): DummyData?
+    return ActiveDummies[dummyId]
+end
 
 -- debug helper returns all active dummy data (not to be used in gameplay)
 function DummyService.GetAllDummyData(): {[string]: DummyData}
@@ -573,8 +575,6 @@ function DummyService.GetAllDummyData(): {[string]: DummyData}
     local copy: {[string]: DummyData} = {}
     for k,v in pairs(ActiveDummies) do copy[k] = v end
     return copy
-end
-return ActiveDummies[dummyId]
 end
 
 --[[
