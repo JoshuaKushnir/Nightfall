@@ -181,6 +181,16 @@ local function _applyStats(player: Player, profile: any)
         if humanoid then
             humanoid.MaxHealth = profile.Health.Max
             humanoid.Health    = math.min(humanoid.Health, profile.Health.Max)
+
+            -- Agility → walk speed: +0.5 studs/s per point, base 16
+            -- Store as attribute so MovementController can read the authoritative base
+            local baseSpeed = 16 + (stats.Agility or 0) * 0.5
+            humanoid:SetAttribute("BaseWalkSpeed", baseSpeed)
+            -- Only set WalkSpeed when the player isn't in a movement state that
+            -- overrides it (e.g. sprinting); MovementController checks the attribute.
+            if humanoid.WalkSpeed > 0 then
+                humanoid.WalkSpeed = baseSpeed
+            end
         end
     end
 end

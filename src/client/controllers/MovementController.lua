@@ -90,6 +90,7 @@ local camera: Camera? = nil
 local NetworkController: any = nil -- injected dependency (used to send slide requests to server)
 
 -- Movement config (from MovementConfig or fallback)
+-- BaseWalkSpeed may be overridden by server via Humanoid attribute (Agility stat)
 local WALK_SPEED = MovementConfig.Movement.WalkSpeed or 12
 local SPRINT_SPEED = MovementConfig.Movement.SprintSpeed or 20
 local ACCELERATION = MovementConfig.Movement.Acceleration or 45
@@ -1104,7 +1105,10 @@ function MovementController:OnCharacterAdded(newCharacter: Model)
 	Blackboard.SlideJumped = false
 	landingSprintExpiry = 0
 	if Humanoid then
-		currentSpeed = Humanoid.WalkSpeed
+		-- Prefer server-set BaseWalkSpeed (from Agility stat) if available
+		local serverBase = Humanoid:GetAttribute("BaseWalkSpeed")
+		WALK_SPEED = serverBase or WALK_SPEED
+		currentSpeed = WALK_SPEED
 	end
 	print("[MovementController] Character reset")
 end
