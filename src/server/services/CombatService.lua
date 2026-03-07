@@ -25,6 +25,7 @@ local AbilitySystem: any = nil
 local WeaponService: any = nil
 local PostureService: any = nil
 local ProgressionService: any = nil
+local HollowedService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
@@ -107,6 +108,7 @@ function CombatService:Start()
 	WeaponService     = require(script.Parent.WeaponService)
 	PostureService    = require(script.Parent.PostureService)
 	ProgressionService = require(script.Parent.ProgressionService)
+	HollowedService   = require(script.Parent.HollowedService)
 	
 	local RunService = game:GetService("RunService")
 	RunService.Heartbeat:Connect(function()
@@ -244,40 +246,48 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		return false, 0
 	end
 	
-	-- Find target (player or dummy)
+	-- Find target (player or dummy or hollowed enemy)
 	local targetPlayer = Players:FindFirstChild(targetName)
-	local targetDummy = nil
-	local isDummy = false
-	
+	local targetDummy  = nil
+	local isDummy      = false
+	local isHollowed   = false
+
 	if targetPlayer and Utils.IsValidPlayer(targetPlayer) then
 		-- Target is a player
 		-- (no local `target` variable needed)
 	elseif DummyService.GetDummyData(targetName) then
-		-- Target is a dummy
+		-- Target is a training dummy
 		targetDummy = DummyService.GetDummyData(targetName)
 		isDummy = true
+	elseif HollowedService and HollowedService.GetInstanceData(targetName) then
+		-- Target is a Hollowed enemy NPC
+		isHollowed = true
 	else
 		print(`[CombatService] ✗ Target not found: {targetName}`)
 		return false, 0
 	end
 	
 	-- Can't hit self (only for players)
-	if not isDummy and attacker == targetPlayer then
+	if not isDummy and not isHollowed and attacker == targetPlayer then
 		print("[CombatService] ✗ Self-hit attempted")
 		return false, 0
 	end
-	
+
 	-- Get target data
 	local targetData = nil
 	if isDummy then
 		targetData = targetDummy
+	elseif isHollowed then
+		-- Hollowed instances do not use the PlayerData struct;
+		-- damage is dispatched via HollowedService.ApplyDamage below.
+		targetData = HollowedService.GetInstanceData(targetName)
 	else
 		targetData = StateService:GetPlayerData(targetPlayer)
 		if not targetData then
 			print(`[CombatService] ✗ Target data not found: {targetPlayer.Name}`)
 			return false, 0
 		end
-		
+
 		-- Check if target is dodging (iframes)
 		if targetData.State == "Dodging" then
 			print(`[CombatService] ✗ Target is dodging (iframes): {targetPlayer.Name}`)
@@ -292,7 +302,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	-- Apply active-ability damage reduction (IronWill etc.)
 	do
 		local targetChar: Model? = nil
-		if not isDummy and targetPlayer then
+		if not isDummy and not isHollowed and targetPlayer then
 			targetChar = (targetPlayer :: Player).Character
 		end
 		if targetChar then
@@ -343,8 +353,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	-- Check defense (block/parry) - only for players
 	local wasBlocked = false
 	local wasParried = false
-	
-	if not isDummy then
+
+	if not isDummy and not isHollowed then
 		-- Server-side block check
 		if targetData.State == "Blocking" then
 			-- Blocked hits drain Posture but deal NO HP damage (dual-health model #75)
@@ -382,6 +392,14 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				print(`[CombatService] ☠️ Dummy defeated! ({finalDamage} damage)`)
 			else
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → Dummy {targetName} ({finalDamage} damage)`)
+			end
+		elseif isHollowed then
+			-- Dispatch to HollowedService; it handles health, death, and Resonance grant.
+			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, attacker)
+			if not stillAlive then
+				print(`[CombatService] ☠️ Hollowed defeated! ({finalDamage} damage)`)
+			else
+				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → {targetName} ({finalDamage} damage)`)
 			end
 		else
 			-- Dual-health model (#75): unguarded hits drain both HP and Posture.
@@ -425,8 +443,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		-- Broadcast hit confirmation to all clients
 		local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
 		if hitEvent then
-			if isDummy then
-				-- For dummies, fire to all clients (no reaction animation)
+			if isDummy or isHollowed then
+				-- For NPCs, fire to all clients (no reaction animation)
 				hitEvent:FireAllClients(attacker, targetName, finalDamage, isCritical, true)
 			else
 				-- For players, include optional reaction animation info when blocked
@@ -447,7 +465,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			local weaponId = WeaponService and WeaponService.GetEquipped(attacker)
 			local weapon = weaponId and WeaponRegistry.Get(weaponId)
 			if weapon then
-				local abilityTarget = isDummy
+				local abilityTarget = (isDummy or isHollowed)
 					and DummyService.GetDummyModel and DummyService.GetDummyModel(targetName)
 					or targetPlayer
 				if abilityTarget then

@@ -60,6 +60,7 @@ local dependencies = {
 	AspectService = services.AspectService,
 	InventoryService = services.InventoryService,
 	ProgressionService = services.ProgressionService,
+	PostureService = services.PostureService,
 }
 
 for name, service in services do
@@ -98,6 +99,7 @@ local startOrder = {
 	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
 	"ProgressionService",  -- #138/#139: Resonance, Ring caps, Discipline selection
 	"DeathService",        -- #144: death→respawn pipeline (needs ProgressionService for shard loss)
+	"HollowedService",     -- #143: Ring 1 enemy AI (patrol/aggro/attack, Resonance grant on kill)
 	"ZoneService",         -- #142: Ring boundary detection (after ProgressionService)
 }
 
