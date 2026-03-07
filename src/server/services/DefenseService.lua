@@ -90,6 +90,14 @@ function DefenseService.StartBlock(player: Player): boolean
 	-- Update player state
 	StateService:SetPlayerState(player, "Blocking")
 
+	-- Slow movement while blocking
+	local char = player.Character
+	local hum  = char and char:FindFirstChildOfClass("Humanoid") :: Humanoid?
+	if hum then
+		local base = (hum:GetAttribute("BaseWalkSpeed") :: number?) or hum.WalkSpeed
+		hum.WalkSpeed = base * BLOCK_SPEED_REDUCTION
+	end
+
 	print(`[DefenseService] {player.Name} started blocking`)
 	return true
 end
@@ -110,6 +118,14 @@ function DefenseService.ReleaseBlock(player: Player)
 	local playerData = StateService:GetPlayerData(player)
 	if playerData and playerData.State == "Blocking" then
 		StateService:SetPlayerState(player, "Idle")
+	end
+
+	-- Restore full walk speed
+	local char = player.Character
+	local hum  = char and char:FindFirstChildOfClass("Humanoid") :: Humanoid?
+	if hum then
+		local base = (hum:GetAttribute("BaseWalkSpeed") :: number?) or 16
+		hum.WalkSpeed = base
 	end
 
 	print(`[DefenseService] {player.Name} released block`)
