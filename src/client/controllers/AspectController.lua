@@ -38,14 +38,6 @@ AspectController._equipped = {} :: {[string]: ItemTypes.Item?}
 -- callbacks for when inventory/equipment updates arrive from server
 AspectController._inventoryChangeListeners = {}
 
-AspectController._keybinds = {} :: {[Enum.KeyCode]: string?}
-AspectController._keybinds = {
-    [Enum.KeyCode.Z] = nil,
-    [Enum.KeyCode.X] = nil,
-    [Enum.KeyCode.C] = nil,
-    [Enum.KeyCode.V] = nil,
-}
-
 local ASPECT_CYCLE: {AspectTypes.AspectId?} = {
     "Ash", "Tide", "Ember", "Gale", "Void", nil,
 }
@@ -64,16 +56,6 @@ local function _onKeyInput(input: InputObject, gameProcessed: boolean)
         AspectController:_cycleAspect()
         return
     end
-
-    local abilityId = AspectController._keybinds[key]
-    if abilityId and not AspectController:IsOnCooldown(abilityId) then
-        local mouse = localPlayer and localPlayer:GetMouse()
-        local pos = mouse and mouse.Hit and mouse.Hit.p
-        NetworkProvider:FireServer("AbilityCastRequest", {
-            AbilityId = abilityId,
-            TargetPosition = pos,
-        })
-    end
 end
 
 function AspectController:_cycleAspect()
@@ -90,16 +72,6 @@ function AspectController:_cycleAspect()
     print(("[AspectController] Switching aspect → %s"):format(label))
 end
 
-
-function AspectController:GetEquippedAbilities(): {string}
-    local out = {}
-    for _, abilityId in pairs(self._keybinds) do
-        if abilityId then
-            table.insert(out, abilityId)
-        end
-    end
-    return out
-end
 
 function AspectController:GetInventory(): {ItemTypes.Item}
     return self._inventory
@@ -186,21 +158,6 @@ local function _registerHandlers()
         AspectController._aspectData = {AspectId = aspectId, IsUnlocked = true, Branches = {Expression={Depth=0,ShardsInvested=0},Form={Depth=0,ShardsInvested=0},Communion={Depth=0,ShardsInvested=0}}, TotalShardsInvested=0}
     end)
 end
-
--- input binding
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.UserInputType == Enum.UserInputType.Keyboard then
-        local abilityId = AspectController._keybinds[input.KeyCode]
-        if abilityId then
-            if not AspectController:IsOnCooldown(abilityId) then
-                local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse()
-                local pos = mouse and mouse.Hit and mouse.Hit.p
-                NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = pos})
-            end
-        end
-    end
-end)
 
 -- project initialization functions
 function AspectController:OnInventoryChanged(callback: ()->())
