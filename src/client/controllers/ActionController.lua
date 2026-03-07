@@ -759,6 +759,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			if isOverlapping() then
 				rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
 			end
+		end
 
 		-- Resolve direction from current input + camera
 		local cam = workspace.CurrentCamera
