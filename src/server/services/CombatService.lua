@@ -381,9 +381,10 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 	-- Apply damage to target
 	if finalDamage > 0 then
 		if isDummy then
-			-- Apply damage to dummy (pass attacker position for knockback)
+			-- Apply damage to dummy. Only send the attacker's position if this hit
+			-- should produce knockback (finisher hits); regular swings do not push.
 			local attackerPos: Vector3? = nil
-			if attacker and attacker.Character then
+			if hitData.IsFinisher and attacker and attacker.Character then
 				local root = attacker.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
 				if root then attackerPos = root.Position end
 			end

@@ -367,13 +367,16 @@ function ActionController.PlayAction(config: ActionConfig)
 			maxCombo = 5 -- bare-hands default
 		end
 
-		-- Increment combo
+		-- Increment combo (attacks count toward the combo chain)
 		ComboCount = ComboCount + 1
 		if ComboCount > maxCombo then
 			ComboCount = 1
 		end
 
 		LastComboTime = now
+		-- keep blackboard synchronized so other systems can read combo state
+		CombatBlackboard.ComboCount = ComboCount
+		CombatBlackboard.ComboExpiry = now + COMBO_TIMEOUT
 
 		-- Clone config and apply animation
 		config = table.clone(config)
@@ -1190,6 +1193,28 @@ end
 function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector3?)
 	if not abilityId or abilityId == "" then return end
 
+	-- === combo bookkeeping ===
+	local now = tick()
+	if now - LastComboTime > COMBO_TIMEOUT then
+		ComboCount = 0
+	end
+	-- compute same maxCombo as attacks (weapon-aware)
+	local maxCombo = 5
+	do
+		local weaponId: string? = WeaponController and WeaponController.GetEquipped() or nil
+		local weaponCfg: any? = weaponId and WeaponRegistry.Has(weaponId) and WeaponRegistry.Get(weaponId) or nil
+		if weaponCfg and weaponCfg.Animations and weaponCfg.Animations.Combo and #weaponCfg.Animations.Combo > 0 then
+			maxCombo = #weaponCfg.Animations.Combo
+		end
+	end
+	ComboCount = ComboCount + 1
+	if ComboCount > maxCombo then
+		ComboCount = 1
+	end
+	LastComboTime = now
+	CombatBlackboard.ComboCount = ComboCount
+	CombatBlackboard.ComboExpiry = now + COMBO_TIMEOUT
+
 	-- Build a cast-window ActionConfig.
 	-- Duration is the commitment window (can't cancel before CancelFrame).
 	-- No client-side hitbox — server manages damage application.
@@ -1212,6 +1237,7 @@ function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector
 		OnStart           = function(_p: Player)
 			-- Refresh the melee combo window so physical hits can continue after a spell
 			LastComboTime = tick()
+			CombatBlackboard.ComboExpiry = LastComboTime + COMBO_TIMEOUT
 			-- Fire the server-side ability cast
 			NetworkProvider:FireServer("AbilityCastRequest", {
 				AbilityId     = abilityId,

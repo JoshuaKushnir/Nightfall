@@ -529,9 +529,10 @@ end
 dummyData.Health = math.max(0, dummyData.Health - effectiveDamage)
 
 -- Knockback (before health-zero check so position is updated while model exists)
-if attackerPosition then
-DummyService._ApplyKnockback(dummyId, attackerPosition)
-end
+	-- only apply when attackerPosition not nil (CombatService supplies nil for
+	-- non-finisher swings)
+	if attackerPosition then
+		DummyService._ApplyKnockback(dummyId, attackerPosition)
 
 -- Sync Humanoid health (drives the in-world health bar)
 local model = DummyModels[dummyId]
