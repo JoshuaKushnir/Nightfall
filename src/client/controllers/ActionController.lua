@@ -625,16 +625,17 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 			action.OnFrame = function(self: Action, deltaTime: number)
 				if not rootPart or not rootPart.Parent then return end
-				local elapsed = tick() - dodgeStartTime
-				local progress = math.min(1, elapsed / dodgeDuration)
-				local dampFactor = 1 - (progress * 0.3) -- fade to 70% by end
-
-				local velocity = rootPart.AssemblyLinearVelocity
-				if velocity.Magnitude > 0.1 then
-					local moveDir = velocity.Unit * velocity.Magnitude * dampFactor * deltaTime
-					local newCFrame = rootPart.CFrame + moveDir
-					rootPart.CFrame = newCFrame
-					lastSafeCFrame = newCFrame
+				-- We rely on MovementController's BodyVelocity (physics) for the actual movement.
+				-- Tracking lastSafeCFrame prevents clipping through walls when collisions re-enable.
+				local overlapping = false
+				for _, p in ipairs(rootPart:GetTouchingParts()) do
+					if not p:IsDescendantOf(Character) then
+						overlapping = true
+						break
+					end
+				end
+				if not overlapping then
+					lastSafeCFrame = rootPart.CFrame
 				end
 			end
 
@@ -785,13 +786,8 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		local didApply = MovementController and MovementController.ApplyImpulse
 			and MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, DODGE_DUR, "dodge")
 
-		-- Fallback: store velocity on rootPart so OnFrame CFrame movement picks it up.
-		-- Do NOT use BodyVelocity here — it reintroduces physics collision forces
-		-- that cause flinging even with CanCollide = false on individual parts.
 		if not didApply and rootPart then
-			rootPart.AssemblyLinearVelocity = dodgeDir * DODGE_SPEED
-			-- OnFrame will read this velocity and move via CFrame (collision-free)
-			print("[ActionController] Dodge: Using CFrame fallback movement, velocity set")
+			print("[ActionController] Dodge: ApplyImpulse failed")
 		end
 
 		-- FOV punch
