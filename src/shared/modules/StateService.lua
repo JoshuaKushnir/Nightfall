@@ -142,6 +142,11 @@ local VALID_TRANSITIONS: {[PlayerState]: {[PlayerState]: boolean}} = {
 		Ragdolled = true,
 		Dead = true,
 	},
+	Suppressed = {
+		Idle = true,
+		Stunned = true, -- if suppressed triggers stun or other recovery
+		Dead = true,
+	},
 	Ragdolled = {
 		Idle = true,
 		Dead = true,
@@ -470,11 +475,12 @@ function StateService:CanPlayerAct(player: Player): boolean
 		return false
 	end
 	
-	-- Players cannot act if stunned, dead, or ragdolled
+	-- Players cannot act if stunned, dead, ragdolled, or suppressed
 	local blockedStates = {
 		Stunned = true,
 		Dead = true,
 		Ragdolled = true,
+		Suppressed = true,
 	}
 	
 	return not blockedStates[playerData.State]

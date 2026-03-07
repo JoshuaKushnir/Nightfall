@@ -31,11 +31,10 @@ local CRITICAL_COLOR = Color3.fromRGB(255, 215, 0) -- Gold
 local NORMAL_COLOR = Color3.fromRGB(255, 255, 255) -- White
 local HEAL_COLOR = Color3.fromRGB(0, 255, 0) -- Green
 
--- Posture bar colours
--- NEW (#157: bar fills with danger, empty = safe)
-local POSTURE_COLOR_SAFE     = Color3.fromRGB(180, 180, 220) -- cool grey = low pressure
-local POSTURE_COLOR_WARNING  = Color3.fromRGB(255, 140,  50) -- orange = building up
-local POSTURE_COLOR_DANGER   = Color3.fromRGB(220,  50,  50) -- red = about to be suppressed
+-- Posture bar colours (#157: high = danger, low = safe)
+local POSTURE_COLOR_SAFE     = Color3.fromRGB(180, 180, 220) -- cool grey  = low pressure
+local POSTURE_COLOR_WARNING  = Color3.fromRGB(255, 140,  50) -- orange     = building up
+local POSTURE_COLOR_DANGER   = Color3.fromRGB(220,  50,  50) -- red        = about to suppress
 
 -- Active floating numbers
 local FloatingNumbers: {{
@@ -160,7 +159,7 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	fill.Name = "Fill"
 	fill.Size = UDim2.new(1, 0, 1, 0)
 	fill.Position = UDim2.new(0, 0, 0, 0)
-	fill.BackgroundColor3 = POSTURE_COLOR_NORMAL
+	fill.BackgroundColor3 = POSTURE_COLOR_SAFE
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 
@@ -194,7 +193,7 @@ function CombatFeedbackUI._UpdatePostureBar(postureBar: {bar: Frame, fill: Frame
 	if not postureBar then return end
 	local ratio = if max > 0 then math.clamp(current / max, 0, 1) else 0
 	postureBar.fill.Size = UDim2.new(ratio, 0, 1, 0)
-	-- High posture = danger (inverted model: full bar = suppressed)
+	-- #157: high posture = danger (pressure gauge, not resource bar)
 	postureBar.fill.BackgroundColor3 = if ratio >= 0.75
 		then POSTURE_COLOR_DANGER
 		elseif ratio >= 0.40

@@ -43,66 +43,62 @@ local function _VFX_Ignite_Impact(_pos: Vector3, _stacks: number) end
 -- VFX STUB — animator: persistent flame shimmer on character while Burning
 local function _VFX_BurningStatus(_char: Model) end
 
-local function _applyHeatStack(target: any, char: Model, stacks: number, casterPos: Vector3)
+local function _applyHeatStack(
+    tPlayer: Player?,   -- nil if dummy
+    dummyId: string?,   -- nil if player
+    char: Model,
+    stacks: number,
+    casterPos: Vector3
+)
     local currentStacks = (char:GetAttribute("HeatStacks") :: number?) or 0
     local newStacks = math.min(HEAT_STACK_MAX, currentStacks + stacks)
     char:SetAttribute("HeatStacks", newStacks)
 
-    -- Posture drain via PostureService (direct server call, safe from OnActivate)
-    local ok1, PostureService = pcall(function()
-        return require(game:GetService("ServerScriptService").Server.services.PostureService)
-    end)
-    if ok1 and PostureService then
-        PostureService.DrainPosture(
-            typeof(target) == "Instance" and target:IsA("Player") and target or nil,
-            IGNITE_POSTURE_PER_HEAT * stacks,
-            "Aspect"
-        )
+    -- Posture gain (pressure fills on hit) — players only, dummies have no posture
+    if tPlayer then
+        local ok, PS = pcall(function()
+            return require(game:GetService("ServerScriptService").Server.services.PostureService)
+        end)
+        if ok and PS then
+            PS.GainPosture(tPlayer, IGNITE_POSTURE_PER_HEAT * stacks)
+        end
     end
 
-    -- Real HP damage via DummyService (dummies) or CombatService.ApplyBreakDamage (players)
-    local ok2, CombatService = pcall(function()
+    -- HP damage
+    local ok2, CS = pcall(function()
         return require(game:GetService("ServerScriptService").Server.services.CombatService)
     end)
-
-    if typeof(target) == "Instance" and target:IsA("Player") then
-        -- Player target — apply HP damage directly through CombatService
-        if ok2 and CombatService then
-            CombatService.ApplyBreakDamage(target, IGNITE_HP_DMG * stacks)
+    if tPlayer then
+        if ok2 and CS then
+            CS.ApplyBreakDamage(tPlayer, IGNITE_HP_DMG * stacks)
         end
-    elseif type(target) == "string" then
-        -- Dummy target
-        local ok3, DummyService = pcall(function()
+    elseif dummyId then
+        local ok3, DS = pcall(function()
             return require(game:GetService("ServerScriptService").Server.services.DummyService)
         end)
-        if ok3 and DummyService then
-            DummyService.ApplyDamage(target, IGNITE_HP_DMG * stacks, casterPos)
+        if ok3 and DS then
+            DS.ApplyDamage(dummyId, IGNITE_HP_DMG * stacks, casterPos)
         end
     end
 
-    -- Apply / refresh Burning at max stacks
+    -- Burning at max stacks
     if newStacks >= HEAT_STACK_MAX then
         char:SetAttribute("StatusBurning", true)
         char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
         _VFX_BurningStatus(char)
 
-        -- Burning HP tick loop (server-side, self-contained)
         task.spawn(function()
-            local startExpiry = char:GetAttribute("BurningExpiry") :: number?
             while char and char.Parent do
                 task.wait(1)
                 local expiry = char:GetAttribute("BurningExpiry") :: number?
                 if not expiry or tick() >= expiry then break end
-                -- HP drain per second
-                if typeof(target) == "Instance" and target:IsA("Player") then
-                    if ok2 and CombatService then
-                        CombatService.ApplyBreakDamage(target, BURNING_HP_PER_SEC)
-                    end
-                elseif type(target) == "string" then
+                if tPlayer then
+                    if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
+                elseif dummyId then
                     local ok3, DS = pcall(function()
                         return require(game:GetService("ServerScriptService").Server.services.DummyService)
                     end)
-                    if ok3 and DS then DS.ApplyDamage(target, BURNING_HP_PER_SEC, nil) end
+                    if ok3 and DS then DS.ApplyDamage(dummyId, BURNING_HP_PER_SEC, nil) end
                 end
             end
             if char and char.Parent then
@@ -112,10 +108,9 @@ local function _applyHeatStack(target: any, char: Model, stacks: number, casterP
         end)
     end
 
-    print(("[Ignite] %s ← %d Heat stack(s) → %d total (+%d HP, Burning: %s)"):format(
-        tostring(target), stacks, newStacks,
-        IGNITE_HP_DMG * stacks,
-        tostring(newStacks >= HEAT_STACK_MAX)))
+    print(("[Ignite] %s ← %d stack(s) → %d total (+%dHP)"):format(
+        tPlayer and tPlayer.Name or tostring(dummyId),
+        stacks, newStacks, IGNITE_HP_DMG * stacks))
 end
 
 -- ═════════════════════════════════════════════════════════════════════════════
@@ -277,7 +272,7 @@ Ember.Moves[1] = {
             local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
             pcall(function()
                 local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
-                
+
                 HitboxService.CreateHitbox({
                     Shape = "Sphere",
                     Owner = player,
@@ -287,20 +282,32 @@ Ember.Moves[1] = {
                     LifeTime = 0.5,
                     CanHitTwice = false,
                     OnHit = function(hitTarget: any)
-                        local tChar
+                        local tPlayer: Player? = nil
+                        local dummyId: string? = nil
+
                         if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
-                            tChar = hitTarget.Character
+                            tPlayer = hitTarget :: Player
                         elseif type(hitTarget) == "string" then
-                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
-                            tChar = DummyService.GetDummyModel(hitTarget)
+                            dummyId = hitTarget
+                        else
+                            return  -- unknown target type, ignore
+                        end
+
+                        -- Resolve character model for heat stacks
+                        local tChar: Model? = nil
+                        if tPlayer then
+                            tChar = tPlayer.Character
+                        else
+                            local ok, DS = pcall(function()
+                                return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            end)
+                            if ok and DS and dummyId then
+                                tChar = DS.GetDummyModel(dummyId)
+                            end
                         end
                         if not tChar then return end
 
-                        PostureService.DrainPosture(hitTarget, IGNITE_POSTURE_PER_HEAT * stacksToApply, "Aspect")
-                        -- In the HitboxService OnHit callback:
-                        _applyHeatStack(hitTarget, tChar, stacksToApply, destination)
-                        -- (was: _applyHeatStack(hitTarget, tChar, stacksToApply, player.Name))
-                        _VFX_Ignite_Impact(destination, stacksToApply)
+                        _applyHeatStack(tPlayer, dummyId, tChar, stacksToApply, destination)
                     end
                 })
             end)
@@ -728,7 +735,7 @@ Ember.Moves[5] = {
             if elapsed >= CINDER_FIELD_DURATION then
                 return true  -- done
             end
-            
+
             pcall(function()
                 HitboxService.CreateHitbox({
                     Shape = "Cylinder",
@@ -759,7 +766,7 @@ Ember.Moves[5] = {
                     end
                 })
             end)
-            
+
             if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
                 stackTimer -= CINDER_FIELD_STACK_INTERVAL
             end

@@ -74,7 +74,11 @@ local function _notifyChange(player: Player, state: PostureState)
 end
 
 local function _getOrCreate(player: Player): PostureState
-	local uid = player.UserId
+    -- Guard: dummies and other non-Player targets must never reach here
+    if not player or typeof(player) ~= "Instance" or not player:IsA("Player") then
+        error("[PostureService] _getOrCreate called with non-Player: " .. tostring(player), 2)
+    end
+    local uid = player.UserId
 	if not _postures[uid] then
 		local cfg = _getDiscConfig(player)
 		local maxVal = (cfg and cfg.postureMax) or POSTURE_MAX
@@ -103,7 +107,14 @@ function PostureService.GainPosture(player: Player, amount: number?): boolean
 	local state = _getOrCreate(player)
 	if state.Suppressed then return false end
 
+	-- amount=nil indicates default blocked-hit gain; if caller passes explicit nil
+	-- we still treat it as GAIN_BLOCKED_HIT. Prevent accidental zero-gain calls
+	-- from causing suppression or notifications.
 	local gain = amount or GAIN_BLOCKED_HIT
+	if gain <= 0 then
+		return false
+	end
+
 	state.Current     = math.min(state.Max, state.Current + gain)
 	state.LastGainTime = tick()
 	_notifyChange(player, state)

@@ -20,6 +20,13 @@
   - Restores original `CanCollide` state when dodge ends or animation stops
   - Result: Zero flinging, perfect control, clean collision-free movement
   
+- **CombatService & Abilities:** Updated posture call sites and added HP damage to Tide, Ash, Gale.
+  - CombatService.ValidateHit now calls GainPosture for blocked hits (#157)
+  - Ability OnHit callbacks for Current, AshenStep, CinderBurst, WindStrike use GainPosture and apply 15 HP damage
+  - CombatService._ProcessDamageAttributes now uses GainPosture for incoming posture
+  - DefenseService.CalculateBlockedDamage uses GainPosture and logs suppression
+  - PostureService.GainPosture guard added to ignore zero-gain uses
+
 ### Integration Points
 - Dodge is now completely isolated from physics collisions, allowing full dodge-through capability
 
@@ -33,7 +40,8 @@
 The fundamental issue was that BodyVelocity + Physics collisions = fling. By making the root part non-collidable and using CFrame-based movement, we eliminate the physics interaction entirely while maintaining visual smoothness via damping.
 
 ### Next Session Should Start On
-Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation.
+Issue #154: Convert Void and Ember Depth 1 abilities to the new HitboxService implementation
+Issue #157: Begin implementing inverted posture model changes now that refactor issue is open.
 
 ## Session NF-052: Aspect Switching Ability Clearing & Hitbox Damage Debug
 **Date:** 2026-03-07
