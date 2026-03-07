@@ -604,6 +604,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				if isOverlapping() then
 					rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
 				end
+			end
 
 			-- ── Disable CanCollide on EVERY BasePart in character ──────────
 			-- HumanoidRootPart alone is not enough; arms/legs still collide
