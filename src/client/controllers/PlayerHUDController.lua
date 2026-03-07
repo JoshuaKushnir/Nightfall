@@ -69,19 +69,6 @@ local resonanceGui: ScreenGui
 local _resonanceLabel: TextLabel
 local _shardsLabel: TextLabel
 
--- Ability bar (#146)
-local AspectController: any = nil
-local abilityBarGui: ScreenGui
-local abilityBarConn: RBXScriptConnection?
-local ABILITY_KEYS: {Enum.KeyCode} = {
-	Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V,
-}
-local ABILITY_KEY_LABELS: {string} = {"Z", "X", "C", "V"}
-local _slotFrames:     {Frame}     = {}
-local _slotOverlays:   {Frame}     = {}
-local _slotNameLabels: {TextLabel} = {}
-local _slotTimeLabels: {TextLabel} = {}
-
 -- State
 local profile: PlayerProfile? = nil
 local currentState: PlayerState? = nil
@@ -393,157 +380,6 @@ local function createResonanceHUD()
 	_shardsLabel.Font = Enum.Font.GothamBold
 	_shardsLabel.TextXAlignment = Enum.TextXAlignment.Right
 	_shardsLabel.Parent = panel
-end
-
---------------------------------------------------------------------------------
--- Ability Bar (#146)
--- 4 slots bottom-centre keyed Z/X/C/V, with proportional cooldown overlay.
---------------------------------------------------------------------------------
-
-local function createAbilityBar()
-	playerGui = playerGui or Players.LocalPlayer:WaitForChild("PlayerGui", 5)
-
-	abilityBarGui = Instance.new("ScreenGui")
-	abilityBarGui.Name = "AbilityBarHUD"
-	abilityBarGui.ResetOnSpawn = false
-	abilityBarGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	abilityBarGui.DisplayOrder = 12
-	abilityBarGui.Parent = playerGui
-
-	local SLOT_SIZE = 68
-	local SLOT_GAP  = 6
-	local BAR_W     = SLOT_SIZE * 4 + SLOT_GAP * 3
-
-	local barRoot = Instance.new("Frame")
-	barRoot.Name = "AbilityBar"
-	barRoot.Size = UDim2.new(0, BAR_W, 0, SLOT_SIZE + 22)
-	barRoot.AnchorPoint = Vector2.new(0.5, 1)
-	barRoot.Position = UDim2.new(0.5, 0, 1, -16)
-	barRoot.BackgroundTransparency = 1
-	barRoot.BorderSizePixel = 0
-	barRoot.Parent = abilityBarGui
-
-	for i = 1, 4 do
-		local xOffset = (i - 1) * (SLOT_SIZE + SLOT_GAP)
-
-		-- Slot backing
-		local slotFrame = Instance.new("Frame")
-		slotFrame.Name = "Slot" .. i
-		slotFrame.Size = UDim2.new(0, SLOT_SIZE, 0, SLOT_SIZE)
-		slotFrame.Position = UDim2.fromOffset(xOffset, 0)
-		slotFrame.BackgroundColor3 = Color3.fromRGB(18, 15, 22)
-		slotFrame.BackgroundTransparency = 0.25
-		slotFrame.BorderSizePixel = 0
-		slotFrame.ClipsDescendants = true
-		slotFrame.Parent = barRoot
-
-		local slotCorner = Instance.new("UICorner")
-		slotCorner.CornerRadius = UDim.new(0, 6)
-		slotCorner.Parent = slotFrame
-
-		local slotStroke = Instance.new("UIStroke")
-		slotStroke.Color = Color3.fromRGB(60, 50, 80)
-		slotStroke.Thickness = 1
-		slotStroke.Parent = slotFrame
-
-		-- Cooldown overlay — fills from bottom upward as cooldown ticks
-		local overlay = Instance.new("Frame")
-		overlay.Name = "CooldownOverlay"
-		overlay.AnchorPoint = Vector2.new(0, 1)
-		overlay.Size = UDim2.new(1, 0, 0, 0)   -- grows upward
-		overlay.Position = UDim2.new(0, 0, 1, 0)
-		overlay.BackgroundColor3 = Color3.fromRGB(8, 6, 14)
-		overlay.BackgroundTransparency = 0.35
-		overlay.BorderSizePixel = 0
-		overlay.ZIndex = 2
-		overlay.Parent = slotFrame
-
-		-- Ability name
-		local nameLbl = Instance.new("TextLabel")
-		nameLbl.Name = "AbilityName"
-		nameLbl.Size = UDim2.new(1, -4, 0.6, 0)
-		nameLbl.Position = UDim2.new(0, 2, 0.1, 0)
-		nameLbl.BackgroundTransparency = 1
-		nameLbl.Text = "—"
-		nameLbl.TextColor3 = Color3.fromRGB(200, 190, 215)
-		nameLbl.TextSize = 11
-		nameLbl.Font = Enum.Font.GothamBold
-		nameLbl.TextXAlignment = Enum.TextXAlignment.Center
-		nameLbl.TextWrapped = true
-		nameLbl.ZIndex = 3
-		nameLbl.Parent = slotFrame
-
-		-- Cooldown countdown text (visible only while cooling down)
-		local timeLbl = Instance.new("TextLabel")
-		timeLbl.Name = "CooldownTime"
-		timeLbl.Size = UDim2.new(1, 0, 0.35, 0)
-		timeLbl.Position = UDim2.new(0, 0, 0.65, 0)
-		timeLbl.BackgroundTransparency = 1
-		timeLbl.Text = ""
-		timeLbl.TextColor3 = Color3.fromRGB(255, 240, 160)
-		timeLbl.TextSize = 14
-		timeLbl.Font = Enum.Font.GothamBold
-		timeLbl.TextXAlignment = Enum.TextXAlignment.Center
-		timeLbl.ZIndex = 4
-		timeLbl.Parent = slotFrame
-
-		-- Key label sits below the slot
-		local keyLbl = Instance.new("TextLabel")
-		keyLbl.Name = "KeyLabel"
-		keyLbl.Size = UDim2.new(0, SLOT_SIZE, 0, 18)
-		keyLbl.Position = UDim2.fromOffset(xOffset, SLOT_SIZE + 4)
-		keyLbl.BackgroundTransparency = 1
-		keyLbl.Text = "[" .. ABILITY_KEY_LABELS[i] .. "]"
-		keyLbl.TextColor3 = Color3.fromRGB(130, 120, 150)
-		keyLbl.TextSize = 11
-		keyLbl.Font = Enum.Font.Gotham
-		keyLbl.TextXAlignment = Enum.TextXAlignment.Center
-		keyLbl.Parent = barRoot
-
-		_slotFrames[i]     = slotFrame
-		_slotOverlays[i]   = overlay
-		_slotNameLabels[i] = nameLbl
-		_slotTimeLabels[i] = timeLbl
-	end
-end
-
-local function updateAbilityBar(_dt: number)
-	if not AspectController then return end
-	local now = tick()
-
-	for i, key in ipairs(ABILITY_KEYS) do
-		local abilityId: string? = AspectController._keybinds[key]
-		local overlay   = _slotOverlays[i]
-		local nameLbl   = _slotNameLabels[i]
-		local timeLbl   = _slotTimeLabels[i]
-		if not overlay then continue end
-
-		if abilityId == nil or abilityId == "" then
-			nameLbl.Text  = "—"
-			overlay.Size  = UDim2.new(1, 0, 0, 0)
-			timeLbl.Text  = ""
-			continue
-		end
-
-		-- Ability display name
-		local abilityData = AspectRegistry and AspectRegistry.Abilities
-			and AspectRegistry.Abilities[abilityId]
-		nameLbl.Text = (abilityData and abilityData.Name) or abilityId
-
-		-- Cooldown state
-		local expiry: number? = AspectController._cooldowns[abilityId]
-		if expiry and expiry > now then
-			local remaining = expiry - now
-			local totalCd   = (abilityData and abilityData.Cooldown) or 1
-			local fraction  = math.clamp(remaining / totalCd, 0, 1)
-			-- Overlay grows upward proportional to remaining fraction
-			overlay.Size = UDim2.new(1, 0, fraction, 0)
-			timeLbl.Text = string.format("%.1f", remaining)
-		else
-			overlay.Size = UDim2.new(1, 0, 0, 0)
-			timeLbl.Text = ""
-		end
-	end
 end
 
 --------------------------------------------------------------------------------
@@ -913,8 +749,6 @@ function PlayerHUDController:Init(dependencies)
 	MovementController    = dependencies.MovementController
 	NetworkController     = dependencies.NetworkController
 	ProgressionController = dependencies.ProgressionController
-	AspectController      = dependencies.AspectController
-
 	if not StateSyncController then
 		error("[PlayerHUDController] StateSyncController dependency not provided")
 	end
@@ -945,12 +779,6 @@ function PlayerHUDController:Start()
 		table.insert(ProgressionController._resonanceListeners, _updateResonanceDisplay)
 	end
 
-	-- Create Ability bar (#146)
-	createAbilityBar()
-	if AspectController then
-		abilityBarConn = RunService.Heartbeat:Connect(updateAbilityBar)
-	end
-
 	-- Connect to StateSyncController signals
 	StateSyncController.GetProfileLoadedSignal():Connect(onProfileLoaded)
 	StateSyncController.GetProfileUpdatedSignal():Connect(onProfileUpdated)
@@ -974,18 +802,11 @@ function PlayerHUDController:Shutdown()
 		movementHudConn:Disconnect()
 		movementHudConn = nil
 	end
-	if abilityBarConn then
-		abilityBarConn:Disconnect()
-		abilityBarConn = nil
-	end
 	if movementGui then
 		movementGui:Destroy()
 	end
 	if resonanceGui then
 		resonanceGui:Destroy()
-	end
-	if abilityBarGui then
-		abilityBarGui:Destroy()
 	end
 	if screenGui then
 		screenGui:Destroy()
