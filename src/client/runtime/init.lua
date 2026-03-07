@@ -129,8 +129,9 @@ local startSuccess = true
 
 -- Start in a specific order to handle dependencies
 local startOrder = {
-	"NetworkController",   -- Must start first (depended on by others)
-	"StateSyncController", -- Before MovementController so state cache exists
+	"NetworkController",             -- Must start first (depended on by others)
+	"CharacterCreationController",   -- #141: aspect picker; needs NetworkController ready
+	"StateSyncController",           -- Before MovementController so state cache exists
 	"MovementController",  -- Epic #56: smooth movement (coyote, jump buffer, sprint)
 	"WeaponController",    -- #69: equip state must be ready before ActionController
 	"ActionController",

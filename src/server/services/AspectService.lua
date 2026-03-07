@@ -704,10 +704,21 @@ local function _onCastRequest(player: Player, packet: any)
 end
 -- ────────────────────────────────────────────────────────────────────────────
 
--- sync cooldowns on join
+-- sync cooldowns on join; check for first-join character creation
 local function _onPlayerAdded(player)
     NetworkService:SendToClient(player, "AbilityDataSync", AspectService:GetCooldowns(player))
     AspectService.ApplyPassives(player)
+
+    -- Fire CharacterCreationRequired once the profile is guaranteed loaded
+    -- (CharacterAdded fires after DataService completes async profile load)
+    player.CharacterAdded:Connect(function()
+        task.wait(1)  -- let DataService/StateService finish registering
+        local profile = DataService:GetProfile(player)
+        if profile and profile.AspectData == nil then
+            NetworkService:SendToClient(player, "CharacterCreationRequired", {})
+            print("[AspectService] First-join detected for " .. player.Name .. " — sent CharacterCreationRequired")
+        end
+    end)
 end
 
 --[[
@@ -755,6 +766,47 @@ function AspectService:Start()
             })
         end
         -- success path already fires SwitchAspectResult inside SwitchAspect()
+    end)
+
+    -- #141: First-time aspect selection (character creation)
+    NetworkService:RegisterHandler("SelectAspect", function(player, packet)
+        if type(packet) ~= "table" or type(packet.AspectId) ~= "string" then
+            NetworkService:SendToClient(player, "SelectAspectResult", {
+                Success = false, Reason = "InvalidPacket"
+            })
+            return
+        end
+        local aspectId = packet.AspectId :: string
+        -- Validate aspect ID is one of the known unlocked aspects
+        local validAspects: {string} = {"Ash", "Tide", "Ember", "Gale", "Void"}
+        local isValid = false
+        for _, id in validAspects do
+            if id == aspectId then
+                isValid = true
+                break
+            end
+        end
+        if not isValid then
+            NetworkService:SendToClient(player, "SelectAspectResult", {
+                Success = false, Reason = "UnknownAspect"
+            })
+            return
+        end
+        local ok = AspectService.AssignAspect(player, aspectId :: any)
+        if ok then
+            -- Grant the starting moveset
+            local invSvc = _requireInventoryService()
+            invSvc.GrantAspectMoves(player, aspectId)
+            AspectService.ApplyPassives(player)
+            NetworkService:SendToClient(player, "SelectAspectResult", {
+                Success = true, AspectId = aspectId
+            })
+            print("[AspectService] " .. player.Name .. " selected Aspect: " .. aspectId)
+        else
+            NetworkService:SendToClient(player, "SelectAspectResult", {
+                Success = false, Reason = "AlreadyAssigned"
+            })
+        end
     end)
 
     RunService.Heartbeat:Connect(_onHeartbeat)

@@ -78,6 +78,9 @@ export type NetworkEvent =
 	| "UseAbility"
 
 	-- Aspect System Events
+	| "CharacterCreationRequired" -- Server → Client: prompt first-join aspect picker
+	| "SelectAspect"              -- Client → Server: first-time aspect selection
+	| "SelectAspectResult"        -- Server → Client: success/failure of aspect selection
 	| "AspectAssigned"         -- Server → Client: tell client their Aspect was set
 	| "AspectInvestRequest"    -- Client → Server: request to invest Shards in a branch
 	| "AspectInvestResult"     -- Server → Client: success/failure result
@@ -208,6 +211,21 @@ export type ClashOutcomePacket = {
 export type CondemnedStatusPacket = {
 	Target: Player,
 	IsCondemned: boolean,
+}
+
+-- Character creation packets (#141)
+export type CharacterCreationRequiredPacket = {
+	-- No payload; client already knows the 5 available aspects from AspectRegistry
+}
+
+export type SelectAspectPacket = {
+	AspectId: string,
+}
+
+export type SelectAspectResultPacket = {
+	Success: boolean,
+	AspectId: string?,
+	Reason: string?,
 }
 
 -- Aspect system packets
@@ -673,6 +691,24 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = 10,
 		RequiresValidation = false,
 		Description = "Result of aspect swap",
+	},
+	CharacterCreationRequired = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Prompt first-join player to pick an Aspect",
+	},
+	SelectAspect = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 1, -- one pick only; server rejects replays
+		RequiresValidation = true,
+		Description = "Client selects their permanent starting Aspect",
+	},
+	SelectAspectResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Server confirms or rejects aspect selection",
 	},
 	MantraCast = {
 		Direction = "ClientToServer",
