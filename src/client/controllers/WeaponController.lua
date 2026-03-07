@@ -20,7 +20,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 
 local WeaponController = {}
 
@@ -36,12 +37,88 @@ local _heldWeaponId: string? = nil
 -- Set as long as the server has given us ANY weapon (backpack or held).
 local _ownedWeaponId: string? = nil
 
+-- Placeholder Part per Tool — keyed by Tool instance, cleared on unequip.
+local _placeholderParts: {[Tool]: Part} = {}
+
 -- ─── Constants ───────────────────────────────────────────────────────────────
 
 local EQUIPPED_EVENT   = "WeaponEquipped"
 local UNEQUIPPED_EVENT = "WeaponUnequipped"
 
+-- Color by WeightClass (placeholder visual only — no real art)
+local WEIGHT_CLASS_COLORS: {[string]: Color3} = {
+	Light  = Color3.fromRGB(192, 200, 210), -- silver
+	Medium = Color3.fromRGB(100, 110, 125), -- gray-blue steel
+	Heavy  = Color3.fromRGB( 55,  58,  65), -- dark steel
+}
+local DEFAULT_PLACEHOLDER_COLOR = Color3.fromRGB(130, 130, 130)
+
 -- ─── Private helpers ─────────────────────────────────────────────────────────
+
+--[[
+	Create a Range-scaled placeholder Part inside `tool` so the player can
+	see they are holding a weapon before real art assets exist.
+
+	The Part is welded to the Tool's Handle.  Fists skip this entirely.
+	Safe to call multiple times — destroys any previous placeholder first.
+]]
+local function _createPlaceholderPart(tool: Tool, weaponId: string)
+	-- Fists have no visible model
+	if weaponId == "fists" then return end
+
+	local config = WeaponRegistry.Get(weaponId)
+	if not config then return end
+
+	-- Find or synthesise a Handle (Tools require one to work in Roblox)
+	local handle = tool:FindFirstChild("Handle") :: BasePart?
+	if not handle then
+		local h = Instance.new("Part")
+		h.Name       = "Handle"
+		h.Size       = Vector3.new(0.2, 0.2, 0.2)
+		h.Transparency = 1
+		h.CanCollide = false
+		h.Parent     = tool
+		handle       = h
+	end
+
+	-- Destroy any leftover placeholder from a previous equip
+	local existing = _placeholderParts[tool]
+	if existing then
+		existing:Destroy()
+		_placeholderParts[tool] = nil :: any
+	end
+
+	-- Build the blade / body Part
+	local blade       = Instance.new("Part")
+	blade.Name        = "PlaceholderBlade"
+	blade.Size        = Vector3.new(0.2, 0.2, config.Range or 3)
+	blade.CFrame      = (handle :: BasePart).CFrame * CFrame.new(0, 0, -(config.Range or 3) / 2)
+	blade.Color       = WEIGHT_CLASS_COLORS[config.WeightClass] or DEFAULT_PLACEHOLDER_COLOR
+	blade.Material    = Enum.Material.SmoothPlastic
+	blade.CanCollide  = false
+	blade.CastShadow  = false
+	blade.Anchored    = false
+	blade.Parent      = tool
+
+	-- Weld blade to Handle so it follows character arm movement
+	local weld          = Instance.new("WeldConstraint")
+	weld.Part0          = handle :: BasePart
+	weld.Part1          = blade
+	weld.Parent         = blade
+
+	_placeholderParts[tool] = blade
+end
+
+--[[
+	Remove the placeholder Part from `tool` and clear the reference table.
+]]
+local function _removePlaceholderPart(tool: Tool)
+	local part = _placeholderParts[tool]
+	if part then
+		part:Destroy()
+		_placeholderParts[tool] = nil :: any
+	end
+end
 
 --[[
 	Connect Equipped/Unequipped events to a Tool so we know when it moves
@@ -52,6 +129,7 @@ local function _WireToolEvents(tool: Tool)
 		local id = tool:GetAttribute("WeaponId")
 		if id then
 			_heldWeaponId = id
+			_createPlaceholderPart(tool, id)
 			print(`[WeaponController] ✓ Tool held: {id}`)
 		end
 	end)
@@ -59,6 +137,7 @@ local function _WireToolEvents(tool: Tool)
 	tool.Unequipped:Connect(function()
 		local id = tool:GetAttribute("WeaponId")
 		print(`[WeaponController] Tool unholstered: {tostring(id)}`)
+		_removePlaceholderPart(tool)
 		_heldWeaponId = nil
 	end)
 end
@@ -151,6 +230,11 @@ function WeaponController:Start()
 	_ScanAndWire()
 
 	Player.CharacterAdded:Connect(function()
+		-- Clear all placeholder Parts — they lived in the old character's tools
+		for tool, part in _placeholderParts do
+			part:Destroy()
+		end
+		table.clear(_placeholderParts)
 		_heldWeaponId  = nil
 		_ownedWeaponId = nil
 		task.defer(_ScanAndWire)
