@@ -1,26 +1,26 @@
---!strict
+﻿--!strict
 --[[
     Class: Void
-    Description: VOID — Phase-based evasion, ability suppression, mark-hunting.
+    Description: VOID â€” Phase-based evasion, ability suppression, mark-hunting.
                  Full attunement moveset: 5 abilities, 3 talent stubs each.
                  Identity: Anti-caster and lockdown. Counters resource-heavy opponents
                  by silencing, disrupting cooldowns, and burning through defences via Isolation.
-    Issue: #149 — refactor Aspect system to full moveset
+    Issue: #149 â€” refactor Aspect system to full moveset
     Dependencies: none (server-only via OnActivate)
 
     Move list:
-        [1] Blink          (UtilityProc) — Phase-teleport, posture debuff setup
-        [2] Silence        (UtilityProc) — Ability lock on nearest target
-        [3] PhaseShift     (Defensive)   — True invulnerability 0.6s + reposition
-        [4] VoidPulse      (Offensive)   — Slow projectile, posture + regen interrupt
-        [5] IsolationField (SelfBuff)    — Mark target: no healing + CDR slow + bonus dmg
+        [1] Blink          (UtilityProc) â€” Phase-teleport, posture debuff setup
+        [2] Silence        (UtilityProc) â€” Ability lock on nearest target
+        [3] PhaseShift     (Defensive)   â€” True invulnerability 0.6s + reposition
+        [4] VoidPulse      (Offensive)   â€” Slow projectile, posture + regen interrupt
+        [5] IsolationField (SelfBuff)    â€” Mark target: no healing + CDR slow + bonus dmg
 ]]
 
 local Players = game:GetService("Players")
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 1 — BLINK (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 1 â€” BLINK (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  Instant cast. Phase-teleport up to 10 studs through geometry.
 --  On arrival: interrupt target's Posture regen for 1s.
 --  Next melee hit within 1.5s: +30% Posture damage.
@@ -33,16 +33,16 @@ local BLINK_POSTURE_HIT     : number = 15   -- posture gained by target on Blink
 local BLINK_HP_HIT          : number = 10   -- HP damage to dummies on Blink arrival (placeholder)
 
 
--- VFX STUB — animator: void/dark flash at origin, reappear with void ripple at dest
+-- VFX STUB â€” animator: void/dark flash at origin, reappear with void ripple at dest
 local function _VFX_Blink_Vanish(_origin: Vector3) end
 local function _VFX_Blink_Arrive(_dest: Vector3) end
--- VFX STUB — animator: subtle dark shimmer on caster during melee boost window
+-- VFX STUB â€” animator: subtle dark shimmer on caster during melee boost window
 local function _VFX_BlinkBoostActive(_caster: Player) end
 local function _VFX_BlinkBoostExpire(_caster: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 2 — SILENCE (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 2 â€” SILENCE (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.15s cast. 8-stud pulse from caster. On hit: Silence 3s (random ability locked,
 --  cannot be cast). 10 Posture damage. If target is mid-cast: cancel + trigger full CD.
 
@@ -50,9 +50,9 @@ local SILENCE_RANGE         : number = 8
 local SILENCE_DURATION      : number = 3
 local SILENCE_POSTURE_DMG   : number = 10
 
--- VFX STUB — animator: void pulse wave expands 8 studs, targets get dark orb mouth effect
+-- VFX STUB â€” animator: void pulse wave expands 8 studs, targets get dark orb mouth effect
 local function _VFX_Silence_Pulse(_origin: Vector3) end
--- VFX STUB — animator: grey-out animation on one random slot in target's hotbar
+-- VFX STUB â€” animator: grey-out animation on one random slot in target's hotbar
 local function _VFX_SilenceStatus(_target: any, _lockedSlot: number) end
 local function _VFX_SilenceExpire(_target: any) end
 
@@ -61,39 +61,39 @@ local function _pickSilenceSlot(): number
     return math.random(1, 5)
 end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 3 — PHASESHIFT (Defensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 3 â€” PHASESHIFT (Defensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  Instant cast. True invulnerability 0.6s: untargetable, no damage, no state change.
 --  On exit: reappear at position + 3-stud reposition in caster's movement direction.
 
 local PHASESHIFT_DURATION   : number = 0.6
 local PHASESHIFT_REPOSITION : number = 3
 
--- VFX STUB — animator: void cloak (invisible + dark outline), reappear with phase burst
+-- VFX STUB â€” animator: void cloak (invisible + dark outline), reappear with phase burst
 local function _VFX_PhaseShift_Enter(_caster: Player) end
 local function _VFX_PhaseShift_Exit(_caster: Player, _dest: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 4 — VOIDPULSE (Offensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 4 â€” VOIDPULSE (Offensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.2s cast. Launches slow projectile (travels 12 studs over ~1s).
 --  On hit: 30 Posture + 2s Posture-regen interrupt. Can be dodge-cancelled.
 --  vs Silenced target: Posture doubles (60).
 
 local VOIDPULSE_RANGE           : number = 12
-local VOIDPULSE_SPEED           : number = 12  -- studs/s → 1s travel for 12 studs
+local VOIDPULSE_SPEED           : number = 12  -- studs/s â†’ 1s travel for 12 studs
 local VOIDPULSE_POSTURE_DMG     : number = 30
 local VOIDPULSE_REGEN_INTERRUPT : number = 2
 local VOIDPULSE_RADIUS          : number = 2   -- hitbox on arrival
 
--- VFX STUB — animator: slow-moving dark orb with void ripples, detonates on hit
+-- VFX STUB â€” animator: slow-moving dark orb with void ripples, detonates on hit
 local function _VFX_VoidPulse_Spawn(_origin: Vector3, _dest: Vector3) end
 local function _VFX_VoidPulse_Hit(_pos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 5 — ISOLATIONFIELD (SelfBuff)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 5 â€” ISOLATIONFIELD (SelfBuff)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.3s cast. Mark target within 12 studs for 5s.
 --  Effect: target receives no healing, their CDR rate slowed 50%,
 --  and you deal +15% damage to them. Mark is dispelled if target leaves 20-stud radius.
@@ -104,13 +104,13 @@ local ISOLATION_DMG_BONUS   : number = 0.15
 local ISOLATION_CDR_SLOW    : number = 0.50   -- CDR operates at 50% of normal rate
 local ISOLATION_BREAK_RANGE : number = 20     -- mark breaks if target flees this far
 
--- VFX STUB — animator: dark void ring around target, caster has dark sigil on hand
+-- VFX STUB â€” animator: dark void ring around target, caster has dark sigil on hand
 local function _VFX_IsolationField_Apply(_target: any) end
 local function _VFX_IsolationField_Expire(_target: any) end
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- MOVESET MODULE
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local Void = {
     AspectId    = "Void",
@@ -118,7 +118,7 @@ local Void = {
     Moves       = {} :: any,
 }
 
--- ── Move 1 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Void.Moves[1] = {
     Id          = "Blink",
     Name        = "Blink",
@@ -146,7 +146,7 @@ Void.Moves[1] = {
             Description   = "If Blink is cast within 3 studs of the target, the Posture regen "
                           .. "interrupt extends from 1s to 2.5s. Close-range phasing = deeper debuff.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires distance check at teleport arrival
+            OnActivate    = nil, -- STUB â€” requires distance check at teleport arrival
         },
         {
             Id            = "PhaseResidue",
@@ -155,7 +155,7 @@ Void.Moves[1] = {
             Description   = "Blink origin leaves a Slow field (1s duration, 2-stud radius) at "
                           .. "departure point. Opponents chasing get briefly slowed.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Slow zone spawn at origin after teleport
+            OnActivate    = nil, -- STUB â€” requires Slow zone spawn at origin after teleport
         },
         {
             Id            = "VoidSlip",
@@ -164,7 +164,7 @@ Void.Moves[1] = {
             Description   = "If Blink is cast while airborne, range extends to 14 studs (+4). "
                           .. "Phase through geometry at greater horizontal distance.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne state → range override
+            OnActivate    = nil, -- STUB â€” requires airborne state â†’ range override
         },
     },
 
@@ -198,8 +198,8 @@ Void.Moves[1] = {
         root.CFrame = CFrame.new(rawDest, rawDest + forward)
         _VFX_Blink_Arrive(rawDest)
 
-        -- TALENT HOOK STUB: PhaseResidue — spawn Slow zone at `origin`
-        -- TALENT HOOK STUB: VoidSlip     — if airborne, range was already 14 studs above
+        -- TALENT HOOK STUB: PhaseResidue â€” spawn Slow zone at `origin`
+        -- TALENT HOOK STUB: VoidSlip     â€” if airborne, range was already 14 studs above
 
         -- Interrupt nearest target's Posture regen
         local bestDist = math.huge
@@ -228,7 +228,7 @@ Void.Moves[1] = {
 
         if bestChar then
             local interruptDur = BLINK_REGEN_INTERRUPT
-            -- TALENT HOOK STUB: Nullpoint — if bestDist < 3, interruptDur = 2.5
+            -- TALENT HOOK STUB: Nullpoint â€” if bestDist < 3, interruptDur = 2.5
 
             -- #154: apply real posture gain to the target (fills their pressure gauge)
             local targetPlayer = Players:GetPlayerFromCharacter(bestChar)
@@ -241,7 +241,7 @@ Void.Moves[1] = {
                     PostureService.GainPosture(targetPlayer, BLINK_POSTURE_HIT)
                 end
             else
-                -- Dummy target — no posture system, apply small HP hit instead
+                -- Dummy target â€” no posture system, apply small HP hit instead
                 local dummyId = bestChar.Name:match("^Dummy_(.+)$")
                 if dummyId then
                     local ok, DummyService = pcall(function()
@@ -284,7 +284,7 @@ Void.Moves[1] = {
     end,
 }
 
--- ── Move 2 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Void.Moves[2] = {
     Id          = "Silence",
     Name        = "Silence",
@@ -311,7 +311,7 @@ Void.Moves[2] = {
             Description   = "While a target is Silenced, their CDR is suppressed. For every second "
                           .. "they cannot use the locked ability, you gain +5 Mana (max 15 per cast).",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires per-second Mana drain from Silenced CDR
+            OnActivate    = nil, -- STUB â€” requires per-second Mana drain from Silenced CDR
         },
         {
             Id            = "VoidHunger",
@@ -320,7 +320,7 @@ Void.Moves[2] = {
             Description   = "If target is Blocking when hit by Silence, the block is broken "
                           .. "and full Posture drain applies (not the reduced block Posture).",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires block state check → block break at impact
+            OnActivate    = nil, -- STUB â€” requires block state check â†’ block break at impact
         },
         {
             Id            = "StillZone",
@@ -329,7 +329,7 @@ Void.Moves[2] = {
             Description   = "On hit, a void field (3s) spawns at impact: ability range -50% "
                           .. "for any player inside. Spatial suppression zone.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires zone spawn with range debuff attribute
+            OnActivate    = nil, -- STUB â€” requires zone spawn with range debuff attribute
         },
     },
 
@@ -390,7 +390,7 @@ Void.Moves[2] = {
             bestChar:SetAttribute("CastingAbility", nil)
         end
 
-        -- TALENT HOOK STUB: VoidHunger — if Blocking, break block + full posture drain
+        -- TALENT HOOK STUB: VoidHunger â€” if Blocking, break block + full posture drain
 
         -- Apply Silence
         local lockedSlot = _pickSilenceSlot()
@@ -399,8 +399,8 @@ Void.Moves[2] = {
         bestChar:SetAttribute("SilencedSlot", lockedSlot)
         _VFX_SilenceStatus(bestTarget, lockedSlot)
 
-        -- TALENT HOOK STUB: EchoSilence — per-second Mana gain while target is Silenced
-        -- TALENT HOOK STUB: StillZone   — spawn range-reduction zone at bestChar position
+        -- TALENT HOOK STUB: EchoSilence â€” per-second Mana gain while target is Silenced
+        -- TALENT HOOK STUB: StillZone   â€” spawn range-reduction zone at bestChar position
 
         task.delay(SILENCE_DURATION, function()
             if not bestChar or not bestChar.Parent then return end
@@ -418,7 +418,7 @@ Void.Moves[2] = {
     end,
 }
 
--- ── Move 3 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Void.Moves[3] = {
     Id          = "PhaseShift",
     Name        = "Phase Shift",
@@ -426,7 +426,7 @@ Void.Moves[3] = {
     Slot        = 3,
     Type        = "Expression",
     MoveType    = "Defensive",
-    Description = "0.6s true invulnerability — untargetable, no damage, no state override. "
+    Description = "0.6s true invulnerability â€” untargetable, no damage, no state override. "
                 .. "On exit: reappear at origin + 3-stud reposition in movement direction.",
 
     CastTime         = 0,        -- instant
@@ -445,7 +445,7 @@ Void.Moves[3] = {
             Description   = "On exiting PhaseShift, restore 15 Posture to caster. "
                           .. "Framing a phase correctly recovers defensive resources.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Posture restore on phase exit
+            OnActivate    = nil, -- STUB â€” requires Posture restore on phase exit
         },
         {
             Id            = "VoidExit",
@@ -454,7 +454,7 @@ Void.Moves[3] = {
             Description   = "If PhaseShift exits airborne (caster jumped before cast), emit "
                           .. "a 4-stud Slow burst on reappearance. Aerial phase = zoning tool.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne check at exit + Slow burst
+            OnActivate    = nil, -- STUB â€” requires airborne check at exit + Slow burst
         },
         {
             Id            = "NullState",
@@ -463,7 +463,7 @@ Void.Moves[3] = {
             Description   = "Phase cast during a Stagger window negates the Stagger and enters "
                           .. "PhaseShift instead. Only once per engagement. Panic-button vs Break.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Stagger intercept at cast time (once-per)
+            OnActivate    = nil, -- STUB â€” requires Stagger intercept at cast time (once-per)
         },
     },
 
@@ -477,13 +477,13 @@ Void.Moves[3] = {
         local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not root then return end
 
-        -- Enter phase — untargetable flag (read by CombatService)
+        -- Enter phase â€” untargetable flag (read by CombatService)
         char:SetAttribute("StatusPhaseShift", true)
         char:SetAttribute("PhaseShiftExpiry", tick() + PHASESHIFT_DURATION)
         _VFX_PhaseShift_Enter(player)
 
-        -- TALENT HOOK STUB: NullState — if in Stagger, intercept and negate it
-        -- TALENT HOOK STUB: VoidExit  — check if airborne at exit for Slow burst
+        -- TALENT HOOK STUB: NullState â€” if in Stagger, intercept and negate it
+        -- TALENT HOOK STUB: VoidExit  â€” check if airborne at exit for Slow burst
 
         task.delay(PHASESHIFT_DURATION, function()
             if not char or not char.Parent then return end
@@ -503,8 +503,8 @@ Void.Moves[3] = {
                 root.CFrame = CFrame.new(dest, dest + root.CFrame.LookVector)
                 _VFX_PhaseShift_Exit(player, dest)
 
-                -- TALENT HOOK STUB: PhaseEcho — restore 15 Posture on exit
-                -- TALENT HOOK STUB: VoidExit  — if airborne, Slow burst 4 studs
+                -- TALENT HOOK STUB: PhaseEcho â€” restore 15 Posture on exit
+                -- TALENT HOOK STUB: VoidExit  â€” if airborne, Slow burst 4 studs
             end
         end)
     end,
@@ -516,7 +516,7 @@ Void.Moves[3] = {
     end,
 }
 
--- ── Move 4 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Void.Moves[4] = {
     Id          = "VoidPulse",
     Name        = "Void Pulse",
@@ -526,7 +526,7 @@ Void.Moves[4] = {
     MoveType    = "Offensive",
     Description = "Cast a slow projectile (12 studs, ~1s travel). On hit: 30 Posture "
                 .. "+ 2s Posture regen interrupt. Can be dodge-cancelled. "
-                .. "vs Silenced target: Posture doubles (60). Blink in last 2s → instant cast.",
+                .. "vs Silenced target: Posture doubles (60). Blink in last 2s â†’ instant cast.",
 
     CastTime         = 0.2,
     ManaCost         = 20,
@@ -541,10 +541,10 @@ Void.Moves[4] = {
             Id            = "GravityWell",
             Name          = "Gravity Well",
             InteractsWith = "Airborne",
-            Description   = "If VoidPulse hits a target at 30°+ upward angle (airborne), "
+            Description   = "If VoidPulse hits a target at 30Â°+ upward angle (airborne), "
                           .. "they are pulled down and Grounded on landing. Anti-air punish.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Y-angle check at impact + Grounded on land
+            OnActivate    = nil, -- STUB â€” requires Y-angle check at impact + Grounded on land
         },
         {
             Id            = "ResonanceDrain",
@@ -553,7 +553,7 @@ Void.Moves[4] = {
             Description   = "VoidPulse hit reduces target's current Resonance streak timer "
                           .. "by 5s. Slows their Resonance accumulation without negating it.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires ResonanceStreakTimer attribute decrement
+            OnActivate    = nil, -- STUB â€” requires ResonanceStreakTimer attribute decrement
         },
         {
             Id            = "PhaseChain",
@@ -562,7 +562,7 @@ Void.Moves[4] = {
             Description   = "If Blink was used in the last 2s, VoidPulse ignores cast time "
                           .. "and fires instantly. Phase in + Pulse out = seamless combo.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires BlinkLastUsed timestamp check at cast
+            OnActivate    = nil, -- STUB â€” requires BlinkLastUsed timestamp check at cast
         },
     },
 
@@ -586,7 +586,7 @@ Void.Moves[4] = {
         local dest    = targetPos or (origin + forward * VOIDPULSE_RANGE)
         local travelTime = (dest - origin).Magnitude / VOIDPULSE_SPEED
 
-        -- TALENT HOOK STUB: PhaseChain — if Blink within last 2s, skip cast time (instant)
+        -- TALENT HOOK STUB: PhaseChain â€” if Blink within last 2s, skip cast time (instant)
 
         -- Use HitboxService for physical collision detection
         local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
@@ -646,7 +646,7 @@ Void.Moves[4] = {
             })
         end)
         
-        -- VFX STUB — projectiles still simulate travel
+        -- VFX STUB â€” projectiles still simulate travel
         task.delay(travelTime, function()
             if not char or not char.Parent then return end
             _VFX_VoidPulse_Hit(dest)
@@ -660,7 +660,7 @@ Void.Moves[4] = {
     end,
 }
 
--- ── Move 5 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Void.Moves[5] = {
     Id          = "IsolationField",
     Name        = "Isolation Field",
@@ -688,16 +688,16 @@ Void.Moves[5] = {
             Description   = "During Isolation, the target's Resonance glow is suppressed and "
                           .. "their Resonance burst threshold is paused (glow hidden for 5s).",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires ResonanceGlow boolean attribute suppression
+            OnActivate    = nil, -- STUB â€” requires ResonanceGlow boolean attribute suppression
         },
         {
             Id            = "PhaseLock",
             Name          = "Phase Lock",
             InteractsWith = "Blink",
             Description   = "While Isolation is active on a target, Blink cooldown is halved to 2s. "
-                          .. "Press the advantage — phase aggressively while mark is up.",
+                          .. "Press the advantage â€” phase aggressively while mark is up.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Blink CD override attribute while mark active
+            OnActivate    = nil, -- STUB â€” requires Blink CD override attribute while mark active
         },
         {
             Id            = "VoidFeeding",
@@ -706,7 +706,7 @@ Void.Moves[5] = {
             Description   = "If Silence is active on the marked target simultaneously, CDR slow "
                           .. "increases to 75% and damage bonus increases to 25%. Double suppression.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Silence + Isolation simultaneous check
+            OnActivate    = nil, -- STUB â€” requires Silence + Isolation simultaneous check
         },
     },
 
@@ -715,7 +715,7 @@ Void.Moves[5] = {
         if not char then return end
         local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not root then return end
-        -- VFX are applied to target — done inside OnActivate
+        -- VFX are applied to target â€” done inside OnActivate
     end,
 
     OnActivate = function(player: Player, targetPos: Vector3?)
@@ -769,9 +769,9 @@ Void.Moves[5] = {
 
         _VFX_IsolationField_Apply(bestTarget :: Player)
 
-        -- TALENT HOOK STUB: NullResonance — suppress ResonanceGlow attribute on target
-        -- TALENT HOOK STUB: PhaseLock     — set BlinkCDOverride = 2 on caster
-        -- TALENT HOOK STUB: VoidFeeding   — if target Silenced, escalate values
+        -- TALENT HOOK STUB: NullResonance â€” suppress ResonanceGlow attribute on target
+        -- TALENT HOOK STUB: PhaseLock     â€” set BlinkCDOverride = 2 on caster
+        -- TALENT HOOK STUB: VoidFeeding   â€” if target Silenced, escalate values
 
         -- Monitor: break if target flees > ISOLATION_BREAK_RANGE
         local function _monitor()
@@ -811,185 +811,5 @@ Void.Moves[5] = {
     end,
 }
 
-
--- ─── VFX stubs ───────────────────────────────────────────────────────────────
-
-local function _VFX_BlinkDissolve(_origin: Vector3)
-    -- VFX STUB — animator: void-ripple dissolve at origin, 0.05s
-end
-
-local function _VFX_BlinkArrive(_dest: Vector3)
-    -- VFX STUB — animator: dark void-particle burst at dest, 0.1s
-end
-
--- ─── Helpers ─────────────────────────────────────────────────────────────────
-
---[[
-    _findNearestTarget(caster, position) → (Player?, Vector3?)
-    Finds the closest enemy player within TARGET_SEEK_RADIUS.
-    Returns the player and their character root position, or nil if none found.
-]]
-local function _findNearestTarget(caster: Player, position: Vector3): (Player?, Vector3?)
-    local bestDist = TARGET_SEEK_RADIUS + 1
-    local bestPlayer: Player? = nil
-    local bestPos: Vector3? = nil
-
-    for _, target in Players:GetPlayers() do
-        if target == caster then continue end
-        local char = target.Character
-        if not char then continue end
-        local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-        if not root then continue end
-        local d = (root.Position - position).Magnitude
-        if d < bestDist then
-            bestDist = d
-            bestPlayer = target
-            bestPos = root.Position
-        end
-    end
-
-    return bestPlayer, bestPos
-end
-
---[[
-    _computeDestination(caster, root) → Vector3
-    If a target is within range, returns a position 2 studs behind them.
-    Otherwise returns a point BLINK_DISTANCE studs forward (line-of-sight blink).
-    Does NOT do geometry collision filtering — the issue spec says "through geometry".
-]]
-local function _computeDestination(root: BasePart): Vector3
-    local casterPos = root.Position
-    local casterPlayer: Player? = nil
-    for _, p in Players:GetPlayers() do
-        if p.Character and p.Character:FindFirstChild("HumanoidRootPart") == root then
-            casterPlayer = p
-            break
-        end
-    end
-
-    if casterPlayer then
-        local target, targetPos = _findNearestTarget(casterPlayer, casterPos)
-        if target and targetPos then
-            local targetChar   = target.Character :: Model
-            local targetRoot   = targetChar:FindFirstChild("HumanoidRootPart") :: BasePart
-            local targetForward = targetRoot.CFrame.LookVector
-            -- Position: behind target (opposite of their look vector) + slight Y align
-            return targetPos - targetForward * BEHIND_OFFSET + Vector3.new(0, 0.05, 0)
-        end
-    end
-
-    -- No target — linear blink forward
-    return casterPos + root.CFrame.LookVector * BLINK_DISTANCE
-end
-
---[[
-    _interruptPostureRecovery(target, char, duration)
-    Sets a character attribute that PostureService checks to suppress regen.
-    Auto-clears after duration.
-]]
-local function _interruptPostureRecovery(target: Player, char: Model, duration: number)
-    -- PostureService reads "PostureRegenBlocked" and skips regen while true
-    char:SetAttribute("PostureRegenBlocked", true)
-    char:SetAttribute("PostureRegenBlockExpiry", tick() + duration)
-
-    -- TALENT HOOK STUB: Nullpoint — if target is Staggered, also silence one ability
-    -- local isStaggered = char:GetAttribute("Staggered")
-    -- if isStaggered then ... end
-
-    task.delay(duration, function()
-        if char and char.Parent then
-            local expiry = char:GetAttribute("PostureRegenBlockExpiry") :: number?
-            if expiry and tick() >= expiry then
-                char:SetAttribute("PostureRegenBlocked", nil)
-                char:SetAttribute("PostureRegenBlockExpiry", nil)
-            end
-        end
-    end)
-
-    print(("[Blink] Posture recovery interrupted — %s (%.1fs)"):format(target.Name, duration))
-end
-
---[[
-    _grantVoidPostureBonus(caster, char)
-    Sets a charge on the caster's character that their NEXT melee hit reads.
-    CombatService should check VoidPostureBonusCharge > 0 and add VOID_POSTURE_BONUS
-    to posture damage, then consume the charge.
-]]
-local function _grantVoidPostureBonus(char: Model)
-    char:SetAttribute("VoidPostureBonusCharge", VOID_POSTURE_BONUS)
-    char:SetAttribute("VoidPostureBonusExpiry", tick() + VOID_BONUS_WINDOW)
-
-    -- Auto-expire the charge if unused
-    task.delay(VOID_BONUS_WINDOW, function()
-        if char and char.Parent then
-            local expiry = char:GetAttribute("VoidPostureBonusExpiry") :: number?
-            if expiry and tick() >= expiry then
-                char:SetAttribute("VoidPostureBonusCharge", nil)
-                char:SetAttribute("VoidPostureBonusExpiry", nil)
-            end
-        end
-    end)
-
-    print(("[Blink] VoidPostureBonus charge granted (+%d posture on next melee)"):format(
-        VOID_POSTURE_BONUS))
-end
-
--- ─── OnActivate ──────────────────────────────────────────────────────────────
-
-function Void.OnActivate(player: Player, _targetPos: Vector3?)
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not root then return end
-
-    local origin = root.Position
-    local dest   = _computeDestination(root)
-
-    -- TALENT HOOK STUB: Void Slip — if airborne, offset dest +3Y above target
-    -- TALENT HOOK STUB: Phase Residue — grant Dampened-immunity for 0.5s
-
-    _VFX_BlinkDissolve(origin)
-
-    -- Teleport (instant)
-    root.CFrame = CFrame.new(dest, dest + root.CFrame.LookVector)
-    _VFX_BlinkArrive(dest)
-
-    -- Grant posture bonus charge to caster
-    _grantVoidPostureBonus(char)
-
-    -- Find target at destination to interrupt posture recovery
-    local overlapParams = OverlapParams.new()
-    overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-    overlapParams.FilterDescendantsInstances = { char }
-
-    local nearby = Workspace:GetPartBoundsInRadius(dest, BEHIND_OFFSET + 1, overlapParams)
-    local interrupted: {[Player]: boolean} = {}
-
-    for _, hit in nearby do
-        local model = hit:FindFirstAncestorOfClass("Model")
-        if not model then continue end
-        for _, target in Players:GetPlayers() do
-            if target == player then continue end
-            if interrupted[target] then continue end
-            if target.Character == model then
-                interrupted[target] = true
-                _interruptPostureRecovery(target, model, POSTURE_RECOVERY_BLOCK)
-            end
-        end
-    end
-
-    print(("[Blink] %s teleported %.1f studs"):format(
-        player.Name, (dest - origin).Magnitude))
-end
-
--- ─── ClientActivate ──────────────────────────────────────────────────────────
-
-function Void.ClientActivate(targetPosition: Vector3?)
-    local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
-    local remote = np:GetRemoteEvent("AbilityCastRequest")
-    if remote then
-        remote:FireServer({ AbilityId = Void.Id, TargetPosition = targetPosition })
-    end
-end
 
 return Void

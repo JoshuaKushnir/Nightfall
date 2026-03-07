@@ -1,30 +1,30 @@
---!strict
+﻿--!strict
 --[[
     Class: Gale
-    Description: GALE — Aerial control, vertical pressure, zone disruption.
+    Description: GALE â€” Aerial control, vertical pressure, zone disruption.
                  Full attunement moveset: 5 abilities, 3 talent stubs each.
                  Identity: Owns the vertical axis. Gale rewards landing airborne
                  targets and punishes flat-ground opponents with knockback into air.
-    Issue: #149 — refactor Aspect system to full moveset
+    Issue: #149 â€” refactor Aspect system to full moveset
     Dependencies: none (server-only via OnActivate)
 
     Move list:
-        [1] WindStrike  (Offensive)   — Dash launch, both parties Weightless
-        [2] Crosswind   (UtilityProc) — Lateral push, aerial bonus
-        [3] Windwall    (Defensive)   — Ranged barrier + auto-reposition
-        [4] Updraft     (SelfBuff)    — Vertical launch, next ability +damage
-        [5] Shear       (Offensive)   — 180° arc sweep, doubled vs airborne
+        [1] WindStrike  (Offensive)   â€” Dash launch, both parties Weightless
+        [2] Crosswind   (UtilityProc) â€” Lateral push, aerial bonus
+        [3] Windwall    (Defensive)   â€” Ranged barrier + auto-reposition
+        [4] Updraft     (SelfBuff)    â€” Vertical launch, next ability +damage
+        [5] Shear       (Offensive)   â€” 180Â° arc sweep, doubled vs airborne
 ]]
 
 local Players = game:GetService("Players")
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 1 — WINDSTRIKE (Offensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 1 â€” WINDSTRIKE (Offensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- Descriptions:
 --   Dash 12 studs at target. On hit: launch both caster and target (Weightless 0.5s).
 --   Airborne bonus: if caster OR target is airborne at cast, +50% posture damage.
---   2× Momentum: taller launch + 1s window after landing where next ability does +20%.
+--   2Ã— Momentum: taller launch + 1s window after landing where next ability does +20%.
 
 local WINDSTRIKE_DASH_DIST      : number = 12
 local WINDSTRIKE_POSTURE_BASE   : number = 20
@@ -33,10 +33,10 @@ local WINDSTRIKE_HIT_RADIUS     : number = 5
 local WINDSTRIKE_LAUNCH_DUR     : number = 0.5
 local WINDSTRIKE_AERIAL_MULT    : number = 1.5
 
--- VFX STUB — animator: wind trail on dash, double upward burst at contact
+-- VFX STUB â€” animator: wind trail on dash, double upward burst at contact
 local function _VFX_WindStrike_Dash(_origin: Vector3, _dest: Vector3) end
 local function _VFX_WindStrike_Impact(_pos: Vector3) end
--- VFX STUB — animator: Weightless shimmer on both targets
+-- VFX STUB â€” animator: Weightless shimmer on both targets
 local function _VFX_Weightless(_char: Model) end
 
 local function _isAirborne(char: Model): boolean
@@ -60,9 +60,9 @@ local function _applyWeightless(char: Model, duration: number)
     end)
 end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 2 — CROSSWIND (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 2 â€” CROSSWIND (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.1s cast. Push target 4 studs laterally (perpendicular to caster facing).
 --  12 posture damage. If target is airborne: skip posture, deal 15 HP + camera spin 1s.
 --  If target hits a wall: Grounded 1s.
@@ -73,14 +73,14 @@ local CROSSWIND_AERIAL_HP_DMG   : number = 15
 local CROSSWIND_HIT_RADIUS      : number = 8
 local CROSSWIND_GROUNDED_DUR    : number = 1
 
--- VFX STUB — animator: horizontal wind shear, dust kick at push origin
+-- VFX STUB â€” animator: horizontal wind shear, dust kick at push origin
 local function _VFX_Crosswind(_origin: Vector3, _direction: Vector3) end
--- VFX STUB — animator: brief spiral distortion on target UI (camera spin)
+-- VFX STUB â€” animator: brief spiral distortion on target UI (camera spin)
 local function _VFX_CameraSpinDebuff(_target: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 3 — WINDWALL (Defensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 3 â€” WINDWALL (Defensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.2s cast. 1.5s barrier / 2-hit capacity. Deflects ranged Aspect abilities.
 --  Melee hits absorbed: 50% posture reduction. On expiry: auto-reposition 3 studs backward.
 
@@ -89,15 +89,15 @@ local WINDWALL_HIT_CAPACITY : number = 2
 local WINDWALL_MELEE_MULT   : number = 0.5
 local WINDWALL_REPOSITION   : number = 3
 
--- VFX STUB — animator: translucent wind barrier in front of caster
+-- VFX STUB â€” animator: translucent wind barrier in front of caster
 local function _VFX_Windwall_Enter(_caster: Player) end
 local function _VFX_Windwall_Exit(_caster: Player) end
--- VFX STUB — animator: deflected projectile ricochets visual
+-- VFX STUB â€” animator: deflected projectile ricochets visual
 local function _VFX_Deflect(_pos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 4 — UPDRAFT (SelfBuff)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 4 â€” UPDRAFT (SelfBuff)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.1s cast. Launch self 8-12 studs vertically. Next ability within 3s deals +25%.
 --  Resets air-redirect cooldown. Breath suspended 0.5s at apex (inhale window).
 
@@ -105,16 +105,16 @@ local UPDRAFT_LAUNCH_HEIGHT : number = 10  -- middle of 8-12 range
 local UPDRAFT_BUFF_DURATION : number = 3
 local UPDRAFT_DMG_BONUS     : number = 0.25
 
--- VFX STUB — animator: column of wind lifting caster, feathers/leaves swirling at apex
+-- VFX STUB â€” animator: column of wind lifting caster, feathers/leaves swirling at apex
 local function _VFX_Updraft_Launch(_pos: Vector3) end
--- VFX STUB — animator: pulsing wind aura while buff is active
+-- VFX STUB â€” animator: pulsing wind aura while buff is active
 local function _VFX_UpdraftBuff_Enter(_caster: Player) end
 local function _VFX_UpdraftBuff_Exit(_caster: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 5 — SHEAR (Offensive)
--- ═════════════════════════════════════════════════════════════════════════════
---  0.3s cast. 180° arc sweep 8 studs. 15 HP + 30 posture to all targets in arc.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 5 â€” SHEAR (Offensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+--  0.3s cast. 180Â° arc sweep 8 studs. 15 HP + 30 posture to all targets in arc.
 --  Airborne targets: 30 HP instead of 15 + Grounded 2s on landing.
 --  Cooldown reduced to 8s if cast while caster is airborne (within last 2s via GaleShear talent).
 
@@ -125,12 +125,12 @@ local SHEAR_POSTURE_DMG     : number = 30
 local SHEAR_AERIAL_HP_MULT  : number = 2    -- 30 HP vs airborne
 local SHEAR_GROUNDED_DUR    : number = 2
 
--- VFX STUB — animator: wide side-to-side wind slash arc, leaves/debris in wake
+-- VFX STUB â€” animator: wide side-to-side wind slash arc, leaves/debris in wake
 local function _VFX_Shear(_origin: Vector3, _forward: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- MOVESET MODULE
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local Gale = {
     AspectId    = "Gale",
@@ -138,7 +138,7 @@ local Gale = {
     Moves       = {} :: any,
 }
 
--- ── Move 1 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Gale.Moves[1] = {
     Id          = "WindStrike",
     Name        = "Wind Strike",
@@ -148,7 +148,7 @@ Gale.Moves[1] = {
     MoveType    = "Offensive",
     Description = "Dash 12 studs at target. Both caster and target become Weightless 0.5s. "
                 .. "If either is already airborne at cast: +50% posture damage. "
-                .. "2× Momentum: taller launch + next ability +20% dmg within 1s of landing.",
+                .. "2Ã— Momentum: taller launch + next ability +20% dmg within 1s of landing.",
 
     CastTime         = 0.15,
     ManaCost         = 20,
@@ -166,16 +166,16 @@ Gale.Moves[1] = {
             Description   = "WindStrike restores 10 Breath on contact. Ensures the launch "
                           .. "investment doesn't strand you out of sprint resources mid-fight.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Breath restore on hit confirmation
+            OnActivate    = nil, -- STUB â€” requires Breath restore on hit confirmation
         },
         {
             Id            = "GaleForce",
             Name          = "Gale Force",
             InteractsWith = "Momentum",
-            Description   = "At 2× Momentum, launch height is 1.5× taller and the landing "
+            Description   = "At 2Ã— Momentum, launch height is 1.5Ã— taller and the landing "
                           .. "window for +20% next ability extends to 2s. Deepens Momentum investment.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum tier check at cast
+            OnActivate    = nil, -- STUB â€” requires Momentum tier check at cast
         },
         {
             Id            = "TempestDive",
@@ -184,7 +184,7 @@ Gale.Moves[1] = {
             Description   = "If caster has 5+ stud Y-axis advantage over target at cast, "
                           .. "deal +20 HP direct damage (in addition to posture). Diving bonus.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Y-delta check at cast time
+            OnActivate    = nil, -- STUB â€” requires Y-delta check at cast time
         },
     },
 
@@ -291,7 +291,7 @@ Gale.Moves[1] = {
     end,
 }
 
--- ── Move 2 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Gale.Moves[2] = {
     Id          = "Crosswind",
     Name        = "Crosswind",
@@ -319,7 +319,7 @@ Gale.Moves[2] = {
             Description   = "If target hits a wall from Crosswind, deal 30 HP direct in addition "
                           .. "to Grounded. Wall collision becomes a punish, not just a reset.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires wall-collision detection on pushed target
+            OnActivate    = nil, -- STUB â€” requires wall-collision detection on pushed target
         },
         {
             Id            = "AirPocket",
@@ -328,16 +328,16 @@ Gale.Moves[2] = {
             Description   = "Crosswind resets your air redirect cooldown on hit. "
                           .. "Combined with Updraft for prolonged aerial chains.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires air redirect CD attribute reset
+            OnActivate    = nil, -- STUB â€” requires air redirect CD attribute reset
         },
         {
             Id            = "GustWarning",
             Name          = "Gust Warning",
             InteractsWith = "Momentum",
-            Description   = "If target has exactly 1× Momentum at time of hit, apply Dampened "
+            Description   = "If target has exactly 1Ã— Momentum at time of hit, apply Dampened "
                           .. "(Momentum reset) instead of only posture damage.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum attribute check on target
+            OnActivate    = nil, -- STUB â€” requires Momentum attribute check on target
         },
     },
 
@@ -412,10 +412,10 @@ Gale.Moves[2] = {
                     -- Lateral impulse (push right relative to caster)
                     tRoot.AssemblyLinearVelocity = rightDir * (CROSSWIND_PUSH_DIST * 20)
 
-                    -- TALENT HOOK STUB: GustWarning — if Momentum == 1, apply Dampened
-                    -- TALENT HOOK STUB: AirPocket   — reset air redirect CD on hit
-                    -- Wall hit detection (STUB — requires onCollision event or raycast polling)
-                    -- TALENT HOOK STUB: SlipDraft   — if wall hit, +30 HP + Grounded
+                    -- TALENT HOOK STUB: GustWarning â€” if Momentum == 1, apply Dampened
+                    -- TALENT HOOK STUB: AirPocket   â€” reset air redirect CD on hit
+                    -- Wall hit detection (STUB â€” requires onCollision event or raycast polling)
+                    -- TALENT HOOK STUB: SlipDraft   â€” if wall hit, +30 HP + Grounded
                     task.delay(0.05, function()
                         if not tChar or not tChar.Parent then return end
                         if not tRoot or not tRoot.Parent then return end
@@ -443,7 +443,7 @@ Gale.Moves[2] = {
     end,
 }
 
--- ── Move 3 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Gale.Moves[3] = {
     Id          = "Windwall",
     Name        = "Windwall",
@@ -471,7 +471,7 @@ Gale.Moves[3] = {
             Description   = "Toggle: instead of repositioning backward on expiry, launch upward "
                           .. "3 studs (Updraft mini-launch). Converts escape to aerial setup.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires reposition toggle detection
+            OnActivate    = nil, -- STUB â€” requires reposition toggle detection
         },
         {
             Id            = "Redirect",
@@ -480,7 +480,7 @@ Gale.Moves[3] = {
             Description   = "Deflected ranged Aspect abilities create a 2-stud Slow zone at "
                           .. "deflection point for 2s. Turns blocked attacks into area denial.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires projectile deflect hook + Slow zone creation
+            OnActivate    = nil, -- STUB â€” requires projectile deflect hook + Slow zone creation
         },
         {
             Id            = "EyeOfTheStorm",
@@ -489,7 +489,7 @@ Gale.Moves[3] = {
             Description   = "While Windwall is active and absorbing, you gain 1 Momentum stack. "
                           .. "Being defended successfully rewards aggression investment.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum grant on block during active state
+            OnActivate    = nil, -- STUB â€” requires Momentum grant on block during active state
         },
     },
 
@@ -508,7 +508,7 @@ Gale.Moves[3] = {
         char:SetAttribute("WindwallHitsLeft", WINDWALL_HIT_CAPACITY)
         _VFX_Windwall_Enter(player)
 
-        -- TALENT HOOK STUB: EyeOfTheStorm — grant 1 Momentum while active
+        -- TALENT HOOK STUB: EyeOfTheStorm â€” grant 1 Momentum while active
 
         local function _expire()
             if not char or not char.Parent then return end
@@ -517,7 +517,7 @@ Gale.Moves[3] = {
             char:SetAttribute("WindwallHitsLeft", nil)
 
             -- Auto-reposition backward
-            -- TALENT HOOK STUB: WindWhip — if toggle set, launch up instead of back
+            -- TALENT HOOK STUB: WindWhip â€” if toggle set, launch up instead of back
             if root and root.Parent then
                 local back = -root.CFrame.LookVector
                 root.CFrame = CFrame.new(root.Position + back * WINDWALL_REPOSITION)
@@ -536,7 +536,7 @@ Gale.Moves[3] = {
     end,
 }
 
--- ── Move 4 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Gale.Moves[4] = {
     Id          = "Updraft",
     Name        = "Updraft",
@@ -563,7 +563,7 @@ Gale.Moves[4] = {
             Description   = "Aerial abilities cast while the Updraft damage buff is active deal "
                           .. "+15 Posture (flat bonus) in addition to the +25% multiplier.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires aerial state check at next ability cast
+            OnActivate    = nil, -- STUB â€” requires aerial state check at next ability cast
         },
         {
             Id            = "BreathOfWind",
@@ -572,7 +572,7 @@ Gale.Moves[4] = {
             Description   = "At apex of Updraft launch (0.5s Breath suspend), fully restore Breath "
                           .. "to max. Converts altitude into instant stamina recovery.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Breath full restore at apex timing
+            OnActivate    = nil, -- STUB â€” requires Breath full restore at apex timing
         },
         {
             Id            = "GaleDive",
@@ -581,7 +581,7 @@ Gale.Moves[4] = {
             Description   = "On landing after Updraft, if contact is made within 2s of launch, "
                           .. "gain +1 Momentum stack. Downward dive is rewarded.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires landing detection within time window
+            OnActivate    = nil, -- STUB â€” requires landing detection within time window
         },
     },
 
@@ -610,8 +610,8 @@ Gale.Moves[4] = {
         _VFX_UpdraftBuff_Enter(player)
 
         -- Breath suspend at apex (~0.5s after launch peak)
-        -- TALENT HOOK STUB: BreathOfWind — full Breath restore at apex
-        -- TALENT HOOK STUB: StormsEye    — +15 posture to aerial abilities during buff
+        -- TALENT HOOK STUB: BreathOfWind â€” full Breath restore at apex
+        -- TALENT HOOK STUB: StormsEye    â€” +15 posture to aerial abilities during buff
 
         task.delay(UPDRAFT_BUFF_DURATION, function()
             if not char or not char.Parent then return end
@@ -623,7 +623,7 @@ Gale.Moves[4] = {
 
         -- Reset air redirect CD
         char:SetAttribute("AirRedirectLastUsed", 0)
-        -- TALENT HOOK STUB: GaleDive — on landing within 2s, +1 Momentum
+        -- TALENT HOOK STUB: GaleDive â€” on landing within 2s, +1 Momentum
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
@@ -633,7 +633,7 @@ Gale.Moves[4] = {
     end,
 }
 
--- ── Move 5 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Gale.Moves[5] = {
     Id          = "Shear",
     Name        = "Shear",
@@ -641,7 +641,7 @@ Gale.Moves[5] = {
     Slot        = 5,
     Type        = "Expression",
     MoveType    = "Offensive",
-    Description = "180° arc sweep 8 studs: 15 HP + 30 posture. "
+    Description = "180Â° arc sweep 8 studs: 15 HP + 30 posture. "
                 .. "Airborne targets: 30 HP + Grounded 2s on landing. "
                 .. "Cooldown 8s if cast while airborne (down from 14s).",
 
@@ -659,10 +659,10 @@ Gale.Moves[5] = {
             Id            = "WindCutter",
             Name          = "Wind Cutter",
             InteractsWith = "Momentum",
-            Description   = "At 3× Momentum, Shear sweeps 360° instead of 180°. "
+            Description   = "At 3Ã— Momentum, Shear sweeps 360Â° instead of 180Â°. "
                           .. "Maximum Momentum converts the sweep into a full circle of destruction.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum check → arc override at cast
+            OnActivate    = nil, -- STUB â€” requires Momentum check â†’ arc override at cast
         },
         {
             Id            = "GaleShear",
@@ -671,7 +671,7 @@ Gale.Moves[5] = {
             Description   = "Shear cast while airborne (or within 2s of landing) reduces "
                           .. "cooldown to 8s instead of 14s. Rewards aerial aggression.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne state check → CDR override
+            OnActivate    = nil, -- STUB â€” requires airborne state check â†’ CDR override
         },
         {
             Id            = "Condor",
@@ -680,7 +680,7 @@ Gale.Moves[5] = {
             Description   = "Targets with active Weightless (from WindStrike) hit by Shear "
                           .. "remain Weightless 1.5s longer. Chains air combos.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Weightless attribute check + duration extend
+            OnActivate    = nil, -- STUB â€” requires Weightless attribute check + duration extend
         },
     },
 
@@ -703,10 +703,10 @@ Gale.Moves[5] = {
 
         -- Check if caster was airborne (GaleShear talent: CDR on aerial cast)
         local casterAirborne = _isAirborne(char)
-        -- TALENT HOOK STUB: GaleShear — if casterAirborne, set cooldown override to 8s
-        -- TALENT HOOK STUB: WindCutter — if Momentum == 3, sweep = 360° (arc = math.pi*2)
+        -- TALENT HOOK STUB: GaleShear â€” if casterAirborne, set cooldown override to 8s
+        -- TALENT HOOK STUB: WindCutter â€” if Momentum == 3, sweep = 360Â° (arc = math.pi*2)
 
-        -- Arc detection: check if target is within 180° cone in front
+        -- Arc detection: check if target is within 180Â° cone in front
         local halfArcRad = math.rad(SHEAR_ARC_DEGREES / 2)
         _VFX_Shear(origin, forward)
 
@@ -743,11 +743,11 @@ Gale.Moves[5] = {
                         (tChar:GetAttribute("IncomingPostureDamage") or 0) + SHEAR_POSTURE_DMG)
                     tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_ShearPosture")
 
-                    -- Airborne → Grounded on landing
+                    -- Airborne â†’ Grounded on landing
                     if airborne then
                         tChar:SetAttribute("StatusGroundedOnLand", true)
                         tChar:SetAttribute("GroundedOnLandDuration", SHEAR_GROUNDED_DUR)
-                        -- TALENT HOOK STUB: Condor — if Weightless, extend Weightless 1.5s
+                        -- TALENT HOOK STUB: Condor â€” if Weightless, extend Weightless 1.5s
                     end
                 end
             })
@@ -761,131 +761,5 @@ Gale.Moves[5] = {
     end,
 }
 
-
--- ─── VFX stubs ───────────────────────────────────────────────────────────────
-
-local function _VFX_WindDash(_origin: Vector3, _dest: Vector3)
-    -- VFX STUB — animator: wind-ribbon dash trail over CAST_TIME seconds
-end
-
-local function _VFX_LaunchBurst(_pos: Vector3, _isAirborne: boolean)
-    -- VFX STUB — animator: upward gust column and spiral particles at pos
-    --            if isAirborne, intensity should be visibly stronger
-end
-
--- ─── Helpers ─────────────────────────────────────────────────────────────────
-
---[[
-    _isAirborne(root) → boolean
-    Returns true if the root part is more than AIRBORNE_THRESHOLD studs above
-    solid terrain (raycast downward).
-]]
-local function _isAirborne(root: BasePart): boolean
-    local rayResult = Workspace:Raycast(
-        root.Position,
-        Vector3.new(0, -(AIRBORNE_THRESHOLD + 1), 0),
-        RaycastParams.new()
-    )
-    return rayResult == nil  -- no hit below → airborne
-end
-
---[[
-    _launchCharacter(root, velocityY)
-    Adds an upward velocity impulse using AssemblyLinearVelocity.
-    Preserves existing horizontal velocity so the character continues their
-    forward trajectory mid-air (looks intentional rather than snapping).
-]]
-local function _launchCharacter(root: BasePart, velocityY: number)
-    local current = root.AssemblyLinearVelocity
-    root.AssemblyLinearVelocity = Vector3.new(current.X, velocityY, current.Z)
-end
-
--- ─── OnActivate ──────────────────────────────────────────────────────────────
-
-function Gale.OnActivate(player: Player, _targetPos: Vector3?)
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not root then return end
-
-    local origin   = root.Position
-    local forward  = root.CFrame.LookVector
-    local dest     = origin + forward * DASH_DISTANCE
-
-    -- Determine if cast is airborne BEFORE the dash moves us
-    local casterAirborne = _isAirborne(root)
-    local postureDmg     = if casterAirborne then POSTURE_DAMAGE_AIR else POSTURE_DAMAGE_GROUND
-    local launchVY       = if casterAirborne then LAUNCH_VELOCITY_AIR else LAUNCH_VELOCITY
-
-    task.delay(CAST_TIME, function()
-        if not char or not char.Parent then return end
-        if not root or not root.Parent then return end
-
-        -- Move caster to destination
-        root.CFrame = CFrame.new(dest, dest + forward)
-        _VFX_WindDash(origin, dest)
-
-        -- Launch caster upward
-        _launchCharacter(root, launchVY)
-        _VFX_LaunchBurst(dest, casterAirborne)
-
-        -- Find targets at landing zone
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-        overlapParams.FilterDescendantsInstances = { char }
-
-        local hits = Workspace:GetPartBoundsInRadius(dest, HIT_RADIUS, overlapParams)
-        local struck: {[Player]: boolean} = {}
-
-        for _, hit in hits do
-            local model = hit:FindFirstAncestorOfClass("Model")
-            if not model then continue end
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                if struck[target] then continue end
-                if target.Character == model then
-                    struck[target] = true
-
-                    -- Posture damage via attribute
-                    model:SetAttribute("IncomingPostureDamage",
-                        (model:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
-                    model:SetAttribute("IncomingPostureDamageSource", player.Name .. "_WindStrike")
-
-                    -- Launch target upward
-                    local targetRoot = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-                    if targetRoot then
-                        _launchCharacter(targetRoot, launchVY)
-                        _VFX_LaunchBurst(targetRoot.Position, casterAirborne)
-
-                        -- TALENT HOOK STUB: Updraft — block target Breath regen while airborne
-                        -- Set attribute that MovementService checks
-                        -- model:SetAttribute("StatusBreathBlocked", true)   -- deferred
-
-                        -- TALENT HOOK STUB: Gale Force — grant 1× Momentum to caster on landing
-                    end
-
-                    print(("[WindStrike] %s ← %d posture + launched%s"):format(
-                        target.Name, postureDmg, if casterAirborne then " (aerial bonus)" else ""))
-                end
-            end
-        end
-
-        -- TALENT HOOK STUB: Tempest Dive — mark caster for aerial follow-up window
-        -- char:SetAttribute("TempestDiveReady", tick() + 3)   -- deferred
-
-        print(("[WindStrike] %s dashed + launched (casterAirborne=%s)"):format(
-            player.Name, tostring(casterAirborne)))
-    end)
-end
-
--- ─── ClientActivate ──────────────────────────────────────────────────────────
-
-function Gale.ClientActivate(targetPosition: Vector3?)
-    local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
-    local remote = np:GetRemoteEvent("AbilityCastRequest")
-    if remote then
-        remote:FireServer({ AbilityId = Gale.Id, TargetPosition = targetPosition })
-    end
-end
 
 return Gale

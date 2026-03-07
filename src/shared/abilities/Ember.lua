@@ -1,46 +1,46 @@
---!strict
+﻿--!strict
 --[[
     Class: Ember
-    Description: EMBER — Stack-based escalation, aggressive commitment.
+    Description: EMBER â€” Stack-based escalation, aggressive commitment.
                  Full attunement moveset: 5 abilities, 3 talent stubs each.
                  Identity: Highest ceiling for sustained damage. Heat stacks on the
                  opponent and Momentum working together create compounding pressure.
-    Issue: #149 — refactor Aspect system to full moveset
+    Issue: #149 â€” refactor Aspect system to full moveset
     Dependencies: none (server-only via OnActivate)
 
     Move list:
-        [1] Ignite      (UtilityProc) — Stack builder / initiator
-        [2] Flashfire   (Offensive)   — AoE stack detonation / payoff
-        [3] HeatShield  (Defensive)   — Absorb hits → generate stacks
-        [4] Surge       (SelfBuff)    — Momentum amplifier / aggression burst
-        [5] CinderField (UtilityProc) — Area control / sustained stack pressure
+        [1] Ignite      (UtilityProc) â€” Stack builder / initiator
+        [2] Flashfire   (Offensive)   â€” AoE stack detonation / payoff
+        [3] HeatShield  (Defensive)   â€” Absorb hits â†’ generate stacks
+        [4] Surge       (SelfBuff)    â€” Momentum amplifier / aggression burst
+        [5] CinderField (UtilityProc) â€” Area control / sustained stack pressure
 ]]
 
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- HEAT STACK SYSTEM CONSTANTS
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local HEAT_STACK_MAX         : number = 3
 local HEAT_STACK_DECAY_TIME  : number = 6    -- seconds before stacks expire
 local BURNING_HP_PER_SEC     : number = 5    -- HP drain while Burning
 local BURNING_DURATION       : number = 4    -- seconds of Burning at max stacks
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 1 — IGNITE  (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 1 â€” IGNITE  (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local IGNITE_DASH_DIST      : number = 8
 local IGNITE_POSTURE_PER_HEAT: number = 15
 local IGNITE_HIT_RADIUS     : number = 5
 local IGNITE_HP_DMG         : number = 5   -- HP per stack on contact (placeholder)
 
--- VFX STUB — animator: ember-trail dash + ground-ring burst at landing
+-- VFX STUB â€” animator: ember-trail dash + ground-ring burst at landing
 local function _VFX_Ignite_Dash(_origin: Vector3, _dest: Vector3) end
 local function _VFX_Ignite_Impact(_pos: Vector3, _stacks: number) end
--- VFX STUB — animator: persistent flame shimmer on character while Burning
+-- VFX STUB â€” animator: persistent flame shimmer on character while Burning
 local function _VFX_BurningStatus(_char: Model) end
 
 local function _applyHeatStack(
@@ -54,7 +54,7 @@ local function _applyHeatStack(
     local newStacks = math.min(HEAT_STACK_MAX, currentStacks + stacks)
     char:SetAttribute("HeatStacks", newStacks)
 
-    -- Posture gain (pressure fills on hit) — players only, dummies have no posture
+    -- Posture gain (pressure fills on hit) â€” players only, dummies have no posture
     if tPlayer then
         local ok, PS = pcall(function()
             return require(game:GetService("ServerScriptService").Server.services.PostureService)
@@ -108,14 +108,14 @@ local function _applyHeatStack(
         end)
     end
 
-    print(("[Ignite] %s ← %d stack(s) → %d total (+%dHP)"):format(
+    print(("[Ignite] %s â† %d stack(s) â†’ %d total (+%dHP)"):format(
         tPlayer and tPlayer.Name or tostring(dummyId),
         stacks, newStacks, IGNITE_HP_DMG * stacks))
 end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 2 — FLASHFIRE  (Offensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 2 â€” FLASHFIRE  (Offensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.15s cast. 5-stud sphere burst. 20 posture to all targets. Consumes all
 --  Heat stacks: +8 HP per stack. Overheat (2s): mana regen paused, melee +20%.
 
@@ -124,29 +124,29 @@ local FLASHFIRE_POSTURE_DMG  : number = 20
 local FLASHFIRE_HP_PER_STACK : number = 8
 local FLASHFIRE_OVERHEAT_DUR : number = 2
 
--- VFX STUB — animator: radial orange-white heat burst, scorched ground ring
+-- VFX STUB â€” animator: radial orange-white heat burst, scorched ground ring
 local function _VFX_Flashfire(_pos: Vector3, _stacks: number) end
--- VFX STUB — animator: heat shimmer aura around caster during Overheat
+-- VFX STUB â€” animator: heat shimmer aura around caster during Overheat
 local function _VFX_Overheat_Enter(_caster: Player) end
 local function _VFX_Overheat_Exit(_caster: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 3 — HEAT SHIELD  (Defensive)
--- ═════════════════════════════════════════════════════════════════════════════
---  0.1s cast. 1.5s: convert incoming HP damage → Posture at 150% rate.
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 3 â€” HEAT SHIELD  (Defensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+--  0.1s cast. 1.5s: convert incoming HP damage â†’ Posture at 150% rate.
 --  On expiry: restore 1 stack per hit absorbed (max 3 stacks to caster).
 
 local HEAT_SHIELD_DURATION      : number = 1.5
 local HEAT_SHIELD_POSTURE_MULT  : number = 1.5
 local HEAT_SHIELD_STACK_MAX     : number = 3
 
--- VFX STUB — animator: ember/red energy field around caster, crinkles on each absorbed hit
+-- VFX STUB â€” animator: ember/red energy field around caster, crinkles on each absorbed hit
 local function _VFX_HeatShield_Enter(_caster: Player) end
 local function _VFX_HeatShield_Exit(_caster: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 4 — SURGE  (SelfBuff)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 4 â€” SURGE  (SelfBuff)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.25s cast. +1 Momentum stack immediately. 4s sprint speed boost (+3 studs/s).
 --  First melee hit within window applies 1 Heat stack automatically.
 --  Speed boost cancelled on taking damage.
@@ -154,13 +154,13 @@ local function _VFX_HeatShield_Exit(_caster: Player) end
 local SURGE_DURATION        : number = 4
 local SURGE_SPEED_BONUS     : number = 3  -- studs/s
 
--- VFX STUB — animator: ember aura around legs during sprint boost, fades on damage
+-- VFX STUB â€” animator: ember aura around legs during sprint boost, fades on damage
 local function _VFX_Surge_Enter(_caster: Player) end
 local function _VFX_Surge_Exit(_caster: Player) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 5 — CINDER FIELD  (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 5 â€” CINDER FIELD  (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.3s cast. 6-stud radius ember field around caster for 6s. Targets inside:
 --  4 HP/s drain + 1 Heat stack per 2s. Field does not follow caster.
 
@@ -169,13 +169,13 @@ local CINDER_FIELD_DURATION : number = 6
 local CINDER_FIELD_HP_PER_S : number = 4
 local CINDER_FIELD_STACK_INTERVAL: number = 2  -- seconds between stack applications
 
--- VFX STUB — animator: ground-level ember glow zone, constantly flickering embers rising
+-- VFX STUB â€” animator: ground-level ember glow zone, constantly flickering embers rising
 local function _VFX_CinderField_Create(_pos: Vector3, _radius: number) end
 local function _VFX_CinderField_Expire(_pos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- MOVESET MODULE
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local Ember = {
     AspectId    = "Ember",
@@ -183,7 +183,7 @@ local Ember = {
     Moves = {} :: any,
 }
 
--- ── Move 1 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Ember.Moves[1] = {
     Id          = "Ignite",
     Name        = "Ignite",
@@ -193,7 +193,7 @@ Ember.Moves[1] = {
     MoveType    = "UtilityProc",
     Description = "Charge forward 8 studs. On contact: 1 Heat stack + 15 posture damage. "
                 .. "At 3 stacks: Burning (5 HP/s for 4s, Posture recovery halved). "
-                .. "At 2× Momentum: apply 2 stacks instead. Shortest cooldown in kit.",
+                .. "At 2Ã— Momentum: apply 2 stacks instead. Shortest cooldown in kit.",
 
     CastTime         = 0.2,
     ManaCost         = 20,
@@ -212,25 +212,25 @@ Ember.Moves[1] = {
                           .. "and resets Burning duration to 4s instead of stacking higher. "
                           .. "Maintains Burning against recovery builds.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Burning check at hit time
+            OnActivate    = nil, -- STUB â€” requires Burning check at hit time
         },
         {
             Id            = "Torch",
             Name          = "Torch",
             InteractsWith = "Momentum",
-            Description   = "At 2× Momentum, Ignite applies 2 Heat stacks instead of 1. "
+            Description   = "At 2Ã— Momentum, Ignite applies 2 Heat stacks instead of 1. "
                           .. "Movement investment rewarded with double stack pressure.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum threshold check
+            OnActivate    = nil, -- STUB â€” requires Momentum threshold check
         },
         {
             Id            = "IgnitionChain",
             Name          = "Ignition Chain",
             InteractsWith = "Airborne",
             Description   = "If Ignite connects mid-air (both airborne), neither takes knockback "
-                          .. "from the collision — both continue moving. Aerial combo-extender.",
+                          .. "from the collision â€” both continue moving. Aerial combo-extender.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne detection for both players
+            OnActivate    = nil, -- STUB â€” requires airborne detection for both players
         },
     },
 
@@ -253,13 +253,13 @@ Ember.Moves[1] = {
         local forward     = root.CFrame.LookVector
         local destination = origin + forward * IGNITE_DASH_DIST
 
-        -- Determine stack count (Torch talent: 2× Momentum → 2 stacks)
+        -- Determine stack count (Torch talent: 2Ã— Momentum â†’ 2 stacks)
         local momentum     = (root:GetAttribute("Momentum") :: number?) or 1
         local stacksToApply = 1
-        -- TALENT HOOK STUB: Torch — at 2× Momentum apply 2 stacks
+        -- TALENT HOOK STUB: Torch â€” at 2Ã— Momentum apply 2 stacks
         if momentum >= 2 then
             -- Base behavior without talent: still 1 stack; talent changes this to 2
-            -- stacksToApply = 2  ← enabled when talent is purchased
+            -- stacksToApply = 2  â† enabled when talent is purchased
         end
 
         task.delay(0.2, function()
@@ -321,7 +321,7 @@ Ember.Moves[1] = {
     end,
 }
 
--- ── Move 2 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Ember.Moves[2] = {
     Id          = "Flashfire",
     Name        = "Flashfire",
@@ -347,10 +347,10 @@ Ember.Moves[2] = {
             Id            = "Flashpoint",
             Name          = "Flashpoint",
             InteractsWith = "Momentum",
-            Description   = "At 3× Momentum, Flashfire radius increases to 8 studs and Overheat "
-                          .. "extends to 3.5s. Highest-risk version → highest-reward.",
+            Description   = "At 3Ã— Momentum, Flashfire radius increases to 8 studs and Overheat "
+                          .. "extends to 3.5s. Highest-risk version â†’ highest-reward.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum check + radius override
+            OnActivate    = nil, -- STUB â€” requires Momentum check + radius override
         },
         {
             Id            = "ScorchMark",
@@ -359,7 +359,7 @@ Ember.Moves[2] = {
             Description   = "Flashfire creates a 4-stud burning ground tile for 5s. Saturated "
                           .. "targets entering gain Burning. Connects with Tide cross-interaction.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires burning zone creation
+            OnActivate    = nil, -- STUB â€” requires burning zone creation
         },
         {
             Id            = "ThermalFeedback",
@@ -368,7 +368,7 @@ Ember.Moves[2] = {
             Description   = "During Overheat, blocked hits drain an extra +10 Posture per hit "
                           .. "(normally blocked hits drain 0 HP). Makes Overheat attacks punish blocking.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires block event hook during Overheat
+            OnActivate    = nil, -- STUB â€” requires block event hook during Overheat
         },
     },
 
@@ -391,7 +391,7 @@ Ember.Moves[2] = {
         -- Check Momentum for Flashpoint talent (radius stays base without it)
         local radius = FLASHFIRE_RADIUS
         local overheatDur = FLASHFIRE_OVERHEAT_DUR
-        -- TALENT HOOK STUB: Flashpoint — at 3× Momentum, radius = 8, overheatDur = 3.5
+        -- TALENT HOOK STUB: Flashpoint â€” at 3Ã— Momentum, radius = 8, overheatDur = 3.5
 
         -- AoE hit detection
         local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
@@ -419,7 +419,7 @@ Ember.Moves[2] = {
                         (tChar:GetAttribute("IncomingPostureDamage") or 0) + FLASHFIRE_POSTURE_DMG)
                     tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_Flashfire")
 
-                    -- Consume Heat stacks → HP damage
+                    -- Consume Heat stacks â†’ HP damage
                     local stacks = (tChar:GetAttribute("HeatStacks") :: number?) or 0
                     if stacks > 0 then
                         local hpDmg = stacks * FLASHFIRE_HP_PER_STACK
@@ -429,7 +429,7 @@ Ember.Moves[2] = {
                         tChar:SetAttribute("HeatStacks", 0)
                         tChar:SetAttribute("HeatStackExpiry", nil)
                     end
-                    -- TALENT HOOK STUB: ScorchMark — create burning ground tile at origin
+                    -- TALENT HOOK STUB: ScorchMark â€” create burning ground tile at origin
                 end
             })
         end)
@@ -455,7 +455,7 @@ Ember.Moves[2] = {
     end,
 }
 
--- ── Move 3 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Ember.Moves[3] = {
     Id          = "HeatShield",
     Name        = "Heat Shield",
@@ -463,7 +463,7 @@ Ember.Moves[3] = {
     Slot        = 3,
     Type        = "Expression",
     MoveType    = "Defensive",
-    Description = "For 1.5s, convert incoming HP damage → Posture at 150% rate. "
+    Description = "For 1.5s, convert incoming HP damage â†’ Posture at 150% rate. "
                 .. "On expiry: restore 1 Heat stack per hit absorbed (max 3). "
                 .. "Can be Staggered through at 150% posture drain.",
 
@@ -484,7 +484,7 @@ Ember.Moves[3] = {
                           .. "you release an Ignite-equivalent pulse (no mana, no cooldown). "
                           .. "Absorbed pressure becomes instant offense.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires 3-hit counter check + free Ignite pulse
+            OnActivate    = nil, -- STUB â€” requires 3-hit counter check + free Ignite pulse
         },
         {
             Id            = "EmberArmor",
@@ -493,7 +493,7 @@ Ember.Moves[3] = {
             Description   = "While Heat Shield is active, if you are Burning, the Burning HP drain "
                           .. "is paused. The defensive window also clears your own debuff timer.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Burning pause flag during shield
+            OnActivate    = nil, -- STUB â€” requires Burning pause flag during shield
         },
         {
             Id            = "ThermalMass",
@@ -502,7 +502,7 @@ Ember.Moves[3] = {
             Description   = "Heat Shield can be cast while airborne. If cast airborne, absorbed "
                           .. "hits convert to a single 4-stud burst on landing (no stack consumption).",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne state + landing event hook
+            OnActivate    = nil, -- STUB â€” requires airborne state + landing event hook
         },
     },
 
@@ -519,8 +519,8 @@ Ember.Moves[3] = {
         char:SetAttribute("HeatShieldHitsAbsorbed", 0)
         _VFX_HeatShield_Enter(player)
 
-        -- TALENT HOOK STUB: EmberArmor — pause Burning HP drain for duration
-        -- TALENT HOOK STUB: ThermalMass — if airborne, store hits for landing burst
+        -- TALENT HOOK STUB: EmberArmor â€” pause Burning HP drain for duration
+        -- TALENT HOOK STUB: ThermalMass â€” if airborne, store hits for landing burst
 
         task.delay(HEAT_SHIELD_DURATION, function()
             if not char or not char.Parent then return end
@@ -536,7 +536,7 @@ Ember.Moves[3] = {
                 local currentStacks = (char:GetAttribute("HeatStacks") :: number?) or 0
                 char:SetAttribute("HeatStacks", math.min(HEAT_STACK_MAX, currentStacks + stacksGained))
                 char:SetAttribute("HeatStackExpiry", tick() + HEAT_STACK_DECAY_TIME)
-                -- TALENT HOOK STUB: ReturnFire — if absorbed == 3, release free Ignite pulse
+                -- TALENT HOOK STUB: ReturnFire â€” if absorbed == 3, release free Ignite pulse
             end
 
             _VFX_HeatShield_Exit(player)
@@ -550,7 +550,7 @@ Ember.Moves[3] = {
     end,
 }
 
--- ── Move 4 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Ember.Moves[4] = {
     Id          = "Surge",
     Name        = "Surge",
@@ -579,16 +579,16 @@ Ember.Moves[4] = {
                           .. "(Momentum reset) instead of just cancelling your own attack. "
                           .. "Turns the fake-out into a debuff.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires feint → Dampened hook during Surge state
+            OnActivate    = nil, -- STUB â€” requires feint â†’ Dampened hook during Surge state
         },
         {
             Id            = "Accelerant",
             Name          = "Accelerant",
             InteractsWith = "Breath",
             Description   = "Surge restores 15 Breath on activation. Enables movement burst "
-                          .. "immediately — sprint out of a bad position into a new angle.",
+                          .. "immediately â€” sprint out of a bad position into a new angle.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Breath attribute restore on cast
+            OnActivate    = nil, -- STUB â€” requires Breath attribute restore on cast
         },
         {
             Id            = "BurningApproach",
@@ -597,7 +597,7 @@ Ember.Moves[4] = {
             Description   = "If Surge is activated while a target within 8 studs is Burning, "
                           .. "you gain 2 Momentum stacks instead of 1. Rewards pressured targets.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires nearby Burning target detection at cast
+            OnActivate    = nil, -- STUB â€” requires nearby Burning target detection at cast
         },
     },
 
@@ -615,8 +615,8 @@ Ember.Moves[4] = {
         local currentMomentum = (root:GetAttribute("Momentum") :: number?) or 1
         root:SetAttribute("Momentum", math.min(3, currentMomentum + 1))
 
-        -- TALENT HOOK STUB: BurningApproach — if nearby Burning target, +2 stacks instead
-        -- TALENT HOOK STUB: Accelerant — restore 15 Breath
+        -- TALENT HOOK STUB: BurningApproach â€” if nearby Burning target, +2 stacks instead
+        -- TALENT HOOK STUB: Accelerant â€” restore 15 Breath
 
         -- Surge active state
         char:SetAttribute("StatusSurge", true)
@@ -624,7 +624,7 @@ Ember.Moves[4] = {
         char:SetAttribute("SurgeFirstHitReady", true)  -- CombatService reads: first hit gets free stack
         _VFX_Surge_Enter(player)
 
-        -- TALENT HOOK STUB: SurgeFeint — during state, feints apply Dampened
+        -- TALENT HOOK STUB: SurgeFeint â€” during state, feints apply Dampened
 
         task.delay(SURGE_DURATION, function()
             if not char or not char.Parent then return end
@@ -642,7 +642,7 @@ Ember.Moves[4] = {
     end,
 }
 
--- ── Move 5 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Ember.Moves[5] = {
     Id          = "CinderField",
     Name        = "Cinder Field",
@@ -670,7 +670,7 @@ Ember.Moves[5] = {
             Description   = "Targets inside Cinder Field who reach the 3-stack threshold and become "
                           .. "Burning gain Grounded for 2s at that moment. Combustion = rooted.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Burning trigger hook in heat stack system
+            OnActivate    = nil, -- STUB â€” requires Burning trigger hook in heat stack system
         },
         {
             Id            = "HeatSink",
@@ -679,7 +679,7 @@ Ember.Moves[5] = {
             Description   = "If Flashfire is cast while standing in your own Cinder Field, Overheat "
                           .. "duration extends from 2s to 5s. Cinder Field becomes a Flashfire amplifier.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires zone check at Flashfire cast time
+            OnActivate    = nil, -- STUB â€” requires zone check at Flashfire cast time
         },
         {
             Id            = "Draft",
@@ -688,7 +688,7 @@ Ember.Moves[5] = {
             Description   = "Cinder Field creates an upward thermal column. You and allies in the "
                           .. "field gain slightly increased jump height. Ember/Gale cross-build interaction.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires jump height modifier in MovementService
+            OnActivate    = nil, -- STUB â€” requires jump height modifier in MovementService
         },
     },
 
@@ -760,8 +760,13 @@ Ember.Moves[5] = {
                         tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CinderFieldDOT")
                         -- Heat stack per interval
                         if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
-                            _applyHeatStack(hitTarget, tChar, 1, player.Name)
-                            -- TALENT HOOK STUB: Bonfire — if reached 3 stacks, apply Grounded 2s
+                            -- Resolve player vs dummy identity for the correct _applyHeatStack signature
+                            local tPtr = Players:GetPlayerFromCharacter(tChar)
+                            local dId: string? = if not tPtr
+                                then (tChar.Name:match("^Dummy_(.+)$") :: string?)
+                                else nil
+                            _applyHeatStack(tPtr, dId, tChar, 1, fieldCenter)
+                            -- TALENT HOOK STUB: Bonfire â€” if reached 3 stacks, apply Grounded 2s
                         end
                     end
                 })
@@ -797,127 +802,5 @@ Ember.Moves[5] = {
     end,
 }
 
-
-
--- ─── VFX stubs ───────────────────────────────────────────────────────────────
-
-local function _VFX_EmberDash(_origin: Vector3, _dest: Vector3)
-    -- VFX STUB — animator: ember/fire particle trail along dash path
-end
-
-local function _VFX_IgniteImpact(_pos: Vector3, _stacks: number)
-    -- VFX STUB — animator: ground-ring burst at landing, intensity scales with stacks
-end
-
-local function _VFX_BurningStatus(_char: Model)
-    -- VFX STUB — animator: persistent flame shimmer on character while Burning
-end
-
--- ─── Heat stack helper ───────────────────────────────────────────────────────
-
---[[
-    _applyHeatStack(target, char, stacks, casterName)
-    Increments the target's HeatStacks attribute and applies or refreshes the Burning status.
-    PostureService/CombatService reads HeatStacks as a damage amplifier.
---]]
-local function _applyHeatStack(target: Player, char: Model, stacks: number, casterName: string)
-    local currentStacks = (char:GetAttribute("HeatStacks") :: number?) or 0
-    local newStacks     = currentStacks + stacks
-    char:SetAttribute("HeatStacks", newStacks)
-
-    -- Posture damage: POSTURE_PER_HEAT per stack
-    local postureDmg = POSTURE_PER_HEAT * stacks
-    char:SetAttribute("IncomingPostureDamage",
-        (char:GetAttribute("IncomingPostureDamage") or 0) + postureDmg)
-    char:SetAttribute("IncomingPostureDamageSource", casterName .. "_Ignite")
-
-    -- Apply / refresh Burning status
-    char:SetAttribute("StatusBurning", true)
-    _VFX_BurningStatus(char)
-
-    -- HP drain loop — simple attribute signal; CombatService applies it on Heartbeat
-    -- We use "BurningExpiry" so PostureService can check if Burning is still active
-    char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
-    char:SetAttribute("BurningHPPerSecond", BURNING_HP_TICK)
-
-    -- Auto-clear Burning status on expiry
-    task.delay(BURNING_DURATION, function()
-        if char and char.Parent then
-            local expiry = char:GetAttribute("BurningExpiry") :: number?
-            if expiry and tick() >= expiry then
-                char:SetAttribute("StatusBurning", nil)
-                char:SetAttribute("BurningExpiry", nil)
-                char:SetAttribute("BurningHPPerSecond", nil)
-                -- TALENT HOOK STUB: Heat Transfer — spread 1 stack to adjacent enemies here
-            end
-        end
-    end)
-
-    print(("[Ignite] %s ← %d Heat stack(s) (+%d posture, Burning %.0fs)"):format(
-        target.Name, stacks, postureDmg, BURNING_DURATION))
-end
-
--- ─── OnActivate ──────────────────────────────────────────────────────────────
-
-function Ember.OnActivate(player: Player, _targetPos: Vector3?)
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not root then return end
-
-    local origin  = root.Position
-    local forward = root.CFrame.LookVector
-    local dest    = origin + forward * DASH_DISTANCE
-
-    -- Read Momentum attribute (set by MovementService)
-    local momentum  = (root:GetAttribute("Momentum") :: number?) or 1
-    -- TALENT HOOK STUB: Torch — lower threshold to 1.5× here
-    local stacks    = if momentum >= MOMENTUM_THRESHOLD then 2 else 1
-    -- TALENT HOOK STUB: Ignition Chain — +1 stack if target is airborne
-
-    -- Dash
-    task.delay(CAST_TIME, function()
-        if not char or not char.Parent then return end
-        if not root or not root.Parent then return end
-
-        root.CFrame = CFrame.new(dest, dest + forward)
-        _VFX_EmberDash(origin, dest)
-        _VFX_IgniteImpact(dest, stacks)
-
-        -- Find targets at landing zone
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-        overlapParams.FilterDescendantsInstances = { char }
-
-        local hits = Workspace:GetPartBoundsInRadius(dest, HIT_RADIUS, overlapParams)
-        local struck: {[Player]: boolean} = {}
-
-        for _, hit in hits do
-            local model = hit:FindFirstAncestorOfClass("Model")
-            if not model then continue end
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                if struck[target] then continue end
-                if target.Character == model then
-                    struck[target] = true
-                    _applyHeatStack(target, model, stacks, player.Name)
-                end
-            end
-        end
-
-        print(("[Ignite] %s dashed — %d stack(s) (Momentum ×%.1f)"):format(
-            player.Name, stacks, momentum))
-    end)
-end
-
--- ─── ClientActivate ──────────────────────────────────────────────────────────
-
-function Ember.ClientActivate(targetPosition: Vector3?)
-    local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
-    local remote = np:GetRemoteEvent("AbilityCastRequest")
-    if remote then
-        remote:FireServer({ AbilityId = Ember.Id, TargetPosition = targetPosition })
-    end
-end
 
 return Ember

@@ -1,28 +1,28 @@
---!strict
+﻿--!strict
 --[[
     Class: Tide
-    Description: TIDE — Resource denial, terrain weaponization, sustainable pressure.
+    Description: TIDE â€” Resource denial, terrain weaponization, sustainable pressure.
                  Full attunement moveset: 5 abilities, 3 talent stubs each.
                  Identity: Only Aspect that directly manipulates opponent Breath, Posture
                  recovery, and positioning. Best for long fights and punishing
                  movement-heavy builds.
-    Issue: #149 — refactor Aspect system to full moveset
+    Issue: #149 â€” refactor Aspect system to full moveset
     Dependencies: none (server-only via OnActivate)
 
     Move list:
-        [1] Current    (Offensive)   — Ranged surge knockback / terrain weapon
-        [2] Undertow   (UtilityProc) — Pull / setup (counters retreat)
-        [3] Swell      (Defensive)   — Reactive posture shell / self-sustain
-        [4] FloodMark  (UtilityProc) — Area denial / Saturated setter
-        [5] Pressure   (SelfBuff)    — Parry-immunity window / Saturated amplifier
+        [1] Current    (Offensive)   â€” Ranged surge knockback / terrain weapon
+        [2] Undertow   (UtilityProc) â€” Pull / setup (counters retreat)
+        [3] Swell      (Defensive)   â€” Reactive posture shell / self-sustain
+        [4] FloodMark  (UtilityProc) â€” Area denial / Saturated setter
+        [5] Pressure   (SelfBuff)    â€” Parry-immunity window / Saturated amplifier
 ]]
 
 local Workspace = game:GetService("Workspace")
 local Players   = game:GetService("Players")
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 1 — CURRENT  (Offensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 1 â€” CURRENT  (Offensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local CURRENT_RANGE         : number = 15   -- studs forward
 local CURRENT_RADIUS        : number = 5    -- hit sphere at tip
@@ -33,11 +33,11 @@ local CURRENT_WALL_HP_DMG   : number = 20   -- bonus if target hits terrain
 local CURRENT_GROUNDED_DUR  : number = 1.5
 local CURRENT_WET_ZONE_SIZE : number = 4    -- studs wide (talent stub)
 
--- VFX STUB — animator: water-ribbon projectile 15 studs forward
+-- VFX STUB â€” animator: water-ribbon projectile 15 studs forward
 local function _VFX_Current_Surge(_origin: Vector3, _direction: Vector3) end
--- VFX STUB — animator: foam-splash radial burst at tip on hit
+-- VFX STUB â€” animator: foam-splash radial burst at tip on hit
 local function _VFX_Current_Hit(_hitPos: Vector3) end
--- VFX STUB — animator: heavy water-crash wave on terrain impact
+-- VFX STUB â€” animator: heavy water-crash wave on terrain impact
 local function _VFX_Current_TerrainImpact(_pos: Vector3) end
 
 local function _applyGrounded(char: Model, duration: number)
@@ -78,9 +78,9 @@ local function _applyKnockbackAndMonitor(caster: Player, target: Player, directi
     end)
 end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 2 — UNDERTOW  (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 2 â€” UNDERTOW  (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  Pull target toward you over 8 studs. Arrival Slow (1.5s). Light HP (10pts).
 --  If retreating when hit: pull doubles to 16 studs, Slow extends to 3s.
 --  Requires target within 8 studs. Does not work on airborne targets.
@@ -90,12 +90,12 @@ local UNDERTOW_HP_DMG     : number = 10
 local UNDERTOW_SLOW_BASE  : number = 1.5
 local UNDERTOW_SLOW_BONUS : number = 3.0
 
--- VFX STUB — animator: pulling water stream toward caster origin
+-- VFX STUB â€” animator: pulling water stream toward caster origin
 local function _VFX_Undertow(_casterPos: Vector3, _targetPos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 3 — SWELL  (Defensive)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 3 â€” SWELL  (Defensive)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.4s cast. 2s or 3-hit water shell: -60% incoming posture. On release: restore 20%
 --  max Posture. Minor pushback (3 studs) to targets within 2 studs on release.
 
@@ -105,13 +105,13 @@ local SWELL_POSTURE_RESTORE : number = 0.20  -- % of max Posture
 local SWELL_PUSHBACK_DIST   : number = 3
 local SWELL_PUSHBACK_RADIUS : number = 2
 
--- VFX STUB — animator: water droplet shell materialises around caster, cracks and shatters on release
+-- VFX STUB â€” animator: water droplet shell materialises around caster, cracks and shatters on release
 local function _VFX_Swell_Enter(_caster: Player) end
 local function _VFX_Swell_Release(_pos: Vector3, _radius: number) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 4 — FLOOD MARK  (UtilityProc)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 4 â€” FLOOD MARK  (UtilityProc)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.25s cast. Place wet zone at target location (12 stud range, 8 stud radius).
 --  Zone persists 8s. Targets inside: Saturated immediately + Posture regen -50%.
 --  Zone itself deals no damage.
@@ -120,26 +120,26 @@ local FLOOD_MARK_RANGE      : number = 12
 local FLOOD_MARK_RADIUS     : number = 8
 local FLOOD_MARK_DURATION   : number = 8
 
--- VFX STUB — animator: water pool materialising on ground at target location, shimmering for duration
+-- VFX STUB â€” animator: water pool materialising on ground at target location, shimmering for duration
 local function _VFX_FloodMark_Create(_pos: Vector3, _radius: number) end
 local function _VFX_FloodMark_Expire(_pos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
--- MOVE 5 — PRESSURE  (SelfBuff)
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- MOVE 5 â€” PRESSURE  (SelfBuff)
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 --  0.2s cast. 6s flowing state: melee cannot be parried, all Tide abilities
 --  apply Saturated on hit. On expiry: restore 15 Mana.
 
 local PRESSURE_DURATION     : number = 6
 local PRESSURE_MANA_RESTORE : number = 15
 
--- VFX STUB — animator: water constantly flowing around caster legs / arms during state
+-- VFX STUB â€” animator: water constantly flowing around caster legs / arms during state
 local function _VFX_Pressure_Enter(_caster: Player) end
 local function _VFX_Pressure_Exit(_pos: Vector3) end
 
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 -- MOVESET MODULE
--- ═════════════════════════════════════════════════════════════════════════════
+-- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local Tide = {
     AspectId    = "Tide",
@@ -147,7 +147,7 @@ local Tide = {
     Moves = {} :: any,
 }
 
--- ── Move 1 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Tide.Moves[1] = {
     Id          = "Current",
     Name        = "Current",
@@ -175,7 +175,7 @@ Tide.Moves[1] = {
             Description   = "Targets who dodge Current while airborne are instead knocked downward "
                           .. "(slammed to ground, brief stagger). Anti-air counter for Gale/jump builds.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne dodge detection
+            OnActivate    = nil, -- STUB â€” requires airborne dodge detection
         },
         {
             Id            = "SaturatingWave",
@@ -184,16 +184,16 @@ Tide.Moves[1] = {
             Description   = "Current leaves a 4-stud wide wet zone along its path for 5s. "
                           .. "Targets moving through it gain Saturated (+25% Ember damage).",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires zone creation along surge path
+            OnActivate    = nil, -- STUB â€” requires zone creation along surge path
         },
         {
             Id            = "DrowningShore",
             Name          = "Drowning Shore",
             InteractsWith = "Breath",
-            Description   = "Targets at ≤25% Breath when hit by Current are also Dampened (2s). "
+            Description   = "Targets at â‰¤25% Breath when hit by Current are also Dampened (2s). "
                           .. "Punishes Breath-exhausted opponents who are overcommitted.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Breath attribute check at hit time
+            OnActivate    = nil, -- STUB â€” requires Breath attribute check at hit time
         },
     },
 
@@ -263,7 +263,7 @@ Tide.Moves[1] = {
     end,
 }
 
--- ── Move 2 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Tide.Moves[2] = {
     Id          = "Undertow",
     Name        = "Undertow",
@@ -289,18 +289,18 @@ Tide.Moves[2] = {
             Name          = "Flood Sense",
             InteractsWith = "Saturated",
             Description   = "Saturated targets hit by Undertow take double the Slow duration "
-                          .. "(3s → 6s). Saturated + Undertow removes mobility for a full engagement window.",
+                          .. "(3s â†’ 6s). Saturated + Undertow removes mobility for a full engagement window.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Saturated status check at hit time
+            OnActivate    = nil, -- STUB â€” requires Saturated status check at hit time
         },
         {
             Id            = "TidalLock",
             Name          = "Tidal Lock",
             InteractsWith = "Posture",
-            Description   = "After Undertow lands, your next attack within 2s cannot be blocked — "
+            Description   = "After Undertow lands, your next attack within 2s cannot be blocked â€” "
                           .. "target is off-balance. The anti-block window rewards immediate follow-up.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires temporary block-immunity attribute on caster
+            OnActivate    = nil, -- STUB â€” requires temporary block-immunity attribute on caster
         },
         {
             Id            = "SurfaceTension",
@@ -309,12 +309,12 @@ Tide.Moves[2] = {
             Description   = "If the pulled target passes over a wet zone during pull, "
                           .. "they gain Grounded instead of Slow. Requires Current setup.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires wet zone detection during pull path
+            OnActivate    = nil, -- STUB â€” requires wet zone detection during pull path
         },
     },
 
     VFX_Function = function(_caster: Player, _targetPos: Vector3?)
-        -- VFX STUB — animator: pulling water stream from target to caster over 0.3s
+        -- VFX STUB â€” animator: pulling water stream from target to caster over 0.3s
     end,
 
     OnActivate = function(player: Player, _targetPos: Vector3?)
@@ -377,9 +377,9 @@ Tide.Moves[2] = {
                     if not tChar or not tChar.Parent then return end
                     tChar:SetAttribute("StatusSlow", true)
                     tChar:SetAttribute("SlowExpiry", tick() + slowDur)
-                    -- TALENT HOOK STUB: FloodSense — if Saturated, double slow duration
-                    -- TALENT HOOK STUB: TidalLock — grant caster block-bypass for 2s
-                    -- TALENT HOOK STUB: SurfaceTension — if wet zone crossed, Grounded instead
+                    -- TALENT HOOK STUB: FloodSense â€” if Saturated, double slow duration
+                    -- TALENT HOOK STUB: TidalLock â€” grant caster block-bypass for 2s
+                    -- TALENT HOOK STUB: SurfaceTension â€” if wet zone crossed, Grounded instead
                     task.delay(slowDur, function()
                         if tChar and tChar.Parent then
                             tChar:SetAttribute("StatusSlow", nil)
@@ -400,7 +400,7 @@ Tide.Moves[2] = {
     end,
 }
 
--- ── Move 3 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Tide.Moves[3] = {
     Id          = "Swell",
     Name        = "Swell",
@@ -425,19 +425,19 @@ Tide.Moves[3] = {
             Id            = "TidalSurge",
             Name          = "Tidal Surge",
             InteractsWith = "Momentum",
-            Description   = "If Swell releases at ≥2× Momentum, pushback range increases from "
+            Description   = "If Swell releases at â‰¥2Ã— Momentum, pushback range increases from "
                           .. "3 to 7 studs and applies Slow (1s). Punishes aggressive Momentum builds.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum check at release time
+            OnActivate    = nil, -- STUB â€” requires Momentum check at release time
         },
         {
             Id            = "DeepBreath",
             Name          = "Deep Breath",
             InteractsWith = "Breath",
             Description   = "Swell's 2s window also fully restores your Breath pool. "
-                          .. "The defensive window is also a breath reset — enables movement burst immediately.",
+                          .. "The defensive window is also a breath reset â€” enables movement burst immediately.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Breath attribute full restore on activation
+            OnActivate    = nil, -- STUB â€” requires Breath attribute full restore on activation
         },
         {
             Id            = "ReflectCurrent",
@@ -446,7 +446,7 @@ Tide.Moves[3] = {
             Description   = "If you are Slowed when Swell activates, the Slow is transferred to "
                           .. "all targets within 4 studs on activation. Counter-tool against Ash/Tide.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Slow status check + transfer on cast
+            OnActivate    = nil, -- STUB â€” requires Slow status check + transfer on cast
         },
     },
 
@@ -466,8 +466,8 @@ Tide.Moves[3] = {
         char:SetAttribute("SwellExpiry", tick() + SWELL_DURATION)
         _VFX_Swell_Enter(player)
 
-        -- TALENT HOOK STUB: DeepBreath — restore Breath immediately
-        -- TALENT HOOK STUB: ReflectCurrent — if Slowed, transfer Slow to nearby targets
+        -- TALENT HOOK STUB: DeepBreath â€” restore Breath immediately
+        -- TALENT HOOK STUB: ReflectCurrent â€” if Slowed, transfer Slow to nearby targets
 
         local function releaseSwell()
             if not char or not char.Parent then return end
@@ -504,7 +504,7 @@ Tide.Moves[3] = {
                     if hitDir.Magnitude < 0.001 then hitDir = Vector3.new(1,0,0) end
                     local pushDir = hitDir.Unit
                     tRoot.AssemblyLinearVelocity = pushDir * SWELL_PUSHBACK_DIST * 15
-                    -- TALENT HOOK STUB: TidalSurge — if Momentum ≥2×, extend to 7 studs + Slow
+                    -- TALENT HOOK STUB: TidalSurge â€” if Momentum â‰¥2Ã—, extend to 7 studs + Slow
                 end
             })
             _VFX_Swell_Release(myPos, SWELL_PUSHBACK_RADIUS)
@@ -523,7 +523,7 @@ Tide.Moves[3] = {
     end,
 }
 
--- ── Move 4 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Tide.Moves[4] = {
     Id          = "FloodMark",
     Name        = "Flood Mark",
@@ -551,7 +551,7 @@ Tide.Moves[4] = {
             Description   = "Targets who take a hit (any source) while standing in a Flood Mark "
                           .. "zone gain Grounded for 1s. Any hit inside the zone triggers Grounded.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires zone-hit event in CombatService
+            OnActivate    = nil, -- STUB â€” requires zone-hit event in CombatService
         },
         {
             Id            = "RisingTide",
@@ -560,7 +560,7 @@ Tide.Moves[4] = {
             Description   = "While standing in your own Flood Mark zone, your Posture regen rate "
                           .. "is doubled instead of halved. Positional advantage.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires zone ownership tracking in PostureService
+            OnActivate    = nil, -- STUB â€” requires zone ownership tracking in PostureService
         },
         {
             Id            = "PhantomDepth",
@@ -569,7 +569,7 @@ Tide.Moves[4] = {
             Description   = "Flood Mark zones pull airborne targets 2 studs downward when cast "
                           .. "directly below them, applying Grounded on landing. Limited anti-air.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires airborne detection at zone cast time
+            OnActivate    = nil, -- STUB â€” requires airborne detection at zone cast time
         },
     },
 
@@ -615,13 +615,13 @@ Tide.Moves[4] = {
                 end
                 if tChar then
                     tChar:SetAttribute("StatusSaturated", true)
-                    -- TALENT HOOK STUB: PhantomDepth — if airborne, pull 2 studs down + Grounded
+                    -- TALENT HOOK STUB: PhantomDepth â€” if airborne, pull 2 studs down + Grounded
                 end
             end
         })
 
-        -- TALENT HOOK STUBS: StagnantPool — wire to CombatService hit events
-        --                    RisingTide   — wire to PostureService regen calculation
+        -- TALENT HOOK STUBS: StagnantPool â€” wire to CombatService hit events
+        --                    RisingTide   â€” wire to PostureService regen calculation
 
         task.delay(FLOOD_MARK_DURATION, function()
             if zonePart and zonePart.Parent then
@@ -638,7 +638,7 @@ Tide.Moves[4] = {
     end,
 }
 
--- ── Move 5 ───────────────────────────────────────────────────────────────────
+-- â”€â”€ Move 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 Tide.Moves[5] = {
     Id          = "Pressure",
     Name        = "Pressure",
@@ -665,7 +665,7 @@ Tide.Moves[5] = {
             Description   = "Activating Pressure grants 1 Momentum stack instantly. "
                           .. "The buff and a Momentum start fire together.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Momentum attribute increment
+            OnActivate    = nil, -- STUB â€” requires Momentum attribute increment
         },
         {
             Id            = "FlowingForm",
@@ -674,16 +674,16 @@ Tide.Moves[5] = {
             Description   = "Tide abilities cast during Pressure cannot trigger Slow on yourself. "
                           .. "Removes one vulnerability during your offensive window.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires self-Slow immunity flag during state
+            OnActivate    = nil, -- STUB â€” requires self-Slow immunity flag during state
         },
         {
             Id            = "UndertowPressure",
             Name          = "Undertow Pressure",
             InteractsWith = "Slow + Saturated",
             Description   = "Undertow cast during Pressure applies Saturated and Slow simultaneously. "
-                          .. "Combo compressor — normally requires two casts.",
+                          .. "Combo compressor â€” normally requires two casts.",
             IsUnlocked    = false,
-            OnActivate    = nil, -- STUB — requires Pressure state check in Undertow OnActivate
+            OnActivate    = nil, -- STUB â€” requires Pressure state check in Undertow OnActivate
         },
     },
 
@@ -702,8 +702,8 @@ Tide.Moves[5] = {
         char:SetAttribute("PressureExpiry", tick() + PRESSURE_DURATION)
 
         _VFX_Pressure_Enter(player)
-        -- TALENT HOOK STUB: CurrentState — increment Momentum attribute by 1
-        -- TALENT HOOK STUB: FlowingForm  — set self-Slow immunity flag
+        -- TALENT HOOK STUB: CurrentState â€” increment Momentum attribute by 1
+        -- TALENT HOOK STUB: FlowingForm  â€” set self-Slow immunity flag
 
         task.delay(PRESSURE_DURATION, function()
             if not char or not char.Parent then return end
@@ -724,163 +724,5 @@ Tide.Moves[5] = {
     end,
 }
 
-local function _VFX_SurgeProjectile(_origin: Vector3, _direction: Vector3)
-    -- VFX STUB — animator: water-ribbon projectile travelling in direction over 0.15s
-end
-
-local function _VFX_SurgeHit(_hitPos: Vector3)
-    -- VFX STUB — animator: foam-splash radial particle burst at hitPos
-end
-
-local function _VFX_TerrainImpact(_targetPos: Vector3)
-    -- VFX STUB — animator: heavy water-crash landing wave when target hits terrain
-end
-
--- ─── Helpers ─────────────────────────────────────────────────────────────────
-
---[[
-    _applyGrounded(char, duration)
-    Sets the Grounded status attribute on the character so MovementService can
-    block jumps/vaults/wallruns.  Auto-clears after duration.
-]]
-local function _applyGrounded(char: Model, duration: number)
-    char:SetAttribute("StatusGrounded", true)
-    task.delay(duration, function()
-        if char and char.Parent then
-            char:SetAttribute("StatusGrounded", nil)
-        end
-    end)
-end
-
---[[
-    _monitorTerrainCollision(target, char, root, duration)
-    Watches for the target's root to touch a non-player Part within `duration`
-    seconds after knockback.  On first collision applies TERRAIN_HP_BONUS damage
-    and Grounded status.
-]]
-local function _monitorTerrainCollision(target: Player, char: Model, root: BasePart, duration: number)
-    local detected = false
-    local conn: RBXScriptConnection
-    conn = root.Touched:Connect(function(hit: Instance)
-        if detected then return end
-        -- Ignore touches from the player's own body parts
-        if hit:IsDescendantOf(char) then return end
-        -- Only react to solid Workspace physical parts (not sensors, triggers, etc.)
-        if not hit:IsA("BasePart") then return end
-        local bp = hit :: BasePart
-        if bp.CanCollide == false then return end
-
-        detected = true
-        conn:Disconnect()
-
-        -- HP damage via character attribute (read by CombatService/PostureService)
-        char:SetAttribute("IncomingHPDamage",
-            (char:GetAttribute("IncomingHPDamage") or 0) + TERRAIN_HP_BONUS)
-        char:SetAttribute("IncomingHPDamageSource", "Current_TerrainImpact")
-
-        _applyGrounded(char, GROUNDED_DURATION)
-        _VFX_TerrainImpact(root.Position)
-        print(("[Current] Terrain impact — %s grounded %.1fs +%dHP"):format(
-            target.Name, GROUNDED_DURATION, TERRAIN_HP_BONUS))
-    end)
-
-    -- Auto-disconnect if no terrain collision occurs within the window
-    task.delay(duration, function()
-        if not detected and conn then
-            conn:Disconnect()
-        end
-    end)
-end
-
---[[
-    _applyKnockback(target, casterPos)
-    Pushes the target's HumanoidRootPart away from casterPos by KNOCKBACK_DIST.
-    Uses VectorForce for a physics-friendly impulse on the next frame.
-]]
-local function _applyKnockback(target: Player, casterPos: Vector3)
-    local char = target.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not root then return end
-
-    local dir = (root.Position - casterPos).Unit
-    root.AssemblyLinearVelocity = dir * KNOCKBACK_DIST * 20  -- impulse scaling
-
-    -- TALENT HOOK STUB: Riptide — double knockback if target is airborne
-    -- (check root.AssemblyLinearVelocity.Y > 0 or StatusAirborne attribute)
-
-    -- Monitor terrain hit for bonus
-    _monitorTerrainCollision(target, char, root, 1)
-end
-
--- ─── OnActivate ──────────────────────────────────────────────────────────────
-
-function Tide.OnActivate(player: Player, targetPos: Vector3?)
-    local char = player.Character
-    if not char then return end
-    local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-    if not root then return end
-
-    -- Direction: prefer explicit targetPos, fall back to look vector
-    local casterPos = root.Position
-    local direction: Vector3
-    if targetPos then
-        direction = (targetPos - casterPos).Unit
-    else
-        direction = root.CFrame.LookVector
-    end
-
-    local surgeEnd = casterPos + direction * SURGE_RANGE
-
-    _VFX_SurgeProjectile(casterPos, direction)
-
-    task.delay(CAST_TIME, function()
-        if not char or not char.Parent then return end
-
-        -- Sphere overlap at surge tip — find any player root within SURGE_RADIUS
-        local overlapParams = OverlapParams.new()
-        overlapParams.FilterType = Enum.RaycastFilterType.Exclude
-        overlapParams.FilterDescendantsInstances = { char }  -- exclude caster
-
-        local hits = Workspace:GetPartBoundsInRadius(surgeEnd, SURGE_RADIUS, overlapParams)
-
-        local struck: {[Player]: boolean} = {}
-        for _, hit in hits do
-            local model = hit:FindFirstAncestorOfClass("Model")
-            if not model then continue end
-            for _, target in Players:GetPlayers() do
-                if target == player then continue end
-                if struck[target] then continue end
-                if target.Character == model then
-                    struck[target] = true
-
-                    -- Posture damage
-                    model:SetAttribute("IncomingPostureDamage",
-                        (model:GetAttribute("IncomingPostureDamage") or 0) + POSTURE_DAMAGE)
-                    model:SetAttribute("IncomingPostureDamageSource", player.Name)
-
-                    -- TALENT HOOK STUB: Saturating Wave — apply Saturated here
-                    -- TALENT HOOK STUB: Drowning Shore  — halve Breath regen here
-
-                    -- Knockback
-                    _applyKnockback(target, casterPos)
-
-                    _VFX_SurgeHit(surgeEnd)
-                    print(("[Current] Hit %s — %d posture, knockback"):format(target.Name, POSTURE_DAMAGE))
-                end
-            end
-        end
-    end)
-end
-
--- ─── ClientActivate ──────────────────────────────────────────────────────────
-
-function Tide.ClientActivate(targetPosition: Vector3?)
-    local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
-    local remote = np:GetRemoteEvent("AbilityCastRequest")
-    if remote then
-        remote:FireServer({ AbilityId = Tide.Id, TargetPosition = targetPosition })
-    end
-end
 
 return Tide
