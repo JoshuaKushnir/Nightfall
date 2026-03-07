@@ -52,6 +52,9 @@ local _clearPassives: (player: Player) -> ()
 
 local _activePassives = {} :: {[Player]: {[string]: number}} -- passiveId -> depthApplied
 
+-- Rate-limit per-player aspect switches (5 s cooldown)
+local _switchTimestamps: {[Player]: number} = {}
+
 -- Type aliases
 local AspectTypes = require(ReplicatedStorage.Shared.types.AspectTypes)
 
@@ -231,7 +234,13 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
         return false, "BadState"
     end
 
-    -- Validate the requested aspect (skip if clearing)
+    -- Rate limit: prevent rapid cycling (5 s between switches)
+    local now = tick()
+    local lastSwitch = _switchTimestamps[player] or 0
+    if now - lastSwitch < 5 then
+        return false, "RateLimited"
+    end
+    _switchTimestamps[player] = now
     if aspectId ~= nil then
         local cfg = AspectRegistry.GetAspect(aspectId)
         if not cfg then
@@ -708,7 +717,8 @@ function AspectService:Init()
     print("[AspectService] Initializing...")
     Players.PlayerAdded:Connect(_onPlayerAdded)
     Players.PlayerRemoving:Connect(function(player)
-        -- cleanups if necessary
+        _activePassives[player] = nil
+        _switchTimestamps[player] = nil
     end)
     print("[AspectService] Initialized successfully")
 end
