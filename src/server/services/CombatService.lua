@@ -168,7 +168,7 @@ function CombatService._ProcessDamageAttributes(character: Model, targetName: st
 				local targetPlayer = Players:FindFirstChild(targetName)
 				if targetPlayer then
 					local pd = StateService:GetPlayerData(targetPlayer)
-					if pd then pd.Health = math.max(0, pd.Health - hpVal) end
+					if pd then pd.Health.Current = math.max(0, pd.Health.Current - hpVal) end
 				end
 			elseif DummyService.GetDummyData(targetName) then
 				DummyService.ApplyDamage(targetName, hpVal)
@@ -406,10 +406,10 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		end
 
 			-- Normal HP hit
-			targetData.Health = math.max(0, targetData.Health - finalDamage)
+			targetData.Health.Current = math.max(0, targetData.Health.Current - finalDamage)
 
 			-- Check if target died
-			if targetData.Health <= 0 then
+			if targetData.Health.Current <= 0 then
 				StateService:SetPlayerState(targetPlayer, "Dead")
 				print(`[CombatService] ☠️  {targetPlayer.Name} defeated! ({finalDamage} damage)`)
 				-- Grant Resonance to the killer (Issue #138)
@@ -493,11 +493,11 @@ function CombatService.ApplyBreakDamage(player: Player, amount: number)
 	local playerData = StateService:GetPlayerData(player)
 	if not playerData then return end
 
-	playerData.Health = math.max(0, playerData.Health - amount)
-	print(("[CombatService] 💥 Break damage: %s lost %d HP (now %d)"):format(
-		player.Name, amount, playerData.Health))
+	playerData.Health.Current = math.max(0, playerData.Health.Current - amount)
+	print(('[CombatService] 💥 Break damage: %s lost %d HP (now %d)'):format(
+		player.Name, amount, playerData.Health.Current))
 
-	if playerData.Health <= 0 then
+	if playerData.Health.Current <= 0 then
 		StateService:SetPlayerState(player, "Dead")
 	end
 end
@@ -518,12 +518,12 @@ function CombatService.HealPlayer(player: Player?, amount: number): number
 		return 0
 	end
 	
-	local maxHealth = 100 -- Should come from playerData config
-	playerData.Health = math.min(maxHealth, playerData.Health + amount)
+	local maxHealth = playerData.Health.Max
+	playerData.Health.Current = math.min(maxHealth, playerData.Health.Current + amount)
 	
-	print(`[CombatService] ✓ {player.Name} healed: +{amount} HP (now {playerData.Health}/{maxHealth})`)
+	print(`[CombatService] ✓ {player.Name} healed: +{amount} HP (now {playerData.Health.Current}/{maxHealth})`)
 	
-	return playerData.Health
+	return playerData.Health.Current
 end
 
 --[[
@@ -542,12 +542,12 @@ function CombatService.RestorePosture(player: Player?, amount: number): number
 		return 0
 	end
 	
-	local maxPosture = 100 -- Should come from playerData config
-	playerData.PostureHealth = math.min(maxPosture, playerData.PostureHealth + amount)
+	local maxPosture = playerData.Posture.Max
+	playerData.Posture.Current = math.min(maxPosture, playerData.Posture.Current + amount)
 	
-	print(`[CombatService] ✓ {player.Name} posture restored: +{amount} (now {playerData.PostureHealth}/{maxPosture})`)
+	print(`[CombatService] ✓ {player.Name} posture restored: +{amount} (now {playerData.Posture.Current}/{maxPosture})`)
 	
-	return playerData.PostureHealth
+	return playerData.Posture.Current
 end
 
 --[[

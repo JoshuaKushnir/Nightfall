@@ -15,6 +15,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
+local RunService = game:GetService("RunService")
 
 local AnimationLoader = {}
 
@@ -104,11 +105,20 @@ function AnimationLoader.GetAnimation(folderName: string, assetName: string?): (
 			warn(`[AnimationLoader]   Available children: {table.concat(childNames, ", ")}`)
 		end
 	else
-		-- Find any Animation or KeyframeSequence
+		-- Prefer Animation (has a published AssetId) over KeyframeSequence (Studio-only registration)
 		for _, child in searchContainer:GetChildren() do
-			if child:IsA("Animation") or child:IsA("KeyframeSequence") then
+			if child:IsA("Animation") then
 				template = child
 				break
+			end
+		end
+		-- Fall back to KeyframeSequence only if no Animation found
+		if not template then
+			for _, child in searchContainer:GetChildren() do
+				if child:IsA("KeyframeSequence") then
+					template = child
+					break
+				end
 			end
 		end
 		if not template then
@@ -159,7 +169,14 @@ function AnimationLoader.LoadTrack(humanoid: Humanoid, folderName: string, asset
 	local animToLoad: Animation
 	
 	if instance:IsA("KeyframeSequence") then
-		-- KeyframeSequence needs to be registered to get a temporary asset ID
+		-- RegisterKeyframeSequence only works in Studio; in a live game animations
+		-- must be published to Roblox with a real asset ID (Animation objects).
+		if not RunService:IsStudio() then
+			warn(`[AnimationLoader] ✗ KeyframeSequence "{instance.Name}" cannot be used in a live game. Publish the animation to Roblox and replace it with an Animation object containing the asset ID.`)
+			instance:Destroy()
+			return nil
+		end
+		-- In Studio: register to get a temporary asset ID
 		print(`[AnimationLoader] Registering KeyframeSequence: {instance.Name}`)
 		local success, temporaryAssetId = pcall(function()
 			return KeyframeSequenceProvider:RegisterKeyframeSequence(instance)
