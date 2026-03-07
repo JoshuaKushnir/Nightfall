@@ -179,7 +179,8 @@ function CombatService._ProcessDamageAttributes(character: Model, targetName: st
 	if postVal and postVal > 0 then
 		local targetPlayer = Players:FindFirstChild(targetName)
 		if targetPlayer and PostureService then
-			PostureService.DrainPosture(targetPlayer, postVal, "Aspect")
+			-- ability hits now INCREASE posture (pressure gauge)
+			PostureService.GainPosture(targetPlayer, postVal)
 		end
 	end
 end
@@ -351,11 +352,11 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			finalDamage = 0
 			print(`[CombatService] 🛡️  Blocked — draining posture instead of HP`)
 
-			-- Drain posture on the blocker
+			-- #157: blocking FILLS posture pressure (GainPosture, not DrainPosture)
 			if PostureService and not hitData.BypassPosture then
-				local broke = PostureService.DrainPosture(targetPlayer, hitData.PostureDamage, "Blocked")
-				if broke then
-					print(`[CombatService] ⚡ {targetPlayer.Name}'s posture broken by blocked hit!`)
+				local suppressed = PostureService.GainPosture(targetPlayer, nil)
+				if suppressed then
+					print(`[CombatService] 🔒 {targetPlayer.Name} Suppressed — posture maxed!`)
 				end
 			end
 
