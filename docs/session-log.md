@@ -3,6 +3,28 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-058: Fix PlayerHUDController crash from NF-057 keybind removal
+**Date:** 2026-03-09
+**Issues:** #146 (ability bar HUD)
+
+### What Was Built
+- **`src/client/controllers/PlayerHUDController.lua`** — Removed entire ability bar system: `AspectController` injection, `ABILITY_KEYS`/`ABILITY_KEY_LABELS` tables, `_slotFrames`/`_slotOverlays`/`_slotNameLabels`/`_slotTimeLabels` arrays, `createAbilityBar()` function, `updateAbilityBar()` function (the crash source), and all associated `Heartbeat` connection + `Shutdown()` cleanup. Root cause: NF-057 deleted `AspectController._keybinds` but `updateAbilityBar` still indexed it every frame → `attempt to index nil with EnumItem` spam in output.
+
+### Integration Points
+- `createAbilityBar()` was already commented out in `Start()` before this session — the UI was never built. Only the `Heartbeat:Connect(updateAbilityBar)` connection remained live, causing the crash.
+- Hotbar UI (slots 1–8 with cooldowns) is handled by `InventoryController` — no gap in player-facing ability display from this removal.
+
+### Spec Gaps Encountered
+- None
+
+### Tech Debt Created
+- None — the removed code was dead apart from the crash.
+
+### Next Session Should Start On
+BOM bug fix: strip U+FEFF from 5 aspect ability files (Ash, Tide, Ember, Gale, Void) — files fail to load, making aspect abilities non-functional. Then Issue #82: `feat(world): Ring structure + Luminance drain zones`.
+
+---
+
 ## Session NF-057: Remove direct ability keybinds — hotbar-only activation
 **Date:** 2026-03-09
 **Issues:** NF-057 (inline fix, no dedicated GitHub issue — single-file scope)
