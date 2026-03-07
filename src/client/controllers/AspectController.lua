@@ -136,7 +136,17 @@ local function _registerHandlers()
     if not NetworkController then return end
 
     NetworkController:RegisterHandler("AbilityDataSync", function(packet)
-        AspectController._cooldowns = packet or {}
+        -- packet[abilityId] = remaining seconds (not absolute server timestamp).
+        -- Reconstruct absolute expiry using the local client tick() epoch so that
+        -- server/client tick() differences (~20,000 s in live games) don't inflate cooldowns.
+        local now = tick()
+        local cooldowns: {[string]: number} = {}
+        for abilityId, remaining in pairs(packet or {}) do
+            if remaining > 0 then
+                cooldowns[abilityId] = now + remaining
+            end
+        end
+        AspectController._cooldowns = cooldowns
     end)
 
     NetworkController:RegisterHandler("InventorySync", function(packet)

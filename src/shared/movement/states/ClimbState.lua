@@ -102,12 +102,14 @@ function ClimbState.TryStart(ctx: any): boolean
 	_startGripTime = tick()
 	_climbTarget   = Vector3.new(grip.point.X, startPos.Y + climbDist, grip.point.Z)
 
-	ctx.Blackboard.IsClimbing           = true
-	ctx.Humanoid.PlatformStand          = true
-	ctx.RootPart.Anchored               = true
+	ctx.Blackboard.IsClimbing = true
+	ctx.Humanoid.PlatformStand = true
+	-- NOTE: RootPart is NOT anchored — anchoring bypasses Roblox collision detection
+	-- when CFrame is set each frame, allowing the character to phase through geometry.
+	-- Velocity-based movement in Update keeps physics collision active.
 	ctx.RootPart.AssemblyLinearVelocity = Vector3.zero
 
-	-- Snap character flush to wall (normal points toward player, add it to stay off surface)
+	-- Snap character flush to wall (one-time initial position — CFrame ok here, no movement yet)
 	local offset     = grip.normal.Unit * 0.6
 	local wallFacing = Vector3.new(-grip.normal.X, 0, -grip.normal.Z)
 	if wallFacing.Magnitude > 0.01 then
@@ -188,11 +190,23 @@ function ClimbState.Update(dt: number, ctx: any)
 
 	local newY: number
 	if grip then
-		newY = math.min(root.Position.Y + speed * dt, targetY)
-		local offset = grip.normal.Unit * 0.6
-		local newPos = Vector3.new(grip.point.X, newY, grip.point.Z) + offset
+		-- Velocity-based movement: physics moves the character, collision detection applies.
+		-- Direct CFrame-per-frame with Anchored=true bypassed collision and caused wall phasing.
+		local remaining = targetY - root.Position.Y
+		local upSpeed   = math.min(speed, math.max(0, remaining / dt))
+		-- Push character gently into the wall to maintain contact as they rise.
+		local wallInward = -grip.normal.Unit
+		-- Rotation update only (no positional teleport — orient to face away from wall).
 		local facing = Vector3.new(-grip.normal.X, 0, -grip.normal.Z)
-		root.CFrame  = CFrame.new(newPos, newPos + facing.Unit)
+		if facing.Magnitude > 0.01 then
+			root.CFrame = CFrame.new(root.Position, root.Position + facing.Unit)
+		end
+		root.AssemblyLinearVelocity = Vector3.new(
+			wallInward.X * 3,
+			upSpeed,
+			wallInward.Z * 3
+		)
+		newY = root.Position.Y + upSpeed * dt  -- estimate for exit threshold check
 	else
 		newY = root.Position.Y
 	end
@@ -273,7 +287,6 @@ function ClimbState.Exit(ctx: any)
 		ctx.Humanoid:ChangeState(Enum.HumanoidStateType.Running)
 	end
 	if ctx and ctx.RootPart   then 
-		ctx.RootPart.Anchored = false 
 		ctx.RootPart.AssemblyLinearVelocity = Vector3.zero
 	end
 	print("[ClimbState] Exited climb")

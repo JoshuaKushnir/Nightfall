@@ -229,6 +229,7 @@ end
 ]]
 local function UpdateBreath(dt: number, onGround: boolean, moving: boolean)
 	if Blackboard.IsWallRunning then return end -- wall-run Breath drain handled in WallRunState.Detect
+	if Blackboard.IsClimbing    then return end -- climb Breath drain handled in ClimbState.Update
 	if isSprinting and onGround then
 		DrainBreath(BREATH_SPRINT_DRAIN * dt)
 		return

@@ -569,7 +569,18 @@ end
 function AspectService:GetCooldowns(player: Player)
     local profile = DataService:GetProfile(player)
     if not profile then return {} end
-    return profile.ActiveCooldowns or {}
+    -- Send remaining duration (seconds), not absolute server tick timestamps.
+    -- In a live game, server tick() epoch ≠ client tick() epoch (~20,000 s difference),
+    -- so raw absolute timestamps appear as ~20,000 s cooldowns on the client.
+    local now = tick()
+    local remaining: {[string]: number} = {}
+    for abilityId, expiry in pairs(profile.ActiveCooldowns or {}) do
+        local timeLeft = expiry - now
+        if timeLeft > 0 then
+            remaining[abilityId] = timeLeft
+        end
+    end
+    return remaining
 end
 
 -- mana regen heartbeat
