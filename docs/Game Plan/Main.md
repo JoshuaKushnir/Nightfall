@@ -1,60 +1,122 @@
-# NIGHTBOUND � COMPLETE GAME DESIGN DOCUMENT
+﻿# NIGHTBOUND – GAME DESIGN OVERVIEW
 
-## THE WORLD & CORE IDENTITY
+This document distills the core concepts and systems for Nightbound, transforming the original full‑length design into a digestible one‑pass reference. A newcomer should be able to skim it and grasp the world, progression loops, and current implementation status.
 
-Vael is a continent in permanent twilight. The Hearthspire city surrounds a failing Solstice Pillar; the light it emits is the last hold against the dark. Rings radiate outward from the Hearthspire, each darker and deadlier. Players are Drifters�twilight-marked beings who can die and return, gain power, and are treated like omens. The core mystery: something has been devouring the light for three centuries, and it may be a decision, not a monster.
+---
 
-## THE DIMMINGS
+## 🌍 World & Identity
 
-**Dimmings** are world-wide updates that darken Vael, open a new Ring, and add systems and content. The horizon is always just beyond reach.
+**Vael** is a continent trapped in twilight. The last light comes from a failing Solstice Pillar at **Hearthspire**. Rings radiate outward from the city, each darker and more dangerous than the last. Players inhabit the role of **Drifters**: twilight‑marked beings who repeatedly die and return, grow stronger with each return, and are feared as omens. The central mystery is not only what is devouring the light, but whether the darkness itself is a choice.
 
-1. **First** � *Survival and Identity*: Launch content. Hearthspire and Ring One (Verdant Shelf). Teaches movement, combat, factions, core loop. NPCs hint at the darkness beyond.
-2. **Second** � *Corruption and Power*: Unlocks Ring Two (Ashfeld). Omen system activates with Umbral Marks and paths. Introduces Marrow Aspect and the Ashen Choir faction. **Resonance Echoing** makes battles alter terrain temporarily.
-3. **Third** � *History and Ruin*: Ring Three (Vael Depths) reveals preserved pre-twilight ruins. Umbral Codex lore pays off. **Memory Fragments** are interactive echoes. New enemies: **The Preserved**.
-4. **Fourth** � *The Threshold*: Ring Four (Gloam) has passive luminance drain and no compass markers in PvP. **Dark Adaptation** grants low-light vision but increases risk from luminance-sensitive foes. Ashen Choir shows fear.
-5. **Final** � *The Null*: Endgame zone with constant drain. No traditional boss; instead a server-wide **Convergence** event requiring all players and altering the Hearthspire permanently.
+---
 
-## PROGRESSION
+## 🔥 The Dimmings (Content Phases)
 
-* **Resonance** � attunement gained via combat, exploration, crafting, and survival. It gates upgrades, mastery, and ring access. Soft caps per ring force forward momentum. Death costs Shards plus a temporary Luminance debuff.
-* **Three pillars**:
-  * **Aspect** (future work): Elemental identity with six Aspects at launch, each with Expression, Form, and Communion branches. Cross-Aspect synergies exist.
-  * **Discipline** (designed): Four paths�Wayward, Ironclad, Silhouette, Resonant�affect physical capability and weapon mastery. Cross-training is allowed at Resonance cost.
-  * **Omen** (future): Marks accumulate through dying, deep exploration, Choir interactions, and Aspect overuse. Five thresholds grant passive corruptions and visibility to others. Cleansing has a cost.
+Each “Dimming” is a major world update that pushes the horizon outward and introduces new mechanics.
 
-Specification gaps include weapon weight class names, tuning numbers, system parameters (Shard loss, Breath costs, etc.), and several unspecific mechanics.
+1. **First – Survival & Identity**
+   * Launch content: Hearthspire and Ring One (Verdant Shelf).  
+   * Teaches core movement, combat, faction interaction, and the death‑return loop.  
+   * NPCs hint at the threat beyond the safety of light.
 
-## MOVEMENT
+2. **Second – Corruption & Power**
+   * Opens Ring Two (Ashfeld).  
+   * Introduces the **Omen system**: Umbral Marks accumulate through death and risky actions, branching into passive penalties or boons.  
+   * Adds the **Marrow Aspect** and the **Ashen Choir** faction.  
+   * **Resonance Echoing**: battles temporarily reshape terrain.
 
-Sprint, dash, lunge are implemented; wall-run, ledge catch, vault, slide are designed but unbuilt. **Breath** powers actions and recharges when grounded. **Momentum** multiplies movement benefits up to 3� and affects combat if you hit while running. Each Aspect confers a movement tweak (afterimages, wet terrain slide, mid-air redirect, etc.). Environmental traversal is expected knowledge.
+3. **Third – History & Ruin**
+   * Ring Three (Vael Depths) reveals pre‑twilight ruins and pays off lore in the **Umbral Codex**.  
+   * **Memory Fragments** allow players to interact with echoes of the past.  
+   * New enemies: **The Preserved**.
 
-## COMBAT � PVP & PVE
+4. **Fourth – The Threshold**
+   * Ring Four (Gloam) applies a passive luminance drain and removes compass markers during PvP.  
+   * **Dark Adaptation** grants low‑light vision while increasing susceptibility to luminance‑sensitive foes.  
+   * The Ashen Choir grows wary.
 
-PVP systems are partial. Core loop: separate Posture and HP, Break attacks on posture collapse, feinting to bait defenses, and the planned Clash system where simultaneous hits open a follow-up window. Aspect abilities focus on posture. Additional mechanics designed but unimplemented include Condemned status for targets of multiple attackers, Living Resonance streaks, Dueling Grounds, faction flagging, and Last Rites input at death.
+5. **Final – The Null**
+   * End‑game zone with unrelenting drain.  
+   * There is no single “boss”; instead a server‑wide **Convergence** event requires all players and permanently alters Hearthspire.
 
-PVE is scaffolding only (Dummy NPCs). Enemy design emphasizes readability, telegraphs, and a **Witnessing** system for lore/balance. Designed enemy roster: Hollowed, Duskwalkers, Threadweavers, Ashen Choir, Preserved, Vaelborn. Bosses are story-gated with second-form shifts and pre-encounter interactions. World bosses trigger on server Luminance and are Convergence events.
+---
 
-## DEATH & INCENTIVE
+## ⚙️ Progression Systems
 
-Death enters **The Between** for ~30 seconds; others can revive you by sacrificing Luminance, else you respawn at an Ember Point. Losses: Resonance Shards, consumables, and a Dimming debuff. **The Streak** builds Living Resonance glow and grants bonuses. **Last Rites** allow you to burn shards for your killer�s benefit or leave a permanent light memorial.
+Everything ties back to **Resonance**, the universal currency earned by combat, exploration, crafting, and surviving. It gates upgrades,Aspect mastery, and access to deeper rings. Death costs Shards and applies a temporary luminance debuff. Soft caps per ring ensure forward momentum.
 
-## META PROGRESSION
+### Three Pillars of Growth
 
-The **Ashen Record** is account-level history tracking kills, duels, factions, exploration, and survival time. It grants permanent **Echoes**�small passive unlocks for new characters�and cosmetic rewards (markings, trails, memorial designs). The **Umbral Codex** is a lore book of entries players collect.
+* **Aspect** *(future work)* – Elemental identities (six at launch) each with three branches: Expression (active ability), Form (passive), and Communion (group utility). Cross‑Aspect synergies are planned.
+* **Discipline** *(designed & partially implemented)* – Four physical paths (Wayward, Ironclad, Silhouette, Resonant) that alter movement, combat, and weapon mastery. You can cross‑train by spending Resonance.
+* **Omen** *(future)* – Marks accrue from dying, deep exploration, Choir choices, and overusing Aspects. Five thresholds grant passive corruptions visible to others; cleansing has a cost.
 
-## WORLD & SYSTEMS
+> ⚠️ **Spec gaps** include weapon weight classes, tuning numbers, shard loss on death, breath costs, and similar parameters. Each gap must spawn a `spec-gap` issue with a placeholder value.
 
-Rings: 0 Hearthspire (safe); 1 Verdant Shelf; 2 Ashfeld; 3 Vael Depths; 4 Gloam; 5 Null. Drift Gates handle travel; fast travel tied to faction standing. **Dimming Cycles** periodically darken the world, altering enemy behavior and spawning exclusive content. Server-wide luminance tracking and ring transitions are yet to be specified.
+---
 
-## FACTIONS
+## 🏃 Movement
 
-Unimplemented. Four factions:
+Implemented: sprint, dash, lunge.  
+Designed but unbuilt: wall‑run, ledge catch, vault, slide.  
+**Breath** powers actions and recharges when grounded.  
+**Momentum** multiplies movement benefits up to ×3 and grants combat bonuses when hitting while moving.  
+Each Aspect changes movement behavior (e.g. afterimages, slippery terrain, mid‑air redirects).  
+Environmental traversal is assumed knowledge—not hand‑held tutorials.
 
-* **Pillar Wardens** � defend the Hearthspire, distrust Omen, control most gates, military.
-* **Wandering Court** � traders/explorers, neutral PvP, lore access, diplomacy with Choir.
-* **Ashen Choir** � cult accepting Omen, controls Ring Two territory, offers Marrow knowledge.
-* **Unmarked** � no faction, gain the Unbound passive but lose faction travel and services.
+---
 
-Faction mechanics, quests, and switching costs are undetailed.
+## ⚔️ Combat (PvP & PvE)
 
-> �The sun didn�t die� keep moving toward it.� � anonymous wall writing in the Vael Depths.
+Core PvP loop separates **Posture** and HP, with *Break* attacks shattering posture.  Feints bait defenses; the planned **Clash** system (simultaneous hits) opens follow‑up windows. Aspects focus on posture manipulation.
+
+Unimplemented concepts: **Condemned** status (multiple attackers), **Living Resonance** streak bonuses, **Dueling Grounds**, faction flagging, Last‑Rites input at death.
+
+PvE currently has only dummy mobs. Design principles include readable telegraphs and a **Witnessing** system for lore/balance. Enemy roster: Hollowed, Duskwalkers, Threadweavers, Ashen Choir, Preserved, Vaelborn. Boss fights are story‑gated with two‑phase encounters and pre‑fight lore scenes. World bosses spawn based on server luminance and trigger Convergences.
+
+---
+
+## ☠️ Death & Incentives
+
+Dying sends you to **The Between** for ~30 seconds. Allies can revive you by sacrificing luminance; otherwise you respawn at an Ember Point.  
+Penalties: Resonance Shards, consumables, a “dimming” debuff.  
+**The Streak** tracks consecutive lives, granting Living Resonance glow and bonuses.  
+**Last Rites** let you burn Shards for your killer’s benefit or leave a permanent light memorial.
+
+---
+
+## 📘 Meta Progression
+
+* **Ashen Record** – account‑wide stats (kills, duels, exploration, survival time). Grants permanent **Echoes** (tiny passive unlocks for new characters) and cosmetics (markings, trails, memorials).
+* **Umbral Codex** – lore entries collected during exploration.
+
+---
+
+## 🌐 World & Systems
+
+Rings: 0 Hearthspire (safe) → 1 Verdant Shelf → 2 Ashfeld → 3 Vael Depths → 4 Gloam → 5 Null.  
+**Drift Gates** handle travel; fast travel is gated by faction standing.  
+**Dimming Cycles** periodically darken areas, altering enemy behavior and spawning exclusive content.  
+Server‑wide **luminance** drives ring transitions; exact mechanics are TBD.
+
+---
+
+## 🛡️ Factions *(Unimplemented)*
+
+Four factions shape politics and travel:
+
+* **Pillar Wardens** – hearth defenders, anti‑Omens, gate controllers.
+* **Wandering Court** – neutral traders/explorers; diplomacy with Choir.
+* **Ashen Choir** – Omen‑embracers controlling Ashfeld, offering Marrow knowledge.
+* **Unmarked** – no faction; gain the Unbound passive but lose faction services.
+
+Faction mechanics, quests, and switching costs remain unspecified.
+
+---
+
+> “The sun didn’t die—keep moving toward it.”  
+> – anonymous wall writing in the Vael Depths
+
+---
+
+This overview ensures first‑time readers can understand the state of the project in one pass.
