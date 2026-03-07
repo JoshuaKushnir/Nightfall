@@ -3,6 +3,39 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-059: Unified physical+magic combo pipeline
+**Date:** 2026-03-10
+**Issues:** #59 (unified combat system)
+
+### What Was Built
+- **`src/shared/modules/CombatBlackboard.lua`** — Added `IsCasting`, `ComboCount`, `ComboExpiry`, `LastActionType` fields so all combat controllers share spell/melee state.
+- **`src/client/controllers/ActionController.lua`** — Core of the session:
+  - Added `CombatBlackboard` import.
+  - Queue logic now allows `"Ability"` type alongside `"Attack"` and `"Dodge"`.
+  - `_PlayActionLocal`: sets `CombatBlackboard.IsCasting = true` and `LastActionType` on ability start; clears `IsCasting` in `action.Cleanup`.
+  - `PlayAbilityAction(abilityId, targetPos)` — new public function that creates an `ActionConfig{Type="Ability", Duration=0.55, CancelFrame=0.65}` and fires it through `PlayAction`, refreshing `LastComboTime` so melee combo window stays alive through a cast.
+  - `GetComboCount()` — exposes current combo depth for external readers.
+- **`src/client/controllers/CombatController.lua`** — Casting state added to `_stateModules` (inline stub; no dedicated module needed). `_resolveActiveState` priority: Stunned > Attack > **Casting** > Block > Idle. `NotifyActionStarted/Ended` handle `"Ability"` type for `IsCasting`.
+- **`src/client/controllers/InventoryController.lua`** — `_onHotbarActivate` and `_onBagClick` ability paths now route through `ActionController.PlayAbilityAction` instead of direct `FireServer`. Falls back to direct fire if ActionController unavailable. Stored as `self._actionController` from Init dependencies.
+- **`src/client/controllers/AspectController.lua`** — Added `ASPECT_ABILITY_MAP` (Ash→AshenStep, Tide→Current, Ember→Ignite, Gale→WindStrike, Void→Blink). E key in `_onKeyInput` fires current aspect's Depth-1 ability via `ActionController.PlayAbilityAction`. Reads `ActionController` from dependencies.
+- **`src/client/runtime/init.lua`** — `ActionController` added to the shared `dependencies` table so InventoryController and AspectController receive it during Init.
+
+### Integration Points
+- Melee → spell → melee: all chain through ActionController's cancel-window system (`CancelFrame=0.65` for spells).
+- Server-side damage untouched — ability still fires `AbilityCastRequest` RemoteEvent from `OnStart` callback inside the queued action, so it only fires when the action actually executes (not when queued).
+- `LastComboTime` is refreshed on ability cast, so a spell mid-combo does not break the melee chain.
+
+### Spec Gaps Encountered
+- None — all ability IDs were already established in AspectRegistry.
+
+### Tech Debt Created
+- Casting state in CombatController is an inline stub; a dedicated `CastingState.lua` module would be cleaner but isn't needed until animation hooks are added.
+
+### Next Session Should Start On
+Issue #82: `feat(world): Ring structure + Luminance drain zones` — world progression layer is the next unblocked Phase 4 work.
+
+---
+
 ## Session NF-058: Fix PlayerHUDController crash from NF-057 keybind removal
 **Date:** 2026-03-09
 **Issues:** #146 (ability bar HUD)
