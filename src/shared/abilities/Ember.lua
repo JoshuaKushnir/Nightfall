@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
     Class: Ember
     Description: EMBER â€” Stack-based escalation, aggressive commitment.

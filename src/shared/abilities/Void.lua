@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
     Class: Void
     Description: VOID â€” Phase-based evasion, ability suppression, mark-hunting.

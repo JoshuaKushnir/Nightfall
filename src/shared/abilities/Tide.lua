@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
     Class: Tide
     Description: TIDE â€” Resource denial, terrain weaponization, sustainable pressure.

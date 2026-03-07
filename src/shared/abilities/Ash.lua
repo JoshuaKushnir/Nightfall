@@ -1,32 +1,32 @@
-﻿--!strict
+--!strict
 --[[
     Class: Ash
-    Description: ASH â€” Misdirection, patience, and information advantage.
+    Description: ASH Ã¢â‚¬â€ Misdirection, patience, and information advantage.
                  Full attunement moveset: 5 abilities, 3 talent stubs each.
                  Identity: Ash excels at controlling what opponents think is
                  happening. Best kit for mind games, escapes, and delayed payoffs.
-    Issue: #149 â€” refactor Aspect system to full moveset
+    Issue: #149 Ã¢â‚¬â€ refactor Aspect system to full moveset
     Dependencies: NetworkProvider (lazy)
 
     Move list:
-        [1] AshenStep    (Offensive)  â€” Dash + decoy afterimage / blind flash
-        [2] CinderBurst  (Offensive)  â€” Point-blank cone / posture stripper
-        [3] Fade         (Defensive)  â€” Reactive escape / damage reduction
-        [4] Trace        (UtilityProc)â€” Marking / information advantage
-        [5] GreyVeil     (SelfBuff)   â€” Offensive amplifier / concealment
+        [1] AshenStep    (Offensive)  Ã¢â‚¬â€ Dash + decoy afterimage / blind flash
+        [2] CinderBurst  (Offensive)  Ã¢â‚¬â€ Point-blank cone / posture stripper
+        [3] Fade         (Defensive)  Ã¢â‚¬â€ Reactive escape / damage reduction
+        [4] Trace        (UtilityProc)Ã¢â‚¬â€ Marking / information advantage
+        [5] GreyVeil     (SelfBuff)   Ã¢â‚¬â€ Offensive amplifier / concealment
 ]]
 
 local Workspace         = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Lazy-load NetworkProvider â€” only used server-side inside OnActivate calls
+-- Lazy-load NetworkProvider Ã¢â‚¬â€ only used server-side inside OnActivate calls
 local function _getNetworkProvider()
     return require(ReplicatedStorage.Shared.network.NetworkProvider)
 end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- MOVE 1 â€” ASHEN STEP  (Offensive)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- MOVE 1 Ã¢â‚¬â€ ASHEN STEP  (Offensive)
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 local ASHEN_STEP_DASH_DISTANCE  : number = 12   -- studs forward
 local ASHEN_STEP_CAST_TIME      : number = 0.15 -- seconds before dash lands
@@ -36,13 +36,13 @@ local ASHEN_STEP_POSTURE_RADIUS : number = 5    -- studs around landing
 local ASHEN_STEP_AFTERIMAGE_LIFE: number = 4    -- seconds afterimage persists
 local ASHEN_STEP_BLIND_DURATION : number = 0.3  -- seconds of BlindFlash
 
--- VFX STUB â€” animator: forward ash-smoke particle trail along dash path (0.15s)
+-- VFX STUB Ã¢â‚¬â€ animator: forward ash-smoke particle trail along dash path (0.15s)
 local function _VFX_AshenStep_DashTrail(_player: Player, _origin: Vector3, _destination: Vector3) end
--- VFX STUB â€” animator: ash-particle silhouette materialise at afterimage origin
+-- VFX STUB Ã¢â‚¬â€ animator: ash-particle silhouette materialise at afterimage origin
 local function _VFX_AshenStep_AfterimageSpawn(_origin: Vector3) end
--- VFX STUB â€” animator: ash-particle burst dissolve on afterimage expiry/destruction
+-- VFX STUB Ã¢â‚¬â€ animator: ash-particle burst dissolve on afterimage expiry/destruction
 local function _VFX_AshenStep_AfterimageDissolve(_part: Part) end
--- VFX STUB â€” animator: white-out ScreenGui / post-process effect (BLIND_DURATION s)
+-- VFX STUB Ã¢â‚¬â€ animator: white-out ScreenGui / post-process effect (BLIND_DURATION s)
 local function _VFX_AshenStep_BlindFlash(_attacker: Player) end
 
 local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
@@ -74,7 +74,7 @@ local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
                 _VFX_AshenStep_BlindFlash(player)
                 local ok, np = pcall(_getNetworkProvider)
                 if ok and np then
-                    -- TALENT HOOK: Hollow Echo â€” if attacker is Staggered, blindSecs doubles
+                    -- TALENT HOOK: Hollow Echo Ã¢â‚¬â€ if attacker is Staggered, blindSecs doubles
                     local blindSecs = ASHEN_STEP_BLIND_DURATION
                     pcall(function()
                         np:FireClient(player, "BlindFlash", { Duration = blindSecs })
@@ -125,42 +125,42 @@ local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector
     end)
 end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- MOVE 2 â€” CINDER BURST  (Offensive)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
---  Instant, point-blank cone (6 studs, 30Â°). 35 posture damage. Applies
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- MOVE 2 Ã¢â‚¬â€ CINDER BURST  (Offensive)
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+--  Instant, point-blank cone (6 studs, 30Ã‚Â°). 35 posture damage. Applies
 --  Exposed (+20% posture received for 3s). Negligible HP damage.
---  No cast time â€” true punish / melee-cancel tool.
+--  No cast time Ã¢â‚¬â€ true punish / melee-cancel tool.
 
 local CINDER_BURST_RANGE          : number = 6
 local CINDER_BURST_POSTURE_DAMAGE : number = 35
 local CINDER_BURST_HP_DAMAGE      : number = 15   -- HP placeholder
 local CINDER_BURST_EXPOSED_DUR    : number = 3
 
--- VFX STUB â€” animator: tight forward cone of compressed ash particles, 0.1s burst
+-- VFX STUB Ã¢â‚¬â€ animator: tight forward cone of compressed ash particles, 0.1s burst
 local function _VFX_CinderBurst(_caster: Player, _origin: Vector3) end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- MOVE 3 â€” FADE  (Defensive)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- MOVE 3 Ã¢â‚¬â€ FADE  (Defensive)
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 --  0.1s cast. 1.5s window of 80% reduced posture / 50% reduced HP damage.
---  Partial transparency (visible â€” not full invisibility). Attacking cancels it.
+--  Partial transparency (visible Ã¢â‚¬â€ not full invisibility). Attacking cancels it.
 --  On expiry/cancel: small Slow (4 studs, 1s) to nearby targets.
 
 local FADE_DURATION        : number = 1.5
 local FADE_EXIT_SLOW_RADIUS: number = 4
 local FADE_EXIT_SLOW_DUR   : number = 1
 
--- VFX STUB â€” animator: semi-transparent ash-veil overlay on caster model for duration
+-- VFX STUB Ã¢â‚¬â€ animator: semi-transparent ash-veil overlay on caster model for duration
 local function _VFX_Fade_Enter(_caster: Player) end
--- VFX STUB â€” animator: ash exhale burst, small radial particle cloud on exit
+-- VFX STUB Ã¢â‚¬â€ animator: ash exhale burst, small radial particle cloud on exit
 local function _VFX_Fade_Exit(_pos: Vector3) end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- MOVE 4 â€” TRACE  (UtilityProc)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- MOVE 4 Ã¢â‚¬â€ TRACE  (UtilityProc)
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 --  0.2s cast. Short ash tendril (10 studs), tracks to nearest target.
---  On hit: Ash Trace mark for 10s â€” 8-stud wallhack through terrain.
+--  On hit: Ash Trace mark for 10s Ã¢â‚¬â€ 8-stud wallhack through terrain.
 --  Mark invisible to target. 5 posture damage on hit. Lowest mana cost in kit.
 
 local TRACE_RANGE       : number = 10
@@ -168,14 +168,14 @@ local TRACE_POSTURE_DMG : number = 5
 local TRACE_MARK_DUR    : number = 10
 local TRACE_WALLHACK_R  : number = 8
 
--- VFX STUB â€” animator: thin ash-smoke tendril projectile, tracking motion
+-- VFX STUB Ã¢â‚¬â€ animator: thin ash-smoke tendril projectile, tracking motion
 local function _VFX_Trace_Tendril(_origin: Vector3, _target: Vector3) end
--- VFX STUB â€” animator: subtle ash-ring glow on marked target (visible to caster only)
+-- VFX STUB Ã¢â‚¬â€ animator: subtle ash-ring glow on marked target (visible to caster only)
 local function _VFX_Trace_Mark(_targetPos: Vector3) end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
--- MOVE 5 â€” GREY VEIL  (SelfBuff)
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+-- MOVE 5 Ã¢â‚¬â€ GREY VEIL  (SelfBuff)
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 --  0.3s cast. 5s window: no visible dash trail, dampened ability telegraphs,
 --  +25% posture damage output. On window end: Dampened (Momentum reset, 2s)
 --  to all targets within 5 studs. Longest cooldown in kit (18s).
@@ -185,14 +185,14 @@ local GREY_VEIL_POSTURE_BONUS  : number = 0.25  -- +25%
 local GREY_VEIL_EXIT_RADIUS    : number = 5
 local GREY_VEIL_DAMPENED_DUR   : number = 2
 
--- VFX STUB â€” animator: subtle dark-grey overlay / reduced particle visibility during veil
+-- VFX STUB Ã¢â‚¬â€ animator: subtle dark-grey overlay / reduced particle visibility during veil
 local function _VFX_GreyVeil_Enter(_caster: Player) end
--- VFX STUB â€” animator: ash burst ring expanding outward from caster on veil end
+-- VFX STUB Ã¢â‚¬â€ animator: ash burst ring expanding outward from caster on veil end
 local function _VFX_GreyVeil_Exit(_pos: Vector3, _radius: number) end
 
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 -- MOVESET MODULE
--- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+-- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 local Ash = {
     AspectId    = "Ash",
@@ -200,7 +200,7 @@ local Ash = {
     Moves = {} :: any,
 }
 
--- â”€â”€ Move 1 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Move 1 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 Ash.Moves[1] = {
     Id          = "AshenStep",
     Name        = "Ashen Step",
@@ -229,27 +229,27 @@ Ash.Moves[1] = {
                            .. "the blind flash duration doubles to 0.6s. Chains Stagger "
                            .. "into extended vulnerability.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Stagger state hook
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Stagger state hook
         },
         {
             Id             = "MomentumTrace",
             Name           = "Momentum Trace",
             InteractsWith  = "Momentum",
-            Description    = "If Ashen Step is cast at â‰¥2Ã— Momentum, the afterimage mimics "
+            Description    = "If Ashen Step is cast at Ã¢â€°Â¥2Ãƒâ€” Momentum, the afterimage mimics "
                            .. "your last sprint direction for 1 second, creating a false "
                            .. "movement vector before freezing. Harder to identify as a decoy.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Momentum attribute check at cast time
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Momentum attribute check at cast time
         },
         {
             Id             = "HauntingStep",
             Name           = "Haunting Step",
             InteractsWith  = "Airborne",
             Description    = "If cast while airborne, the afterimage spawns at your air "
-                           .. "position and falls slowly instead of freezing â€” a falling decoy "
+                           .. "position and falls slowly instead of freezing Ã¢â‚¬â€ a falling decoy "
                            .. "that tracks toward the ground. Disrupts targeting in aerial engagements.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires airborne state detection
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires airborne state detection
         },
     },
 
@@ -272,8 +272,8 @@ Ash.Moves[1] = {
         local destination = origin + forward * ASHEN_STEP_DASH_DISTANCE
 
         task.spawn(_spawnAfterimage, origin, player)
-        -- TALENT HOOK STUB: MomentumTrace â€” check Momentum attribute, mimic sprint dir
-        -- TALENT HOOK STUB: HauntingStep  â€” if airborne, afterimage spawns at air pos
+        -- TALENT HOOK STUB: MomentumTrace Ã¢â‚¬â€ check Momentum attribute, mimic sprint dir
+        -- TALENT HOOK STUB: HauntingStep  Ã¢â‚¬â€ if airborne, afterimage spawns at air pos
 
         task.delay(ASHEN_STEP_CAST_TIME, function()
             if not char or not char.Parent then return end
@@ -293,7 +293,7 @@ Ash.Moves[1] = {
     end,
 }
 
--- â”€â”€ Move 2 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Move 2 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 Ash.Moves[2] = {
     Id          = "CinderBurst",
     Name        = "Cinder Burst",
@@ -301,9 +301,9 @@ Ash.Moves[2] = {
     Slot        = 2,
     Type        = "Expression",
     MoveType    = "Offensive",
-    Description = "Release a tight cone of compressed ash (6 studs, 30Â° arc) instantly. "
+    Description = "Release a tight cone of compressed ash (6 studs, 30Ã‚Â° arc) instantly. "
                 .. "35 posture damage. Applies Exposed: target takes +20% posture damage "
-                .. "from all sources for 3s. No HP damage. Instant cast â€” true punish tool.",
+                .. "from all sources for 3s. No HP damage. Instant cast Ã¢â‚¬â€ true punish tool.",
 
     CastTime         = 0,   -- instant
     ManaCost         = 20,
@@ -318,10 +318,10 @@ Ash.Moves[2] = {
             Id             = "ChokingVeil",
             Name           = "Choking Veil",
             InteractsWith  = "Slow",
-            Description    = "If Cinder Burst connects from behind (120Â° rear arc), also "
+            Description    = "If Cinder Burst connects from behind (120Ã‚Â° rear arc), also "
                            .. "applies Slow for 2s. Rewards flanking over direct confrontation.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires facing/angle check at hit time
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires facing/angle check at hit time
         },
         {
             Id             = "AshLung",
@@ -330,17 +330,17 @@ Ash.Moves[2] = {
             Description    = "Targets hit by Cinder Burst have Breath regen rate halved for 3s. "
                            .. "Disrupts movement economy of Silhouette and high-mobility builds.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Breath regen modifier on target
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Breath regen modifier on target
         },
         {
             Id             = "Smothered",
             Name           = "Smothered",
             InteractsWith  = "Exposed + Break",
             Description    = "If you execute a Break on an Exposed target, the Break deals "
-                           .. "+15 additional HP damage. Cinder Burst â†’ posture pressure â†’ "
+                           .. "+15 additional HP damage. Cinder Burst Ã¢â€ â€™ posture pressure Ã¢â€ â€™ "
                            .. "Break is now a genuine combo chain.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Break event + Exposed status check
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Break event + Exposed status check
         },
     },
 
@@ -420,7 +420,7 @@ Ash.Moves[2] = {
     end,
 }
 
--- â”€â”€ Move 3 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Move 3 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 Ash.Moves[3] = {
     Id          = "Fade",
     Name        = "Fade",
@@ -449,7 +449,7 @@ Ash.Moves[3] = {
                            .. "drift (small vertical float) that breaks lock-on targeting for "
                            .. "the duration. Aerial escape tool.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires airborne detection + lock-on break network event
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires airborne detection + lock-on break network event
         },
         {
             Id             = "Exhale",
@@ -458,7 +458,7 @@ Ash.Moves[3] = {
             Description    = "Fade's exit Slow also applies Exposed (2s) in addition to Slow. "
                            .. "The window after Fade becomes a setup window, not just a breather.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Exposed application on exit
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Exposed application on exit
         },
         {
             Id             = "BreathReserve",
@@ -467,7 +467,7 @@ Ash.Moves[3] = {
             Description    = "Activating Fade restores 20 Breath, regardless of current pool. "
                            .. "Incentivizes Fade as a mid-movement tool rather than panic button.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Breath attribute write on activation
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Breath attribute write on activation
         },
     },
 
@@ -486,8 +486,8 @@ Ash.Moves[3] = {
         char:SetAttribute("FadeExpiry", tick() + FADE_DURATION)
         _VFX_Fade_Enter(player)
 
-        -- TALENT HOOK STUB: AshenShroud â€” if airborne, add upward float + break lock-on
-        -- TALENT HOOK STUB: BreathReserve â€” restore 20 Breath immediately
+        -- TALENT HOOK STUB: AshenShroud Ã¢â‚¬â€ if airborne, add upward float + break lock-on
+        -- TALENT HOOK STUB: BreathReserve Ã¢â‚¬â€ restore 20 Breath immediately
 
         task.delay(FADE_DURATION, function()
             if not char or not char.Parent then return end
@@ -518,7 +518,7 @@ Ash.Moves[3] = {
                         if tChar then
                             tChar:SetAttribute("StatusSlow", true)
                             tChar:SetAttribute("SlowExpiry", tick() + FADE_EXIT_SLOW_DUR)
-                            -- TALENT HOOK STUB: Exhale â€” also apply Exposed (2s) here
+                            -- TALENT HOOK STUB: Exhale Ã¢â‚¬â€ also apply Exposed (2s) here
                             task.delay(FADE_EXIT_SLOW_DUR, function()
                                 if tChar and tChar.Parent then
                                     tChar:SetAttribute("StatusSlow", nil)
@@ -542,7 +542,7 @@ Ash.Moves[3] = {
     end,
 }
 
--- â”€â”€ Move 4 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Move 4 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 Ash.Moves[4] = {
     Id          = "Trace",
     Name        = "Trace",
@@ -551,7 +551,7 @@ Ash.Moves[4] = {
     Type        = "Expression",
     MoveType    = "UtilityProc",
     Description = "Fire a short ash tendril (10 studs, auto-tracks nearest target). On hit: "
-                .. "Ash Trace mark for 10s â€” 8-stud wallhack shows marked target through terrain. "
+                .. "Ash Trace mark for 10s Ã¢â‚¬â€ 8-stud wallhack shows marked target through terrain. "
                 .. "Mark invisible to target. 5 posture on hit. Lowest mana cost in kit.",
 
     CastTime         = 0.2,
@@ -571,7 +571,7 @@ Ash.Moves[4] = {
                            .. "also reveals their approximate HP percentage via HUD text for the "
                            .. "duration. Directly counters the 'tanky streak' playstyle.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires streak data network read
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires streak data network read
         },
         {
             Id             = "BurningMark",
@@ -581,21 +581,21 @@ Ash.Moves[4] = {
                            .. "Trace mark also increases all damage they take by 5% for the "
                            .. "remaining Exposed duration. Stacking proc tool.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Exposed check + damage multiplier attribute
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Exposed check + damage multiplier attribute
         },
         {
             Id             = "ShadowTendril",
             Name           = "Shadow Tendril",
             InteractsWith  = "Airborne",
-            Description    = "Trace can be cast vertically upward at a 45Â° angle to mark "
+            Description    = "Trace can be cast vertically upward at a 45Ã‚Â° angle to mark "
                            .. "airborne targets. Standard horizontal cast cannot track airborne targets.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires cast angle toggle UI
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires cast angle toggle UI
         },
     },
 
     VFX_Function = function(_caster: Player, _targetPos: Vector3?)
-        -- VFX STUB â€” animator: ash tendril thin-line projectile tracking nearest target
+        -- VFX STUB Ã¢â‚¬â€ animator: ash tendril thin-line projectile tracking nearest target
     end,
 
     OnActivate = function(player: Player, _targetPos: Vector3?)
@@ -638,9 +638,9 @@ Ash.Moves[4] = {
         tChar:SetAttribute("AshTraceOwner", player.Name)
         tChar:SetAttribute("AshTraceExpiry", tick() + TRACE_MARK_DUR)
 
-        -- TALENT HOOK STUB: ResonanceTrace â€” if marked has Resonance streak, fire HP% to client HUD
-        -- TALENT HOOK STUB: BurningMark â€” if Exposed, apply +5% damage multiplier
-        -- TALENT HOOK STUB: ShadowTendril â€” vertical cast angle for airborne targets
+        -- TALENT HOOK STUB: ResonanceTrace Ã¢â‚¬â€ if marked has Resonance streak, fire HP% to client HUD
+        -- TALENT HOOK STUB: BurningMark Ã¢â‚¬â€ if Exposed, apply +5% damage multiplier
+        -- TALENT HOOK STUB: ShadowTendril Ã¢â‚¬â€ vertical cast angle for airborne targets
 
         -- Auto-clear mark
         task.delay(TRACE_MARK_DUR, function()
@@ -665,7 +665,7 @@ Ash.Moves[4] = {
     end,
 }
 
--- â”€â”€ Move 5 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Ã¢â€â‚¬Ã¢â€â‚¬ Move 5 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 Ash.Moves[5] = {
     Id          = "GreyVeil",
     Name        = "Grey Veil",
@@ -694,7 +694,7 @@ Ash.Moves[5] = {
             Description    = "If you deal a Break during Grey Veil, the cooldown is immediately "
                            .. "reduced by 8 seconds. Rewards closing fights quickly inside the window.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Break event hook + CDR
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Break event hook + CDR
         },
         {
             Id             = "SilencedApproach",
@@ -704,7 +704,7 @@ Ash.Moves[5] = {
                            .. "Silenced for 1 second. Close-range opener that takes away a "
                            .. "response tool immediately.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Silenced status application on cast
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Silenced status application on cast
         },
         {
             Id             = "LingeringVeil",
@@ -713,7 +713,7 @@ Ash.Moves[5] = {
             Description    = "The exit burst now also applies Slow (2s) in addition to Dampened. "
                            .. "Combined Slow + Dampened + momentum lock makes escape from Ash very difficult.",
             IsUnlocked     = false,
-            OnActivate     = nil, -- STUB â€” requires Slow application in exit burst
+            OnActivate     = nil, -- STUB Ã¢â‚¬â€ requires Slow application in exit burst
         },
     },
 
@@ -727,14 +727,14 @@ Ash.Moves[5] = {
         local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not root then return end
 
-        -- Activate veil state â€” CombatService/MovementService read these attributes
+        -- Activate veil state Ã¢â‚¬â€ CombatService/MovementService read these attributes
         char:SetAttribute("StatusGreyVeil", true)
         char:SetAttribute("GreyVeilExpiry", tick() + GREY_VEIL_DURATION)
         char:SetAttribute("GreyVeilPostureBonus", GREY_VEIL_POSTURE_BONUS)
 
         _VFX_GreyVeil_Enter(player)
 
-        -- TALENT HOOK STUB: SilencedApproach â€” Silence nearby targets on activation
+        -- TALENT HOOK STUB: SilencedApproach Ã¢â‚¬â€ Silence nearby targets on activation
 
         task.delay(GREY_VEIL_DURATION, function()
             if not char or not char.Parent then return end
@@ -765,7 +765,7 @@ Ash.Moves[5] = {
                     if tChar then
                         tChar:SetAttribute("StatusDampened", true)
                         tChar:SetAttribute("DampenedExpiry", tick() + GREY_VEIL_DAMPENED_DUR)
-                        -- TALENT HOOK STUB: LingeringVeil â€” also apply Slow here
+                        -- TALENT HOOK STUB: LingeringVeil Ã¢â‚¬â€ also apply Slow here
                         task.delay(GREY_VEIL_DAMPENED_DUR, function()
                             if tChar and tChar.Parent then
                                 tChar:SetAttribute("StatusDampened", nil)

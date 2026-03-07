@@ -1,4 +1,4 @@
-﻿--!strict
+--!strict
 --[[
     Class: Gale
     Description: GALE â€” Aerial control, vertical pressure, zone disruption.
