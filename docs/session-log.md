@@ -3,6 +3,38 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-056: HollowedService, Ring-1 prototype world, debug utilities audit
+**Date:** 2026-03-08
+**Issues:** #143, #147, #150, #107
+
+### What Was Built
+- **`src/shared/types/HollowedTypes.lua`** *(new)* — Exports `HollowedConfig`, `HollowedState`, `HollowedData` for the Hollowed enemy system.
+- **`src/server/services/HollowedService.lua`** *(new)* — Full Ring-1 AI service: anchored-part rig, patrol/aggro/attack/dead state machine, Heartbeat loop throttled to 0.2 s/instance, `ApplyDamage` grants 25 Resonance to killer via `ProgressionService.GrantResonance(attacker, 25, "Hollowed")`, respawn after 12 s delay.
+- **`src/server/services/CombatService.lua`** — Added `isHollowed` flag parallel to `isDummy` throughout ValidateHit: target-find, self-hit check, targetData fetch, DamageReduction skip, block skip, damage dispatch (`HollowedService.ApplyDamage`), HitConfirmed NPC path, AbilitySystem abilityTarget.
+- **`src/server/runtime/init.lua`** — Added `"HollowedService"` to startOrder (after `"DeathService"`). Added `PostureService` to dependencies table so HollowedService receives it without lazy-require fallback.
+- **`tests/unit/HollowedService.test.lua`** *(new)* — 10 unit tests: spawn state, model in workspace, invalid config returns nil, damage reduces HP, HP clamps ≥ 0, death sets Dead+IsActive=false, death grants correct Resonance, nil attacker no error, dead NPC returns false on second hit, multi-instance isolation.
+- **`src/client/controllers/WeaponController.lua`** *(commit 612c408, issue #147)* — Placeholder visual Part (PlaceholderBlade) welded to weapon Handle on Equip, removed on Unequip. Sized `0.2 × 0.2 × config.Range`, colored by WeightClass. Skips "fists".
+- **`src/server/DevWorldBootstrap.server.lua`** *(new, issue #107)* — Studio-only bootstrap: creates `ZoneTrigger_Ring1` slab (ZoneService auto-connects), `Ring1Ground` floor, 3 `HollowedSpawn` tagged Parts, `Ring1Entrance` pad. Guarded by `RunService:IsStudio()` — never runs in production.
+- **#150 audit** — All items (Y keybind, `set_aspect` admin command, `NetworkProvider:FireClient`, BloodRage requirement table, DebugSetAspect tests, BACKLOG.md heading) were already present from earlier sessions. Closed without code changes.
+
+### Integration Points
+- HollowedService ↔ CombatService: `isHollowed` flag enables player hitboxes to register damage on Hollowed models via the existing `ValidateHit` flow
+- HollowedService ↔ ProgressionService: death grants Resonance directly inside `ApplyDamage` (not in CombatService)
+- DevWorldBootstrap ↔ ZoneService: `ZoneTrigger_Ring1` slab is auto-detected by `ZoneService._getZoneParts(1)`
+- DevWorldBootstrap ↔ HollowedService: `CollectionService:GetTagged("HollowedSpawn")` in `HollowedService:Start()` finds the 3 seeded spawn parts
+
+### Spec Gaps Encountered
+- None new
+
+### Tech Debt Created
+- Hollowed attack CFrame rotation uses a naive yaw-only formula (`_MoveModel` `rotDelta`), causes all body parts to rotate uniformly. Tracked — fix deferred until Motor6D rig or a proper orientation system. No visible bug for MVP.
+- DevWorldBootstrap geometry is placeholder — Ring-1 final art/geometry is a Studio authoring task outside code scope.
+
+### Next Session Should Start On
+Issue #82: `feat(world): Ring structure + Luminance drain zones` — next logical block for Phase 4, currently marked post-mvp. If MVP target shifts, start here. Otherwise check #148 Epic for any newly unblocked sub-issues.
+
+---
+
 ## Session NF-055: Public-server polish pass — ability dead code, stat wiring, security gates
 **Date:** 2026-03-07
 **Issues:** #161, #162, #163, #164, #165, #166, #167
