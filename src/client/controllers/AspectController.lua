@@ -27,6 +27,16 @@ local localPlayer = Players.LocalPlayer
 
 -- dependency references (filled in Init)
 local NetworkController: any = nil
+local ActionController: any = nil
+
+-- maps aspect name to its Depth-1 ability ID
+local ASPECT_ABILITY_MAP: {[string]: string} = {
+    Ash  = "AshenStep",
+    Tide = "Current",
+    Ember = "Ignite",
+    Gale = "WindStrike",
+    Void = "Blink",
+}
 
 local AspectController = {}
 AspectController._cooldowns = {} -- abilityId -> expiry tick
@@ -54,6 +64,18 @@ local function _onKeyInput(input: InputObject, gameProcessed: boolean)
 
     if key == Enum.KeyCode.G then
         AspectController:_cycleAspect()
+        return
+    end
+
+    if key == Enum.KeyCode.E then
+        local currentAspect = ASPECT_CYCLE[_cycleIndex]
+        if currentAspect and ASPECT_ABILITY_MAP[currentAspect] then
+            local abilityId = ASPECT_ABILITY_MAP[currentAspect]
+            local mouse = localPlayer:GetMouse()
+            if ActionController and ActionController.PlayAbilityAction then
+                ActionController.PlayAbilityAction(abilityId, mouse.Hit.p)
+            end
+        end
         return
     end
 end
@@ -170,6 +192,7 @@ function AspectController:Init(dependencies)
     print("[AspectController] Initializing...")
     if dependencies then
         NetworkController = dependencies.NetworkController
+        ActionController  = dependencies.ActionController
     end
 
     table.insert(_inputConnections,

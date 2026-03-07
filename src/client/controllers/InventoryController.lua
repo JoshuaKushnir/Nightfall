@@ -261,16 +261,13 @@ local function _onHotbarActivate(self: any, slot: number)
     local item = self._equipped[tostring(slot)]
     if not item then return end
     if _isAbility(item) then
-        -- delegate to ability module for network logic
+        -- route through ActionController so ability integrates with combo pipeline
         local abilityId = item.AbilityId or item.Id
-        local success, ability = pcall(function()
-            return require(ReplicatedStorage.Shared.abilities[abilityId])
-        end)
         local mouse = localPlayer:GetMouse()
-        if success and ability and ability.ClientActivate then
-            ability.ClientActivate(mouse.Hit.p)
+        local ac = self._actionController
+        if ac and ac.PlayAbilityAction then
+            ac.PlayAbilityAction(abilityId, mouse.Hit.p)
         else
-            -- fallback using helper
             NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = mouse.Hit.p})
         end
     elseif _isWeapon(item) then
@@ -289,14 +286,12 @@ local function _onBagClick(self: any, item: any)
         local hasAny = false
         for i = 1, HOTBAR_SLOTS do if self._equipped[tostring(i)] then hasAny = true; break end end
         if hasAny then
-            -- Cast immediately if hotbar already occupied
+                    -- Cast immediately if hotbar already occupied
             local abilityId = item.AbilityId or item.Id
-            local success, ability = pcall(function()
-                return require(ReplicatedStorage.Shared.abilities[abilityId])
-            end)
             local mouse = localPlayer:GetMouse()
-            if success and ability and ability.ClientActivate then
-                ability.ClientActivate(mouse.Hit.p)
+            local ac = self._actionController
+            if ac and ac.PlayAbilityAction then
+                ac.PlayAbilityAction(abilityId, mouse.Hit.p)
             else
                 NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = mouse.Hit.p})
             end
@@ -1004,6 +999,7 @@ function InventoryController:Init(dependencies: {[string]: any}?)
     if dependencies then
         self._aspectController  = dependencies.AspectController
         self._networkController = dependencies.NetworkController
+        self._actionController  = dependencies.ActionController
     end
 
     if self._aspectController then

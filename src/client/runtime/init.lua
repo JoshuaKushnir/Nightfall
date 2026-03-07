@@ -98,6 +98,7 @@ local dependencies = {
 	StateSyncController = controllers.StateSyncController,
 	MovementController  = controllers.MovementController,
 	WeaponController    = controllers.WeaponController,
+	ActionController    = controllers.ActionController,
 	CombatController    = controllers.CombatController,
 	AspectController    = controllers.AspectController,
 	InventoryController = controllers.InventoryController,

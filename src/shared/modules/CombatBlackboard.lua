@@ -16,6 +16,12 @@ local CombatBlackboard = {
 	IsBlocking    = false :: boolean,
 	IsParrying    = false :: boolean,
 	IsStunned     = false :: boolean,
+	IsCasting     = false :: boolean, -- true while a spell/ability action is executing
+
+	-- combo tracking (written by ActionController, read by CombatController + UI)
+	ComboCount    = 0 :: number,
+	ComboExpiry   = 0 :: number,      -- absolute tick() when combo window closes
+	LastActionType = "" :: string,    -- "Attack" | "Ability" | "Dodge" | ""
 
 	-- optional data
 	ActiveState   = "Idle" :: string,

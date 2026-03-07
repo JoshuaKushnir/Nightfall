@@ -55,13 +55,20 @@ local _stateModules: {[string]: any} = {
 	Attack  = AttackState,
 	Block   = BlockState,
 	Stunned = StunnedState,
+	-- Casting state: ability is executing; blocks new inputs
+	Casting = {
+		Enter  = function() end,
+		Update = function() end,
+		Exit   = function() end,
+	},
 }
 
 local function _resolveActiveState(blackboard: any): string
-	-- priority order: Stunned > Attack > Block > Idle
-	if blackboard.IsStunned then return "Stunned" end
+	-- priority order: Stunned > Attack > Casting > Block > Idle
+	if blackboard.IsStunned  then return "Stunned" end
 	if blackboard.IsAttacking then return "Attack" end
-	if blackboard.IsBlocking then return "Block" end
+	if blackboard.IsCasting  then return "Casting" end
+	if blackboard.IsBlocking  then return "Block" end
 	return "Idle"
 end
 
@@ -123,6 +130,8 @@ function CombatController.NotifyActionStarted(config: any)
 		CombatBlackboard.IsBlocking = true
 	elseif config.Type == "Parry" then
 		-- could set IsParrying or trigger a dedicated state
+	elseif config.Type == "Ability" then
+		CombatBlackboard.IsCasting = true
 	end
 end
 
@@ -131,6 +140,8 @@ function CombatController.NotifyActionEnded(config: any)
 		CombatBlackboard.IsAttacking = false
 	elseif config.Type == "Block" then
 		CombatBlackboard.IsBlocking = false
+	elseif config.Type == "Ability" then
+		CombatBlackboard.IsCasting = false
 	end
 end
 

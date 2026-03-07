@@ -20,7 +20,8 @@ local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local AnimationLoader = require(ReplicatedStorage.Shared.modules.AnimationLoader)
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
-local Blackboard     = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
+local Blackboard        = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
+local CombatBlackboard  = require(ReplicatedStorage.Shared.modules.CombatBlackboard)
 
 -- WeaponController is injected via dependencies in :Init() to avoid a
 -- circular-require (WeaponController is a client controller, not shared).
@@ -493,8 +494,8 @@ function ActionController.PlayAction(config: ActionConfig)
 		end
 
 		-- Only allow certain actions to queue during certain states
-		-- Dodge actions can queue during attacks for smooth transitions
-		if config.Type == "Dodge" or config.Type == "Attack" then
+		-- Dodge and Ability actions can queue during attacks for smooth transitions
+		if config.Type == "Dodge" or config.Type == "Attack" or config.Type == "Ability" then
 			table.insert(ActionQueue, config)
 			print(`[ActionController] Action queued: {config.Name} ({#ActionQueue}/{MAX_QUEUE_SIZE})`)
 		else
@@ -569,6 +570,10 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				HitboxService.RemoveHitbox(self.Hitbox)
 				self.Hitbox = nil
 			end
+			-- Clear casting flag when a spell action ends
+			if self.Config and self.Config.Type == "Ability" then
+				CombatBlackboard.IsCasting = false
+			end
 			-- inform combat controller that the action finished
 			if CombatController and self.Config then
 				CombatController.NotifyActionEnded(self.Config)
@@ -577,6 +582,16 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	}
 
 	CurrentAction = action
+
+	-- Track spell-casting state on the shared blackboard
+	if config.Type == "Ability" then
+		CombatBlackboard.IsCasting = true
+		CombatBlackboard.LastActionType = "Ability"
+	elseif config.Type == "Attack" then
+		CombatBlackboard.LastActionType = "Attack"
+	elseif config.Type == "Dodge" then
+		CombatBlackboard.LastActionType = "Dodge"
+	end
 
 	-- Special handling for dodge: non-collidable movement to avoid fling
 	if config.Type == "Dodge" then
@@ -1162,6 +1177,58 @@ function ActionController:OnCharacterAdded(newCharacter: Model)
 	end
 
 	print("[ActionController] Ready for new character")
+end
+
+--[[
+	PlayAbilityAction — cast an Aspect/Expression ability through the unified combat queue.
+	This routes spell casts through the same cancel-window and combo pipeline as melee,
+	so spells and physical hits chain into each other seamlessly.
+
+	@param abilityId  The ability Id (e.g. "AshenStep", "Current", "Ignite").
+	@param targetPos  Optional cast-aim position from the mouse/camera.
+]]
+function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector3?)
+	if not abilityId or abilityId == "" then return end
+
+	-- Build a cast-window ActionConfig.
+	-- Duration is the commitment window (can't cancel before CancelFrame).
+	-- No client-side hitbox — server manages damage application.
+	local castConfig: ActionConfig = {
+		Id                = "ability_" .. abilityId,
+		Name              = abilityId,
+		Type              = "Ability",
+		AnimationId       = "",
+		AnimationName     = "",      -- VFX/animation is server-driven or deferred
+		Duration          = 0.55,   -- cast commitment window
+		CancelFrame       = 0.65,   -- melee can cancel in after 65% through
+		AttackImpulse     = 0,
+		IsFinisher        = false,
+		KnockbackPower    = 0,
+		HitStopDuration   = nil,
+		HitStartFrame     = nil,    -- no client hitbox
+		-- Cooldown acts as a local rate-limit guard (0.5s) to prevent double-fire
+		-- while the server round-trip is in flight. Real cooldown is server-authoritative.
+		Cooldown          = 0.5,
+		OnStart           = function(_p: Player)
+			-- Refresh the melee combo window so physical hits can continue after a spell
+			LastComboTime = tick()
+			-- Fire the server-side ability cast
+			NetworkProvider:FireServer("AbilityCastRequest", {
+				AbilityId     = abilityId,
+				TargetPosition = targetPos,
+			})
+		end,
+	}
+
+	print(("[ActionController] PlayAbilityAction → %s"):format(abilityId))
+	ActionController.PlayAction(castConfig)
+end
+
+--[[
+	GetComboCount — read the current melee combo count (used by UI / other systems).
+]]
+function ActionController.GetComboCount(): number
+	return ComboCount
 end
 
 return ActionController
