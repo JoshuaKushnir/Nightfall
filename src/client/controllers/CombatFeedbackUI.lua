@@ -120,6 +120,26 @@ function CombatFeedbackUI:Start()
 		end)
 	end
 	
+	-- ── Death screen ─────────────────────────────────────────────────────────
+	local stateChangedEvent = NetworkProvider:GetRemoteEvent("StateChanged")
+	if stateChangedEvent then
+		stateChangedEvent.OnClientEvent:Connect(function(packet: any)
+			if type(packet) == "table" and packet.NewState == "Dead" then
+				CombatFeedbackUI._ShowDeathScreen()
+			end
+		end)
+	end
+
+	-- ── Suppressed vignette (posture break) ────────────────────────────────
+	local suppressedEvent = NetworkProvider:GetRemoteEvent("Suppressed")
+	if suppressedEvent then
+		suppressedEvent.OnClientEvent:Connect(function(playerId: number)
+			if playerId == Players.LocalPlayer.UserId then
+				CombatFeedbackUI._PlaySuppressedVignette()
+			end
+		end)
+	end
+
 	-- Update loop for floating numbers
 	game:GetService("RunService").RenderStepped:Connect(function()
 		CombatFeedbackUI._UpdateFloatingNumbers()
@@ -528,6 +548,124 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 			task.wait(0.05)
 		end
 		screenGui:Destroy()
+	end)
+end
+
+--[[
+	Show a full-screen YOU DIED overlay when the local player enters Dead state.
+	Fades in over 1 s, waits 2.5 s, then fades out and destroys itself.
+	Respawn detection: the overlay self-removes so the next spawn is clean.
+]]
+function CombatFeedbackUI._ShowDeathScreen()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	-- Only one death screen at a time
+	local existing = playerGui:FindFirstChild("DeathScreen")
+	if existing then existing:Destroy() end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "DeathScreen"
+	gui.ResetOnSpawn = false
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent = playerGui
+
+	-- Dark overlay
+	local overlay = Instance.new("Frame")
+	overlay.Name = "Overlay"
+	overlay.Size = UDim2.new(1, 0, 1, 0)
+	overlay.BackgroundColor3 = Color3.fromRGB(10, 0, 0)
+	overlay.BackgroundTransparency = 1
+	overlay.BorderSizePixel = 0
+	overlay.Parent = gui
+
+	-- YOU DIED label
+	local label = Instance.new("TextLabel")
+	label.Name = "YouDied"
+	label.Size = UDim2.new(0, 400, 0, 100)
+	label.Position = UDim2.new(0.5, -200, 0.4, -50)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(200, 20, 20)
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 72
+	label.Text = "YOU DIED"
+	label.TextTransparency = 1
+	label.Parent = overlay
+
+	local sub = Instance.new("TextLabel")
+	sub.Name = "Sub"
+	sub.Size = UDim2.new(0, 400, 0, 40)
+	sub.Position = UDim2.new(0.5, -200, 0.4, 60)
+	sub.BackgroundTransparency = 1
+	sub.TextColor3 = Color3.fromRGB(160, 160, 160)
+	sub.Font = Enum.Font.Gotham
+	sub.TextSize = 22
+	sub.Text = "Respawning..."
+	sub.TextTransparency = 1
+	sub.Parent = overlay
+
+	task.spawn(function()
+		-- Fade in (1 s)
+		for i = 1, 20 do
+			overlay.BackgroundTransparency = 1 - (i / 20) * 0.70
+			label.TextTransparency = 1 - (i / 20)
+			sub.TextTransparency = 1 - (i / 20)
+			task.wait(0.05)
+		end
+
+		task.wait(2.5)
+
+		-- Fade out (0.5 s)
+		for i = 1, 10 do
+			overlay.BackgroundTransparency = 0.30 + (i / 10) * 0.70
+			label.TextTransparency = i / 10
+			sub.TextTransparency = i / 10
+			task.wait(0.05)
+		end
+		gui:Destroy()
+	end)
+end
+
+--[[
+	Play a brief red vignette flash when the local player becomes Suppressed
+	(posture fully broken). Pulses the screen edge red then fades.
+]]
+function CombatFeedbackUI._PlaySuppressedVignette()
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+
+	local existing = playerGui:FindFirstChild("SuppressedVignette")
+	if existing then existing:Destroy() end
+
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "SuppressedVignette"
+	gui.ResetOnSpawn = false
+	gui.Parent = playerGui
+
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(1, 0, 1, 0)
+	frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	frame.BackgroundTransparency = 1
+	frame.BorderSizePixel = 0
+	frame.Parent = gui
+
+	Instance.new("UIGradient", frame).Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.4),
+		NumberSequenceKeypoint.new(0.35, 1),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+
+	task.spawn(function()
+		-- Two quick pulses
+		for _ = 1, 2 do
+			for i = 1, 8 do
+				frame.BackgroundTransparency = 1 - (i / 8) * 0.6
+				task.wait(0.04)
+			end
+			for i = 1, 8 do
+				frame.BackgroundTransparency = 0.4 + (i / 8) * 0.6
+				task.wait(0.04)
+			end
+		end
+		gui:Destroy()
 	end)
 end
 
