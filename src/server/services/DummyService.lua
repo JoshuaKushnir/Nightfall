@@ -533,6 +533,7 @@ dummyData.Health = math.max(0, dummyData.Health - effectiveDamage)
 	-- non-finisher swings)
 	if attackerPosition then
 		DummyService._ApplyKnockback(dummyId, attackerPosition)
+	end
 
 -- Sync Humanoid health (drives the in-world health bar)
 local model = DummyModels[dummyId]
