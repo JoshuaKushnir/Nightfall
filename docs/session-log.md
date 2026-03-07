@@ -3,6 +3,29 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-057: Remove direct ability keybinds — hotbar-only activation
+**Date:** 2026-03-09
+**Issues:** NF-057 (inline fix, no dedicated GitHub issue — single-file scope)
+
+### What Was Built
+- **`src/client/controllers/AspectController.lua`** — Removed `_keybinds` table (Z/X/C/V → nil map), removed `abilityId` branch from `_onKeyInput` (kept G → `_cycleAspect()`), removed duplicate module-level `UserInputService.InputBegan` keybind block, removed `GetEquippedAbilities()` (only iterated `_keybinds`). Abilities are no longer directly triggerable by keyboard; all ability activation now flows exclusively through `InventoryController._onHotbarActivate` (hotbar slots 1–8).
+- **`src/client/controllers/ActionController.lua`** — Removed `E` key → `UseAbility` RemoteEvent call. Weapon abilities are triggered only through the hotbar equip system.
+
+### Integration Points
+- `InventoryController._onHotbarActivate` remains the single correct ability activation path: number key → hotbar slot → `AbilityCastRequest` (if ability) or weapon hold toggle (if weapon).
+- `AspectController` retains G key → `_cycleAspect()` (meta, not an ability cast).
+
+### Spec Gaps Encountered
+- None
+
+### Tech Debt Created
+- None
+
+### Next Session Should Start On
+Issue #82: `feat(world): Ring structure + Luminance drain zones` — next Phase 4 block. Otherwise check Epic #148 for any newly unblocked sub-issues.
+
+---
+
 ## Session NF-056: HollowedService, Ring-1 prototype world, debug utilities audit
 **Date:** 2026-03-08
 **Issues:** #143, #147, #150, #107
