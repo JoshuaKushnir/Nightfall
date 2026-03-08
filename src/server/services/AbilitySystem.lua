@@ -26,6 +26,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local AbilityRegistry  = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local WeaponService    = require(script.Parent.WeaponService)
+local AbilityValidator  = require(script.Parent.AbilityValidator)
+local EffectRunner      = require(script.Parent.EffectRunner)
 
 local AbilitySystem = {}
 
@@ -156,39 +158,70 @@ end
 	via NetworkService:RegisterHandler so that rate-limiting middleware applies.
 ]]
 function AbilitySystem.HandleUseAbility(player: Player)
-	-- Look up this player's equipped weapon
-	local weaponId = WeaponService.GetEquipped(player)
-	if not weaponId then
-		print(("[AbilitySystem] UseAbility from %s — no weapon equipped"):format(player.Name))
-		return
-	end
+    -- Look up this player's equipped weapon
+    local weaponId = WeaponService.GetEquipped(player)
+    if not weaponId then
+        print(("[AbilitySystem] UseAbility from %s — no weapon equipped"):format(player.Name))
+        return
+    end
 
-	local weapon = WeaponRegistry.Get(weaponId)
-	if not weapon then return end
+    local weapon = WeaponRegistry.Get(weaponId)
+    if not weapon then return end
 
-	local active = AbilitySystem.GetActive(weapon)
-	if not active then
-		-- Fists and other weapons without an active ability: silently ignore
-		print(("[AbilitySystem] %s: weapon '%s' has no active ability"):format(player.Name, weaponId))
-		return
-	end
+    local active = AbilitySystem.GetActive(weapon)
+    if not active then
+        print(("[AbilitySystem] %s: weapon '%s' has no active ability"):format(player.Name, weaponId))
+        return
+    end
 
-	if _IsActiveCoolingDown(player, active.Id) then
-		print(("[AbilitySystem] %s UseAbility cooldown not ready: %s"):format(player.Name, active.Id))
-		return
-	end
+    -- ── Centralised validation ────────────────────────────────────────────────
+    local ok, reason, context = AbilityValidator.ValidateUse(player, active)
+    if not ok then
+        print(("[AbilitySystem] %s ValidateUse failed: %s (%s)")
+            :format(player.Name, active.Id, tostring(reason)))
+        return
+    end
 
-	-- Start cooldown before activation (prevents double-fire)
-	_StartActiveCooldown(player, active.Id, active.Cooldown or 8)
+    -- ── Cooldown (start before activation to prevent double-fire) ─────────────
+    _StartActiveCooldown(player, active.Id, active.Cooldown or 8)
 
-	if active.OnActivate then
-		local ok, err = pcall(active.OnActivate, player, weapon)
-		if not ok then
-			warn(("[AbilitySystem] Active '%s' OnActivate error: %s"):format(active.Id, tostring(err)))
-		else
-			print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, active.Id))
-		end
-	end
+    -- ── Execute: data-driven effects first, then OnActivate fallback ──────────
+    if active.effects and type(active.effects) == "table" and #active.effects > 0 then
+        -- Build EffectContext from validator context
+        local eventCtx = {
+            casterId        = player.UserId,
+            casterPlayer    = player,
+            abilityId       = active.Id,
+            castOrigin      = (context :: any).castOrigin,
+            castTargetPoint = (context :: any).castTargetPoint,
+        }
+        -- No hitCtx at cast time — individual effects supply hitCtx when a hit is confirmed.
+        -- Self-targeting effects (Heal, SelfBuff) receive nil hitCtx and handle it internally.
+        for _, effectDef in active.effects do
+            -- PassiveSystem injected lazily to avoid circular require at load time
+            local PassiveSystem = require(script.Parent.PassiveSystem)
+            local runOk, runErr = pcall(EffectRunner.Run, EffectRunner, effectDef, eventCtx, nil, PassiveSystem)
+            if not runOk then
+                warn(("[AbilitySystem] EffectRunner.Run error for '%s': %s")
+                    :format(active.Id, tostring(runErr)))
+            end
+        end
+        print(("[AbilitySystem] ✓ %s activated %s (data-driven, %d effects)")
+            :format(player.Name, active.Id, #active.effects))
+    end
+
+    -- Always run OnActivate if present — handles movement/VFX logic that cannot
+    -- be expressed as declarative EffectDef tables (dashes, afterimages, etc.)
+    if active.OnActivate then
+        local pcallOk, pcallErr = pcall(active.OnActivate, player, weapon)
+        if not pcallOk then
+            warn(("[AbilitySystem] Active '%s' OnActivate error: %s")
+                :format(active.Id, tostring(pcallErr)))
+        elseif not (active.effects and #active.effects > 0) then
+            -- Only print the activation line once (above already printed if effects ran)
+            print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, active.Id))
+        end
+    end
 end
 
 --[[

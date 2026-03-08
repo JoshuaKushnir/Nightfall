@@ -61,6 +61,17 @@ local dependencies = {
 	InventoryService = services.InventoryService,
 	ProgressionService = services.ProgressionService,
 	PostureService = services.PostureService,
+	EffectRunner    = services.EffectRunner,
+	PassiveSystem   = services.PassiveSystem,
+
+	WeaponService   = services.WeaponService,
+	DefenseService  = services.DefenseService,
+	CombatService   = services.CombatService,
+	DeathService    = services.DeathService,
+	HollowedService = services.HollowedService,
+	ZoneService     = services.ZoneService,
+	AbilitySystem   = services.AbilitySystem,
+	DummyService    = services.DummyService,
 }
 
 for name, service in services do
@@ -101,6 +112,8 @@ local startOrder = {
 	"DeathService",        -- #144: death→respawn pipeline (needs ProgressionService for shard loss)
 	"HollowedService",     -- #143: Ring 1 enemy AI (patrol/aggro/attack, Resonance grant on kill)
 	"ZoneService",         -- #142: Ring boundary detection (after ProgressionService)
+	"EffectRunner",        -- must start before EffectHandlers registers handlers
+	"PassiveSystem",       -- hook pipeline
 }
 
 for _, name in startOrder do
@@ -145,6 +158,12 @@ if not startSuccess then
 end
 
 print("")
+
+-- Register all effect handlers now that EffectRunner and PostureService are started
+if services.EffectRunner then
+    local EffectHandlers = require(ServerScriptService.Server.services.EffectHandlers)
+    EffectHandlers.RegisterAll(services.EffectRunner, services.PostureService)
+end
 
 -- Initialization complete
 local initTime = (os.clock() - INITIALIZATION_START) * 1000

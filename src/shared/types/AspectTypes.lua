@@ -88,6 +88,10 @@ export type AspectAbility = {
 
     -- Optional hit callback
     OnHit_Function: ((caster: Player, target: Player, damage: number) -> ())?,
+    -- Data-driven effect pipeline (optional — if present, EffectRunner executes these
+    -- instead of OnActivate for server-side damage/status/knockback logic.
+    -- OnActivate is still called for movement/VFX logic that cannot be expressed as data.)
+    effects: {any}?,   -- {EffectDef} — see src/shared/types/EffectTypes.lua
 }
 
 --[[

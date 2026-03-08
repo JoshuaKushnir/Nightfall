@@ -219,6 +219,15 @@ Ash.Moves[1] = {
     PostureDamage    = ASHEN_STEP_POSTURE_DAMAGE,
     BaseDamage       = nil,
     RequiredState    = {"Idle", "Walking", "Running"},
+    -- Data-driven effects (processed by EffectRunner via AbilitySystem).
+    -- OnActivate below still runs for the dash movement and afterimage VFX.
+    effects = {
+        {
+            kind         = "PostureDamage",
+            postureBase  = 15,   -- placeholder: depth-1 spec
+            tags         = {"Expression", "Ash"},
+        },
+    },
 
     Talents = {
         {
