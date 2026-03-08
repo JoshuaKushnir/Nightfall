@@ -59,6 +59,7 @@ export type Action = {
 	StartTime: number,
 	EndTime: number,
 	IsActive: boolean,
+	IsCanceled: boolean, -- Set to true when action is canceled early (feint/interrupt)
 	TargetHit: Player?,
 	AnimationTrack: AnimationTrack?,
 	Hitbox: any?, -- HitboxTypes.Hitbox (can't import due to circular dep)

@@ -545,6 +545,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		StartTime = tick(),
 		EndTime = tick() + config.Duration,
 		IsActive = true,
+		IsCanceled = false, -- Set to true if action is canceled early (feint/interrupt)
 		TargetHit = nil,
 		AnimationTrack = nil,
 		Hitbox = nil,
@@ -884,6 +885,12 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				Size    = Vector3.new(6, 6, 6),
 				LifeTime = 1.0,
 				OnHit = function(target: any, _hitData: any)
+					-- Do NOT process hit if action was canceled (feint/interrupt)
+					if action.IsCanceled then
+						print(`[ActionController] ✗ Hit ignored - action was canceled: {config.Name}`)
+						return
+					end
+
 					local targetName: string
 					if typeof(target) == "Instance" and target:IsA("Player") then
 						targetName = target.Name
@@ -963,6 +970,7 @@ function ActionController._UpdateAction(deltaTime: number)
 				action.AnimationTrack:Stop(0.08)
 			end
 			action.IsActive = false
+			action.IsCanceled = true  -- Mark action as canceled (feint/interrupt) so hits don't process
 			-- Destroy the track slightly later so the fadeout plays
 			local dyingTrack = action.AnimationTrack
 			action.AnimationTrack = nil
