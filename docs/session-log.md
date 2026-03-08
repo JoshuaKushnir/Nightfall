@@ -3,6 +3,41 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-060: Fix feinting and DummyService syntax error
+**Date:** 2026-03-07
+**Issues:** #169 (feinting allows damage), DummyService compilation error
+
+### What Was Built
+- **`src/server/services/DummyService.lua`** — Fixed missing `end` statement in knockback gating logic (line 531). The `if attackerPosition then` block wasn't properly closed, causing compilation failure.
+- **`src/shared/types/ActionTypes.lua`** — Added `IsCanceled: boolean` field to Action type. Set to true when action is canceled early (feint/interrupt).
+- **`src/client/controllers/ActionController.lua`** — Implemented feinting damage prevention:
+  - Action initialization now sets `IsCanceled = false` 
+  - Early cancel window (CancelFrame-triggered interrupt) now sets `action.IsCanceled = true`
+  - OnHit callback checks `if action.IsCanceled then` and returns early, preventing HitRequest from being sent to server
+  - Result: m1 attacks canceled by feint (M2 during windup) no longer deal damage to dummies
+
+### Integration Points
+- Feinting (action cancel triggered by subsequent input) now properly invalidates pending hitbox damage
+- Server receives no HitRequest for canceled actions, so dummy knockback and damage are completely prevented on feint
+- Works for all action types (melee attacks, abilities) since all go through _PlayActionLocal
+
+### Spec Gaps Encountered
+- None — feinting mechanism was already implemented via CancelFrame; this just adds the cancel marker
+
+### Tech Debt Created
+- None
+
+### Testing Surface
+- m1 → hold nothing → m1 hits normally ✓
+- m1 → press M2 during windup → feint triggers, no damage ✓
+- m1 → m2 → m3 (no feint) → full 3-hit combo works ✓
+- m1 → m2 (cancel at CancelFrame) → chained attack (legal) → both hit ✓
+
+### Next Session Should Start On
+Issue #82: `feat(world): Ring structure + Luminance drain zones` — if no further combat polish needed, move to Phase 4 world progression.
+
+---
+
 ## Session NF-059: Unified physical+magic combo pipeline
 **Date:** 2026-03-10
 **Issues:** #59 (unified combat system)
@@ -13,13 +48,16 @@
   - Added `CombatBlackboard` import.
   - Queue logic now allows `"Ability"` type alongside `"Attack"` and `"Dodge"`.
   - `_PlayActionLocal`: sets `CombatBlackboard.IsCasting = true` and `LastActionType` on ability start; clears `IsCasting` in `action.Cleanup`.
-  - `PlayAbilityAction(abilityId, targetPos)` — new public function that creates an `ActionConfig{Type="Ability", Duration=0.55, CancelFrame=0.65}` and fires it through `PlayAction`, refreshing `LastComboTime` so melee combo window stays alive through a cast.
+  - `PlayAbilityAction(abilityId, targetPos)` — new public function that creates an `ActionConfig{Type="Ability", Duration=0.55, CancelFrame=0.65}` and fires it through `PlayAction`.
+    *Spell casts now increment the combo counter and update the blackboard, so ability-to-ability and ability‑to‑melee chains truly advance the combo sequence.*
+    *Refreshing `LastComboTime` ensures the melee combo window stays alive through a cast.*
   - `GetComboCount()` — exposes current combo depth for external readers.
 - **`src/client/controllers/CombatController.lua`** — Casting state added to `_stateModules` (inline stub; no dedicated module needed). `_resolveActiveState` priority: Stunned > Attack > **Casting** > Block > Idle. `NotifyActionStarted/Ended` handle `"Ability"` type for `IsCasting`.
 - **`src/client/controllers/InventoryController.lua`** — `_onHotbarActivate` and `_onBagClick` ability paths now route through `ActionController.PlayAbilityAction` instead of direct `FireServer`. Falls back to direct fire if ActionController unavailable. Stored as `self._actionController` from Init dependencies.
 - **`src/client/controllers/AspectController.lua`** — Added `ASPECT_ABILITY_MAP` (Ash→AshenStep, Tide→Current, Ember→Ignite, Gale→WindStrike, Void→Blink). E key in `_onKeyInput` fires current aspect's Depth-1 ability via `ActionController.PlayAbilityAction`. Reads `ActionController` from dependencies.
 - **`src/client/runtime/init.lua`** — `ActionController` added to the shared `dependencies` table so InventoryController and AspectController receive it during Init.
-
+- **`src/server/services/CombatService.lua`** & **`src/server/services/DummyService.lua`** — dummy knockback is now gated by `hitData.IsFinisher` (m1s no longer push training dummies); CombatService also passes nil to `ApplyDamage()` for non-finisher swings.
+- **`src/client/controllers/ActionController.lua`** — ability casts increment combo counters and keep CombatBlackboard in sync (supports spell→spell chaining).
 ### Integration Points
 - Melee → spell → melee: all chain through ActionController's cancel-window system (`CancelFrame=0.65` for spells).
 - Server-side damage untouched — ability still fires `AbilityCastRequest` RemoteEvent from `OnStart` callback inside the queued action, so it only fires when the action actually executes (not when queued).
