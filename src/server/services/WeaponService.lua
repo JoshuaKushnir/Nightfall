@@ -226,6 +226,146 @@ function WeaponService.GetEquipped(player: Player): string?
 	return EquippedWeapons[player.UserId]
 end
 
+-- ─── Attack Pipeline (#171) ──────────────────────────────────────────────────
+
+-- Lazy-required to avoid circular dependency chains at module load time
+local _CombatService: any = nil
+local _HitboxService: any = nil
+
+local function _requireCombatService()
+	if not _CombatService then _CombatService = require(script.Parent.CombatService) end
+	return _CombatService
+end
+
+local function _requireHitboxService()
+	if not _HitboxService then _HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService) end
+	return _HitboxService
+end
+
+-- Minimum gate between server-processed swings (100 ms) — distinct from ValidateAttack's 50 ms fast-path
+local MIN_SWING_INTERVAL = 0.10
+
+--[[
+	HandleAttackRequest
+	Full server-side pipeline for WeaponAttackRequest packets (after packet-shape
+	validation in the runtime handler). Steps:
+		1. Rate-limit gate (100 ms per player)
+		2. Weapon-id match via GetEquipped()
+		3. Timestamp sanity (3 s clock-skew tolerance)
+		4. State guard (Dead / Stunned / Ragdolled → reject)
+		5. Hitbox built from weapon.Range / weapon.BaseDamage
+		6. CombatService.ValidateHit inside OnHit callback
+		7. AttackResult reply fired to client
+]]
+function WeaponService.HandleAttackRequest(player: Player, packet: any)
+	local CombatService = _requireCombatService()
+	local HitboxService = _requireHitboxService()
+
+	local uid = player.UserId
+	local now = tick()
+
+	-- 1. Rate-limit gate
+	local lastSwing = _lastAttackTime[uid] or 0
+	if now - lastSwing < MIN_SWING_INTERVAL then
+		return
+	end
+	_lastAttackTime[uid] = now
+
+	-- 2. Weapon-id match
+	local equippedId = WeaponService.GetEquipped(player)
+	if equippedId ~= packet.WeaponId then
+		WeaponService.RecordViolation(player, "weapon id mismatch")
+		return
+	end
+
+	-- 3. Timestamp sanity — reject packets older than 3 s
+	if now - packet.ClientTime > 3 then
+		warn(("[WeaponService] Stale packet from %s (age=%.1fs)"):format(player.Name, now - packet.ClientTime))
+		return
+	end
+
+	-- 4. State guard
+	local playerData = StateService:GetPlayerData(player)
+	if not playerData then return end
+	local pState = playerData.State
+	if pState == "Dead" or pState == "Stunned" or pState == "Ragdolled" then
+		return
+	end
+
+	-- 5. Weapon config lookup
+	local weapon = WeaponRegistry.Get(packet.WeaponId)
+	if not weapon then return end
+
+	local char = player.Character
+	local root = char and char:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then return end
+
+	local range: number = (weapon :: any).Range or 7
+	local aimData: any = packet.AimData
+	local aimPos: Vector3
+	if aimData and aimData.Origin and aimData.Direction then
+		aimPos = aimData.Origin + aimData.Direction * (range * 0.5)
+	else
+		aimPos = root.Position + root.CFrame.LookVector * (range * 0.5)
+	end
+
+	local baseDamage: number = (weapon :: any).BaseDamage or 10
+	local postureDamage: number
+	if packet.AttackType == "Heavy" and (weapon :: any).HeavyPostureDamage then
+		postureDamage = (weapon :: any).HeavyPostureDamage
+	elseif (weapon :: any).PostureDamage then
+		postureDamage = (weapon :: any).PostureDamage
+	else
+		postureDamage = baseDamage
+	end
+
+	-- 6. Hitbox — apply damage on first valid contact
+	local hitHappened = false
+	local hitbox = HitboxService.CreateHitbox({
+		Owner    = player,
+		Shape    = "Box",
+		Position = aimPos,
+		Size     = Vector3.new(range, range, range),
+		Damage   = baseDamage,
+		LifeTime = 0.1,
+		OnHit    = function(target: any, _hd: any)
+			if hitHappened then return end
+			hitHappened = true
+			local targetName: string? = nil
+			if typeof(target) == "Instance" and target:IsA("Player") then
+				targetName = (target :: Player).Name
+			elseif type(target) == "string" then
+				targetName = target
+			end
+			if not targetName then
+				hitHappened = false
+				return
+			end
+			CombatService.ValidateHit(player, {
+				TargetName             = targetName,
+				Damage                 = baseDamage,
+				PostureDamage          = postureDamage,
+				HitType                = "Weapon",
+				WeaponId               = packet.WeaponId,
+				BypassWeaponValidation = true,
+				BypassRateLimit        = true,
+			})
+		end,
+	})
+	HitboxService.TestHitbox(hitbox)
+
+	-- 7. Reply with swing result
+	local resultEvent = NetworkProvider:GetRemoteEvent("AttackResult")
+	if resultEvent then
+		resultEvent:FireClient(player, {
+			WeaponId      = packet.WeaponId,
+			AttackType    = packet.AttackType,
+			SequenceIndex = packet.SequenceIndex,
+			Hit           = hitHappened,
+		})
+	end
+end
+
 --[[
 	Equip (hold/draw) a weapon for a player.
 	If the player is already holding a different weapon, sheathe it first.

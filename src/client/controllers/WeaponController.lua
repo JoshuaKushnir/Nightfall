@@ -40,6 +40,11 @@ local _ownedWeaponId: string? = nil
 -- Placeholder Part per Tool — keyed by Tool instance, cleared on unequip.
 local _placeholderParts: {[Tool]: Part} = {}
 
+-- Combo tracking (#171): index into the weapon's LightSequence; reset on timeout or Heavy attack
+local _comboIndex: number     = 0
+local _lastAttackTime: number = 0
+local _comboResetTime: number = 0.8  -- seconds after last swing before combo resets
+
 -- ─── Constants ───────────────────────────────────────────────────────────────
 
 local EQUIPPED_EVENT   = "WeaponEquipped"
@@ -238,6 +243,60 @@ function WeaponController.PlaySwing(attackType: "Light" | "Heavy", sequenceIndex
 	return true
 end
 
+-- ─── Combo / Input (#171) ─────────────────────────────────────────────────────
+
+--[[
+	Internal: attempt a swing of the given type.
+	Advances combo for Light attacks, resets for Heavy attacks or on timeout.
+]]
+local function _tryAttack(attackType: "Light" | "Heavy")
+	local weaponId = _heldWeaponId
+	if not weaponId then return end
+	local weapon = WeaponRegistry.Get(weaponId)
+	if not weapon then return end
+	local now = tick()
+	if now - _lastAttackTime > _comboResetTime then
+		_comboIndex = 0
+	end
+	if attackType == "Light" then
+		local seq = (weapon :: any).LightSequence
+		local seqLen: number = seq and #(seq :: {any}) or 3
+		_comboIndex = (_comboIndex % seqLen) + 1
+	else
+		_comboIndex = 0
+	end
+	_lastAttackTime = now
+	WeaponController.PlaySwing(attackType, _comboIndex)
+end
+
+--[[
+	Set the locally tracked held weapon and reset combo state.
+	Call when the server confirms a weapon swap.
+	@param weaponId  weapon registry id, or nil to clear
+]]
+function WeaponController.SetWeapon(weaponId: string?)
+	_heldWeaponId = weaponId
+	_comboIndex   = 0
+	print(("[WeaponController] Weapon set: %s"):format(tostring(weaponId)))
+end
+
+--[[
+	Bind M1 / M2 mouse inputs to Light / Heavy attacks respectively.
+	Called once from Start(). Connections persist for the session lifetime.
+]]
+function WeaponController.BindInputs()
+	local UserInputService = game:GetService("UserInputService")
+	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+		if gameProcessed then return end
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			_tryAttack("Light")
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			_tryAttack("Heavy")
+		end
+	end)
+	print("[WeaponController] Inputs bound (M1 = Light, M2 = Heavy)")
+end
+
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 function WeaponController:Init(dependencies: {[string]: any}?)
@@ -261,6 +320,7 @@ function WeaponController:Start()
 
 	-- Wire up existing tools, then watch for respawn.
 	_ScanAndWire()
+	WeaponController.BindInputs()
 
 	Player.CharacterAdded:Connect(function()
 		-- Clear all placeholder Parts — they lived in the old character's tools

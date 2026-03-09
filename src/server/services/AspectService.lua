@@ -47,6 +47,16 @@ local function _requireInventoryService()
     return _InventoryService
 end
 
+-- WeaponRegistry and WeaponService for ability damage scaling (#171)
+local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+local _WeaponService: any = nil
+local function _requireWeaponService()
+    if not _WeaponService then
+        _WeaponService = require(script.Parent.WeaponService)
+    end
+    return _WeaponService
+end
+
 -- Forward declarations for functions defined later but called earlier
 local _clearPassives: (player: Player) -> ()
 
@@ -468,6 +478,18 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
         return false, "UnknownAbility"
     end
 
+    -- ── Weapon scaling (#171): abilities with ScaleWithWeapon augment damage from the equipped weapon ──
+    local scaledDamage: number = ability.BaseDamage or 0
+    do
+        local WeaponSvc = _requireWeaponService()
+        local equippedWpnId = WeaponSvc and WeaponSvc.GetEquipped(player) or nil
+        local weaponCfg = equippedWpnId and WeaponRegistry.Get(equippedWpnId) or nil
+        if (ability :: any).ScaleWithWeapon and weaponCfg then
+            local scale: number = (ability :: any).WeaponScale or 0.5
+            scaledDamage = scaledDamage + ((weaponCfg :: any).BaseDamage or 0) * scale
+        end
+    end
+
     profile.Mana.Current -= ability.ManaCost
 
     local cdExpiry = tick() + ability.Cooldown
@@ -498,7 +520,7 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
                     Shape    = "Sphere",
                     Position = targetPosition,
                     Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
-                    Damage   = ability.BaseDamage,
+                    Damage   = scaledDamage,
                     LifeTime = ABILITY_HITBOX_LIFETIME,
                 })
                 -- Collect targets via OnHit before expiry
@@ -514,7 +536,7 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
                     if targetName then
                         table.insert(aoeHits, {
                             TargetName = targetName,
-                            Damage     = ability.BaseDamage :: number,
+                            Damage     = scaledDamage,
                             HitType    = "Ability",
                         })
                     end
@@ -535,7 +557,7 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
                     Shape    = "Sphere",
                     Position = targetPosition,
                     Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
-                    Damage   = ability.BaseDamage,
+                    Damage   = scaledDamage,
                     LifeTime = ABILITY_HITBOX_LIFETIME,
                     OnHit    = function(target: any, _hd: any)
                         if hitHappened then return end  -- first-hit gate
@@ -549,7 +571,7 @@ function AspectService.ExecuteAbility(player: Player, abilityId: string, targetP
                         if not targetName then return end
                         CombatService.ValidateHit(player, {
                             TargetName             = targetName,
-                            Damage                 = ability.BaseDamage :: number,
+                            Damage                 = scaledDamage,
                             HitType                = "Ability",
                             BypassWeaponValidation = true,
                             BypassRateLimit        = true,
