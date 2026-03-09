@@ -23,7 +23,11 @@ return {
 				local model = Workspace:FindFirstChild(`Dummy_{id}`)
 				assert(model ~= nil)
 
-				-- Cleanup
+			-- model should contain a Humanoid with an Animator for animation playback
+			local humanoid = model and model:FindFirstChildOfClass("Humanoid")
+			assert(humanoid ~= nil, "dummy model missing Humanoid")
+			local animator = humanoid and humanoid:FindFirstChildOfClass("Animator")
+			assert(animator ~= nil, "Humanoid needs Animator for clients to load animations")
 				DummyService.DespawnDummy(id)
 			end,
 		},

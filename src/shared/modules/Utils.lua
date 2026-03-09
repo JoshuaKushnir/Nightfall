@@ -204,8 +204,39 @@ function Utils.GetRootPart(player: Player?): BasePart?
 end
 
 --[[
-	===== TIMING UTILITIES =====
+    Get all BaseParts that serve as zone triggers.  These are identified by
+    the folder/part name prefix "ZoneTrigger".  Movement modules should ignore
+    them when raycasting for walls/ledges so the transparent trigger volumes
+    don't register as climbable surfaces.
 ]]
+function Utils.GetZoneTriggerParts(): {BasePart}
+    -- prefer tagged parts if CollectionService is available (ZoneService adds tags)
+    local CollectionService = game:GetService("CollectionService")
+    if CollectionService then
+        local tagged = CollectionService:GetTagged("ZoneTrigger")
+        local parts: {BasePart} = {}
+        for _, obj in ipairs(tagged) do
+            if obj:IsA("BasePart") then
+                table.insert(parts, obj)
+            end
+        end
+        if #parts > 0 then
+            return parts
+        end
+        -- fall through to full scan if no tagged results (legacy)
+    end
+
+    local parts: {BasePart} = {}
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and obj.Name:match("^ZoneTrigger") then
+            table.insert(parts, obj)
+        end
+    end
+    return parts
+end
+-- ===== TIMING UTILITIES =====
+
+--[[ NOTE: previous stray comment closer removed; timing utilities section begins below. ]]
 
 --[[
 	Check if a cooldown has expired

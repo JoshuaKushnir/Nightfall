@@ -9,15 +9,33 @@
 	ReplicatedStorage.animations/[Animation_Name] or
 	ReplicatedStorage.animations/[Animation_Name]/Humanoid/AnimSaves/[Asset]
 
-	Supports both Animation (AnimationId) and KeyframeSequence instances.
+	Priority: DB rbxassetid lookup first, then folder-structure lookup.
+	Only published Animation instances are accepted — KeyframeSequence is
+	rejected with a warning (must be published to Roblox before use).
 	Returns a clone suitable for Animator:LoadAnimation().
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local KeyframeSequenceProvider = game:GetService("KeyframeSequenceProvider")
-local RunService = game:GetService("RunService")
 
 local AnimationLoader = {}
+
+-- database of known animation asset IDs (flat name -> id)
+local AnimationDatabase = require(game.ReplicatedStorage.Shared.AnimationDatabase)
+local _flatDb: { [string]: string } = {}
+
+-- build flat map on first require (handles nested tables recursively)
+local function flattenTable(tbl: { [any]: any })
+    for key, value in pairs(tbl) do
+        if typeof(value) == "table" then
+            flattenTable(value)
+        elseif typeof(key) == "string" and typeof(value) == "string" then
+            _flatDb[key] = value
+        end
+    end
+end
+
+flattenTable(AnimationDatabase)
+
 
 local ANIMATIONS_FOLDER_NAME = "animations"
 local HUMANOID_FOLDER_NAME = "Humanoid"
@@ -53,6 +71,20 @@ end
 	@return Instance? A clone of the Animation or KeyframeSequence, or nil if not found. Caller must LoadAnimation and Destroy when done.
 ]]
 function AnimationLoader.GetAnimation(folderName: string, assetName: string?): (Instance)?
+	-- DB lookup for single-animation keys (movement states, ability casts).
+	-- Skip when assetName is provided: weapon combos and multi-asset folders must
+	-- go through the folder structure so the specific asset is retrieved correctly.
+	if (not assetName or assetName == "") and _flatDb[folderName] then
+		local assetId = _flatDb[folderName]
+		if assetId ~= "" and assetId ~= "rbxassetid://0" and assetId ~= "rbxassetid://" then
+			local anim = Instance.new("Animation")
+			anim.AnimationId = assetId
+			print(`[AnimationLoader] ✓ DB hit "{folderName}" -> {assetId}`)
+			return anim
+		end
+		-- stub (0 / empty) — fall through to folder lookup or warn below
+	end
+
 	local animationsRoot = getAnimationsFolder()
 	if not animationsRoot then
 		warn(`[AnimationLoader] ✗ Animations folder not found at ReplicatedStorage.animations`)
@@ -105,20 +137,12 @@ function AnimationLoader.GetAnimation(folderName: string, assetName: string?): (
 			warn(`[AnimationLoader]   Available children: {table.concat(childNames, ", ")}`)
 		end
 	else
-		-- Prefer Animation (has a published AssetId) over KeyframeSequence (Studio-only registration)
+		-- Only accept published Animation instances — KeyframeSequence is Studio-only
+		-- and cannot be loaded in a live game. All animations must be published to Roblox.
 		for _, child in searchContainer:GetChildren() do
 			if child:IsA("Animation") then
 				template = child
 				break
-			end
-		end
-		-- Fall back to KeyframeSequence only if no Animation found
-		if not template then
-			for _, child in searchContainer:GetChildren() do
-				if child:IsA("KeyframeSequence") then
-					template = child
-					break
-				end
 			end
 		end
 		if not template then
@@ -132,6 +156,13 @@ function AnimationLoader.GetAnimation(folderName: string, assetName: string?): (
 	end
 
 	if not template then
+		-- last ditch: if folderName matches db now (maybe case mismatch?)
+		if folderName and _flatDb[folderName] then
+			local anim = Instance.new("Animation")
+			anim.AnimationId = _flatDb[folderName]
+			print(`[AnimationLoader] ✓ Falling back to database animation for "{folderName}" -> {_flatDb[folderName]}`)
+			return anim
+		end
 		return nil
 	end
 
@@ -169,35 +200,13 @@ function AnimationLoader.LoadTrack(humanoid: Humanoid, folderName: string, asset
 	local animToLoad: Animation
 	
 	if instance:IsA("KeyframeSequence") then
-		-- RegisterKeyframeSequence only works in Studio; in a live game animations
-		-- must be published to Roblox with a real asset ID (Animation objects).
-		if not RunService:IsStudio() then
-			warn(`[AnimationLoader] ✗ KeyframeSequence "{instance.Name}" cannot be used in a live game. Publish the animation to Roblox and replace it with an Animation object containing the asset ID.`)
-			instance:Destroy()
-			return nil
-		end
-		-- In Studio: register to get a temporary asset ID
-		print(`[AnimationLoader] Registering KeyframeSequence: {instance.Name}`)
-		local success, temporaryAssetId = pcall(function()
-			return KeyframeSequenceProvider:RegisterKeyframeSequence(instance)
-		end)
-		
-		if not success or not temporaryAssetId then
-			warn(`[AnimationLoader] ✗ Failed to register KeyframeSequence: {if success then "no asset ID" else tostring(temporaryAssetId)}`)
-			instance:Destroy()
-			return nil
-		end
-		
-		print(`[AnimationLoader] ✓ Registered KeyframeSequence with asset ID: {temporaryAssetId}`)
-		
-		-- Create Animation object with the temporary asset ID
-		animToLoad = Instance.new("Animation")
-		animToLoad.AnimationId = temporaryAssetId
-		
-		-- Clean up the original instance
+		-- KeyframeSequence cannot be played in a live game — animations must be
+		-- published to Roblox as Animation objects with a real rbxassetid.
+		warn(`[AnimationLoader] ✗ KeyframeSequence "{instance.Name}" found for "{folderName}" — publish it as an Animation and add the asset ID to AnimationDatabase.lua.`)
 		instance:Destroy()
+		return nil
 	elseif instance:IsA("Animation") then
-		-- Already an Animation, use it directly
+		-- Published Animation — use it directly.
 		animToLoad = instance
 	else
 		warn(`[AnimationLoader] ✗ Instance is neither Animation nor KeyframeSequence: {instance.ClassName}`)
@@ -219,6 +228,91 @@ function AnimationLoader.LoadTrack(humanoid: Humanoid, folderName: string, asset
 	print(`[AnimationLoader] ✓ LoadTrack succeeded for "{folderName}"`)
 	-- LoadAnimation parents the animation; we don't need to destroy it manually when track is destroyed
 	return track :: AnimationTrack
+end
+
+--[[
+	Load an AnimationTrack directly from a known rbxassetid string.
+	Used by the module-first lookup path: weapon/ability modules provide their
+	own IDs; this function loads them without going through folder lookup or DB.
+
+	Returns nil silently for stubs ("rbxassetid://0", empty string).
+
+	@param humanoid  The character's Humanoid (must have an Animator)
+	@param assetId   Full rbxassetid string, e.g. "rbxassetid://14319068127"
+	@param debugName Optional label for log messages (e.g. "Fists/punch 1")
+	@return AnimationTrack?, or nil if stub / load failed
+]]
+function AnimationLoader.LoadTrackFromId(humanoid: Humanoid, assetId: string, debugName: string?): AnimationTrack?
+	if not assetId or assetId == "" or assetId == "rbxassetid://0" or assetId == "rbxassetid://" then
+		return nil -- stub — caller falls through to DB fallback
+	end
+
+	local animator = humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		warn("[AnimationLoader] LoadTrackFromId: No Animator found on Humanoid")
+		return nil
+	end
+
+	local anim = Instance.new("Animation")
+	anim.AnimationId = assetId
+
+	local ok, track = pcall(function()
+		return animator:LoadAnimation(anim)
+	end)
+
+	if ok and track then
+		print(`[AnimationLoader] ✓ LoadTrackFromId "{debugName or assetId}" -> {assetId}`)
+		return track :: AnimationTrack
+	else
+		warn(`[AnimationLoader] ✗ LoadTrackFromId failed "{debugName or assetId}": {if ok then "nil track" else tostring(track)}`)
+		anim:Destroy()
+		return nil
+	end
+end
+
+
+--[[
+    Preload all database animations onto a humanoid's animator.
+    Useful during client startup so that the Engine caches asset data and
+    subsequent LoadTrack calls are instantaneous. Skips stub/empty IDs.
+
+    @param humanoid  Humanoid with an Animator child
+]]
+function AnimationLoader.PreloadAll(humanoid: Humanoid)
+    task.spawn(function()
+        if not humanoid then return end
+        local animator = humanoid:FindFirstChildOfClass("Animator")
+        if not animator then return end
+
+        -- preload every ID from the flat database
+        for key, assetId in pairs(_flatDb) do
+            if assetId and assetId ~= "" and assetId ~= "rbxassetid://0" and assetId ~= "rbxassetid://" then
+                local anim = Instance.new("Animation")
+                anim.AnimationId = assetId
+                local ok, track = pcall(function()
+                    return animator:LoadAnimation(anim)
+                end)
+                if ok and track then
+                    track:Destroy() -- only warm cache
+                else
+                    anim:Destroy()
+                end
+            end
+        end
+
+        -- also traverse the physical animations folder to cache any
+        -- non-database assets (weapon combos, custom folders, etc.)
+        local animRoot = getAnimationsFolder()
+        if animRoot then
+            for _, folder in ipairs(animRoot:GetChildren()) do
+                if folder:IsA("Folder") then
+                    -- calling GetAnimation triggers folder lookups and may load
+                    -- its first Animation, which primes the cache.
+                    pcall(AnimationLoader.GetAnimation, folder.Name)
+                end
+            end
+        end
+    end)
 end
 
 return AnimationLoader

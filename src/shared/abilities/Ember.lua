@@ -802,5 +802,15 @@ Ember.Moves[5] = {
     end,
 }
 
+-- ── Animations ──────────────────────────────────────────────────────────────
+-- Primary animation source for Ember abilities. Move names match the ability
+-- keys above. AnimationDatabase.Combat.Aspect.Ember is the fallback.
+Ember.Animations = {
+    Ignite      = "rbxassetid://0", -- STUB
+    Flashfire   = "rbxassetid://0", -- STUB
+    HeatShield  = "rbxassetid://0", -- STUB
+    Surge       = "rbxassetid://0", -- STUB
+    CinderField = "rbxassetid://0", -- STUB
+}
 
 return Ember

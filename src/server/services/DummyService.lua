@@ -204,6 +204,11 @@ humanoid.WalkSpeed   = 0
 humanoid.JumpPower   = 0
 humanoid.Parent      = model
 
+    -- ensure an Animator exists so client-side Loading works
+    -- (AnimationLoader warns if none present; dummies previously lacked one)
+    local animator = Instance.new("Animator")
+    animator.Parent = humanoid
+
     -- Billboard HUD with state name + health/posture bars
     local hud = Instance.new("BillboardGui")
     hud.Name = "StateHud"

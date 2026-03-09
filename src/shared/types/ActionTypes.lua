@@ -8,6 +8,10 @@
 	Type definitions for combat actions with animations, hit-stop, and game feel.
 ]]
 
+local AnimationDatabase = require(game.ReplicatedStorage.Shared.AnimationDatabase)
+
+export type AnimationKey = AnimationDatabase.AnimationKey
+
 export type ActionType = "Attack" | "Ability" | "Skill" | "Dodge" | "Parry" | "Block"
 
 export type ActionConfig = {
@@ -18,7 +22,7 @@ export type ActionConfig = {
 
 	-- Animation (use project folder when set; otherwise AnimationId)
 	AnimationId: string,
-	AnimationName: string?, -- Folder name under Shared.animations (e.g. "Front Roll")
+	AnimationName: AnimationKey?, -- key from AnimationDatabase (e.g. "FrontRoll" or "Walk")
 	AnimationAssetName: string?, -- Optional asset name under AnimSaves (e.g. "BackRoll")
 	AnimationSpeed: number?,
 	AnimationPriority: Enum.AnimationPriority?,
@@ -72,6 +76,10 @@ export type Action = {
 }
 
 -- Predefined action configs
+-- example union of valid animation keys (needed for static analysis)
+-- note: this is not exhaustive; add new values when database grows
+export type SampleAnimationKey = AnimationKey
+
 local ATTACK_LIGHT: ActionConfig = {
 	Id = "atk_light",
 	Name = "Light Attack",

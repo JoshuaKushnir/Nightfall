@@ -17,6 +17,9 @@ Server API
 Notes
 - Remote spawn/despawn is restricted to development (Studio) to prevent abuse in production.
 - Dummies are visual models named `Dummy_<id>` and include a `Humanoid` for compatibility with existing systems.
+  An `Animator` object is now also parented to the Humanoid so clients can
+  load animations with `AnimationLoader`.  (Previously the missing animator
+  produced repeated "No Animator found" warnings.)
 - CombatService treats dummies like targets for damage and will emit `HitConfirmed` events so `CombatFeedbackUI` shows damage numbers.
 
 Tests
@@ -24,7 +27,15 @@ Tests
 
 File locations
 - Server: `src/server/services/DummyService.lua`
-- Client visuals: `src/client/controllers/DummyController.lua`
+- Client visuals: `src/client/controllers/DummyController.lua` (idle
+  animation uses the shared database entry instead of requiring an
+  animation folder)
+
+  **Preloading:** MovementController now calls
+  `AnimationLoader.PreloadAll` during startup so all DB animations are
+  cached on the player's humanoid.  This eliminates the "first swing
+  takes a few tries" problem—the client already has the clip loaded
+  when gameplay begins.
 - Shared types: `src/shared/types/DummyData.lua`
 - Debug input: `src/client/modules/DebugInput.lua`
 

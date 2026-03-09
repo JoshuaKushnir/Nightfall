@@ -56,8 +56,8 @@ local ResonantStaff: WeaponConfig = {
 
 		-- 2-hit combo: deliberate, wide sweeps
 		Combo = {
-			{ Folder = "ResonantStaff", Asset = "Sweep1", HitFrame = 0.50 },
-			{ Folder = "ResonantStaff", Asset = "Sweep2", HitFrame = 0.55 },
+			{ Folder = "ResonantStaff", Asset = "Sweep1", Id = "", HitFrame = 0.50 }, -- STUB
+			{ Folder = "ResonantStaff", Asset = "Sweep2", Id = "", HitFrame = 0.55 }, -- STUB
 		},
 
 		LungeAttack = { Folder = "ResonantStaff", Asset = "ChannelThrust", HitFrame = 0.45 },

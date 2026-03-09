@@ -45,8 +45,8 @@ MovementConfig.Dodge = {
 	MaxForce = 25000, -- legacy value
 
 	-- Slide leap: jump pressed during an active slide
-	LeapForwardForce = 35, -- horizontal launch speed (studs/s)
-	LeapUpForce = 28,      -- vertical launch speed (studs/s)
+	LeapForwardForce = 55, -- horizontal launch speed (studs/s)  ← kept high for strong forward drive
+	LeapUpForce = 18,      -- vertical launch speed (studs/s)  ← lowered so jump feels flatter (more horizontal)
 }
 
 -- Camera effects configuration

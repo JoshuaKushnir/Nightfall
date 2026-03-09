@@ -55,17 +55,17 @@ local Fists: WeaponConfig = {
 		Walk  = { Folder = "Fists", Asset = "Walk"  },
 		Run   = { Folder = "Fists", Asset = "Run"   },
 
-		-- 5-hit combo — matches legacy "punch N" names ActionController used
+		-- 5-hit combo — Id is the primary source; Folder/Asset is for Studio live editing.
 		Combo = {
-			{ Folder = "Fists", Asset = "punch 1", HitFrame = 0.60 },
-			{ Folder = "Fists", Asset = "punch 2", HitFrame = 0.60 },
-			{ Folder = "Fists", Asset = "punch 3", HitFrame = 0.60 },
-			{ Folder = "Fists", Asset = "punch 4", HitFrame = 0.60 },
-			{ Folder = "Fists", Asset = "punch 5", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 1", Id = "rbxassetid://14319068127", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 2", Id = "rbxassetid://14319069377", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 3", Id = "rbxassetid://14319070179", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 4", Id = "rbxassetid://14319071027", HitFrame = 0.60 },
+			{ Folder = "Fists", Asset = "punch 5", Id = "rbxassetid://14319071645", HitFrame = 0.60 },
 		},
 
-		LungeAttack = { Folder = "Fists", Asset = "punch 2", HitFrame = 0.45 },
-		HeavyAttack = { Folder = "Fists", Asset = "punch 5", HitFrame = 0.50 },
+		LungeAttack = { Folder = "Fists", Asset = "punch 2", Id = "rbxassetid://14319069377", HitFrame = 0.45 },
+		HeavyAttack = { Folder = "Fists", Asset = "punch 5", Id = "rbxassetid://14319071645", HitFrame = 0.50 },
 	},
 
 	-- ── Hitboxes ──────────────────────────────────────────────────────────────

@@ -798,5 +798,16 @@ Ash.Moves[5] = {
     end,
 }
 
+-- ── Animations ──────────────────────────────────────────────────────────────
+-- Primary animation source for Ash abilities. Move names match the ability
+-- keys above. AnimationDatabase.Combat.Aspect.Ash is the fallback when a
+-- key here is a stub ("rbxassetid://0") or absent.
+Ash.Animations = {
+    AshenStep   = "rbxassetid://0", -- STUB: replace with published animation ID
+    CinderBurst = "rbxassetid://0", -- STUB
+    Fade        = "rbxassetid://0", -- STUB
+    Trace       = "rbxassetid://0", -- STUB
+    GreyVeil    = "rbxassetid://0", -- STUB
+}
 
 return Ash

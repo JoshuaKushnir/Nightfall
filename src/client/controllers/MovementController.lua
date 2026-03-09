@@ -15,7 +15,7 @@
 	- Slide mechanic (press C while sprinting) using LinearVelocity momentum
 	- Dynamic speed modifiers via SetModifier() for combat integration
 	- Respects combat state (no sprint during Attacking/Blocking/Stunned)
-	
+
 	Core Systems:
 	1. **Smooth Motion**: Heartbeat-driven acceleration lerping
 	2. **Direction Flow**: Camera-relative movement with temporal smoothing
@@ -100,7 +100,7 @@ local JUMP_BUFFER_TIME = MovementConfig.Movement.JumpBufferTime or 0.15
 
 -- Slide mechanics (slide-specific constants are owned by SlideState.lua)
 local SPRINT_DOUBLE_TAP_WINDOW = 0.3 -- seconds to detect double-tap
-local SLIDE_KEY = Enum.KeyCode.C
+local SLIDE_KEY = Enum.KeyCode.LeftControl -- Ctrl: crouch (idle/walk) or slide (sprint)
 local LANDING_SPRINT_GRACE = (MovementConfig.Dodge and MovementConfig.Dodge.LandingSprintGraceWindow) or 0.15 -- seconds to resume sprint after slide-jump landing
 
 -- Breath resource (#95) – dynamically adjusted by discipline
@@ -143,12 +143,15 @@ local DEFAULT_FOV           = 70
 local SPRINT_FOV            = 80
 local MOMENTUM_FOV_MAX      = 100 -- FOV at MOMENTUM_CAP
 local SPRINT_FOV_ENABLED    = true
+-- slower FOV interpolation to reduce jank; camera updated on RenderStepped
 local TILT_SPEED            = 8
 local TILT_STRENGTH         = 4 -- Degrees
 
 -- State
 local currentSpeed = 0.0
 local smoothedDirection: Vector3 = Vector3.zero -- Smoothed input direction
+-- cached values for camera rendering
+local _lastCameraOnGround = false
 local currentFOV = DEFAULT_FOV
 local targetFOV = DEFAULT_FOV
 local currentRoll = 0
@@ -165,7 +168,8 @@ local isSprinting = false
 local sprintAllowed = false -- set when double-tap W, cleared on W release
 local lastSprintState = false
 local currentAnimationTrack: AnimationTrack? = nil
-local currentAnimationState: string? = nil -- "Idle", "Walk", "Running"
+local currentAnimationState: string? = nil -- "Idle", "Walk", "Running", "CrouchIdle", "CrouchWalk"...
+local isCrouching = false -- true while LeftControl is held (in idle/walk); also set on slide so crouch persists when slide ends
 local lastWKeyPressTime = 0 -- Time of last W key press
 local landingSprintExpiry = 0 -- temporary sprint allowance after slide-jump landing (grace window)
 local _lastJumpRequestTime = 0 -- debounce: swallow duplicate JumpRequest fires within 0.1s
@@ -190,7 +194,7 @@ local speedModifiers: {[string]: number} = {}
 	Get the effective speed multiplier by finding the minimum modifier value.
 	If multiple modifiers are active, returns the lowest multiplier (most restrictive).
 	Default: 1.0 (no modification)
-	
+
 	@return number - Speed multiplier (0.0 to 1.0+)
 ]]
 local function getEffectiveSpeedMultiplier(): number
@@ -346,12 +350,12 @@ end
 --[[
 	Set a named speed modifier for this movement session.
 	Combat systems (e.g., ActionController) call this to restrict speed during actions.
-	
+
 	Multiple modifiers can be active; the lowest multiplier wins (most restrictive).
-	
+
 	@param name: string - Identifier for this modifier (e.g., "Attacking", "Stunned")
 	@param multiplier: number - Speed factor (1.0 = normal, 0.5 = half speed, 0.0 = frozen)
-	
+
 	Example:
 		MovementController.SetModifier("Attacking", 0.5)  -- 50% speed while attacking
 		MovementController.SetModifier("Attacking", 1.0)  -- Remove modifier
@@ -371,7 +375,7 @@ end
 --[[
 	Get current sprint state.
 	ActionController calls this to detect sprint-based attacks (e.g., Lunge).
-	
+
 	@return boolean - True if currently sprinting
 ]]
 function MovementController._isSprinting(): boolean
@@ -471,19 +475,18 @@ local function isMovementRestricted(): boolean
 end
 
 local function canSprint(): boolean
-	if isMovementRestricted() then
-		return false
-	end
+	if isMovementRestricted() then return false end
+	if isCrouching then return false end  -- crouching blocks sprint
 	return true
 end
 
 local function isOnGround(h: Humanoid): boolean
 	local m = h.FloorMaterial
 	if m ~= Enum.Material.Air then return true end
-	
+
 	-- Fallback for frame-perfect transitions (e.g., just landed or transitioning state)
 	local state = h:GetState()
-	return state == Enum.HumanoidStateType.Running 
+	return state == Enum.HumanoidStateType.Running
 		or state == Enum.HumanoidStateType.Landed
 end
 
@@ -512,13 +515,53 @@ local function getMoveDirection(): Vector3
 end
 
 --[[
+	Updates camera effects (FOV scaling, tilting) based on local state.
+	Calculates target FOV based on sprint + momentum multiplier.
+]]
+local function UpdateCameraEffects(dt: number, onGround: boolean, moveDir: Vector3)
+	if not camera then return end
+
+	-- 1. FOV Calculation: Base (70) -> Sprint (80) -> Momentum (up to 100)
+	local momentumAlpha = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0)
+	local momentumFOV = DEFAULT_FOV + (MOMENTUM_FOV_MAX - DEFAULT_FOV) * momentumAlpha
+
+	if isSprinting then
+		targetFOV = math.max(SPRINT_FOV, momentumFOV)
+	else
+		targetFOV = DEFAULT_FOV + (momentumFOV - DEFAULT_FOV) * 0.5 -- slight lingering fov if momentum is still high
+	end
+
+	-- Smooth transition for FOV
+	local fovSpeed = (targetFOV > currentFOV) and 4 or 2 -- slower interpolation for smoothness
+	currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
+	camera.FieldOfView = currentFOV
+
+	-- 2. Camera Tilt (Roll) based on Wall Running or Sliding
+	local targetR = 0
+	if Blackboard.IsWallRunning and Blackboard.WallRunNormal then
+		-- Tilt AWAY from the wall
+		local rootCFrame = RootPart and RootPart.CFrame or camera.CFrame
+		local relNormal = rootCFrame:VectorToObjectSpace(Blackboard.WallRunNormal)
+		targetR = math.rad(relNormal.X * TILT_STRENGTH * 2)
+	elseif Blackboard.IsSliding and moveDir.Magnitude > 0.1 then
+		-- Subtle lean into the slide direction
+		targetR = math.rad(-TILT_STRENGTH * 0.5)
+	end
+
+	currentRoll = currentRoll + (targetR - currentRoll) * math.min(1, dt * TILT_SPEED)
+	if math.abs(currentRoll) > 0.001 then
+		camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, currentRoll)
+	end
+end
+
+--[[
 	Initialize the MovementController with character references.
-	
+
 	Called once at startup before :Start().
 	Loads character, humanoid, and optional StateSyncController dependency.
-	
+
 	@param dependencies: {[string]: any}? - Optional table with StateSyncController reference
-	
+
 	Example:
 		MovementController:Init({StateSyncController = stateSyncService})
 ]]
@@ -546,12 +589,12 @@ end
 
 --[[
 	Start the MovementController.
-	
+
 	Hooks Heartbeat loop for smooth motion updates and binds input events for:
 	- Jump buffering (Space key)
 	- Sprint toggling (double-tap W)
 	- Slide initiation (press C)
-	
+
 	Call this after :Init().
 ]]
 function MovementController:Start()
@@ -560,13 +603,26 @@ function MovementController:Start()
 	_applyDiscBreath()
 	lastWasOnGround = isOnGround(Humanoid :: Humanoid)
 	currentSpeed = (Humanoid :: Humanoid).WalkSpeed
-	
+
 	-- Initialize camera FOV
 	if camera then
 		camera.FieldOfView = DEFAULT_FOV
 		currentFOV = DEFAULT_FOV
 		targetFOV = DEFAULT_FOV
 		print("[MovementController] Camera FOV initialized to " .. tostring(DEFAULT_FOV))
+		-- render‑step camera updater for smooth motion
+		RunService.RenderStepped:Connect(function(dt: number)
+			UpdateCameraEffects(dt, _lastCameraOnGround, smoothedDirection)
+		end)
+	end
+
+	-- warm up animation cache asynchronously so first play is instant
+	if Humanoid then
+		if AnimationLoader and type(AnimationLoader.PreloadAll) == "function" then
+			AnimationLoader.PreloadAll(Humanoid)
+		else
+			warn("[MovementController] AnimationLoader.PreloadAll is unavailable")
+		end
 	end
 
 	RunService.Heartbeat:Connect(function(dt: number)
@@ -596,13 +652,24 @@ function MovementController:Start()
 			end
 			lastWKeyPressTime = currentTime
 		elseif input.KeyCode == SLIDE_KEY then
-			-- Attempt to slide
-			MovementController._TrySlide()
+			if isSprinting and isOnGround(Humanoid :: Humanoid) then
+				-- Sprint + Ctrl → slide. Also flag isCrouching so the player
+				-- stays crouched if Ctrl is still held when the slide ends.
+				isCrouching = true
+				MovementController._TrySlide()
+			else
+				-- Idle or Walk + Ctrl → crouch
+				isCrouching = true
+			end
 		end
 	end)
 
 	-- Clear sprint allowance when all movement keys are released
 	UserInputService.InputEnded:Connect(function(input, gameProcessed)
+		if input.KeyCode == SLIDE_KEY then
+			isCrouching = false  -- release crouch on Ctrl up
+			return
+		end
 		if input.KeyCode == Enum.KeyCode.W
 			or input.KeyCode == Enum.KeyCode.A
 			or input.KeyCode == Enum.KeyCode.S
@@ -637,55 +704,16 @@ end
 
 --[[
 	Internal: Main update loop run on Heartbeat.
-	
+
 	Handles:
 	- Direction smoothing and camera-relative input
 	- Speed acceleration/deceleration with modifier stacking
 	- Sprint FOV parallax effects
 	- Animation state transitions
 	- Coyote time and jump buffering
-	
+
 	@param dt: number - Delta time since last frame (seconds)
 ]]
---[[
-	Updates camera effects (FOV scaling, tilting) based on local state.
-	Calculates target FOV based on sprint + momentum multiplier.
-]]
-local function UpdateCameraEffects(dt: number, onGround: boolean, moveDir: Vector3)
-	if not camera then return end
-
-	-- 1. FOV Calculation: Base (70) -> Sprint (80) -> Momentum (up to 100)
-	local momentumAlpha = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0)
-	local momentumFOV = DEFAULT_FOV + (MOMENTUM_FOV_MAX - DEFAULT_FOV) * momentumAlpha
-	
-	if isSprinting then
-		targetFOV = math.max(SPRINT_FOV, momentumFOV)
-	else
-		targetFOV = DEFAULT_FOV + (momentumFOV - DEFAULT_FOV) * 0.5 -- slight lingering fov if momentum is still high
-	end
-
-	-- Smooth transition for FOV
-	local fovSpeed = (targetFOV > currentFOV) and 6 or 3 -- faster outward than inward
-	currentFOV = currentFOV + (targetFOV - currentFOV) * math.min(1, dt * fovSpeed)
-	camera.FieldOfView = currentFOV
-
-	-- 2. Camera Tilt (Roll) based on Wall Running or Sliding
-	local targetR = 0
-	if Blackboard.IsWallRunning and Blackboard.WallRunNormal then
-		-- Tilt AWAY from the wall
-		local rootCFrame = RootPart and RootPart.CFrame or camera.CFrame
-		local relNormal = rootCFrame:VectorToObjectSpace(Blackboard.WallRunNormal)
-		targetR = math.rad(relNormal.X * TILT_STRENGTH * 2)
-	elseif Blackboard.IsSliding and moveDir.Magnitude > 0.1 then
-		-- Subtle lean into the slide direction
-		targetR = math.rad(-TILT_STRENGTH * 0.5)
-	end
-
-	currentRoll = currentRoll + (targetR - currentRoll) * math.min(1, dt * TILT_SPEED)
-	if math.abs(currentRoll) > 0.001 then
-		camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, currentRoll)
-	end
-end
 
 function MovementController._Update(dt: number)
 	local humanoid = Humanoid
@@ -701,7 +729,7 @@ function MovementController._Update(dt: number)
 	-- Shared subsystems (Breath/Momentum stay in MovementController)
 	UpdateBreath(dt, onGround, isMoving)
 	UpdateMomentum(dt)
-	
+
 	-- Smooth direction transitions (lerp towards target direction)
 	if moveDir.Magnitude > 0.1 then
 		-- Moving - smoothly turn towards input direction
@@ -719,8 +747,10 @@ function MovementController._Update(dt: number)
 	if not onGround then
 		coyoteTimeLeft = math.max(0, coyoteTimeLeft - dt)
 	end
-	-- Landing: reset wall boost charges
-	if not lastWasOnGround and onGround then
+-- Capture landing transition BEFORE updating lastWasOnGround so the landing
+		-- effect block at the bottom of _Update can reliably detect the landing frame.
+		local justLanded = not lastWasOnGround and onGround
+		if justLanded then
 		Blackboard.WallBoostsAvailable = 1
 	end
 	lastWasOnGround = onGround
@@ -773,7 +803,9 @@ function MovementController._Update(dt: number)
 
 	local targetSpeed = 0
 	if moveDir.Magnitude > 0.5 then
-		if wantsSprint then
+		if isCrouching then
+			targetSpeed = WALK_SPEED * 0.5  -- crouched movement: half walk speed
+		elseif wantsSprint then
 			-- Momentum adds up to +20% sprint speed at cap (#95)
 			local momentumSpeedBonus = (momentumMultiplier - 1.0) / (MOMENTUM_CAP - 1.0) * 0.20
 			targetSpeed = SPRINT_SPEED * (1 + momentumSpeedBonus)
@@ -784,13 +816,14 @@ function MovementController._Update(dt: number)
 	else
 		lastMoveDirection = Vector3.zero
 	end
-	
+
 	-- Apply speed modifiers (combat systems use SetModifier to restrict speed)
 	local speedMultiplier = getEffectiveSpeedMultiplier()
 	targetSpeed = targetSpeed * speedMultiplier
-	
-	-- Update Integrated Camera Effects (FOV, Momentum scaling, and Roll/Tilt) (#95)
-	UpdateCameraEffects(dt, onGround, smoothedDirection)
+
+	-- cache for RenderStepped camera update
+	_lastCameraOnGround = onGround
+	-- camera effects are updated on RenderStepped for 60‑hz smoothness
 
 	-- Simplified acceleration with slight easing
 	local speedDiff = targetSpeed - currentSpeed
@@ -802,14 +835,35 @@ function MovementController._Update(dt: number)
 	else
 		currentSpeed = targetSpeed
 	end
-	
+
 	if currentSpeed < 0.5 then
 		currentSpeed = 0
 	end
 
 	humanoid.WalkSpeed = currentSpeed
-	
-	-- Handle animation state transitions
+
+	-- Handle animation state transitions.
+	-- Action animations (attacks, dodges, abilities) play at AnimationPriority.Action
+	-- and automatically win over locomotion in Roblox's blending system.
+	-- We skip locomotion state changes while an action track is playing so we
+	-- never forcibly stop an attack/roll animation. When the action ends, its
+	-- track is Destroy()'d by ActionController and locomotion resumes naturally.
+	local _animator = Humanoid and Humanoid:FindFirstChildOfClass("Animator")
+	local actionPlaying = false
+	if _animator then
+		for _, t in _animator:GetPlayingAnimationTracks() do
+			if t ~= currentAnimationTrack and (
+				t.Priority == Enum.AnimationPriority.Action  or
+				t.Priority == Enum.AnimationPriority.Action2 or
+				t.Priority == Enum.AnimationPriority.Action3 or
+				t.Priority == Enum.AnimationPriority.Action4
+			) then
+				actionPlaying = true
+				break
+			end
+		end
+	end
+
 	local newAnimState = "Idle"
 	if Blackboard.IsLedgeCatching then
 		newAnimState = Blackboard.IsPullingUp and "LedgeClimb" or "LedgeHold"
@@ -817,8 +871,10 @@ function MovementController._Update(dt: number)
 		newAnimState = "Vault"
 	elseif Blackboard.IsSliding then
 		newAnimState = "Slide"
+	elseif isCrouching and onGround then
+		newAnimState = moveDir.Magnitude > 0.5 and "CrouchWalk" or "CrouchIdle"
 	elseif Blackboard.IsWallRunning then
-		newAnimState = "Running" -- Fallback until a dedicated WallRun animation is added
+		newAnimState = "Running" -- alias until a WallRun animation is authored
 	elseif Blackboard.IsClimbing or Blackboard.IsWallBoosting then
 		newAnimState = "Climb"
 	elseif not onGround then
@@ -826,63 +882,56 @@ function MovementController._Update(dt: number)
 	elseif moveDir.Magnitude > 0.5 then
 		newAnimState = wantsSprint and "Running" or "Walk"
 	end
-	
-	if newAnimState ~= currentAnimationState then
+
+	if not actionPlaying and newAnimState ~= currentAnimationState then
 		print("[MovementController] Animation transition: " .. tostring(currentAnimationState) .. " -> " .. tostring(newAnimState))
-		
-		-- Stop current animation
+
+		-- Fade out the previous locomotion track
 		if currentAnimationTrack then
-			currentAnimationTrack:Stop()
+			currentAnimationTrack:Stop(0.15)
 			currentAnimationTrack = nil
 		end
-		
-		-- Play new animation
+
+		-- Load and start the new locomotion animation
 		currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, newAnimState)
 		if currentAnimationTrack then
-			-- Some animations should loop, others shouldn't
 			local loopedAnims = {
 				Idle = true, Walk = true, Running = true,
-				Slide = true, LedgeHold = true, Jump = true, Climb = true,
+				-- Slide plays ONCE then holds last frame — avoids animation replay at end of slide
+				Slide = false, LedgeHold = true, Jump = true, Climb = true,
+				-- CrouchIdle plays ONCE (going-into-crouch), then holds crouched pose
+				CrouchIdle = false, CrouchWalk = true,
 			}
-			currentAnimationTrack.Looped = loopedAnims[newAnimState] or false
+			currentAnimationTrack.Priority = Enum.AnimationPriority.Movement
+			currentAnimationTrack.Looped   = loopedAnims[newAnimState] or false
 			currentAnimationTrack:Play()
 			print("[MovementController] ✓ " .. newAnimState .. " animation playing")
-			
-			if newAnimState == "Idle" then
-				-- Safety: stop any other playing tracks that might cause perpetual walk/run visuals
-				local animator = (Humanoid and Humanoid:FindFirstChildOfClass("Animator"))
-				if animator then
-					for _, t in ipairs(animator:GetPlayingAnimationTracks()) do
-						if t ~= currentAnimationTrack then
-							-- stop rogue tracks (defensive fix for stuck animations)
-							t:Stop()
-						end
-					end
-				end
-			end
 		else
-			print("[MovementController] ⚠ " .. newAnimState .. " animation missing")
-			-- Fallbacks
-			if newAnimState == "Running" then
-				currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Walk")
-				if currentAnimationTrack then
-					currentAnimationTrack.Looped = true
-					currentAnimationTrack:AdjustSpeed(1.15)
-					currentAnimationTrack:Play()
+			print("[MovementController] ⚠ " .. newAnimState .. " animation missing — using fallback")
+			-- Fallbacks for stub/missing animations
+			local function _playFallback(key: string, speed: number?, looped: boolean?): boolean
+				local t = AnimationLoader.LoadTrack(Humanoid, key)
+				if t then
+					t.Priority = Enum.AnimationPriority.Movement
+					t.Looped   = looped ~= false
+					if speed then
+						t:AdjustSpeed(speed)
+					end
+					t:Play()
+					currentAnimationTrack = t
+					return true
 				end
-			elseif newAnimState == "Slide" then
-				currentAnimationTrack = AnimationLoader.LoadTrack(Humanoid, "Running") or AnimationLoader.LoadTrack(Humanoid, "Walk")
-				if currentAnimationTrack then
-					currentAnimationTrack.Looped = true
-					currentAnimationTrack:AdjustSpeed(0.95)
-					currentAnimationTrack:Play()
-				end
+				return false
+			end
+			if     newAnimState == "Running"    then _playFallback("Walk",    1.15)
+			elseif newAnimState == "Slide"      then if not _playFallback("Running", 0.95) then _playFallback("Walk", 0.95) end
+			elseif newAnimState == "CrouchIdle" then _playFallback("Idle")
+			elseif newAnimState == "CrouchWalk" then _playFallback("Walk",    0.85) 
 			end
 		end
-		
 		currentAnimationState = newAnimState
 	end
-	
+
 	-- Camera tilt effect based on movement direction changes
 	if camera and moveDir.Magnitude > 0.5 then
 		local rootPartCFrame = rootPart.CFrame
@@ -896,37 +945,16 @@ function MovementController._Update(dt: number)
 		local newRoll = currentTilt + (targetRoll - currentTilt) * math.min(1, dt * rollSpeed) * 0
 		-- Disabled for now, can be enabled by changing * 0 to * 1
 	end
-	
+
 	-- Landing effect
-	if not lastWasOnGround and onGround and humanoid.FloorMaterial ~= Enum.Material.Air then
+	if justLanded and humanoid.FloorMaterial ~= Enum.Material.Air then
 		-- Just landed - create visible impact
 		print("[MovementController] LANDING EFFECT!")
 
-		-- Handle slide-jump landing recovery (roll + resume sprint if moving)
+		-- Handle slide-jump landing recovery: clear flag and grant sprint grace window.
+		-- (Landing roll animations are deferred — state machine handles Jump→Walk cleanly.)
 		if Blackboard.SlideJumped then
 			Blackboard.SlideJumped = false
-			-- Choose landing/roll animation based on last move direction
-			local rollName = "Landing"
-			if lastMoveDirection.Magnitude > 0.1 and RootPart then
-				local localDir = RootPart.CFrame:VectorToObjectSpace(lastMoveDirection)
-				if localDir.Z > 0.5 then
-					rollName = "FrontRoll"
-				elseif localDir.Z < -0.5 then
-					rollName = "BackRoll"
-				elseif localDir.X > 0 then
-					rollName = "RightRoll"
-				else
-					rollName = "LeftRoll"
-				end
-			end
-
-			local rollTrack = AnimationLoader.LoadTrack(Humanoid, rollName)
-			if rollTrack then
-				rollTrack:Play()
-				currentAnimationTrack = rollTrack
-				currentAnimationState = "Landing"
-				print(string.format("[MovementController] ✓ Played landing roll '%s'", rollName))
-			end
 
 			-- Give a short sprint-grace so player can continue sprinting on land if input held
 			if moveDir.Magnitude > 0.5 then
@@ -938,13 +966,13 @@ function MovementController._Update(dt: number)
 			if camera then
 				local originalCFrame = camera.CFrame
 				local originalFOV = camera.FieldOfView
-				
+
 				-- Quick downward punch + FOV change
 				camera.CFrame = originalCFrame * CFrame.new(0, -0.8, 0)
 				camera.FieldOfView = originalFOV - 5
-				
+
 				task.wait(0.08)
-				
+
 				if camera then
 					camera.CFrame = originalCFrame
 					camera.FieldOfView = originalFOV
@@ -955,6 +983,7 @@ function MovementController._Update(dt: number)
 	-- Flush locomotion state to Blackboard each frame (readable by all client systems)
 	Blackboard.IsGrounded          = onGround
 	Blackboard.IsSprinting         = wantsSprint
+	Blackboard.IsCrouching         = isCrouching
 	Blackboard.CurrentSpeed        = currentSpeed
 	Blackboard.MoveDir             = moveDir
 	Blackboard.LastMoveDir         = lastMoveDirection
@@ -966,10 +995,10 @@ function MovementController._Update(dt: number)
 end
 
 --[[
-	
+
 	Implements coyote time (jump window after leaving ledge) and jump buffering
 	(queue jump before landing).
-	
+
 	Called when player presses Space or jumps via JumpRequest.
 ]]
 function MovementController._OnJumpRequest()
@@ -988,14 +1017,15 @@ function MovementController._OnJumpRequest()
 
 	-- Slide leap: delegate to SlideState which owns all slide physics
 	if Blackboard.IsSliding then
-		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
-		SlideState.OnJumpRequest(ctx)
-		-- Clear the animation that was playing during slide
-		if currentAnimationState == "Sliding" and currentAnimationTrack then
-			currentAnimationTrack:Stop()
+		-- Stop the slide animation BEFORE physics hand-off so the Jump anim
+		-- is the only track that starts — prevents Slide+Jump animation blending.
+		if currentAnimationState == "Slide" and currentAnimationTrack then
+			currentAnimationTrack:Stop(0.05)
 			currentAnimationTrack = nil
 			currentAnimationState = nil
 		end
+		local ctx = _buildCtx(lastMoveDirection, false, isSprinting)
+		SlideState.OnJumpRequest(ctx)
 		return
 	end
 
@@ -1091,7 +1121,7 @@ function MovementController:OnCharacterAdded(newCharacter: Model)
 	local hum = newCharacter:WaitForChild("Humanoid", 5) :: Humanoid?
 	Humanoid = hum or nil
 	RootPart = newCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
-	
+
 	-- Reset animation state
 	if currentAnimationTrack then
 		currentAnimationTrack:Stop()

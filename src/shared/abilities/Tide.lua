@@ -724,5 +724,15 @@ Tide.Moves[5] = {
     end,
 }
 
+-- ── Animations ──────────────────────────────────────────────────────────────
+-- Primary animation source for Tide abilities. Move names match the ability
+-- keys above. AnimationDatabase.Combat.Aspect.Tide is the fallback.
+Tide.Animations = {
+    Current     = "rbxassetid://0", -- STUB
+    Undertow    = "rbxassetid://0", -- STUB
+    Swell       = "rbxassetid://0", -- STUB
+    FloodMark   = "rbxassetid://0", -- STUB
+    Pressure    = "rbxassetid://0", -- STUB
+}
 
 return Tide

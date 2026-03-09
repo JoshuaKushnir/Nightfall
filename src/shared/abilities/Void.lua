@@ -811,5 +811,15 @@ Void.Moves[5] = {
     end,
 }
 
+-- ── Animations ──────────────────────────────────────────────────────────────
+-- Primary animation source for Void abilities. Move names match the ability
+-- keys above. AnimationDatabase.Combat.Aspect.Void is the fallback.
+Void.Animations = {
+    Blink          = "rbxassetid://0", -- STUB
+    Silence        = "rbxassetid://0", -- STUB
+    PhaseShift     = "rbxassetid://0", -- STUB
+    VoidPulse      = "rbxassetid://0", -- STUB
+    IsolationField = "rbxassetid://0", -- STUB
+}
 
 return Void

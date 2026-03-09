@@ -21,6 +21,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 
 -- Cache LedgeCatchState safely — syntax errors during dev must not break climbing.
 local _ledgeCatchOk, LedgeCatchMod = pcall(require, script.Parent.LedgeCatchState)
@@ -47,7 +48,14 @@ local function _detectGrip(ctx: any)
 	if not rootPart then return nil end
 
 	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { ctx.Character }
+	-- exclude the character and any zone-trigger parts so transparent volumes
+	-- don't register as climbable walls
+	local filter = { ctx.Character }
+	local zoneParts = Utils.GetZoneTriggerParts()
+	for _, p in ipairs(zoneParts) do
+		table.insert(filter, p)
+	end
+	params.FilterDescendantsInstances = filter
 	params.FilterType = Enum.RaycastFilterType.Exclude
 
 	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)

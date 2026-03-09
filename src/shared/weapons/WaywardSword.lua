@@ -55,10 +55,10 @@ local WaywardSword: WeaponConfig = {
 
 		-- 4-hit combo: balanced rhythm
 		Combo = {
-			{ Folder = "WaywardSword", Asset = "Slash1",    HitFrame = 0.38 },
-			{ Folder = "WaywardSword", Asset = "Slash2",    HitFrame = 0.42 },
-			{ Folder = "WaywardSword", Asset = "Thrust",    HitFrame = 0.35 },
-			{ Folder = "WaywardSword", Asset = "Riposte",   HitFrame = 0.30 },
+			{ Folder = "WaywardSword", Asset = "Slash1",  Id = "", HitFrame = 0.38 }, -- STUB
+			{ Folder = "WaywardSword", Asset = "Slash2",  Id = "", HitFrame = 0.42 }, -- STUB
+			{ Folder = "WaywardSword", Asset = "Thrust",  Id = "", HitFrame = 0.35 }, -- STUB
+			{ Folder = "WaywardSword", Asset = "Riposte", Id = "", HitFrame = 0.30 }, -- STUB
 		},
 
 		LungeAttack = { Folder = "WaywardSword", Asset = "Lunge",     HitFrame = 0.40 },

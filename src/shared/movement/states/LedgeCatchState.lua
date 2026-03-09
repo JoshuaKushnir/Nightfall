@@ -16,6 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 
 -- Config constants
 local HEIGHT_OFFSET = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HeightCheckOffset) or 6.0
@@ -38,7 +39,14 @@ local function _probeLedge(ctx: any)
 	if not humanoid or not rootPart or not ctx.Character then return nil end
 
 	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { ctx.Character }
+	-- filter out character + zone triggers to avoid false hits inside the
+	-- semi-transparent zone volumes described by the player.
+	local filter = { ctx.Character }
+	local zoneParts = Utils.GetZoneTriggerParts()
+	for _, p in ipairs(zoneParts) do
+		table.insert(filter, p)
+	end
+	params.FilterDescendantsInstances = filter
 	params.FilterType = Enum.RaycastFilterType.Exclude
 
 	local lookDir = rootPart.CFrame.LookVector * Vector3.new(1, 0, 1)

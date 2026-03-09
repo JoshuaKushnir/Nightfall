@@ -177,6 +177,8 @@ function SlideState.OnJumpRequest(ctx: any)
 	end
 
 	if rootPart then
+		-- Bias the launch so horizontal components dominate; vertical is a fixed
+		-- value rather than scaling with forward speed.
 		rootPart.AssemblyLinearVelocity = Vector3.new(
 			hor.X * LEAP_FORWARD,
 			LEAP_UP,
@@ -187,17 +189,9 @@ function SlideState.OnJumpRequest(ctx: any)
 	ctx.ChainAction()
 	ctx.Blackboard.SlideJumped = true
 	print("[SlideState] Slide leap!")
-
-	-- Slide-jump animation
-	if ctx.AnimationLoader and ctx.Humanoid then
-		local track = ctx.AnimationLoader.LoadTrack(ctx.Humanoid, "SlideJump")
-		if not track then
-			track = ctx.AnimationLoader.LoadTrack(ctx.Humanoid, "Running")
-				or ctx.AnimationLoader.LoadTrack(ctx.Humanoid, "Walk")
-				or ctx.AnimationLoader.LoadTrack(ctx.Humanoid, "Idle")
-		end
-		if track then track:Play() end
-	end
+	-- Animation: MovementController stopped the slide anim before calling here;
+	-- the state machine will resolve to Jump on the next frame and play that track.
+	-- No separate SlideJump animation is loaded here to avoid blending conflicts.
 
 	-- Server validation
 	if ctx.NetworkController and ctx.NetworkController.SendToServer then

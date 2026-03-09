@@ -207,41 +207,22 @@ end
 	@param moveDir Movement direction vector
 	@return string, string Folder name and asset name (e.g. "Front Roll", "FrontRoll")
 ]]
-local function GetRollForDirection(moveDir: Vector3): (string, string)
-	if moveDir.Magnitude < 0.1 then
-		-- No movement, default to front roll
-		return "Front Roll", "FrontRoll"
+-- Returns the DB key for the correct roll animation given movement direction.
+-- assetName is always nil so AnimationLoader uses the flat DB (roll IDs live there).
+local function GetRollForDirection(moveDir: Vector3): (string, string?)
+	if not Character or not Character.PrimaryPart or moveDir.Magnitude < 0.1 then
+		return "FrontRoll", nil
 	end
 
-	-- Get character's forward direction
-	if not Character or not Character.PrimaryPart then
-		return "Front Roll", "FrontRoll"
-	end
-
-	local lookVector = Character.PrimaryPart.CFrame.LookVector
+	local lookVector  = Character.PrimaryPart.CFrame.LookVector
 	local rightVector = Character.PrimaryPart.CFrame.RightVector
+	local forwardDot  = moveDir:Dot(lookVector)
+	local rightDot    = moveDir:Dot(rightVector)
 
-	-- Project movement onto character's forward/right axes
-	local forwardDot = moveDir:Dot(lookVector)
-	local rightDot = moveDir:Dot(rightVector)
-
-	-- Determine dominant direction
-	if math.abs(forwardDot) > math.abs(rightDot) then
-		-- Forward or backward
-		if forwardDot > 0 then
-			return "FrontRoll", "FrontRoll"
-		else
-			return "BackRoll", "BackRoll"
-		end
+	if math.abs(forwardDot) >= math.abs(rightDot) then
+		return (forwardDot >= 0 and "FrontRoll" or "BackRoll"), nil
 	else
-		-- Left or right
-		if rightDot > 0 then
-			return "RightRoll", "RightRoll"
-		else
-			return "LeftRoll", "LeftRoll"
-		end
-
-	return "FrontRoll", "FrontRoll"
+		return (rightDot >= 0 and "RightRoll" or "LeftRoll"), nil
 	end
 end
 
@@ -382,10 +363,25 @@ function ActionController.PlayAction(config: ActionConfig)
 		config = table.clone(config)
 
 		if weaponCfg and weaponCfg.Animations and weaponCfg.Animations.Combo and weaponCfg.Animations.Combo[ComboCount] then
-			-- Weapon combo: use Folder/Asset pair from the weapon definition
+			-- Module-first: weapon definition is the primary animation source.
+			-- Id  (direct rbxassetid) takes priority — stored as AnimationId for the
+			--   raw-id fallback path in _PlayActionLocal.
+			-- Folder/Asset is kept as the named-load path (used when Id is a stub).
 			local comboEntry = weaponCfg.Animations.Combo[ComboCount]
-			config.AnimationName      = comboEntry.Folder
-			config.AnimationAssetName = comboEntry.Asset
+			local entryId = comboEntry.Id or ""
+			if entryId ~= "" and entryId ~= "rbxassetid://0" then
+				-- Module owns a published ID — skip folder lookup entirely.
+				config.AnimationId        = entryId
+				config.AnimationName      = ""  -- cleared so _PlayActionLocal skips name-based load
+				config.AnimationAssetName = nil
+				print(`[ActionController] Weapon combo {ComboCount}/{maxCombo} ({weaponId}) — module Id {entryId}`)
+			else
+				-- No real Id yet — try folder lookup; AnimationId fallback not set.
+				config.AnimationId        = ""
+				config.AnimationName      = comboEntry.Folder
+				config.AnimationAssetName = comboEntry.Asset
+				print(`[ActionController] Weapon combo {ComboCount}/{maxCombo} ({weaponId}) — folder {config.AnimationName}/{config.AnimationAssetName}`)
+			end
 
 			-- Rescale duration by the weapon's AttackSpeed multiplier (< 1 = faster)
 			if weaponCfg.AttackSpeed and weaponCfg.AttackSpeed > 0 then
@@ -396,12 +392,11 @@ function ActionController.PlayAction(config: ActionConfig)
 			if weaponCfg.BaseDamage then
 				config.Damage = weaponCfg.BaseDamage
 			end
-
-			print(`[ActionController] Weapon combo {ComboCount}/{maxCombo} ({weaponId}) - {config.AnimationName}/{config.AnimationAssetName}`)
 		else
-			-- Bare-hands fallback: reuse legacy punch N animation names
-			config.AnimationAssetName = `punch {ComboCount}`
-			print(`[ActionController] Bare-hands combo {ComboCount}/{maxCombo} - {config.AnimationAssetName}`)
+			-- Bare-hands fallback: no weapon config — use DB keys Punch1..Punch5.
+			config.AnimationName      = `Punch{ComboCount}`
+			config.AnimationAssetName = nil
+			print(`[ActionController] Bare-hands combo {ComboCount}/{maxCombo} → DB key {config.AnimationName}`)
 		end
 
 		-- Mark finisher on the last combo hit
@@ -702,9 +697,17 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	local track: AnimationTrack? = nil
 
 	if AnimationController and Humanoid then
-		-- Prefer named project animation
+		-- Prefer named project animation or database entry
 		if config.AnimationName and config.AnimationName ~= "" then
 			track = AnimationLoader.LoadTrack(Humanoid, config.AnimationName, config.AnimationAssetName)
+		else
+			-- if no explicit name, attempt to use the action's own name as key
+			local AnimDB = require(game.ReplicatedStorage.Shared.AnimationDatabase)
+			if config.Name and AnimDB[config.Name] == nil then
+				-- nothing; explicit nil check to avoid warning
+			end
+			-- we don't need to flatten here; GetAnimation already checks DB
+			track = AnimationLoader.LoadTrack(Humanoid, config.Name or "", config.AnimationAssetName)
 		end
 		-- Fallback to raw AnimationId
 		if not track and config.AnimationId and config.AnimationId ~= "" then
@@ -1198,7 +1201,7 @@ end
 	@param abilityId  The ability Id (e.g. "AshenStep", "Current", "Ignite").
 	@param targetPos  Optional cast-aim position from the mouse/camera.
 ]]
-function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector3?)
+function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector3?, moduleAnimations: {[string]: string}?)
 	if not abilityId or abilityId == "" then return end
 
 	-- === combo bookkeeping ===
@@ -1223,6 +1226,17 @@ function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector
 	CombatBlackboard.ComboCount = ComboCount
 	CombatBlackboard.ComboExpiry = now + COMBO_TIMEOUT
 
+	-- Module-first animation resolution: check the aspect module's Animations
+	-- table for the ability's direct rbxassetid. Fall back to DB (handled via
+	-- AnimationName = abilityId in _PlayActionLocal) if the module has a stub.
+	local abilityAnimId = ""
+	if moduleAnimations then
+		local modId = moduleAnimations[abilityId] or ""
+		if modId ~= "" and modId ~= "rbxassetid://0" and modId ~= "rbxassetid://" then
+			abilityAnimId = modId
+		end
+	end
+
 	-- Build a cast-window ActionConfig.
 	-- Duration is the commitment window (can't cancel before CancelFrame).
 	-- No client-side hitbox — server manages damage application.
@@ -1230,8 +1244,8 @@ function ActionController.PlayAbilityAction(abilityId: string, targetPos: Vector
 		Id                = "ability_" .. abilityId,
 		Name              = abilityId,
 		Type              = "Ability",
-		AnimationId       = "",
-		AnimationName     = "",      -- VFX/animation is server-driven or deferred
+		AnimationId       = abilityAnimId,            -- module Id (may be empty → DB fallback below)
+		AnimationName     = abilityAnimId == "" and abilityId or "", -- DB key if no module Id
 		Duration          = 0.55,   -- cast commitment window
 		CancelFrame       = 0.65,   -- melee can cancel in after 65% through
 		AttackImpulse     = 0,

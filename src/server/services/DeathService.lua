@@ -126,8 +126,19 @@ local function _respawnPlayer(player: Player)
         spawnCFrame = _findNearestEmberPoint(char.PrimaryPart.CFrame)
     end
 
+    -- 3a. Immediately reset state back to Idle before the character appears
+    --     this prevents any invalid transitions if the client sends input while
+    --     the new avatar is still loading.
+    StateService:SetPlayerState(player, "Idle", true)
+
     -- 3. Respawn
     player:LoadCharacter()
+
+    -- 3b. Also watch for the character being added; some systems may fire
+    --     actions on CharacterAdded itself so we set it again as a safety.
+    player.CharacterAdded:Connect(function(newChar)
+        StateService:SetPlayerState(player, "Idle", true)
+    end)
 
     -- 4. Wait for new character to load, then set spawn CFrame + idle state
     local newChar = player.CharacterAdded:Wait()
@@ -139,7 +150,7 @@ local function _respawnPlayer(player: Player)
         newChar:SetPrimaryPartCFrame(spawnCFrame + Vector3.new(0, 3, 0))
     end
 
-    -- 5. Reset state to Idle (Dead is terminal — must force)
+    -- 5. Reset state to Idle again to cover any race conditions
     StateService:SetPlayerState(player, "Idle", true)
 
     -- 6. Reset combat cooldowns so the player doesn't come back with locked abilities
@@ -199,6 +210,12 @@ function DeathService:Start()
     end)
 
     print("[DeathService] Started — watching for Dead state transitions")
+end
+
+
+-- expose helper for unit tests to invoke respawn logic directly
+function DeathService._RespawnNow(player: Player)
+    _respawnPlayer(player)
 end
 
 return DeathService

@@ -39,9 +39,13 @@ local SPAWN_EVENT_NAME         = "SpawnDummy"
 local DESPAWN_EVENT_NAME       = "DespawnDummy"
 local STATE_CHANGED_EVENT_NAME = "DummyStateChanged"
 
--- Animation folder / asset for the dummy idle (must exist under ReplicatedStorage.animations/Dummy/)
+-- Animation folder / asset for the dummy idle.  Most cases use the
+-- flat database entry so we simply pass the folder name and leave the asset
+-- argument nil.  This avoids requiring a physical animation folder in
+-- ReplicatedStorage; the movement "Idle" animation is already defined in
+-- `AnimationDatabase`.
 local IDLE_ANIM_FOLDER = "Idle"
-local IDLE_ANIM_ASSET  = "Idle"
+local IDLE_ANIM_ASSET: string? = nil
 
 -- Flash colour shown briefly on state entry (purely visual, server color is authoritative)
 local STATE_FLASH_COLOR: {[DummyState]: Color3} = {

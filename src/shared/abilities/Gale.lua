@@ -761,5 +761,15 @@ Gale.Moves[5] = {
     end,
 }
 
+-- ── Animations ──────────────────────────────────────────────────────────────
+-- Primary animation source for Gale abilities. Move names match the ability
+-- keys above. AnimationDatabase.Combat.Aspect.Gale is the fallback.
+Gale.Animations = {
+    WindStrike  = "rbxassetid://0", -- STUB
+    Crosswind   = "rbxassetid://0", -- STUB
+    Windwall    = "rbxassetid://0", -- STUB
+    Updraft     = "rbxassetid://0", -- STUB
+    Shear       = "rbxassetid://0", -- STUB
+}
 
 return Gale

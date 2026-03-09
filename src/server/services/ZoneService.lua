@@ -302,6 +302,14 @@ function ZoneService:Start()
     Players.PlayerAdded:Connect(_onPlayerAdded)
     Players.PlayerRemoving:Connect(_onPlayerRemoving)
 
+    -- tag zone parts for easy filtering elsewhere (movement state code ignores them)
+    local CollectionService = game:GetService("CollectionService")
+    for ring = 1, 5 do
+        for _, part in ipairs(_getZoneParts(ring)) do
+            CollectionService:AddTag(part, "ZoneTrigger")
+        end
+    end
+
     -- Poll loop: light-weight heartbeat that only fires zone checks when the
     -- player has moved enough.  Accumulates dt instead of spawning per-frame.
     local _accumulator = 0

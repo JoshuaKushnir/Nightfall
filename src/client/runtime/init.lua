@@ -25,11 +25,14 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
--- Import Loader utility
+-- Import utilities
 local Loader = require(ReplicatedStorage.Shared.modules.Loader)
-
--- Import debug utilities
 local DebugInput = require(script.Parent.modules.DebugInput)
+local LoadingController = require(script.Parent.controllers.LoadingController)
+
+-- show loading screen immediately
+LoadingController:Init()
+LoadingController:Report("Bootstrapping client...", 0.0)
 
 print(("="):rep(60))
 print("🌙 NIGHTFALL - Client Bootstrap")
@@ -42,6 +45,7 @@ local INITIALIZATION_START = os.clock()
 
 -- Step 0: Wait for LocalPlayer
 print("[Client] [0/4] Waiting for LocalPlayer...")
+LoadingController:Report("Waiting for LocalPlayer...", 0.1)
 local player = Players.LocalPlayer
 
 if not player then
@@ -64,6 +68,7 @@ print("")
 
 -- Step 1: Wait for character (optional but recommended)
 print("[Client] [1/4] Waiting for character...")
+LoadingController:Report("Loading character...", 0.25)
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
 
@@ -77,6 +82,7 @@ print("")
 
 -- Step 2: Load all controllers
 print("[Client] [2/4] Loading controllers...")
+LoadingController:Report("Loading controllers...", 0.5)
 local controllersFolder = script.Parent.controllers
 local controllers = Loader.LoadModules(controllersFolder, false)
 
@@ -90,6 +96,7 @@ print("")
 
 -- Step 3: Initialize all controllers (Init method)
 print("[Client] [3/4] Initializing controllers...")
+LoadingController:Report("Initializing controllers...", 0.75)
 local initSuccess = true
 
 -- Build dependencies table for dependency injection
@@ -126,6 +133,7 @@ print("")
 
 -- Step 4: Start all controllers (Start method)
 print("[Client] [4/4] Starting controllers...")
+LoadingController:Report("Starting controllers...", 0.9)
 local startSuccess = true
 
 -- Start in a specific order to handle dependencies
@@ -197,6 +205,11 @@ end
 
 print(("="):rep(60))
 print(`🌙 Client Bootstrap Complete`)
+LoadingController:Report("Complete!", 1)
+-- hide after a brief pause to give user a chance to read
+task.delay(0.5, function()
+    LoadingController:Hide()
+end)
 print(`   Controllers Loaded: {controllerCount}`)
 print(`   Initialization Time: {math.floor(initTime * 100) / 100}ms`)
 print(`   Status: {if initSuccess and startSuccess then "✓ Ready" else "⚠ Partial"}`)

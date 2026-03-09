@@ -54,9 +54,9 @@ local IronSword: WeaponConfig = {
 
 		-- 3-hit combo sequence; length drives max combo count for this weapon
 		Combo = {
-			{ Folder = "IronSword", Asset = "Slash1",   HitFrame = 0.35 },
-			{ Folder = "IronSword", Asset = "Slash2",   HitFrame = 0.40 },
-			{ Folder = "IronSword", Asset = "Stab",     HitFrame = 0.30 },
+			{ Folder = "IronSword", Asset = "Slash1", Id = "", HitFrame = 0.35 }, -- STUB: add rbxassetid when published
+			{ Folder = "IronSword", Asset = "Slash2", Id = "", HitFrame = 0.40 }, -- STUB
+			{ Folder = "IronSword", Asset = "Stab",   Id = "", HitFrame = 0.30 }, -- STUB
 		},
 
 		LungeAttack = { Folder = "IronSword", Asset = "LungeSlash", HitFrame = 0.45 },

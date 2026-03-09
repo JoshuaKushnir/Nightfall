@@ -56,12 +56,12 @@ local SilhouetteDagger: WeaponConfig = {
 
 		-- 6-hit combo: fastest cadence in the starter set
 		Combo = {
-			{ Folder = "SilhouetteDagger", Asset = "Jab1",    HitFrame = 0.25 },
-			{ Folder = "SilhouetteDagger", Asset = "Jab2",    HitFrame = 0.25 },
-			{ Folder = "SilhouetteDagger", Asset = "Slash1",  HitFrame = 0.28 },
-			{ Folder = "SilhouetteDagger", Asset = "Slash2",  HitFrame = 0.28 },
-			{ Folder = "SilhouetteDagger", Asset = "Flurry1", HitFrame = 0.22 },
-			{ Folder = "SilhouetteDagger", Asset = "Flurry2", HitFrame = 0.22 },
+			{ Folder = "SilhouetteDagger", Asset = "Jab1",    Id = "", HitFrame = 0.25 }, -- STUB
+			{ Folder = "SilhouetteDagger", Asset = "Jab2",    Id = "", HitFrame = 0.25 }, -- STUB
+			{ Folder = "SilhouetteDagger", Asset = "Slash1",  Id = "", HitFrame = 0.28 }, -- STUB
+			{ Folder = "SilhouetteDagger", Asset = "Slash2",  Id = "", HitFrame = 0.28 }, -- STUB
+			{ Folder = "SilhouetteDagger", Asset = "Flurry1", Id = "", HitFrame = 0.22 }, -- STUB
+			{ Folder = "SilhouetteDagger", Asset = "Flurry2", Id = "", HitFrame = 0.22 }, -- STUB
 		},
 
 		LungeAttack = { Folder = "SilhouetteDagger", Asset = "Dart",      HitFrame = 0.30 },

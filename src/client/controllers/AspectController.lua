@@ -38,6 +38,21 @@ local ASPECT_ABILITY_MAP: {[string]: string} = {
     Void = "Blink",
 }
 
+-- Pre-load aspect modules so their Animations tables are available for
+-- module-first animation resolution in PlayAbilityAction.
+local ASPECT_MODULES: {[string]: any} = {}
+do
+    local abilitiesFolder = ReplicatedStorage.Shared.abilities
+    for _, name in ipairs({ "Ash", "Tide", "Ember", "Gale", "Void" }) do
+        local ok, mod = pcall(require, abilitiesFolder[name])
+        if ok then
+            ASPECT_MODULES[name] = mod
+        else
+            warn(("[AspectController] Could not pre-load aspect module %q: %s"):format(name, tostring(mod)))
+        end
+    end
+end
+
 local AspectController = {}
 AspectController._cooldowns = {} -- abilityId -> expiry tick
 -- typed via cast rather than annotation to avoid parser error
@@ -72,8 +87,15 @@ local function _onKeyInput(input: InputObject, gameProcessed: boolean)
         if currentAspect and ASPECT_ABILITY_MAP[currentAspect] then
             local abilityId = ASPECT_ABILITY_MAP[currentAspect]
             local mouse = localPlayer:GetMouse()
+            -- Module-first: pass the aspect module's Animations table so
+            -- PlayAbilityAction checks module IDs before AnimationDatabase.
+            local moduleAnimations: {[string]: string}? = nil
+            local aspectMod = ASPECT_MODULES[currentAspect]
+            if aspectMod and aspectMod.Animations then
+                moduleAnimations = aspectMod.Animations
+            end
             if ActionController and ActionController.PlayAbilityAction then
-                ActionController.PlayAbilityAction(abilityId, mouse.Hit.p)
+                ActionController.PlayAbilityAction(abilityId, mouse.Hit.p, moduleAnimations)
             end
         end
         return
