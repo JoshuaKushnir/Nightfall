@@ -315,8 +315,9 @@ local function _resolveActiveState(
 	if blackboard.IsClimbing      then return "Climb"      end
 	if blackboard.IsVaulting       then return "Vault"      end
 	if blackboard.IsWallRunning    then return "WallRun"    end
-	if blackboard.IsSliding        then return "Slide"      end
+	-- dodge should interrupt sliding: check before slide
 	if blackboard.IsDodging        then return "Dodge"      end
+	if blackboard.IsSliding        then return "Slide"      end
 	if not onGround                then return "Jump"       end
 	if wantsSpr and moveDir.Magnitude > 0.5 then return "Sprint" end
 	if moveDir.Magnitude > 0.5     then return "Walk"       end

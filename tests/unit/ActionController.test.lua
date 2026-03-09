@@ -238,6 +238,18 @@ return {
             end,
         },
         {
+            name = "Dodge cancels slide state",
+            fn = function()
+                ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+                ActionController.Humanoid = { Health = 100 }
+                Blackboard.IsSliding = true
+                Blackboard.IsDodging = false
+                ActionController.PlayAction(ActionTypes.DODGE)
+                assert(not Blackboard.IsSliding, "slide flag should be reset by dodge")
+                assert(Blackboard.IsDodging, "dodge flag should be set")
+            end,
+        },
+        {
             name = "Dodge direction and momentum scaling",
             fn = function()
                 ActionController.Character = { FindFirstChild = function(_, _) return nil end }

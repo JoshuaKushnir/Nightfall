@@ -622,6 +622,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	-- Track dodge in Blackboard (readable by MovementController dispatcher and VFX)
 	if config.Type == "Dodge" then
+		-- cancel a sliding state immediately so the movement FSM can switch
+		if Blackboard.IsSliding then
+			Blackboard.IsSliding = false
+			print("[ActionController] Dodge interrupted slide")
+		end
 		Blackboard.IsDodging = true
 	end
 
@@ -727,7 +732,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end
 
 			-- compute dodge speed based on momentum at start; target distance between 5 and 9 studs
-			local baseDist = 5
+			local baseDist = 0
 			local momentum = 0
 			if rootPart and rootPart:IsA("BasePart") then
 				momentum = Vector3.new(rootPart.AssemblyLinearVelocity.X, 0, rootPart.AssemblyLinearVelocity.Z).Magnitude
