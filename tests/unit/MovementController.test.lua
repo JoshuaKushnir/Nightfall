@@ -73,6 +73,51 @@ return {
 			end,
 		},
 		{
+			name = "Stopping slide zeros horizontal velocity",
+			fn = function()
+				local SlideState = require(ReplicatedStorage.Shared.movement.states.SlideState)
+				-- create fake context with a mock rootPart
+				-- create a real part so BodyVelocity parenting works
+				local fakeRoot = Instance.new("Part")
+				fakeRoot.Anchored = false
+				fakeRoot.CanCollide = false
+				fakeRoot.Position = Vector3.new(0,0,0)
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(10, -5, 3)
+				local ctx = {RootPart = fakeRoot, Blackboard = {}}
+				-- start and immediately exit to trigger _stopSlide behavior
+				SlideState.TryStart({Humanoid = {Health = 100}, RootPart = fakeRoot, OnGround = true, IsSprinting = true, LastMoveDir = Vector3.new(1,0,0), Blackboard = ctx.Blackboard, Character = fakeRoot, ChainAction = function() end, GetMomentumMultiplier = function() return 1 end, NetworkController = {SendToServer = function() end}})
+				SlideState.Exit(ctx)
+				assert(fakeRoot.AssemblyLinearVelocity.X == 0 and fakeRoot.AssemblyLinearVelocity.Z == 0,
+					"horizontal velocity should be zeroed when slide stops")
+				fakeRoot:Destroy()
+			end,
+		},
+		{
+			name = "Slide immediately rejects start if obstacle is too close",
+			fn = function()
+				local SlideState = require(ReplicatedStorage.Shared.movement.states.SlideState)
+				-- monkey-patch workspace.Raycast to always return a hit
+				local workspace = game:GetService("Workspace")
+				local originalRaycast = workspace.Raycast
+				workspace.Raycast = function()
+					return {Instance = {CanCollide = true, Parent = {FindFirstChildOfClass = function() return nil end}}}
+				end
+				local fakeRoot = Instance.new("Part")
+				fakeRoot.Anchored = false
+				fakeRoot.CanCollide = false
+				fakeRoot.Position = Vector3.new(0,0,0)
+				local ctx = {Humanoid = {Health = 100}, RootPart = fakeRoot, OnGround = true, IsSprinting = true, LastMoveDir = Vector3.new(1,0,0), Blackboard = {}, Character = fakeRoot}
+				SlideState.TryStart(ctx)
+				-- since the raycast always hits upfront, the slide should never begin
+				task.wait(0.1)
+				assert(SlideState.IsSliding() == false, "Slide start should be rejected when obstacle is immediately ahead")
+				workspace.Raycast = originalRaycast
+				fakeRoot:Destroy()
+			end,
+		},
+
+
+		{
 			name = "ApplyImpulse API exists and is callable",
 			fn = function()
 				assert(type(MovementController.ApplyImpulse) == "function")

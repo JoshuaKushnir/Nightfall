@@ -22,6 +22,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService          = game:GetService("RunService")
+local Workspace            = game:GetService("Workspace")
 
 local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
 
@@ -49,6 +50,16 @@ local function _stopSlide(ctx: any)
 		_bodyVelocity.MaxForce = Vector3.zero
 		_bodyVelocity:Destroy()
 		_bodyVelocity = nil
+	end
+
+	-- Zero out any lingering horizontal velocity so the player doesn't
+	-- get flung when the slide is interrupted by a collision or other
+	-- condition. Preserve vertical velocity so gravity can continue as
+	-- normal.
+	local rootPart = ctx.RootPart
+	if rootPart and rootPart:IsA("BasePart") then
+		local vel = rootPart.AssemblyLinearVelocity
+		rootPart.AssemblyLinearVelocity = Vector3.new(0, vel.Y, 0)
 	end
 end
 
@@ -82,7 +93,19 @@ function SlideState.TryStart(ctx: any)
 		print("[SlideState] Rejected: no move direction")
 		return
 	end
-	if _isSliding then
+	-- early obstacle check: if we're already backed up against a wall/part,
+	-- refuse to slide rather than phasing through on start
+	if rootPart and ctx.LastMoveDir.Magnitude > 0 then
+		local params = RaycastParams.new()
+		params.FilterType = Enum.RaycastFilterType.Blacklist
+		params.FilterDescendantsInstances = {ctx.Character}
+		local ahead = ctx.LastMoveDir.Unit * 1
+		local hit = Workspace:Raycast(rootPart.Position, ahead, params)
+		if hit and hit.Instance and hit.Instance.CanCollide then
+			print("[SlideState] Rejected: obstacle too close")
+			return
+		end
+	end
 		print("[SlideState] Already sliding")
 		return
 	end
@@ -129,13 +152,20 @@ function SlideState.TryStart(ctx: any)
 			local eased    = 1 - math.pow(1 - progress, 3)
 			local speed    = effectiveSpeed * (1 - eased)
 
-			if _bodyVelocity and speed > 0.5 then
-				_bodyVelocity.Velocity = slideDir * speed
+		-- collision detection: raycast a short distance ahead each frame
+		if rootPart then
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Blacklist
+			params.FilterDescendantsInstances = {ctx.Character}
+			-- cast 2 studs ahead at current height
+			local hit = Workspace:Raycast(rootPart.Position, slideDir * 2, params)
+			if hit and hit.Instance and hit.Instance.CanCollide then
+				-- stop when we hit anything, including humanoids
+				_stopSlide(ctx)
+				break
 			end
-
-			if progress >= 1.0 then break end
-			RunService.Heartbeat:Wait()
 		end
+
 
 		-- Decay finished
 		if _bodyVelocity then

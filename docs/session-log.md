@@ -72,6 +72,27 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — if no furth
 ### Next Session Should Start On
 Issue #82: `feat(world): Ring structure + Luminance drain zones` — world progression layer is the next unblocked Phase 4 work.
 
+## Session NF-061: Slide collision and fling bugfix
+**Date:** 2026-03-09  
+**Issues:** #?? (placeholder for user report)
+
+### What Was Built
+- **`src/shared/movement/states/SlideState.lua`** — added raycast-based obstacle detection during slides, early rejection when an object is immediately ahead, and zeroed horizontal velocity when a slide stops. Prevents phasing through geometry and stops the character from being flung when colliding with objects or other players/dummies.
+- **`tests/unit/MovementController.test.lua`** — new unit tests covering the collision behaviour, velocity zeroing on slide stop, and early obstacle rejection.
+
+### Integration Points
+- SlideState now proactively stops slides on collision and informs MovementController via Blackboard flags.
+- Movement tests now validate the new behaviour; CI should catch regressions.
+
+### Spec Gaps Encountered
+- None
+
+### Tech Debt Created
+- Could later refactor collision logic into a shared utility if other movement states need similar checks.
+
+### Next Session Should Start On
+Issue #[NUMBER]: [TITLE] — choose the next unblocked task (e.g., continue world progression or inventory UI)
+
 ---
 
 ## Session NF-058: Fix PlayerHUDController crash from NF-057 keybind removal
