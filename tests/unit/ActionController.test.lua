@@ -284,6 +284,14 @@ return {
                 local speed2 = ActionController._Test_LastDodgeSpeed
                 assert(speed2 > speed1, "dodge speed should scale up with momentum")
 
+                -- now simulate zero velocity but high momentum multiplier (slide->dodge)
+                fakeRoot.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                MovementController = MovementController or {}
+                MovementController.GetMomentumMultiplier = function() return 3 end
+                ActionController.PlayAction(ActionTypes.DODGE)
+                local speed3 = ActionController._Test_LastDodgeSpeed
+                assert(speed3 > speed2, "dodge speed should still boost when multiplier high")
+
                 -- restore originals
                 UIS.IsKeyDown = origIsDown
                 Utils.GetRootPart = origGetRoot

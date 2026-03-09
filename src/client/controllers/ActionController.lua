@@ -732,12 +732,21 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end
 
 			-- compute dodge speed based on momentum at start; target distance between 5 and 9 studs
-			local baseDist = 0
+			local baseDist = 5
 			local momentum = 0
 			if rootPart and rootPart:IsA("BasePart") then
 				momentum = Vector3.new(rootPart.AssemblyLinearVelocity.X, 0, rootPart.AssemblyLinearVelocity.Z).Magnitude
 			end
-			local targetDist = math.clamp(momentum * 0.3 + baseDist, baseDist, baseDist + 4) -- 5..9
+			-- incorporate global momentum multiplier (sliding/slide-jump boost)
+			local mm = 1
+			if MovementController and MovementController.GetMomentumMultiplier then
+				mm = MovementController.GetMomentumMultiplier()
+			end
+			local mmBonus = math.max(0, mm - 1) * 2 -- up to +4 studs at cap
+			-- base distance plus multiplier bonus
+			local targetDist = baseDist + mmBonus
+			-- add velocity-derived extra, clamp to max of baseDist+4
+			targetDist = math.min(targetDist + momentum * 0.3, baseDist + 4)
 			local DODGE_SPEED = targetDist / (0.625 * config.Duration)
 			-- expose for unit tests
 			ActionController._Test_LastDodgeSpeed = DODGE_SPEED
