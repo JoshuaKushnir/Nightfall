@@ -207,6 +207,75 @@ if services.CombatService and services.NetworkService then
 	print("[Server] ✓ Combat hit event handler registered")
 end
 
+-- WeaponAttackRequest: client fires swing intent; server resolves hits from weapon config (#171)
+if services.NetworkService and services.WeaponService and services.CombatService then
+	local NetworkService   = services.NetworkService
+	local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+
+	NetworkService:RegisterHandler("WeaponAttackRequest", function(player: Player, packet: any)
+		-- 1. Validate packet structure
+		if type(packet) ~= "table"
+			or type(packet.WeaponId) ~= "string"
+			or (packet.AttackType ~= "Light" and packet.AttackType ~= "Heavy")
+			or type(packet.ClientTime) ~= "number"
+		then
+			warn(("[WeaponAttackRequest] Malformed packet from %s"):format(player.Name))
+			return
+		end
+
+		-- 2. Confirm the client actually has this weapon equipped
+		local equippedId = services.WeaponService:GetEquippedWeaponId(player)
+		if equippedId ~= packet.WeaponId then
+			warn(("[WeaponAttackRequest] Weapon mismatch for %s (equipped=%s, sent=%s)"):format(
+				player.Name, tostring(equippedId), packet.WeaponId))
+			return
+		end
+
+		-- 3. Timestamp sanity — reject packets older than 3 s (clock skew tolerance)
+		local now = tick()
+		if now - packet.ClientTime > 3 then
+			warn(("[WeaponAttackRequest] Stale packet from %s (age=%.1fs)"):format(
+				player.Name, now - packet.ClientTime))
+			return
+		end
+
+		-- 4. State check — player must be able to attack
+		local playerData = StateService:GetPlayerData(player)
+		if not playerData then return end
+		local state = playerData.State
+		if state == "Dead" or state == "Stunned" or state == "Ragdolled" then
+			return
+		end
+
+		-- 5. Look up weapon config for PostureDamage fallback
+		local weaponConfig = WeaponRegistry.Get(packet.WeaponId)
+		local postureDmg = weaponConfig and weaponConfig.PostureDamage or nil
+
+		-- 6. Build a minimal hitData compatible with CombatService.ValidateHit
+		--    (actual spatial validation happens inside ValidateHit via hitbox data)
+		local hitData = {
+			Damage        = weaponConfig and weaponConfig.BaseDamage or 10,
+			PostureDamage = postureDmg,
+			HitType       = packet.AttackType,
+			ActionName    = packet.WeaponId,
+			Timestamp     = packet.ClientTime,
+		}
+
+		-- 7. Run server-side validation and apply damage
+		local success, finalDamage = CombatService.ValidateHit(player, hitData)
+
+		-- 8. Send result back to the attacking client
+		NetworkService:SendToClient(player, "AttackResult", {
+			WeaponId      = packet.WeaponId,
+			AttackType    = packet.AttackType,
+			SequenceIndex = packet.SequenceIndex,
+			Hit           = success,
+			HitTargets    = success and {{ Name = "?", Damage = finalDamage }} or nil,
+		})
+	end)
+	print("[Server] ✓ WeaponAttackRequest handler registered (#171)")
+end
+
 -- Register AdminCommand handler (dev/admin-only commands)
 if services.NetworkService and services.DummyService then
 	local NetworkService = services.NetworkService

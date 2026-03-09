@@ -106,6 +106,10 @@ export type NetworkEvent =
 	-- Zone
 	| "RingChanged"          -- Server → Client: player entered a new ring boundary
 
+	-- Weapon Combat Pipeline (#171)
+	| "WeaponAttackRequest"  -- Client → Server: weapon swing intent
+	| "AttackResult"         -- Server → Client: confirmed swing result
+
 	-- Admin/Debug
 	| "AdminCommand"
 	| "DebugInfo"
@@ -481,6 +485,26 @@ export type SlideRequestPacket = {
 	Timestamp: number?,
 }
 
+-- Weapon attack pipeline (#171)
+export type WeaponAttackRequestPacket = {
+	WeaponId: string,
+	AttackType: "Light" | "Heavy",
+	SequenceIndex: number?,
+	ClientTime: number,
+	AimData: {Origin: Vector3, Direction: Vector3}?,
+}
+
+export type AttackResultPacket = {
+	WeaponId: string,
+	AttackType: "Light" | "Heavy",
+	SequenceIndex: number?,
+	Hit: boolean,
+	HitTargets: {{Name: string, Damage: number}}?,
+	StaminaAfter: number?,
+	PostureAfter: number?,
+	CooldownExpiry: number?,
+}
+
 -- Zone ring change notification (#142)
 export type RingChangedPacket = {
 	OldRing: number,  -- 0–5, previous ring the player was in
@@ -526,6 +550,8 @@ export type NetworkPacket =
 	| UseAbilityPacket
 	| AdminCommandPacket
 	| DebugInfoPacket
+	| WeaponAttackRequestPacket
+	| AttackResultPacket
 
 -- Network Event Direction
 export type EventDirection = "ServerToClient" | "ClientToServer" | "Bidirectional"
@@ -798,6 +824,18 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Send full inventory to client",
+	},
+	WeaponAttackRequest = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 10,
+		RequiresValidation = true,
+		Description = "Client weapon swing intent — server resolves hits (issue #171)",
+	},
+	AttackResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Confirmed swing result sent back to attacking client (issue #171)",
 	},
 	
 	-- Dialogue/Quests

@@ -33,14 +33,70 @@ type WeaponConfig = typeof(WeaponTypesModule) -- dummy; real type is WeaponTypes
 
 -- keyed by WeaponConfig.Id
 local _registry: {[string]: any} = {}
+-- keyed by WeaponConfig.Class — issue #171: weapon-class hierarchy
+local _byClass: {[string]: {[string]: any}} = {}
 -- true once _Discover() has run
 local _loaded = false
 
 -- ─── Discovery ────────────────────────────────────────────────────────────────
 
 --[[
-	Walk ReplicatedStorage.Shared.weapons, require each ModuleScript,
-	run it through WeaponValidator, and index valid configs by Id.
+	Register one already-validated config table into both indexes.
+]]
+local function _RegisterConfig(config: any, moduleName: string, stats: {discovered: number, rejected: number})
+	if _registry[config.Id] then
+		warn(("[WeaponRegistry] Duplicate weapon Id '%s' in '%s' — skipping."):format(config.Id, moduleName))
+		stats.rejected += 1
+		return
+	end
+
+	_registry[config.Id] = config
+
+	-- Index by logical Class if present (issue #171)
+	local cls: string? = config.Class
+	if cls and type(cls) == "string" then
+		_byClass[cls] = _byClass[cls] or {}
+		_byClass[cls][config.Id] = config
+	end
+
+	stats.discovered += 1
+	print(("[WeaponRegistry] ✓ Registered: %s (%s / %s)"):format(
+		config.Id, config.Rarity, config.ToolType))
+end
+
+--[[
+	Recursively walk `folder`, requiring each ModuleScript and indexing it.
+	Sub-Folders are treated as weapon-class groupings, e.g.:
+		weapons/Sword/IronSabre.lua  →  Class = "Sword"
+]]
+local function _DiscoverFolder(folder: Instance, stats: {discovered: number, rejected: number})
+	for _, child in folder:GetChildren() do
+		if child:IsA("Folder") then
+			_DiscoverFolder(child, stats) -- recurse
+		elseif child:IsA("ModuleScript") then
+			local ok, result = pcall(require, child)
+			if not ok then
+				warn(("[WeaponRegistry] Failed to require '%s': %s"):format(child.Name, tostring(result)))
+				stats.rejected += 1
+				continue
+			end
+
+			local valid, err = WeaponValidator.Validate(result)
+			if not valid then
+				warn(("[WeaponRegistry] Invalid weapon module '%s':\n  - %s"):format(
+					child.Name, tostring(err)))
+				stats.rejected += 1
+				continue
+			end
+
+			_RegisterConfig(result :: any, child.Name, stats)
+		end
+	end
+end
+
+--[[
+	Walk ReplicatedStorage.Shared.weapons (and all sub-Folders), require each
+	ModuleScript, validate it, and index it by Id and by Class.
 
 	Invalid modules are warned and skipped — they do not prevent other
 	weapons from loading.
@@ -57,40 +113,12 @@ local function _Discover()
 		return
 	end
 
-	local discovered = 0
-	local rejected   = 0
+	local stats = {discovered = 0, rejected = 0}
 
-	for _, child in weaponsFolder:GetChildren() do
-		if not child:IsA("ModuleScript") then continue end
+	_DiscoverFolder(weaponsFolder, stats)
 
-		local ok, result = pcall(require, child)
-		if not ok then
-			warn(("[WeaponRegistry] Failed to require '%s': %s"):format(child.Name, tostring(result)))
-			rejected += 1
-			continue
-		end
-
-		local valid, err = WeaponValidator.Validate(result)
-		if not valid then
-			warn(("[WeaponRegistry] Invalid weapon module '%s':\n  - %s"):format(child.Name, tostring(err)))
-			rejected += 1
-			continue
-		end
-
-		local config = result :: any
-		if _registry[config.Id] then
-			warn(("[WeaponRegistry] Duplicate weapon Id '%s' in '%s' — skipping."):format(config.Id, child.Name))
-			rejected += 1
-			continue
-		end
-
-		_registry[config.Id] = config
-		discovered += 1
-		print(("[WeaponRegistry] ✓ Registered: %s (%s / %s)"):format(
-			config.Id, config.Rarity, config.ToolType))
-	end
-
-	print(("[WeaponRegistry] Discovery complete — %d registered, %d skipped"):format(discovered, rejected))
+	print(("[WeaponRegistry] Discovery complete — %d registered, %d skipped"):format(
+		stats.discovered, stats.rejected))
 end
 
 -- ─── Public API ───────────────────────────────────────────────────────────────
@@ -172,6 +200,12 @@ function WeaponRegistry.Has(id: string): boolean
 	return _registry[id] ~= nil
 end
 
+-- Returns all registered weapon configs for the given class name (e.g. "Sword", "Dagger").
+function WeaponRegistry.GetClass(class: string): {[string]: any}
+	_Discover()
+	return _byClass[class] or {}
+end
+
 --[[
 	Force re-discovery (primarily useful in live-reload / test scenarios).
 	Not needed under normal operation.
@@ -179,6 +213,7 @@ end
 function WeaponRegistry._Reload()
 	_loaded = false
 	_registry = {}
+	_byClass = {}
 	_Discover()
 	print("[WeaponRegistry] Reloaded.")
 end

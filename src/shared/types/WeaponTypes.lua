@@ -98,6 +98,33 @@ export type WeaponConfig = {
 	FeintCooldown: number?,  -- cooldown applied to feint actions
 	HeavyCooldown: number?,  -- cooldown applied to the heavy attack action
 
+	-- ── Combat feel (optional, issue #171) ───────────────────────────────────
+	-- Posture damage dealt per light hit.
+	PostureDamage: number?,
+	-- Posture damage dealt by a heavy attack (typically 2× PostureDamage).
+	HeavyPostureDamage: number?,
+	-- Stamina consumed per light swing.
+	StaminaCost: number?,
+	-- Per-swing duration overrides for the combo sequence (seconds each).
+	-- If shorter than Combo table, remaining swings use AttackSpeed.
+	LightSequence: {number}?,
+	-- Windup seconds before the heavy attack connects.
+	HeavyWindup: number?,
+
+	-- ── Hit window timing (optional, issue #171) ──────────────────────────
+	-- Normalised 0-1 animation time when the hitbox opens (default 0.18).
+	HitWindowStart: number?,
+	-- Normalised 0-1 animation time when the hitbox closes (default 0.28).
+	HitWindowEnd: number?,
+
+	-- ── Classification (optional, issue #171) ────────────────────────────
+	-- Logical weapon class for registry grouping (e.g. "Sword", "Dagger", "Axe").
+	Class: string?,
+
+	-- ── Client hooks (cosmetic only, no game logic, issue #171) ──────────
+	OnEquipClient: ((char: Model, weaponModel: Tool?) -> ())?,
+	OnUnequipClient: ((char: Model, weaponModel: Tool?) -> ())?,
+
 	-- ── Animations (required) ────────────────────────────────────────────────
 	Animations: {
 		Equip: WeaponAnimEntry,

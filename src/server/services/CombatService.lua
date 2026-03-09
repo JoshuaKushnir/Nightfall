@@ -293,6 +293,15 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			print(`[CombatService] ✗ Target is dodging (iframes): {targetPlayer.Name}`)
 			return false, 0
 		end
+
+		-- Sliding targets: harder to guardbreak — reduce posture damage by 50% (#171)
+		if targetData.State == "Sliding" and hitData.PostureDamage then
+			hitData = table.clone(hitData)
+			hitData.PostureDamage = math.floor((hitData.PostureDamage :: number) * 0.5)
+			print(`[CombatService] Slide modifier: posture damage halved for {targetPlayer.Name}`)
+		end
+
+		-- WallRunning targets: TODO — increased hitstun when wall-run is implemented (#171)
 	end
 	
 	-- Apply damage with variance

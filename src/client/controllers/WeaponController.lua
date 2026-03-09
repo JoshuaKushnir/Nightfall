@@ -205,6 +205,39 @@ function WeaponController.GetOwned(): string?
 	return _ownedWeaponId
 end
 
+--[[
+	Fires a WeaponAttackRequest to the server expressing swing intent.
+	The server resolves hits from the weapon config and replies with AttackResult.
+	Returns false if no weapon is currently held.
+	@param attackType  "Light" | "Heavy"
+	@param sequenceIndex  1-based combo step (optional, defaults to 1)
+]]
+function WeaponController.PlaySwing(attackType: "Light" | "Heavy", sequenceIndex: number?): boolean
+	local weaponId = _heldWeaponId
+	if not weaponId then
+		return false
+	end
+	local camera = workspace.CurrentCamera
+	local aimData: {Origin: Vector3, Direction: Vector3}? = nil
+	if camera then
+		aimData = {
+			Origin    = camera.CFrame.Position,
+			Direction = camera.CFrame.LookVector,
+		}
+	end
+	local attackEvent = NetworkProvider:GetRemoteEvent("WeaponAttackRequest")
+	if attackEvent then
+		attackEvent:FireServer({
+			WeaponId      = weaponId,
+			AttackType    = attackType,
+			SequenceIndex = sequenceIndex or 1,
+			ClientTime    = tick(),
+			AimData       = aimData,
+		})
+	end
+	return true
+end
+
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 function WeaponController:Init(dependencies: {[string]: any}?)
