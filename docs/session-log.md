@@ -3,6 +3,21 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-062: Fix Dodge Physics Fling (Engine Conflict)
+**Date:** 2026-03-09
+**Issues:** #199 (dodge flinging into walls)
+
+### What Was Built
+- **src/client/controllers/MovementController.lua** — Updated ApplyImpulse to return 	rue, lv (the actual spawned BodyVelocity object) so that callers can explicitly destroy the forces instead of waiting for a blind timed out expiry.
+- **src/client/controllers/ActionController.lua** — Fixed Roblox solver instability during dodging into walls. Previously, the engine fought between an infinitely strong BodyVelocity pushing the player into the wall and an OnFrame hook attempting to zero .AssemblyLinearVelocity. Now, as soon as ActionController detects a raycast or overlapping wall collision, it searches for the tag _impulse_dodge and actively :Destroy()s it, snapping the player slightly out of the wall structure (lastSafeCFrame).
+
+### Integration Points
+- This ensures fluid collision limits for both dodging and sliding without physics desynchronization rendering the character invisible or launching them.
+
+### Next Session Should Start On
+Issue #82: Phase 4 world progression.
+
+
 ## Session NF-060: Fix feinting and DummyService syntax error
 **Date:** 2026-03-07
 **Issues:** #169 (feinting allows damage), DummyService compilation error
@@ -92,6 +107,34 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — world progr
 
 ### Next Session Should Start On
 Issue #[NUMBER]: [TITLE] — choose the next unblocked task (e.g., continue world progression or inventory UI)
+
+---
+
+## Session NF-062: Dodge roll collision & fling fix
+**Date:** 2026-03-09  
+**Issues:** #?? (follow-up to rolling bug report)
+
+### What Was Built
+- **`src/client/controllers/ActionController.lua`** — rewrote dodge handling:
+  * Removed previous `CanCollide` disable logic (rolls now collide normally).
+  * Added early raycast check to cancel rolls that would start inside a wall.
+  * Added per‑frame raycast and touching‑parts checks to zero horizontal velocity when hitting walls, characters, or dummies.
+  * Kept last‑safe‑CFrame recovery to avoid getting stuck inside geometry on roll end.
+- **`tests/unit/ActionController.test.lua`** — new unit tests verifying dodge cancellation when a wall is immediately ahead and velocity zeroing when touching external parts.
+
+### Integration Points
+- Dodge actions now respect collisions like every other movement state; phasing through walls is eliminated while still preventing fling on impact.
+- MovementController and Blackboard remain unchanged; rolls no longer temporarily disable character collisions.
+- Unit tests cover the new behaviour; slide tests from NF‑061 remain unaffected.
+
+### Spec Gaps Encountered
+- None; adjustment driven by direct user feedback.
+
+### Tech Debt Created
+- None; previous collision‑disable code removed, simplifying roll logic.
+
+### Next Session Should Start On
+Issue #[NUMBER]: [TITLE] — continue Phase 4 or other pending work.
 
 ---
 
@@ -2350,3 +2393,4 @@ Issue #138: ProgressionService ï¿½ close after Studio manual verification, th
 
 ### Next Session Should Start On
 Implement custom drag/drop layout or continue refining actual physical Aspect combat implementations (VFX/hitboxes).
+

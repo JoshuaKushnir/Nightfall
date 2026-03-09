@@ -12,6 +12,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 
 local ActionTypes = require(ReplicatedStorage.Shared.types.ActionTypes)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
@@ -232,6 +233,8 @@ end
 ]]
 function ActionController.PlayAction(config: ActionConfig)
 	print(`[ActionController] PlayAction called: {config.Name} (Id: {config.Id}) (Type: {config.Type})`)
+	-- shared dodge direction variable (updated later for impulse)
+	local dodgeDir: Vector3 = Vector3.new(0, 0, -1)
 
 	-- Validate character
 	if not Character or not Humanoid or Humanoid.Health <= 0 then
@@ -265,6 +268,8 @@ function ActionController.PlayAction(config: ActionConfig)
 			
 			if moveDir.Magnitude > 0 then
 				moveDir = moveDir.Unit
+				-- also initialize dodgeDir for collision checks/impulse
+				dodgeDir = moveDir
 			else
 				moveDir = Vector3.new(0, 0, 0)
 			end
@@ -592,93 +597,62 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		CombatBlackboard.LastActionType = "Dodge"
 	end
 
-	-- Special handling for dodge: non-collidable movement to avoid fling
+-- Special handling for dodge: stop on collisions without phasing
 	if config.Type == "Dodge" then
 		local rootPart = Utils.GetRootPart(Player)
 		if rootPart and Character then
-			local dodgeStartTime = tick()
-			local dodgeDuration = config.Duration
-			-- ensure we aren't already overlapping something by stepping back a bit
-			local dodgeDir = rootPart.CFrame.LookVector
-			if rootPart and rootPart:IsA("BasePart") then
-				local function isOverlapping(): boolean
-					for _, p in ipairs(rootPart:GetTouchingParts()) do
-						if not p:IsDescendantOf(Character) then
-							return true
-						end
-					end
-					return false
-				end
-				if isOverlapping() then
-					rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
-				end
+			dodgeDir = rootPart.CFrame.LookVector
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Blacklist
+			params.FilterDescendantsInstances = {Character}
+			-- cancel if wall right in front
+			local hit0 = Workspace:Raycast(rootPart.Position, dodgeDir * 2, params)
+			if hit0 and hit0.Instance and hit0.Instance.CanCollide then
+				print("[ActionController] Dodge blocked by nearby wall")
+				Blackboard.IsDodging = false
+				return
 			end
 
-			-- ── Disable CanCollide on EVERY BasePart in character ──────────
-			-- HumanoidRootPart alone is not enough; arms/legs still collide
-			-- and cause flings when brushing another character's physics body.
-			local savedCollide: { [BasePart]: boolean } = {}
-			for _, part in ipairs(Character:GetDescendants()) do
-				if part:IsA("BasePart") then
-					local bp = part :: BasePart
-					savedCollide[bp] = bp.CanCollide
-					bp.CanCollide = false
-				end
-			end
-			print("[ActionController] Dodge: CanCollide disabled on all character parts")
-
-			-- No longer cache velocity; read every frame so fallback updates are respected
-			-- also track last safe CFrame to avoid popping into objects when collisions
-			local lastSafeCFrame = rootPart.CFrame
-
-			action.OnFrame = function(self: Action, deltaTime: number)
-				if not rootPart or not rootPart.Parent then return end
-				-- We rely on MovementController's BodyVelocity (physics) for the actual movement.
-				-- Tracking lastSafeCFrame prevents clipping through walls when collisions re-enable.
-				local overlapping = false
+			local function isOverlapping(): boolean
 				for _, p in ipairs(rootPart:GetTouchingParts()) do
 					if not p:IsDescendantOf(Character) then
-						overlapping = true
+						return true
+					end
+				end
+				return false
+			end
+			if isOverlapping() then
+				rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
+			end
+
+			local lastSafeCFrame = rootPart.CFrame
+			action.OnFrame = function(self: Action, deltaTime: number)
+				if not rootPart or not rootPart.Parent then return end
+				local overlappingNow = false
+				for _, p in ipairs(rootPart:GetTouchingParts()) do
+					if not p:IsDescendantOf(Character) then
+						overlappingNow = true
+						-- Stop pushing into the wall immediately
+						local lv = rootPart:FindFirstChild("_impulse_dodge")
+						if lv then lv:Destroy() end
+						rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+						if lastSafeCFrame then rootPart.CFrame = lastSafeCFrame end
 						break
 					end
 				end
-				if not overlapping then
+				if not overlappingNow then
 					lastSafeCFrame = rootPart.CFrame
 				end
-			end
-
-			-- Restore CanCollide for ALL parts on cleanup
-			local originalCleanup = action.Cleanup
-			action.Cleanup = function(self: Action)
-				-- if we overlapped anything during the dodge, slide back to last safe spot
-				-- before re-enabling collisions to avoid post-dodge flings.
-				if rootPart and lastSafeCFrame then
-					rootPart.CFrame = lastSafeCFrame
+				local hit = Workspace:Raycast(rootPart.Position, dodgeDir * 1.5, params)
+				if hit and hit.Instance and hit.Instance.CanCollide then
+					-- Stop pushing
+					local lv = rootPart:FindFirstChild("_impulse_dodge")
+					if lv then lv:Destroy() end
+					
+					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+					if lastSafeCFrame then rootPart.CFrame = lastSafeCFrame end
+					if action and action.EndTime then action.EndTime = tick() end
 				end
-				
-				for bp, original in pairs(savedCollide) do
-					if bp and bp.Parent then
-						bp.CanCollide = original
-					end
-				end
-				print("[ActionController] Dodge: CanCollide restored on all character parts")
-				-- if re-enabling put us inside something, nudge backwards along dodgeDir
-				if rootPart and dodgeDir and dodgeDir.Magnitude > 0.1 then
-					local tries = 0
-					while tries < 5 do
-						local overlapping = false
-						for _, p in ipairs(rootPart:GetTouchingParts()) do
-							if not p:IsDescendantOf(Character) then
-								overlapping = true
-								break
-							end
-						end
-						if not overlapping then break end
-						rootPart.CFrame = rootPart.CFrame - dodgeDir.Unit * 0.5
-						tries += 1
-					end
-				end
-				originalCleanup(self)
 			end
 		end
 	end

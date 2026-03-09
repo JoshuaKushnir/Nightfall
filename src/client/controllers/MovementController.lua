@@ -392,13 +392,13 @@ function MovementController.ApplyImpulse(direction: Vector3, speed: number, dura
 	local humanoid = Humanoid
 	if not rootPart or not humanoid or humanoid.Health <= 0 then
 		print("[MovementController] ✗ ApplyImpulse failed - missing character/rootPart")
-		return false
+		return false, nil
 	end
 
 	-- Sanitize inputs
 	if not direction or direction.Magnitude < 0.01 then
 		print("[MovementController] ✗ ApplyImpulse failed - invalid direction: " .. tostring(direction))
-		return false
+		return false, nil
 	end
 	duration = math.clamp(duration or 0.2, 0.05, 1.0)
 
@@ -436,7 +436,7 @@ function MovementController.ApplyImpulse(direction: Vector3, speed: number, dura
 		end
 	end)
 
-	return true
+	return true, lv
 end
 
 -- Camera effects
