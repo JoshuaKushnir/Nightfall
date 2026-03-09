@@ -237,5 +237,46 @@ return {
                 Utils.GetRootPart = originalGetRoot
             end,
         },
+        {
+            name = "Dodge direction and momentum scaling",
+            fn = function()
+                ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+                ActionController.Humanoid = { Health = 100 }
+
+                -- fake root facing east with little momentum
+                local fakeRoot = Instance.new("Part")
+                fakeRoot.Anchored = false
+                fakeRoot.CanCollide = false
+                fakeRoot.CFrame = CFrame.new() * CFrame.Angles(0, math.rad(90), 0)
+                fakeRoot.AssemblyLinearVelocity = Vector3.new(10, 0, 0)
+                local origGetRoot = Utils.GetRootPart
+                Utils.GetRootPart = function() return fakeRoot end
+
+                -- ensure input queries return false so we fall back to HRP facing
+                local UIS = game:GetService("UserInputService")
+                local origIsDown = UIS.IsKeyDown
+                UIS.IsKeyDown = function() return false end
+
+                ActionController.PlayAction(ActionTypes.DODGE)
+                local dir = ActionController._Test_GetDodgeDir()
+                assert(dir.X > 0 and math.abs(dir.Z) < 0.1,
+                    "_dodgeDir should follow HRP facing when no input")
+
+                local speed1 = ActionController._Test_LastDodgeSpeed
+                assert(type(speed1) == "number" and speed1 > 0,
+                    "computed dodge speed should be exposed and positive")
+
+                -- increase momentum and ensure speed increases
+                fakeRoot.AssemblyLinearVelocity = Vector3.new(20, 0, 0)
+                ActionController.PlayAction(ActionTypes.DODGE)
+                local speed2 = ActionController._Test_LastDodgeSpeed
+                assert(speed2 > speed1, "dodge speed should scale up with momentum")
+
+                -- restore originals
+                UIS.IsKeyDown = origIsDown
+                Utils.GetRootPart = origGetRoot
+                fakeRoot:Destroy()
+            end,
+        },
     },
 }

@@ -241,6 +241,11 @@ function ActionController.PlayAction(config: ActionConfig)
 	-- _dodgeDir is module-level so _PlayActionLocal's OnFrame captures the correct direction
 	_dodgeDir = Vector3.new(0, 0, -1)
 
+	-- expose internal state for unit tests
+	function ActionController._Test_GetDodgeDir(): Vector3
+		return _dodgeDir
+	end
+
 	-- Validate character
 	if not Character or not Humanoid or Humanoid.Health <= 0 then
 		print(`[ActionController] ✗ Cannot play action - Character: {if Character then "yes" else "NO"}, Humanoid: {if Humanoid then "yes" else "NO"}, Health: {if Humanoid then Humanoid.Health else "N/A"}`)
@@ -255,13 +260,25 @@ function ActionController.PlayAction(config: ActionConfig)
 
 	-- For dodge actions, determine roll direction based on current input (real-time)
 	if config.Type == "Dodge" then
-		-- Get current move input direction (not cached) - always check, don't depend on MovementController
+		-- start with HRP facing as default direction
+		local rootPart = Utils.GetRootPart(Player)
+		local moveDir: Vector3 = Vector3.new(0, 0, 0)
+		if rootPart and rootPart:IsA("BasePart") then
+			local hrpFwd = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
+			if hrpFwd.Magnitude > 0.1 then
+				moveDir = hrpFwd.Unit
+			end
+		end
+
+		-- then check for any WASD input relative to camera
 		local camera = workspace.CurrentCamera
 		if camera then
 			local look = camera.CFrame.LookVector
-			local forward = Vector3.new(look.X, 0, look.Z).Unit
+			local forward = Vector3.new(look.X, 0, look.Z)
 			if forward.Magnitude < 0.1 then
 				forward = Vector3.new(0, 0, -1)
+			else
+				forward = forward.Unit
 			end
 			local right = Vector3.new(-forward.Z, 0, forward.X)
 			local x, z = 0, 0
@@ -269,21 +286,23 @@ function ActionController.PlayAction(config: ActionConfig)
 			if UserInputService:IsKeyDown(Enum.KeyCode.S) then z -= 1 end
 			if UserInputService:IsKeyDown(Enum.KeyCode.D) then x += 1 end
 			if UserInputService:IsKeyDown(Enum.KeyCode.A) then x -= 1 end
-			local moveDir = forward * z + right * x
-			
-			if moveDir.Magnitude > 0 then
-				moveDir = moveDir.Unit
-				_dodgeDir = moveDir  -- persist to module-level for _PlayActionLocal
+			local inputDir = forward * z + right * x
+			if inputDir.Magnitude > 0 then
+				moveDir = inputDir.Unit
 			end
-
-			local rollFolder, rollAsset = GetRollForDirection(moveDir)
-			print(`[ActionController] Dodge direction: {rollFolder}/{rollAsset} (moveDir magnitude: {moveDir.Magnitude})`)
-
-			-- Clone config and update both folder and asset names
-			config = table.clone(config)
-			config.AnimationName = rollFolder
-			config.AnimationAssetName = rollAsset
 		end
+
+		if moveDir.Magnitude > 0 then
+			_dodgeDir = moveDir
+		end
+
+		local rollFolder, rollAsset = GetRollForDirection(moveDir)
+		print(`[ActionController] Dodge direction: {rollFolder}/{rollAsset} (moveDir magnitude: {moveDir.Magnitude})`)
+
+		-- Clone config and update both folder and asset names
+		config = table.clone(config)
+		config.AnimationName = rollFolder
+		config.AnimationAssetName = rollAsset
 	end
 		-- For light attacks, handle combo system and check for lunge
 	if config.Id == "atk_light" then
@@ -707,7 +726,19 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				end
 			end
 
-			local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
+			-- compute dodge speed based on momentum at start; target distance between 5 and 9 studs
+			local baseDist = 5
+			local momentum = 0
+			if rootPart and rootPart:IsA("BasePart") then
+				momentum = Vector3.new(rootPart.AssemblyLinearVelocity.X, 0, rootPart.AssemblyLinearVelocity.Z).Magnitude
+			end
+			local targetDist = math.clamp(momentum * 0.3 + baseDist, baseDist, baseDist + 4) -- 5..9
+			local DODGE_SPEED = targetDist / (0.625 * config.Duration)
+			-- expose for unit tests
+			ActionController._Test_LastDodgeSpeed = DODGE_SPEED
+			ActionController._Test_LastDodgeMomentum = momentum
+			ActionController._Test_LastDodgeDistance = targetDist
+
 			local params = RaycastParams.new()
 			params.FilterType = Enum.RaycastFilterType.Exclude
 			params.FilterDescendantsInstances = {Character}
