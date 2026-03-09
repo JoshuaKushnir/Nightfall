@@ -3,6 +3,32 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
+## Session NF-064: WeaponService.HandleAttackRequest, Combo Input, Weapon Scaling
+**Date:** 2026-03-11
+**Issues:** #171 (weapon-attack pipeline — completing remaining acceptance criteria)
+
+### What Was Built
+- **`src/server/services/WeaponService.lua`** — Added `HandleAttackRequest(player, packet)`: full server-side attack pipeline (100ms rate gate, weapon-id match via `GetEquipped()`, 3s timestamp sanity, state guard, Box hitbox from weapon's `Range`/`BaseDamage`, `CombatService.ValidateHit` in `OnHit`, `AttackResult` reply via `NetworkProvider`). Added lazy requires for `CombatService` and `HitboxService` to avoid circular deps. Added `MIN_SWING_INTERVAL = 0.10` constant.
+- **`src/server/runtime/init.lua`** — Replaced buggy inline `WeaponAttackRequest` handler (called non-existent `GetEquippedWeaponId` method) with a clean packet-shape validator that delegates to `WeaponService.HandleAttackRequest`. Removed `CombatService` guard from the `if` condition (no longer needed at runtime level).
+- **`src/client/controllers/WeaponController.lua`** — Added combo state vars (`_comboIndex`, `_lastAttackTime`, `_comboResetTime = 0.8`). Added `SetWeapon(weaponId?)` (sets held weapon, resets combo). Added `BindInputs()` (M1 → Light, M2 → Heavy via `_tryAttack`). `_tryAttack` advances combo index through `LightSequence` length and calls `PlaySwing()`. `BindInputs()` now called from `Start()`.
+- **`src/server/services/AspectService.lua`** — Lazily requires `WeaponService`; adds top-level `WeaponRegistry` require. In `ExecuteAbility`, computes `scaledDamage = BaseDamage + weapon.BaseDamage * WeaponScale` when `ability.ScaleWithWeapon` is true. Replaced all 4 hardcoded `ability.BaseDamage` references in AoE/single hitbox creation and `ValidateHit` calls with `scaledDamage`.
+
+### Integration Points
+- `WeaponService.HandleAttackRequest` is the canonical entry point for all melee swings; the runtime just validates packet shape and delegates.
+- `WeaponController.BindInputs` activates on `Start()` — M1/M2 are live from game launch.
+- `AspectService.ExecuteAbility` now supports weapon-amplified ability damage when abilities set `ScaleWithWeapon = true` and `WeaponScale = 0.5`.
+
+### Spec Gaps Encountered
+- None new — all placeholders from NF-063 carried forward unchanged.
+
+### Tech Debt Created
+- `BindInputs()` does not unbind on character death/respawn — connections accumulate if called multiple times (currently safe since it's called once). Tracked as future cleanup.
+- Hitbox `Shape = "Box"` used for melee — a cone or capsule would be more accurate; deferred to art/feel pass.
+
+### Next Session Should Start On
+Issue #82 (Phase 4 progression system) or a new issue for real ability implementations at Depth 1 per Aspect — whichever the user prioritizes.
+
+
 ## Session NF-063: Weapon-Attack Pipeline & Registry Class Index
 **Date:** 2026-03-10
 **Issues:** #171 (weapon-attack pipeline, movement modifiers, WeaponRegistry class index)
