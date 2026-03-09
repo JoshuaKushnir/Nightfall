@@ -3,7 +3,36 @@
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
-## Session NF-062: Fix Dodge Physics Fling (Engine Conflict)
+## Session NF-063: Weapon-Attack Pipeline & Registry Class Index
+**Date:** 2026-03-10
+**Issues:** #171 (weapon-attack pipeline, movement modifiers, WeaponRegistry class index)
+
+### What Was Built
+- **`src/shared/types/WeaponTypes.lua`** — Added optional fields to `WeaponConfig`: `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HeavyWindup`, `HitWindowStart`, `HitWindowEnd`, `Class`, `OnEquipClient`, `OnUnequipClient`.
+- **`src/shared/modules/WeaponRegistry.lua`** — Replaced flat `GetChildren()` scan with a recursive `_DiscoverFolder()` that walks sub-folders. Added `_byClass` index and `GetClass(class)` public API. Fixed `_Reload()` to clear `_byClass`.
+- **`src/shared/types/NetworkTypes.lua`** — Added `WeaponAttackRequest` and `AttackResult` to the `NetworkEvent` union; added `WeaponAttackRequestPacket` and `AttackResultPacket` type exports; registered EVENT_METADATA entries for both.
+- **`src/server/services/CombatService.lua`** — Added movement-state modifiers in `ValidateHit()`: Sliding target → 50% posture damage; WallRunning → TODO stub.
+- **`src/server/runtime/init.lua`** — Registered `WeaponAttackRequest` server handler: validates packet, checks equipped weapon match, timestamp sanity, state guard, then calls `CombatService.ValidateHit()` and fires `AttackResult` back to client.
+- **`src/client/controllers/WeaponController.lua`** — Added `PlaySwing(attackType, sequenceIndex)` public function; fires `WeaponAttackRequest` RemoteEvent with weapon id, attack type, sequence index, client time, and camera aim data.
+- **`src/shared/weapons/Sword/IronSabre.lua`** *(new)* — Reference weapon under the `Sword` class. Demonstrates all new fields: `Class`, `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HitWindowStart/End`, `OnEquipClient/OnUnequipClient` stubs.
+
+### Integration Points
+- `WeaponRegistry.GetClass("Sword")` now returns all configs registered under the Sword sub-folder.
+- `WeaponAttackRequest` replaces the ad-hoc `StateRequest {Type="HitRequest"}` path for weapon swings; the old path remains for backwards compatibility until ActionController is migrated.
+- Sliding state modifier wires into the existing `StateService`/blackboard pipeline with no new dependencies.
+
+### Spec Gaps Encountered
+- `BaseDamage` used in the server handler as the raw damage value (per existing schema) — `Damage` field does not exist.
+- WallRunning hitstun increase deferred: no wall-run state is currently emitted by MovementService. Created comment stub in CombatService.
+
+### Tech Debt Created
+- ActionController still uses old `StateRequest {Type="HitRequest"}` for hitbox-driven hits. Migration to `WeaponAttackRequest` is a follow-up task.
+- `WeaponAttackRequest` handler resolves hits without spatial hitbox validation; actual hitbox intersection from weapon config is a follow-up (requires server-side hitbox creation).
+
+### Next Session Should Start On
+Issue #171 follow-up or Issue #82: Phase 4 world progression — whichever is highest priority.
+
+
 **Date:** 2026-03-09
 **Issues:** #199 (dodge flinging into walls)
 
