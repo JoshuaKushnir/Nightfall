@@ -5,6 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ActionController = require(ReplicatedStorage.Client.controllers.ActionController)
 local ActionTypes = require(ReplicatedStorage.Shared.types.ActionTypes)
+local Blackboard = require(ReplicatedStorage.Shared.modules.MovementBlackboard)
+local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 
 return {
     name = "ActionController Unit Tests",
@@ -155,7 +157,7 @@ return {
                 local computed = math.max(hitTime, cancelTime)
                 assert(computed >= cancelTime, "computed hitTime should respect cancel frame")
             end,
-        }
+        },
         {
             name = "Feint window logic triggers onHeavyPressed",
             fn = function()
@@ -181,4 +183,59 @@ return {
                 assert(feintCd and feintCd > tick(), "feint should have its own cooldown applied")
                 assert(feintCd - tick() >= 0.9, "feint cooldown should be approximately 1s")
             end,
-        }
+        },
+        {
+            name = "Dodge cancels when wall immediately ahead",
+            fn = function()
+                ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+                ActionController.Humanoid = { Health = 100 }
+                Blackboard.IsDodging = false
+                -- monkey-patch workspace.Raycast to always return hit
+                local workspace = game:GetService("Workspace")
+                local orig = workspace.Raycast
+                workspace.Raycast = function() return { Instance = { CanCollide = true } } end
+                ActionController.PlayAction(ActionTypes.DODGE)
+                task.wait(0)
+                assert(Blackboard.IsDodging == false, "dodge should be cancelled if obstacle is right in front")
+                workspace.Raycast = orig
+            end,
+        },
+        {
+            name = "Dodge OnFrame zeros velocity when touching non-character part",
+            fn = function()
+                -- set up fake root part and override Utils.GetRootPart
+                local fakeRoot = Instance.new("Part")
+                fakeRoot.Anchored = false
+                fakeRoot.CanCollide = false
+                fakeRoot.Position = Vector3.new(0,0,0)
+                fakeRoot.AssemblyLinearVelocity = Vector3.new(20,0,0)
+                local originalGetRoot = Utils.GetRootPart
+                Utils.GetRootPart = function() return fakeRoot end
+
+                ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+                ActionController.Humanoid = { Health = 100 }
+
+                ActionController.PlayAction(ActionTypes.DODGE)
+                local act = ActionController.CurrentAction
+                assert(act, "dodge action should start")
+                -- simulate touching a foreign part
+                local other = Instance.new("Part")
+                other.Parent = workspace
+                fakeRoot.Touched:Connect(function() end) -- ensure GetTouchingParts works
+                -- manually add non-descendant via GetTouchingParts hack:
+                -- simplest: stub GetTouchingParts on fakeRoot
+                fakeRoot.GetTouchingParts = function() return {other} end
+
+                -- call OnFrame once, velocity should zero
+                if act.OnFrame then act.OnFrame(act, 0.1) end
+                assert(fakeRoot.AssemblyLinearVelocity.X == 0 and fakeRoot.AssemblyLinearVelocity.Z == 0,
+                    "horizontal velocity should be cleared when touching external part")
+
+                -- cleanup
+                fakeRoot:Destroy()
+                other:Destroy()
+                Utils.GetRootPart = originalGetRoot
+            end,
+        },
+    },
+}

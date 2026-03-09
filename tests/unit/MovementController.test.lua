@@ -73,6 +73,28 @@ return {
 			end,
 		},
 		{
+			name = "Slide start allowed when wall is immediately ahead",
+			fn = function()
+				local SlideState = require(ReplicatedStorage.Shared.movement.states.SlideState)
+				-- fake context with rootPart and last move direction
+				local fakeRoot = Instance.new("Part")
+				fakeRoot.Anchored = false
+				fakeRoot.CanCollide = false
+				fakeRoot.Position = Vector3.new(0,0,0)
+				task.defer(function() fakeRoot:Destroy() end)
+				-- monkey-patch Workspace.Raycast to pretend a wall is right next to us
+				local workspace = game:GetService("Workspace")
+				local orig = workspace.Raycast
+				workspace.Raycast = function() return {Instance = {CanCollide = true}} end
+				local ctx = { Humanoid = {Health = 100}, RootPart = fakeRoot, OnGround = true, IsSprinting = true, LastMoveDir = Vector3.new(1,0,0), Blackboard = {}, Character = fakeRoot, ChainAction = function() end, GetMomentumMultiplier = function() return 1 end, NetworkController = {SendToServer = function() end} }
+				-- Should start rather than reject
+				SlideState.TryStart(ctx)
+				assert(SlideState.IsSliding() == true, "slide should start even if a wall is close")
+				workspace.Raycast = orig
+				-- cleanup final state
+			end,
+		},
+		{
 			name = "Stopping slide zeros horizontal velocity",
 			fn = function()
 				local SlideState = require(ReplicatedStorage.Shared.movement.states.SlideState)

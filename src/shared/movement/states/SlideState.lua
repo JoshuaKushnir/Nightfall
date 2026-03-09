@@ -93,19 +93,23 @@ function SlideState.TryStart(ctx: any)
 		print("[SlideState] Rejected: no move direction")
 		return
 	end
-	-- early obstacle check: if we're already backed up against a wall/part,
-	-- refuse to slide rather than phasing through on start
-	if rootPart and ctx.LastMoveDir.Magnitude > 0 then
-		local params = RaycastParams.new()
-		params.FilterType = Enum.RaycastFilterType.Blacklist
-		params.FilterDescendantsInstances = {ctx.Character}
-		local ahead = ctx.LastMoveDir.Unit * 1
-		local hit = Workspace:Raycast(rootPart.Position, ahead, params)
-		if hit and hit.Instance and hit.Instance.CanCollide then
-			print("[SlideState] Rejected: obstacle too close")
-			return
+
+	-- if starting overlapped with something, step back a bit instead of cancelling
+	if rootPart and rootPart:IsA("BasePart") then
+		local function isOverlapping(): boolean
+			for _, p in ipairs(rootPart:GetTouchingParts()) do
+				if not p:IsDescendantOf(ctx.Character) then
+					return true
+				end
+			end
+			return false
+		end
+		if isOverlapping() then
+			rootPart.CFrame = rootPart.CFrame - ctx.LastMoveDir.Unit * 1.5
 		end
 	end
+
+	if _isSliding then
 		print("[SlideState] Already sliding")
 		return
 	end
@@ -114,10 +118,7 @@ function SlideState.TryStart(ctx: any)
 	_isSliding = true
 	_lastSlideTime = tick()
 	ctx.Blackboard.IsSliding = true
-	
-	-- Play slide animation (MovementController handles the main loop, but we trigger a burst here?)
-	-- Actually, let MovementController handle all state animations to avoid conflicts.
-	
+
 	-- Count as a momentum chain link
 	ctx.ChainAction()
 
@@ -127,6 +128,8 @@ function SlideState.TryStart(ctx: any)
 	local momentumScale  = ctx.GetMomentumMultiplier()
 	local effectiveSpeed = SLIDE_SPEED * momentumScale
 	local slideDir       = ctx.LastMoveDir.Unit
+	-- track last non-overlapping frame so we can snap back if we hit a wall
+	local lastSafeCFrame = rootPart.CFrame
 
 	-- Create BodyVelocity for horizontal momentum
 	local bv = Instance.new("BodyVelocity")
@@ -152,22 +155,46 @@ function SlideState.TryStart(ctx: any)
 			local eased    = 1 - math.pow(1 - progress, 3)
 			local speed    = effectiveSpeed * (1 - eased)
 
-		-- collision detection: raycast a short distance ahead each frame
-		if rootPart then
-			local params = RaycastParams.new()
-			params.FilterType = Enum.RaycastFilterType.Blacklist
-			params.FilterDescendantsInstances = {ctx.Character}
-			-- cast 2 studs ahead at current height
-			local hit = Workspace:Raycast(rootPart.Position, slideDir * 2, params)
-			if hit and hit.Instance and hit.Instance.CanCollide then
-				-- stop when we hit anything, including humanoids
-				_stopSlide(ctx)
-				break
+			-- update safe CFrame when not overlapping any obstacle
+			if rootPart then
+				local overlap = false
+				for _, p in ipairs(rootPart:GetTouchingParts()) do
+					if not p:IsDescendantOf(ctx.Character) then
+						overlap = true
+						break
+					end
+				end
+				if not overlap then
+					lastSafeCFrame = rootPart.CFrame
+				end
 			end
+
+			-- collision detection: raycast a short distance ahead each frame
+			if rootPart then
+				local params = RaycastParams.new()
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				params.FilterDescendantsInstances = {ctx.Character}
+				-- cast 2 studs ahead at current height
+				local hit = Workspace:Raycast(rootPart.Position, slideDir * 2, params)
+				if hit and hit.Instance and hit.Instance.CanCollide then
+					-- reposition to last safe spot before stopping
+					if lastSafeCFrame then
+						rootPart.CFrame = lastSafeCFrame
+					end
+					_stopSlide(ctx)
+					break
+				end
+			end
+
+			if _bodyVelocity and speed > 0.5 then
+				_bodyVelocity.Velocity = slideDir * speed
+			end
+
+			if progress >= 1.0 then break end
+			RunService.Heartbeat:Wait()
 		end
 
-
-		-- Decay finished
+		-- Decay finished / cleanup
 		if _bodyVelocity then
 			_bodyVelocity.MaxForce = Vector3.zero
 			_bodyVelocity:Destroy()

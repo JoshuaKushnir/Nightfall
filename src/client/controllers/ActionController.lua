@@ -33,6 +33,11 @@ type Action = ActionTypes.Action
 
 local ActionController = {}
 
+-- Module-level dodge direction: shared between PlayAction (input resolution)
+-- and _PlayActionLocal (OnFrame callback). Using module scope so that
+-- sibling functions can correctly share state without relying on closures.
+local _dodgeDir: Vector3 = Vector3.new(0, 0, -1)
+
 -- References
 local Player = Players.LocalPlayer
 local Character: Model?
@@ -233,8 +238,8 @@ end
 ]]
 function ActionController.PlayAction(config: ActionConfig)
 	print(`[ActionController] PlayAction called: {config.Name} (Id: {config.Id}) (Type: {config.Type})`)
-	-- shared dodge direction variable (updated later for impulse)
-	local dodgeDir: Vector3 = Vector3.new(0, 0, -1)
+	-- _dodgeDir is module-level so _PlayActionLocal's OnFrame captures the correct direction
+	_dodgeDir = Vector3.new(0, 0, -1)
 
 	-- Validate character
 	if not Character or not Humanoid or Humanoid.Health <= 0 then
@@ -268,12 +273,9 @@ function ActionController.PlayAction(config: ActionConfig)
 			
 			if moveDir.Magnitude > 0 then
 				moveDir = moveDir.Unit
-				-- also initialize dodgeDir for collision checks/impulse
-				dodgeDir = moveDir
-			else
-				moveDir = Vector3.new(0, 0, 0)
+				_dodgeDir = moveDir  -- persist to module-level for _PlayActionLocal
 			end
-			
+
 			local rollFolder, rollAsset = GetRollForDirection(moveDir)
 			print(`[ActionController] Dodge direction: {rollFolder}/{rollAsset} (moveDir magnitude: {moveDir.Magnitude})`)
 
@@ -597,65 +599,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		CombatBlackboard.LastActionType = "Dodge"
 	end
 
--- Special handling for dodge: stop on collisions without phasing
-	if config.Type == "Dodge" then
-		local rootPart = Utils.GetRootPart(Player)
-		if rootPart and Character then
-			dodgeDir = rootPart.CFrame.LookVector
-			local params = RaycastParams.new()
-			params.FilterType = Enum.RaycastFilterType.Blacklist
-			params.FilterDescendantsInstances = {Character}
-			-- cancel if wall right in front
-			local hit0 = Workspace:Raycast(rootPart.Position, dodgeDir * 2, params)
-			if hit0 and hit0.Instance and hit0.Instance.CanCollide then
-				print("[ActionController] Dodge blocked by nearby wall")
-				Blackboard.IsDodging = false
-				return
-			end
-
-			local function isOverlapping(): boolean
-				for _, p in ipairs(rootPart:GetTouchingParts()) do
-					if not p:IsDescendantOf(Character) then
-						return true
-					end
-				end
-				return false
-			end
-			if isOverlapping() then
-				rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
-			end
-
-			local lastSafeCFrame = rootPart.CFrame
-			action.OnFrame = function(self: Action, deltaTime: number)
-				if not rootPart or not rootPart.Parent then return end
-				local overlappingNow = false
-				for _, p in ipairs(rootPart:GetTouchingParts()) do
-					if not p:IsDescendantOf(Character) then
-						overlappingNow = true
-						-- Stop pushing into the wall immediately
-						local lv = rootPart:FindFirstChild("_impulse_dodge")
-						if lv then lv:Destroy() end
-						rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
-						if lastSafeCFrame then rootPart.CFrame = lastSafeCFrame end
-						break
-					end
-				end
-				if not overlappingNow then
-					lastSafeCFrame = rootPart.CFrame
-				end
-				local hit = Workspace:Raycast(rootPart.Position, dodgeDir * 1.5, params)
-				if hit and hit.Instance and hit.Instance.CanCollide then
-					-- Stop pushing
-					local lv = rootPart:FindFirstChild("_impulse_dodge")
-					if lv then lv:Destroy() end
-					
-					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
-					if lastSafeCFrame then rootPart.CFrame = lastSafeCFrame end
-					if action and action.EndTime then action.EndTime = tick() end
-				end
-			end
-		end
-	end
+	-- (Dodge movement handled entirely in the Dodge block below — see OnFrame setup there)
 
 	-- Track dodge in Blackboard (readable by MovementController dispatcher and VFX)
 	if config.Type == "Dodge" then
@@ -732,77 +676,105 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 		end
 	end
 
-	-- ── Dodge: directional impulse + iframes ──────────────────────────────
+	-- ── Dodge: per-frame velocity with look-ahead collision stop ─────────────
+	-- IMPORTANT: We do NOT use BodyVelocity/ApplyImpulse here.
+	-- BodyVelocity with MaxForce = math.huge creates an inviolable physics constraint
+	-- that fights wall-collision constraints, causing the physics solver to fling.
+	-- Instead: set AssemblyLinearVelocity once per RenderStepped frame. This lets
+	-- the physics engine resolve collisions freely between our updates - no conflict.
 	if config.Type == "Dodge" then
 		local rootPart = Utils.GetRootPart(Player)
-		-- use outer dodgeDir variable (initialized earlier) and update based on input
-		dodgeDir = (rootPart and rootPart.CFrame.LookVector) or Vector3.new(0, 0, -1)
-		-- secondary overlap check using final dodgeDir
-		if rootPart and rootPart:IsA("BasePart") then
-			local function isOverlapping(): boolean
-				for _, p in ipairs(rootPart:GetTouchingParts()) do
-					if not p:IsDescendantOf(Character) then
-						return true
+		if rootPart then
+			-- Resolve final dodge direction from camera + WASD input
+			-- This is the authoritative direction; _dodgeDir was pre-set in PlayAction
+			-- but we refine it here with the final camera state.
+			local cam = workspace.CurrentCamera
+			if cam then
+				local look = cam.CFrame.LookVector
+				local fwd = Vector3.new(look.X, 0, look.Z)
+				if fwd.Magnitude > 0.1 then
+					fwd = fwd.Unit
+					local right = Vector3.new(-fwd.Z, 0, fwd.X)
+					local x, z = 0, 0
+					if UserInputService:IsKeyDown(Enum.KeyCode.W) then z += 1 end
+					if UserInputService:IsKeyDown(Enum.KeyCode.S) then z -= 1 end
+					if UserInputService:IsKeyDown(Enum.KeyCode.D) then x += 1 end
+					if UserInputService:IsKeyDown(Enum.KeyCode.A) then x -= 1 end
+					local moveInput = fwd * z + right * x
+					if moveInput.Magnitude > 0 then
+						_dodgeDir = moveInput.Unit
 					end
 				end
-				return false
 			end
-			if isOverlapping() then
-				rootPart.CFrame = rootPart.CFrame - (dodgeDir * 1.5)
-			end
-		end
 
-		-- Resolve direction from current input + camera
-		local cam = workspace.CurrentCamera
-		if cam and rootPart then
-			local look = cam.CFrame.LookVector
-			local fwd = Vector3.new(look.X, 0, look.Z)
-			if fwd.Magnitude > 0.1 then
-				fwd = fwd.Unit
-				local right = Vector3.new(-fwd.Z, 0, fwd.X)
-				local x, z = 0, 0
-				if UserInputService:IsKeyDown(Enum.KeyCode.W) then z += 1 end
-				if UserInputService:IsKeyDown(Enum.KeyCode.S) then z -= 1 end
-				if UserInputService:IsKeyDown(Enum.KeyCode.D) then x += 1 end
-				if UserInputService:IsKeyDown(Enum.KeyCode.A) then x -= 1 end
-				local moveDir = fwd * z + right * x
-				if moveDir.Magnitude > 0 then dodgeDir = moveDir.Unit end
-			end
-		end
+			local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
+			local params = RaycastParams.new()
+			params.FilterType = Enum.RaycastFilterType.Exclude
+			params.FilterDescendantsInstances = {Character}
 
-		-- Apply impulse
-		local DODGE_SPEED = (MovementConfig.Dodge and MovementConfig.Dodge.Speed) or 65
-		local DODGE_DUR   = math.min(config.Duration, (MovementConfig.Dodge and MovementConfig.Dodge.Duration) or config.Duration)
-		local didApply = MovementController and MovementController.ApplyImpulse
-			and MovementController.ApplyImpulse(dodgeDir, DODGE_SPEED, DODGE_DUR, "dodge")
+			-- Capture direction at dodge-start; the closure always reads the current value.
+			-- (We must snapshot so that _dodgeDir changes from a subsequent action don't bleed in.)
+			local frozenDir: Vector3 = _dodgeDir
+			local dodgeElapsed = 0
+			local dodgeStopped = false
 
-		if not didApply and rootPart then
-			print("[ActionController] Dodge: ApplyImpulse failed")
-		end
+			action.OnFrame = function(_self: Action, dt: number)
+				if dodgeStopped or not rootPart or not rootPart.Parent then return end
+				dodgeElapsed += dt
+				local progress = math.min(dodgeElapsed / config.Duration, 1.0)
+				-- Smooth deceleration: pow(1-p, 0.6) keeps early burst, fades quickly near end
+				local speed = DODGE_SPEED * math.pow(1 - progress, 0.6)
 
-		-- FOV punch
-		if MovementConfig.Camera and MovementConfig.Camera.FOVPunchEnabled then
-			task.spawn(function()
-				local cam2 = workspace.CurrentCamera
-				if not cam2 then return end
-				local startFOV = cam2.FieldOfView
-				cam2.FieldOfView = startFOV + 12
-				local t0 = tick()
-				while tick() - t0 < config.Duration and cam2 do
-					cam2.FieldOfView = startFOV + 12 * (1 - (tick() - t0) / config.Duration)
-					task.wait(0.05)
+				if speed < 0.5 then
+					dodgeStopped = true
+					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+					return
 				end
-				if cam2 then cam2.FieldOfView = startFOV end
-			end)
-		end
 
-		-- Tell server: Dodging → Idle
-		local stateEvent = NetworkProvider:GetRemoteEvent("StateRequest")
-		if stateEvent then
-			stateEvent:FireServer({ Type = "SetState", State = "Dodging", Timestamp = tick() })
-			task.delay(config.Duration, function()
-				stateEvent:FireServer({ Type = "SetState", State = "Idle", Timestamp = tick() })
-			end)
+				-- Look-ahead: cast far enough to catch obstacles before we touch them
+				local lookaheadDist = math.max(speed / 20, 2.5)
+				local hit = Workspace:Raycast(rootPart.Position, frozenDir * lookaheadDist, params)
+				if hit and hit.Instance and hit.Instance.CanCollide then
+					-- Obstacle detected: kill horizontal velocity and end the dodge.
+					-- No BodyVelocity exists, so there is nothing left to fight the wall.
+					dodgeStopped = true
+					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+					action.EndTime = tick()
+					return
+				end
+
+				-- Apply horizontal velocity; Y is preserved so gravity still works.
+				rootPart.AssemblyLinearVelocity = Vector3.new(
+					frozenDir.X * speed,
+					rootPart.AssemblyLinearVelocity.Y,
+					frozenDir.Z * speed
+				)
+			end
+
+			-- FOV punch
+			if MovementConfig.Camera and MovementConfig.Camera.FOVPunchEnabled then
+				task.spawn(function()
+					local cam2 = workspace.CurrentCamera
+					if not cam2 then return end
+					local startFOV = cam2.FieldOfView
+					cam2.FieldOfView = startFOV + 12
+					local t0 = tick()
+					while tick() - t0 < config.Duration and cam2 do
+						cam2.FieldOfView = startFOV + 12 * (1 - (tick() - t0) / config.Duration)
+						task.wait(0.05)
+					end
+					if cam2 then cam2.FieldOfView = startFOV end
+				end)
+			end
+
+			-- Tell server: Dodging → Idle
+			local stateEvent = NetworkProvider:GetRemoteEvent("StateRequest")
+			if stateEvent then
+				stateEvent:FireServer({ Type = "SetState", State = "Dodging", Timestamp = tick() })
+				task.delay(config.Duration, function()
+					stateEvent:FireServer({ Type = "SetState", State = "Idle", Timestamp = tick() })
+				end)
+			end
 		end
 	end
 
