@@ -183,6 +183,24 @@ local LUNGE_ATTACK: ActionConfig = {
 	RequiredState = "Idle",
 }
 
+-- Feint action used to cancel a current swing. Separate config so we can
+-- assign its own cooldown and animation without altering attack handling.
+local FEINT: ActionConfig = {
+	Id = "feint",
+	Name = "Feint",
+	Type = "Attack",                -- treated as an Attack for animation purposes
+	AnimationId = "",
+	AnimationName = "FeintRecovery", -- animation stub in AnimationDatabase
+	AnimationAssetName = "",
+	AnimationSpeed = 1.0,
+	Duration = 0.25,                  -- brief cancel commitment window
+	CancelFrame = 1.0,                -- not cancellable once started
+	CameraShake = 0.0,
+	SoundId = "",
+	Cooldown = 1.0,                   -- base cooldown; may be overridden by weapon
+	RequiredState = "Idle",
+}
+
 return {
 	ATTACK_LIGHT = ATTACK_LIGHT,
 	ATTACK_HEAVY = ATTACK_HEAVY,
@@ -190,4 +208,5 @@ return {
 	BLOCK = BLOCK,
 	PARRY = PARRY,
 	LUNGE_ATTACK = LUNGE_ATTACK,
+	FEINT = FEINT,
 }

@@ -38,6 +38,13 @@ local ActionController = {}
 -- sibling functions can correctly share state without relying on closures.
 local _dodgeDir: Vector3 = Vector3.new(0, 0, -1)
 
+-- Heavy-button state used for feint mechanics and unit tests.
+-- _heavyHeld is true while right‑mouse (feint) is down; _heavyConsumed
+-- is flipped when a feint has already occurred during the hold so that
+-- releasing the button doesn't accidentally trigger a heavy attack.
+local _heavyHeld: boolean = false
+local _heavyConsumed: boolean = false
+
 -- References
 local Player = Players.LocalPlayer
 local Character: Model?
@@ -154,6 +161,13 @@ function ActionController:Start()
 		if input.UserInputType == Enum.UserInputType.MouseButton1 then
 			print("[ActionController INPUT] LIGHT ATTACK triggered")
 			ActionController.PlayAction(ActionTypes.ATTACK_LIGHT)
+		-- Right click to feint current action
+		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
+			print("[ActionController INPUT] FEINT triggered")
+			ActionController._PerformFeint()
+			-- also track hold state so next swing can auto-feint if desired
+			_heavyHeld = true
+			_heavyConsumed = false
 		-- Middle click or R key to heavy attack
 		elseif input.UserInputType == Enum.UserInputType.MouseButton3 or input.KeyCode == Enum.KeyCode.R then
 			print("[ActionController INPUT] HEAVY ATTACK triggered")
@@ -183,6 +197,10 @@ function ActionController:Start()
 				CurrentAction = nil
 			end
 		end
+	-- clear heavy hold state on right‑mouse release
+	if input.UserInputType == Enum.UserInputType.MouseButton2 then
+		_heavyHeld = false
+	end
 	end)
 
 	-- Update loop
@@ -241,9 +259,32 @@ function ActionController.PlayAction(config: ActionConfig)
 	-- _dodgeDir is module-level so _PlayActionLocal's OnFrame captures the correct direction
 	_dodgeDir = Vector3.new(0, 0, -1)
 
+	-- If the right mouse button is currently held (feint charge) and not yet
+	-- consumed, any new Attack should immediately convert into a feint rather
+	-- than a normal swing. This mirrors the "holding heavy before light" test.
+	if config.Type == "Attack" and _heavyHeld and not _heavyConsumed then
+		_heavyConsumed = true
+		ActionController._PerformFeint()
+		return
+	end
+
 	-- expose internal state for unit tests
 	function ActionController._Test_GetDodgeDir(): Vector3
 		return _dodgeDir
+	end
+
+	-- test helpers for heavy-button feint logic
+	function ActionController._Test_SetHeavyState(held: boolean, consumed: boolean)
+		_heavyHeld = held
+		_heavyConsumed = consumed
+	end
+
+	function ActionController._Test_OnHeavyPressed()
+		if _heavyConsumed then
+			return
+		end
+		ActionController._PerformFeint()
+		_heavyConsumed = true
 	end
 
 	-- Validate character
@@ -1268,6 +1309,64 @@ end
 ]]
 function ActionController.GetComboCount(): number
 	return ComboCount
+end
+
+--[[
+	_PerformFeint — cancel whatever action is running and immediately play the
+	FEINT action config. This method is used by input handlers as well as
+	the unit tests. It respects a cooldown and applies weapon-specific overrides.
+]]
+function ActionController._PerformFeint()
+    if not CurrentAction then
+        return
+    end
+
+    local feintId = ActionTypes.FEINT.Id
+    if ActionCooldowns[feintId] and tick() < ActionCooldowns[feintId] then
+        return
+    end
+
+    local prev = CurrentAction
+    if prev.Config and prev.Config.Id then
+        ActionCooldowns[prev.Config.Id] = nil
+    end
+
+    prev.IsActive = false
+    prev.IsCanceled = true
+    if prev.AnimationTrack and prev.AnimationTrack.IsPlaying then
+        prev.AnimationTrack:Stop(0.05)
+    end
+    if prev.Hitbox then
+        HitboxService.RemoveHitbox(prev.Hitbox)
+        prev.Hitbox = nil
+    end
+    if prev.Config and prev.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
+        MovementController.SetModifier("Attacking", 1.0)
+    end
+    if prev.Config and prev.Config.Type == "Dodge" then
+        Blackboard.IsDodging = false
+    end
+
+    CurrentAction = nil
+
+    -- perform the feint as a normal action (will also set combo state etc.)
+    ActionController.PlayAction(ActionTypes.FEINT)
+
+    -- compute cooldown manually (weapon override)
+    local cd = ActionTypes.FEINT.Cooldown or 1.0
+    local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+    if wid and WeaponRegistry.Has(wid) then
+        local wcfg: any? = WeaponRegistry.Get(wid)
+        if wcfg and wcfg.FeintCooldown then
+            cd = wcfg.FeintCooldown
+        end
+    end
+    ActionCooldowns[feintId] = tick() + cd
+end
+
+-- Public alias to expose feint functionality to other modules
+function ActionController.FeintCurrentAction()
+    ActionController._PerformFeint()
 end
 
 return ActionController

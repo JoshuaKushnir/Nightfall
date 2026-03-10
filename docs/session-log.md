@@ -32,6 +32,25 @@
 Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
 
 
+## Session NF-066: Feint Input & Cancellation API
+**Date:** 2026-03-10
+**Issues:** #169 (feinting damage) closed; follow‑on design for feint API
+
+### What Was Built
+- Added `FEINT` action config in `ActionTypes.lua` with its own cooldown/animation.
+- Introduced heavy-button state and unit-test helpers in `ActionController.lua`.
+- Implemented `_PerformFeint()` cancellation logic and public alias `FeintCurrentAction()`.
+- PlayAction now converts held heavy into an automatic feint.
+- Right‑mouse input triggers feint; input release clears heavy hold.
+
+### Spec/Tech Notes
+- Feint animation remains a stub; weapon configs support `FeintCooldown`.
+- Tests already exercise the new API.
+
+### Next Session Should Start On
+Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
+
+
 
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
