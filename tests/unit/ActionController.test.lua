@@ -298,5 +298,78 @@ return {
                 fakeRoot:Destroy()
             end,
         },
-    },
+		{
+			name = "Attack impulse scales with momentum and multiplier",
+			fn = function()
+				ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+				ActionController.Humanoid = { Health = 100 }
+				-- stub root and utils
+				local fakeRoot = Instance.new("Part")
+				fakeRoot.Anchored = false
+				fakeRoot.CanCollide = false
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(10, 0, 0)
+				local origGetRoot = Utils.GetRootPart
+				Utils.GetRootPart = function() return fakeRoot end
+				MovementController = MovementController or {}
+				local recorded
+				MovementController.ApplyImpulse = function(_dir, spd, _dur, _tag)
+					recorded = spd
+					return true
+				end
+				-- base attack
+				ActionController.PlayAction({Type="Attack",Id="test",AttackImpulse=20,Duration=0.1})
+				local sp1 = recorded
+				-- multiplier boost only
+				MovementController.GetMomentumMultiplier = function() return 3 end
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(0,0,0)
+				ActionController.PlayAction({Type="Attack",Id="test",AttackImpulse=20,Duration=0.1})
+				local sp2 = recorded
+				assert(sp2 > sp1, "attack impulse should be larger with multiplier")
+				-- velocity boost
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(20,0,0)
+				MovementController.GetMomentumMultiplier = function() return 1 end
+				ActionController.PlayAction({Type="Attack",Id="test",AttackImpulse=20,Duration=0.1})
+				local sp3 = recorded
+				assert(sp3 > sp1, "attack impulse should increase with velocity")
+				-- cleanup
+				Utils.GetRootPart = origGetRoot
+				fakeRoot:Destroy()
+			end,
+		},
+		{
+			name = "Lunge speed scales with momentum and multiplier",
+			fn = function()
+				ActionController.Character = { FindFirstChild = function(_, _) return nil end }
+				ActionController.Humanoid = { Health = 100 }
+				local fakeRoot = Instance.new("Part")
+				fakeRoot.Anchored = false
+				fakeRoot.CanCollide = false
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(10,0,0)
+				local origGetRoot = Utils.GetRootPart
+				Utils.GetRootPart = function() return fakeRoot end
+				MovementController = MovementController or {}
+				local recorded
+				MovementController.ApplyImpulse = function(_dir, spd, _dur, _tag)
+					recorded = spd
+					return true
+				end
+				-- base lunge
+				ActionController.PlayAction({Type="Attack",Id="atk_lunge",Duration=0.5})
+				local sp1 = recorded
+				-- multiplier boost
+				MovementController.GetMomentumMultiplier = function() return 3 end
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(0,0,0)
+				ActionController.PlayAction({Type="Attack",Id="atk_lunge",Duration=0.5})
+				local sp2 = recorded
+				assert(sp2 > sp1, "lunge speed should be larger with multiplier")
+				-- velocity boost
+				fakeRoot.AssemblyLinearVelocity = Vector3.new(20,0,0)
+				MovementController.GetMomentumMultiplier = function() return 1 end
+				ActionController.PlayAction({Type="Attack",Id="atk_lunge",Duration=0.5})
+				local sp3 = recorded
+				assert(sp3 > sp1, "lunge speed should increase with velocity")
+				Utils.GetRootPart = origGetRoot
+				fakeRoot:Destroy()
+			end,
+		},
 }
