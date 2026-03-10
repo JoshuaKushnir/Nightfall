@@ -168,7 +168,7 @@ function ActionController:Start()
 		-- Right click to feint current action
 		elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 			print("[ActionController INPUT] FEINT triggered")
-			ActionController._PerformFeint()
+			ActionController.FeintCurrentAction()
 			-- also track hold state so next swing can auto-feint if desired
 			_heavyHeld = true
 			_heavyConsumed = false
@@ -1332,6 +1332,16 @@ function ActionController.GetComboCount(): number
 end
 
 --[[
+	_PerformFeint — legacy helper kept for tests and early bindings.
+	Simply forwards to FeintCurrentAction so the original unit tests still
+	work and existing callsites do not crash. New code should call
+	FeintCurrentAction directly.
+]]
+function ActionController._PerformFeint()
+	return ActionController.FeintCurrentAction()
+end
+
+--[[
 	FeintCurrentAction — cancel the current action early (before hitbox).
 	This is an early-cancel implementation: once the hitbox spawns, feint
 	is disabled. The user can double-feint or chain easily until then.
@@ -1365,6 +1375,18 @@ function ActionController.FeintCurrentAction()
 	end
 
 	CurrentAction = nil
+
+	-- apply cooldown with optional weapon override (same logic as previous _PerformFeint)
+	local feintId = ActionTypes.FEINT.Id
+	local cd = ActionTypes.FEINT.Cooldown or 1.0
+	local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
+	if wid and WeaponRegistry.Has(wid) then
+		local wcfg: any? = WeaponRegistry.Get(wid)
+		if wcfg and wcfg.FeintCooldown then
+			cd = wcfg.FeintCooldown
+		end
+	end
+	ActionCooldowns[feintId] = tick() + cd
 end
 
 return ActionController
