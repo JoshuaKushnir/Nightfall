@@ -891,8 +891,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			if forward.Magnitude > 0.1 then forward = forward.Unit end
 
 			local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
+			-- expose for unit tests
+			ActionController._Test_LastLungeSpeed = LUNGE_SPEED
 			local hitTime = (config.HitStartFrame and config.Duration * config.HitStartFrame) or (config.Duration * 0.4)
 			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
+			ActionController._Test_LastLungeKeepTime = keepTime
 
 			local lungeParams = RaycastParams.new()
 			lungeParams.FilterType = Enum.RaycastFilterType.Exclude
