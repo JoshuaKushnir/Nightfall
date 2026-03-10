@@ -45,6 +45,10 @@ local _dodgeDir: Vector3 = Vector3.new(0, 0, -1)
 local _heavyHeld: boolean = false
 local _heavyConsumed: boolean = false
 
+-- Feint flag: true from start of attack until hitbox spawns, then false.
+-- This ensures feinting is purely an "early" cancel before commit.
+local CanFeint: boolean = false
+
 -- References
 local Player = Players.LocalPlayer
 local Character: Model?
@@ -649,6 +653,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 
 	CurrentAction = action
 
+	-- Enable feint window: can cancel until hitbox spawns
+	if config.Type == "Attack" then
+		CanFeint = true
+	end
+
 	-- Track spell-casting state on the shared blackboard
 	if config.Type == "Ability" then
 		CombatBlackboard.IsCasting = true
@@ -912,6 +921,9 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			local rootPart = Utils.GetRootPart(Player)
 			if not rootPart then return end
 
+			-- Once the hitbox is about to exist, lock out feints
+			CanFeint = false
+
 			local hitboxConfig = {
 				Shape   = "Sphere",
 				Owner   = Player,
@@ -920,9 +932,16 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				Size    = Vector3.new(6, 6, 6),
 				LifeTime = 1.0,
 				OnHit = function(target: any, _hitData: any)
-					-- Do NOT process hit if action was canceled (feint/interrupt)
-					if action.IsCanceled then
-						print(`[ActionController] ✗ Hit ignored - action was canceled: {config.Name}`)
+				-- Ignore if action was canceled any time before damage
+				if action.IsCanceled then
+					return
+				end
+
+				-- Optional: small delay before damage to extend the "commit" window
+				local DAMAGE_DELAY = 0.08  -- tweak: 0.06–0.12 usually feels OK
+				task.delay(DAMAGE_DELAY, function()
+					-- Re-check cancellation and existence
+					if action.IsCanceled or not action.IsActive then
 						return
 					end
 
@@ -973,8 +992,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 					if config.HitStopDuration and CurrentAction == action then
 						ActionController._ApplyHitStop(config.HitStopDuration)
 					end
-				end,
-			}
+				end)
 
 			action.Hitbox = HitboxService.CreateHitbox(hitboxConfig)
 		end)
@@ -1312,61 +1330,39 @@ function ActionController.GetComboCount(): number
 end
 
 --[[
-	_PerformFeint — cancel whatever action is running and immediately play the
-	FEINT action config. This method is used by input handlers as well as
-	the unit tests. It respects a cooldown and applies weapon-specific overrides.
+	FeintCurrentAction — cancel the current action early (before hitbox).
+	This is an early-cancel implementation: once the hitbox spawns, feint
+	is disabled. The user can double-feint or chain easily until then.
 ]]
-function ActionController._PerformFeint()
-    if not CurrentAction then
-        return
-    end
-
-    local feintId = ActionTypes.FEINT.Id
-    if ActionCooldowns[feintId] and tick() < ActionCooldowns[feintId] then
-        return
-    end
-
-    local prev = CurrentAction
-    if prev.Config and prev.Config.Id then
-        ActionCooldowns[prev.Config.Id] = nil
-    end
-
-    prev.IsActive = false
-    prev.IsCanceled = true
-    if prev.AnimationTrack and prev.AnimationTrack.IsPlaying then
-        prev.AnimationTrack:Stop(0.05)
-    end
-    if prev.Hitbox then
-        HitboxService.RemoveHitbox(prev.Hitbox)
-        prev.Hitbox = nil
-    end
-    if prev.Config and prev.Config.Type == "Attack" and MovementController and MovementController.SetModifier then
-        MovementController.SetModifier("Attacking", 1.0)
-    end
-    if prev.Config and prev.Config.Type == "Dodge" then
-        Blackboard.IsDodging = false
-    end
-
-    CurrentAction = nil
-
-    -- perform the feint as a normal action (will also set combo state etc.)
-    ActionController.PlayAction(ActionTypes.FEINT)
-
-    -- compute cooldown manually (weapon override)
-    local cd = ActionTypes.FEINT.Cooldown or 1.0
-    local wid: string? = WeaponController and WeaponController.GetEquipped() or nil
-    if wid and WeaponRegistry.Has(wid) then
-        local wcfg: any? = WeaponRegistry.Get(wid)
-        if wcfg and wcfg.FeintCooldown then
-            cd = wcfg.FeintCooldown
-        end
-    end
-    ActionCooldowns[feintId] = tick() + cd
-end
-
--- Public alias to expose feint functionality to other modules
 function ActionController.FeintCurrentAction()
-    ActionController._PerformFeint()
+	if not CurrentAction then return end
+	if not CanFeint then return end  -- hitbox has spawned or window is over
+
+	local action = CurrentAction
+	CanFeint = false
+
+	action.IsActive = false
+	action.IsCanceled = true
+
+	if action.AnimationTrack and action.AnimationTrack.IsPlaying then
+		action.AnimationTrack:Stop(0.05)
+	end
+
+	if action.Hitbox then
+		HitboxService.RemoveHitbox(action.Hitbox)
+		action.Hitbox = nil
+	end
+
+	if action.Config and action.Config.Type == "Attack"
+		and MovementController and MovementController.SetModifier then
+		MovementController.SetModifier("Attacking", 1.0)
+	end
+
+	if action.Config and action.Config.Type == "Dodge" then
+		Blackboard.IsDodging = false
+	end
+
+	CurrentAction = nil
 end
 
 return ActionController
