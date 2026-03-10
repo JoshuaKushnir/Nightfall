@@ -50,6 +50,42 @@ Issue #82 (Phase 4: Ring structure + world progression) or migration of remainin
 ### Next Session Should Start On
 Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
 
+---
+
+## Session NF-067: Refined Feint System — Early-Cancel + Damage Delay
+**Date:** 2026-03-09
+**Issues:** #169 (refinement follow‑up), continuation of feint mechanics
+
+### What Was Built
+- **`src/client/controllers/ActionController.lua`** — Comprehensive refactor of feint system:
+  - Added `CanFeint: boolean = false` module-scope flag. Set to `true` at attack start, set to `false` when hitbox spawns.
+  - In `_PlayActionLocal`, added: `if config.Type == "Attack" then CanFeint = true end` to enable feint window.
+  - In hitbox spawn `task.delay()`, added: `CanFeint = false` right before creating hitbox config. This locks out feints once hitbox is queued.
+  - Rewrote `FeintCurrentAction()` to gate on `CanFeint` flag only; eliminated complex cooldown logic. Feint is now purely an "early cancel" before hitbox.
+  - Wrapped damage logic in `OnHit` callback with `task.delay(0.08)` (DAMAGE_DELAY). Re-validates `action.IsCanceled` and `action.IsActive` before processing. Gives server time to receive cancel packets without losing hit registration.
+
+### Architecture Notes
+- **Feint Window**: From action start until `hitTime` (when hitbox is created). Easy double-feint or chain until then.
+- **Commit Window**: After hitbox spawn until damage is applied (0.08s). Client-side cancellation (stun, interrupt) can still null the hit via the re-check in task.delay.
+- **Tuning Parameters**:
+  - `DAMAGE_DELAY = 0.08` — Adjustable per swing preference (0.06–0.12 range typical).
+  - `config.HitStartFrame` — Controls when hitbox spawns (0.25–0.35 typical for melee feel).
+- Feelwise: hitbox appears early (visual contact), damage happens slightly later (server has time to validate), full cancel still possible during commit window.
+
+### Integration Points
+- Input binding (M2 feint) already exists; now gated by CanFeint.
+- State machine (StateService) unchanged; feints still mark `action.IsCanceled = true` and drain hitbox.
+- Combo chaining unaffected; early-cancel logic in `_UpdateAction()` still fires on CancelFrame.
+- Server validation flow: client sends HitRequest → server validates on StateRequest handler (existing path unchanged).
+
+### Spec Gaps Encountered
+- None. Design is feature-complete per user specification.
+
+### Tech Debt Created
+- None new. FeintRecovery animation stub exists from prior session.
+
+### Next Session Should Start On
+Issue #82 (Phase 4: Ring structure) or extended feint tests (multi-feint spam, feint-during-dodge, stun-interrupts). Recommend Studio manual test first: M2 during swing should cancel, M2 after hitbox should ignore, damage should feel responsive not delayed.
 
 
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
