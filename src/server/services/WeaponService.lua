@@ -46,11 +46,17 @@ local EquippedWeapons: {[number]: string} = {}
 
 local _lastAttackTime: {[number]: number} = {}
 local _strikes: {[number]: number} = {}
+-- track last violation timestamp so we can decay the strike count after a window
+local _lastViolationTime: {[number]: number} = {}
+local VIOLATION_DECAY_TIME = 1.5 -- seconds until strikes reset
 
-local SERVER_ATTACK_COOLDOWN    = 0.05
+-- minimum interval between *swing attempts*; hits from a multi‑target attack
+-- or AoE will no longer trigger violations because we count once per action
+local SERVER_ATTACK_COOLDOWN    = 0.08  -- raised from 0.05 to tolerate fast combos
 local SERVER_RANGE_TOLERANCE    = 3
 local MAX_DAMAGE_MULTIPLIER     = 2.0
-local MAX_VIOLATIONS_BEFORE_KICK = 3
+-- allow more infractions before kicking; the counter now decays over time
+local MAX_VIOLATIONS_BEFORE_KICK = 6
 
 -- ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -189,6 +195,13 @@ end
 
 function WeaponService.RecordViolation(player: Player, reason: string)
 	local uid = player.UserId
+	local now = tick()
+	-- decay old strikes after a short grace period
+	if _lastViolationTime[uid] and now - _lastViolationTime[uid] > VIOLATION_DECAY_TIME then
+		_strikes[uid] = 0
+	end
+	_lastViolationTime[uid] = now
+	
 	_strikes[uid] = (_strikes[uid] or 0) + 1
 	warn(("[WeaponService] ⚠  Strike %d/%d for %s — %s"):format(
 		_strikes[uid], MAX_VIOLATIONS_BEFORE_KICK, player.Name, reason))
