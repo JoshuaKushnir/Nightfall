@@ -1,5 +1,27 @@
 ﻿# Project Nightfall: Session Intelligence Log
 
+## Session NF-068: Depth-1 Ability Unit Test Augmentation
+**Date:** 2026-06-23
+**Issues:** #172 (Depth-1 ability tests)
+
+### What Was Built
+- **`tests/unit/AshExpression.test.lua`** — Removed stale legacy duplicate test body (pre-moveset-refactor copy that used flat fields `Ash.Id`/`Ash.Type` instead of `Ash.Moves[1]`). Added `AshenStep behaviour` test block: asserts that calling `Moves[1].OnActivate` synchronously spawns an `AshenStepAfterimage` BasePart in Workspace at the caster origin (via `task.spawn(_spawnAfterimage)` which runs in-frame). Existing `Moves[1].Range == 12` already covered the dash distance constant.
+- **`tests/unit/EmberExpression.test.lua`** — Removed stale legacy duplicate test body. Added `Ignite behaviour` test block: (1) `HeatStacks` attribute contract round-trips via `SetAttribute`/`GetAttribute`, (2) `StatusBurning` readable at max stacks (3), (3) `OnActivate` does not touch caster's own `HeatStacks` (only fires via `HitboxService.OnHit` against targets — not testable synchronously).
+- **`tests/unit/GaleExpression.test.lua`** — Removed stale legacy duplicate test body. Added `WindStrike behaviour` test block: `StatusWeightless` attribute contract (set to `true` then clear to `nil` round-trips correctly). Existing `Moves[1].Range == 12` covers the dash distance.
+
+### Integration Points
+- These tests verify the attribute contracts that game state depends on: `HeatStacks`, `StatusBurning`, `StatusWeightless` are all character `Instance:SetAttribute` values — confirming Roblox's attribute API behaves as expected is a prerequisite for trusting the live ability effects.
+- Afterimage test confirms the synchronous side-effect path of `task.spawn` fires within the same frame, which is the core timing assumption of AshenStep's particle trail.
+
+### Spec Gaps Encountered
+- `HitboxService.CreateHitbox.OnHit` is physics-driven and not invocable in synchronous unit tests — full OnHit behaviour (HeatStacks increment, StatusWeightless application) must be verified in Roblox Studio manual test.
+
+### Tech Debt Created
+- None.
+
+### Next Session Should Start On
+Issue #173: Progression system (ProgressionService, XP/level flow, rank gate) — first unblocked Phase 4 milestone.
+
 ## Session NF-065: Aspect System Integration — EffectRunner + PassiveSystem
 **Date:** 2026-06-17
 **Issues:** #168 (BOM — closed, never existed), #169 (feint-cancel — closed, already fixed), #170 (EffectRunner + PassiveSystem — implemented and closed)
