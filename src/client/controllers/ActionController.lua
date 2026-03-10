@@ -732,7 +732,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			end
 
 			-- compute dodge speed based on momentum at start; target distance between 5 and 9 studs
-			local baseDist = 5
+			local baseDist = 20
 			local momentum = 0
 			if rootPart and rootPart:IsA("BasePart") then
 				momentum = Vector3.new(rootPart.AssemblyLinearVelocity.X, 0, rootPart.AssemblyLinearVelocity.Z).Magnitude

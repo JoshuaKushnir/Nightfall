@@ -1,5 +1,38 @@
 ﻿# Project Nightfall: Session Intelligence Log
 
+## Session NF-065: Aspect System Integration — EffectRunner + PassiveSystem
+**Date:** 2026-06-17
+**Issues:** #168 (BOM — closed, never existed), #169 (feint-cancel — closed, already fixed), #170 (EffectRunner + PassiveSystem — implemented and closed)
+
+### What Was Built
+- **`src/shared/types/EffectTypes.lua`** — Shared type exports: `EffectDef`, `EffectContext`, `HitContext`, `EffectEvent`. Used by EffectRunner and ability files.
+- **`src/server/services/AbilityValidator.lua`** — Stateless `ValidateUse(player, abilityDef)`: checks alive, state gate, mana, cooldown (via character attribute `CD_<id>`), root position. Returns `(ok, reason, context)`.
+- **`src/server/services/PassiveSystem.lua`** — `ApplyHooks(stage, event)`: collects active passives for the caster (currently all `Type="Passive"` from AbilityRegistry), applies tag + kind filter checks, runs `Multiply / Add / Cancel` modifiers against `event.computedDamage` / `event.computedPosture`.
+- **`src/server/services/EffectRunner.lua`** — `Register(kind, fn)` + `Run(effectDef, eventCtx, hitCtx, passiveSystem)`. Pipeline: BeforeEffect hooks → handler → AfterEffect hooks. PassiveSystem injected at runtime to break circular require.
+- **`src/server/services/EffectHandlers.lua`** — `RegisterAll(effectRunner, postureService)` registers five handlers: `Damage` (HP via IncomingHPDamage attribute + stat scaling), `PostureDamage` (via PostureService.DrainPosture), `ApplyStatus` (sets `Status_<id>` attribute + auto-clear), `Knockback` (AssemblyLinearVelocity impulse), `Heal` (Humanoid.Health direct add). VFX are stubs.
+- **`src/server/services/AbilitySystem.lua`** — now requires EffectRunner + AbilityValidator. `HandleUseAbility` calls `AbilityValidator.ValidateUse()`, then iterates `ability.effects` through `EffectRunner:Run()`, then calls `OnActivate` (always — handles movement/VFX not expressible as EffectDef).
+- **`src/shared/types/AspectTypes.lua`** — Added `effects: {any}?` optional field to `AspectAbility` (backward-compatible).
+- **`src/shared/abilities/Ash.lua`** — AshenStep proof-of-concept: `effects = {{ kind="PostureDamage", postureBase=15, tags={"Expression","Ash"} }}`. OnActivate still runs for dash + afterimage VFX.
+- **`src/server/runtime/init.lua`** — EffectRunner + PassiveSystem added to explicit `startOrder`; `EffectHandlers.RegisterAll(services.EffectRunner, services.PostureService)` called after all services start.
+- **`src/client/controllers/ActionController.lua`** — Dodge base distance tuned to 20 studs.
+
+### Integration Points
+- Full aspect ability cast flow: `AbilityCastRequest → AbilitySystem._onCastRequest → AbilityValidator.ValidateUse() → EffectRunner:Run() for each effectDef → PassiveSystem BeforeEffect/AfterEffect → EffectHandlers[kind] → OnActivate`
+- Passives can intercept any effect via tag/kind filters and modify `computedDamage`, `computedPosture`, or cancel entirely
+- AshenStep is proof-of-concept; all other aspects can add `effects = {}` arrays to their moves without modifying any service code
+
+### Spec Gaps Encountered
+- None new.
+
+### Tech Debt Created
+- `PassiveSystem._getActivePassives` returns all `Type="Passive"` abilities regardless of player's equipped weapon — TODO filter by equipped weapon ID once WeaponService lookup is stable (noted in PassiveSystem with `-- TODO` comment)
+- EffectHandlers Damage handler uses character attribute `IncomingHPDamage` pipeline — requires CombatService `_ProcessDamageAttributes` to be polling on Heartbeat (verify in Studio)
+
+### Next Session Should Start On
+Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
+
+
+
 > **PMO Subsystem:** session_tracker.sh and issue_manager.sh drive the
 > chat→issue pipeline. See docs/PMO_README.md for details.
 
