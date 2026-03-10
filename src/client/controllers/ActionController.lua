@@ -360,32 +360,6 @@ function ActionController.PlayAction(config: ActionConfig)
 			if now - LastLungeAttackTime > lungeCooldown then
 				print("[ActionController] Lunge attack triggered (sprinting + attack)")
 
-				-- QUICK-FIX: pre-emptively apply client impulse here so movement is visible
-				-- even if later prediction/animation timing is delayed or overwritten.
-				if MovementController and MovementController.ApplyImpulse then
-					local camera = workspace.CurrentCamera
-					local forward = Vector3.new(0, 0, -1)
-					if camera then
-						local look = camera.CFrame.LookVector
-						forward = Vector3.new(look.X, 0, look.Z)
-						if forward.Magnitude < 0.1 then
-							forward = Vector3.new(0, 0, -1)
-						end
-						forward = forward.Unit
-					end
-
-					local LUNGE_SPEED = (MovementConfig and MovementConfig.Movement and MovementConfig.Movement.LungeSpeed) or 45
-
-					-- Ensure the pre-emptive impulse covers the lunge's hit window so the
-					-- visible forward burst is still present when the hit frame occurs.
-					local lungeCfg = ActionTypes.LUNGE_ATTACK
-					local hitTime = (lungeCfg.HitStartFrame and (lungeCfg.Duration * lungeCfg.HitStartFrame)) or (lungeCfg.Duration * 0.4)
-					local preemptDur = math.clamp(hitTime + 0.12, 0.12, 0.6)
-
-					local applied = MovementController.ApplyImpulse(forward, LUNGE_SPEED, preemptDur, "lunge_preempt")
-					print("[ActionController] Pre-emptive ApplyImpulse at PlayAction returned: " .. tostring(applied) .. " (dur=" .. tostring(preemptDur) .. ")")
-				end
-
 				ActionController.PlayAction(ActionTypes.LUNGE_ATTACK)
 				LastLungeAttackTime = now
 				return
@@ -732,11 +706,12 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	end
 
 	-- ── Attack: small forward nudge to make swings feel aggressive ────────
+	-- Uses per-frame AssemblyLinearVelocity + look-ahead raycast (same as dodge)
+	-- to prevent fling when swinging near a wall.
 	if config.Type == "Attack" and config.Id ~= "atk_lunge"
-		and config.AttackImpulse and config.AttackImpulse > 0
-		and MovementController and MovementController.ApplyImpulse then
+		and config.AttackImpulse and config.AttackImpulse > 0 then
 		local rootPart = Utils.GetRootPart(Player)
-		if rootPart then
+		if rootPart and rootPart:IsA("BasePart") then
 			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
 			local cam = workspace.CurrentCamera
 			if cam then
@@ -745,7 +720,34 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				if cf.Magnitude > 0.1 then forward = cf.Unit end
 			end
 			if forward.Magnitude > 0.1 then
-				MovementController.ApplyImpulse(forward, config.AttackImpulse, 0.12, "attack_nudge")
+				forward = forward.Unit
+				local NUDGE_SPEED = config.AttackImpulse
+				local NUDGE_DUR = 0.12
+				local nudgeElapsed = 0
+				local nudgeStopped = false
+				local nudgeParams = RaycastParams.new()
+				nudgeParams.FilterType = Enum.RaycastFilterType.Exclude
+				nudgeParams.FilterDescendantsInstances = {Character}
+				local frozenFwd: Vector3 = forward
+				action.OnFrame = function(_self: Action, dt: number)
+					if nudgeStopped or not rootPart or not rootPart.Parent then return end
+					nudgeElapsed += dt
+					if nudgeElapsed >= NUDGE_DUR then nudgeStopped = true; return end
+					local speed = NUDGE_SPEED * (1 - nudgeElapsed / NUDGE_DUR)
+					if speed < 0.5 then nudgeStopped = true; return end
+					local lookahead = math.max(speed / 20, 1.5)
+					local hit = Workspace:Raycast(rootPart.Position, frozenFwd * lookahead, nudgeParams)
+					if hit and hit.Instance and hit.Instance.CanCollide then
+						nudgeStopped = true
+						rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+						return
+					end
+					rootPart.AssemblyLinearVelocity = Vector3.new(
+						frozenFwd.X * speed,
+						rootPart.AssemblyLinearVelocity.Y,
+						frozenFwd.Z * speed
+					)
+				end
 			end
 		end
 	end
@@ -874,9 +876,11 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 	end
 
 	-- ── Lunge: forward burst ──────────────────────────────────────────────
+	-- Uses per-frame AssemblyLinearVelocity + look-ahead raycast (same as dodge)
+	-- to prevent fling when lunging into a wall.
 	if config.Type == "Attack" and config.Id == "atk_lunge" then
 		local rootPart = Utils.GetRootPart(Player)
-		if rootPart then
+		if rootPart and rootPart:IsA("BasePart") then
 			local cam = workspace.CurrentCamera
 			local forward = Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z)
 			if cam then
@@ -890,25 +894,34 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 			local hitTime = (config.HitStartFrame and config.Duration * config.HitStartFrame) or (config.Duration * 0.4)
 			local keepTime = math.clamp(hitTime + 0.12, 0.12, 0.6)
 
-			local applied = MovementController and MovementController.ApplyImpulse
-				and MovementController.ApplyImpulse(forward, LUNGE_SPEED, keepTime, "lunge")
-
-			-- Fallback BodyVelocity
-			if not applied then
-				local lv = Instance.new("BodyVelocity")
-				lv.Name = "_LungeBodyVelocity"
-				lv.MaxForce = Vector3.new(math.huge, 0, math.huge)
-				lv.Velocity  = forward * LUNGE_SPEED
-				lv.Parent = rootPart
-				if rootPart:IsA("BasePart") then
-					rootPart.AssemblyLinearVelocity = forward * LUNGE_SPEED
+			local lungeParams = RaycastParams.new()
+			lungeParams.FilterType = Enum.RaycastFilterType.Exclude
+			lungeParams.FilterDescendantsInstances = {Character}
+			local frozenFwd: Vector3 = forward
+			local lungeElapsed = 0
+			local lungeStopped = false
+			action.OnFrame = function(_self: Action, dt: number)
+				if lungeStopped or not rootPart or not rootPart.Parent then return end
+				lungeElapsed += dt
+				local progress = math.min(lungeElapsed / keepTime, 1.0)
+				local speed = LUNGE_SPEED * math.pow(1 - progress, 0.5)
+				if speed < 1 or lungeElapsed >= keepTime then
+					lungeStopped = true
+					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+					return
 				end
-				task.delay(keepTime, function()
-					if lv.Parent then
-						lv.Velocity = Vector3.new(0, 0, 0)
-						lv:Destroy()
-					end
-				end)
+				local lookahead = math.max(speed / 20, 2.0)
+				local hit = Workspace:Raycast(rootPart.Position, frozenFwd * lookahead, lungeParams)
+				if hit and hit.Instance and hit.Instance.CanCollide then
+					lungeStopped = true
+					rootPart.AssemblyLinearVelocity = Vector3.new(0, rootPart.AssemblyLinearVelocity.Y, 0)
+					return
+				end
+				rootPart.AssemblyLinearVelocity = Vector3.new(
+					frozenFwd.X * speed,
+					rootPart.AssemblyLinearVelocity.Y,
+					frozenFwd.Z * speed
+				)
 			end
 		end
 	end
