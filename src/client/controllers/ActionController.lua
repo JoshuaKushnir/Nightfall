@@ -932,7 +932,7 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 				Size    = Vector3.new(6, 6, 6),
 				LifeTime = 1.0,
 				OnHit = function(target: any, _hitData: any)
-				-- Ignore if action was canceled any time before damage
+					-- Ignore if action was canceled any time before damage
 				if action.IsCanceled then
 					return
 				end
@@ -993,6 +993,8 @@ function ActionController._PlayActionLocal(config: ActionConfig)
 						ActionController._ApplyHitStop(config.HitStopDuration)
 					end
 				end)
+			end,
+			}
 
 			action.Hitbox = HitboxService.CreateHitbox(hitboxConfig)
 		end)
