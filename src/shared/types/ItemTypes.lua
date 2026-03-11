@@ -32,7 +32,9 @@ export type ItemBase = {
     Description: string,
     Category: ItemCategory,
     Rarity: Rarity,
-    Weight: number?, -- optional for capacity checks
+    Cooldown: number?, -- for abilities
+    Tags: {string}?,   -- e.g. { "Mantra", "Light Weapon", "Rare Talent" }
+    Weight: number?,   -- optional for capacity checks
 }
 
 -- An inventory item that represents a castable Aspect ability.

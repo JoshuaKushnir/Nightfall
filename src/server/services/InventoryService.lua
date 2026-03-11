@@ -28,6 +28,17 @@ local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes) :: any
 local InventoryService = {}
 InventoryService._initialized = false
 
+-- Ensure every item has required fields for tooltip display.
+-- This prevents nil errors on the client when rendering tooltips.
+local function _normalizeItemData(item: any): any
+    item.Name        = item.Name        or "Unknown Relic"
+    item.Description = item.Description or "No description recorded."
+    item.Category    = item.Category    or "Materials"
+    item.Rarity      = item.Rarity      or "Common"
+    item.Tags        = item.Tags        or {}
+    return item
+end
+
 -- internal helper: send current inventory/equipped state to a single client
 local function _syncInventory(player: Player)
     local profile = DataService:GetProfile(player)
@@ -44,6 +55,8 @@ function InventoryService.GiveItem(player: Player, item: ItemTypes.Item): boolea
     local profile = DataService:GetProfile(player)
     if not profile then return false end
     profile.Inventory = profile.Inventory or {}
+
+    item = _normalizeItemData(item)
 
     -- prevent giving duplicates that already exist in inventory or hotbar
     for _, v in ipairs(profile.Inventory) do
@@ -201,7 +214,7 @@ local function _onPlayerAdded(player)
     for _, move in pairs(AspectRegistry.MoveItems) do
         if (move.Id == "move_Test_Move_Quick" or move.Id == "move_Test_Move_Strong")
             and not hasItem[move.Id] then
-            table.insert(profile.Inventory, move)
+            table.insert(profile.Inventory, _normalizeItemData(move))
             hasItem[move.Id] = true
         end
     end
@@ -210,7 +223,7 @@ local function _onPlayerAdded(player)
     for _, ability in ipairs(AbilityRegistry.GetByType("Active")) do
         local itemId = "ability_" .. ability.Id
         if not hasItem[itemId] then
-            table.insert(profile.Inventory, {
+            table.insert(profile.Inventory, _normalizeItemData({
                 Id          = itemId,
                 Name        = ability.Id,
                 Description = ability.Description or ability.Id,
@@ -218,7 +231,7 @@ local function _onPlayerAdded(player)
                 Rarity      = "Common",
                 AbilityId   = ability.Id,
                 Cooldown    = ability.Cooldown,
-            })
+            }))
             hasItem[itemId] = true
             print(("[InventoryService] Seeded ability item: %s"):format(itemId))
         end
@@ -226,13 +239,13 @@ local function _onPlayerAdded(player)
 
     -- Seed default fists weapon
     if not hasItem["weapon_fists"] then
-        table.insert(profile.Inventory, {
+        table.insert(profile.Inventory, _normalizeItemData({
             Id = "weapon_fists",
             Name = "Fists",
             Description = "Your bare hands.",
             Category = "Weapons",
             Rarity = "Common",
-        })
+        }))
     end
 
     _syncInventory(player)
@@ -316,7 +329,7 @@ function InventoryService.GrantAspectMoves(player: Player, aspectId: string, ski
     for _, move in ipairs(moveset.Moves) do
         local itemId = "move_" .. move.Id
         if not hasItem[itemId] then
-            table.insert(profile.Inventory, {
+            table.insert(profile.Inventory, _normalizeItemData({
                 Id          = itemId,
                 Name        = move.Name,
                 Description = move.Description or move.Name,
@@ -325,7 +338,7 @@ function InventoryService.GrantAspectMoves(player: Player, aspectId: string, ski
                 AbilityId   = move.Id,
                 AspectId    = aspectId,
                 Cooldown    = move.Cooldown,
-            })
+            }))
             hasItem[itemId] = true
             added += 1
         end
@@ -363,7 +376,7 @@ function InventoryService.RestoreBaseItems(player: Player, skipSync: boolean?): 
     for _, ability in ipairs(AbilityRegistry.GetByType("Active")) do
         local itemId = "ability_" .. ability.Id
         if not hasItem[itemId] then
-            table.insert(profile.Inventory, {
+            table.insert(profile.Inventory, _normalizeItemData({
                 Id          = itemId,
                 Name        = ability.Id,
                 Description = ability.Description or ability.Id,
@@ -371,7 +384,7 @@ function InventoryService.RestoreBaseItems(player: Player, skipSync: boolean?): 
                 Rarity      = "Common",
                 AbilityId   = ability.Id,
                 Cooldown    = ability.Cooldown,
-            })
+            }))
             hasItem[itemId] = true
             added += 1
         end

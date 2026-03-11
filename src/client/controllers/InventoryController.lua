@@ -22,6 +22,7 @@ local Players           = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService  = game:GetService("UserInputService")
 local TweenService      = game:GetService("TweenService")
+local RunService        = game:GetService("RunService")
 
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local WeaponRegistry  = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
@@ -131,6 +132,11 @@ for _, c in ipairs(CAT_ORDER) do InventoryController._collapsed[c] = false end
 InventoryController._screenGui  = nil :: ScreenGui?
 InventoryController._invRoot    = nil :: Frame?
 InventoryController._hotbarRoot = nil :: Frame?
+
+-- Tooltip state
+InventoryController._tooltipRoot  = nil :: Frame?
+InventoryController._tooltipItem  = nil :: any
+InventoryController._hideDebounceId = 0
 
 -- Drag
 local _drag: {
@@ -386,6 +392,114 @@ local function _startDrag(self: any, item: any, origin: string, slot: number?)
     _drag = { ghost=ghost, item=item, origin=origin, slot=slot, mc=mc, uc=uc }
 end
 
+-- ─── Tooltip helpers ──────────────────────────────────────────────────────────
+
+local function _initTooltip(self: any)
+    if self._tooltipRoot then return end
+    local gui = self._screenGui
+    if not gui then return end
+    self._tooltipRoot = gui:WaitForChild("TooltipRoot") :: Frame?
+    if self._tooltipRoot then
+        self._tooltipRoot.Visible = false
+    end
+end
+
+local function _positionTooltip(self: any)
+    if not self._tooltipRoot then return end
+    local mouse = localPlayer:GetMouse()
+    local offset = Vector2.new(18, 20)
+    local x = mouse.X + offset.X
+    local y = mouse.Y + offset.Y
+    self._tooltipRoot.Position = UDim2.fromOffset(x, y)
+end
+
+local function _fillTooltip(self: any, item: any)
+    if not self._tooltipRoot then return end
+    self._tooltipItem = item
+
+    local title    = self._tooltipRoot:FindFirstChild("Title") :: TextLabel?
+    local subtitle = self._tooltipRoot:FindFirstChild("Subtitle") :: TextLabel?
+    local body     = self._tooltipRoot:FindFirstChild("Body") :: TextLabel?
+    local tagsRoot = self._tooltipRoot:FindFirstChild("TagContainer") :: Frame?
+
+    if title then
+        title.Text = item.Name or "Unknown"
+    end
+
+    local cat  = item.Category or "Materials"
+    local rare = item.Rarity or "Common"
+    if subtitle then
+        subtitle.Text = string.format("%s • %s", cat, rare)
+        subtitle.TextColor3 = RARITY_COLOR[rare] or PAL.TEXT_ACCENT
+    end
+
+    if body then
+        body.Text = item.Description or ""
+    end
+
+    if tagsRoot then
+        for _, child in ipairs(tagsRoot:GetChildren()) do
+            if child:IsA("TextLabel") and child.Name ~= "UIListLayout" then 
+                child:Destroy() 
+            end
+        end
+        if item.Tags and #item.Tags > 0 then
+            for _, tag in ipairs(item.Tags) do
+                local l = Instance.new("TextLabel")
+                l.BackgroundTransparency = 1
+                l.Size = UDim2.new(0, 0, 0, 18)
+                l.AutomaticSize = Enum.AutomaticSize.X
+                l.Font = Enum.Font.Gotham
+                l.TextSize = 12
+                l.Text = tag
+                l.TextColor3 = PAL.TEXT_DIM
+                l.Parent = tagsRoot
+            end
+        end
+    end
+end
+
+local function _showTooltip(self: any, item: any)
+    _initTooltip(self)
+    if not self._tooltipRoot then return end
+    _fillTooltip(self, item)
+    _positionTooltip(self)
+    self._tooltipRoot.Visible = true
+end
+
+local function _hideTooltip(self: any, item: any?)
+    self._hideDebounceId += 1
+    local thisId = self._hideDebounceId
+    task.delay(0.05, function()
+        if thisId ~= self._hideDebounceId then return end
+        if not self._tooltipRoot then return end
+        if item and self._tooltipItem and item.Id ~= self._tooltipItem.Id then
+            return
+        end
+        self._tooltipItem = nil
+        self._tooltipRoot.Visible = false
+    end)
+end
+
+local function _bindSlotHover(self: any, button: TextButton, item: any)
+    button.MouseEnter:Connect(function()
+        _showTooltip(self, item)
+    end)
+    button.MouseLeave:Connect(function()
+        _hideTooltip(self, item)
+    end)
+    if button.SelectionGained then
+        button.SelectionGained:Connect(function()
+            _showTooltip(self, item)
+        end)
+    end
+    if button.SelectionLost then
+        button.SelectionLost:Connect(function()
+            _hideTooltip(self, item)
+        end)
+    end
+end
+
 -- ─── GUI helpers ──────────────────────────────────────────────────────────────
 
 local function _corner(parent: Instance, r: number)
@@ -573,6 +687,92 @@ local function _buildGui(self: any)
         self._search = string.lower(searchBox.Text)
         self:RefreshUI()
     end)
+
+    -- ── Tooltip frame ────────────────────────────────────────────────────────
+    local tooltip = Instance.new("Frame")
+    tooltip.Name             = "TooltipRoot"
+    tooltip.BackgroundColor3 = PAL.PANEL_RAISED
+    tooltip.BackgroundTransparency = 0
+    tooltip.BorderSizePixel  = 1
+    tooltip.BorderColor3     = PAL.GOLD_LINE
+    tooltip.Visible          = false
+    tooltip.AutomaticSize    = Enum.AutomaticSize.XY
+    tooltip.AnchorPoint      = Vector2.new(0, 0)
+    tooltip.ZIndex           = 100
+    tooltip.Parent           = sg
+    _corner(tooltip, 3)
+
+    -- Padding inside tooltip
+    local tooltip_padding = Instance.new("UIPadding")
+    tooltip_padding.PaddingLeft   = UDim.new(0, 8)
+    tooltip_padding.PaddingRight  = UDim.new(0, 8)
+    tooltip_padding.PaddingTop    = UDim.new(0, 8)
+    tooltip_padding.PaddingBottom = UDim.new(0, 8)
+    tooltip_padding.Parent        = tooltip
+
+    -- Vertical list layout for title / subtitle / body / tags
+    local tooltip_layout = Instance.new("UIListLayout")
+    tooltip_layout.FillDirection = Enum.FillDirection.Vertical
+    tooltip_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    tooltip_layout.VerticalAlignment   = Enum.VerticalAlignment.Top
+    tooltip_layout.Padding = UDim.new(0, 4)
+    tooltip_layout.Parent  = tooltip
+
+    -- Title
+    local tooltip_title = Instance.new("TextLabel")
+    tooltip_title.Name               = "Title"
+    tooltip_title.Size               = UDim2.new(0, 0, 0, 0)
+    tooltip_title.AutomaticSize      = Enum.AutomaticSize.XY
+    tooltip_title.BackgroundTransparency = 1
+    tooltip_title.TextColor3         = PAL.TEXT_PRI
+    tooltip_title.Font               = Enum.Font.Antique
+    tooltip_title.TextSize           = 14
+    tooltip_title.TextWrapped        = true
+    tooltip_title.TextXAlignment     = Enum.TextXAlignment.Left
+    tooltip_title.Text               = "Item Name"
+    tooltip_title.Parent             = tooltip
+
+    -- Subtitle (Category • Rarity)
+    local tooltip_subtitle = Instance.new("TextLabel")
+    tooltip_subtitle.Name               = "Subtitle"
+    tooltip_subtitle.Size               = UDim2.new(0, 0, 0, 0)
+    tooltip_subtitle.AutomaticSize      = Enum.AutomaticSize.XY
+    tooltip_subtitle.BackgroundTransparency = 1
+    tooltip_subtitle.TextColor3         = PAL.TEXT_ACCENT
+    tooltip_subtitle.Font               = Enum.Font.Gotham
+    tooltip_subtitle.TextSize           = 11
+    tooltip_subtitle.Text               = ""
+    tooltip_subtitle.Parent             = tooltip
+
+    -- Body (Description)
+    local tooltip_body = Instance.new("TextLabel")
+    tooltip_body.Name               = "Body"
+    tooltip_body.Size               = UDim2.new(0, 240, 0, 0)
+    tooltip_body.AutomaticSize      = Enum.AutomaticSize.Y
+    tooltip_body.BackgroundTransparency = 1
+    tooltip_body.TextColor3         = PAL.TEXT_SEC
+    tooltip_body.Font               = Enum.Font.Gotham
+    tooltip_body.TextSize           = 11
+    tooltip_body.TextWrapped        = true
+    tooltip_body.TextXAlignment     = Enum.TextXAlignment.Left
+    tooltip_body.TextYAlignment     = Enum.TextYAlignment.Top
+    tooltip_body.Text               = ""
+    tooltip_body.Parent             = tooltip
+
+    -- Tag container
+    local tag_container = Instance.new("Frame")
+    tag_container.Name               = "TagContainer"
+    tag_container.Size               = UDim2.new(0, 240, 0, 0)
+    tag_container.AutomaticSize      = Enum.AutomaticSize.Y
+    tag_container.BackgroundTransparency = 1
+    tag_container.Parent             = tooltip
+
+    local tag_layout = Instance.new("UIFlowLayout")
+    tag_layout.FillDirection = Enum.FillDirection.Horizontal
+    tag_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    tag_layout.VerticalAlignment   = Enum.VerticalAlignment.Top
+    tag_layout.Padding = UDim.new(0, 4)
+    tag_layout.Parent  = tag_container
 
     -- ── Item scroll area ────────────────────────────────────────────────────
     local scroll = Instance.new("ScrollingFrame")
@@ -797,6 +997,9 @@ function InventoryController:RefreshUI()
                 end
             end)
 
+            -- Wire tooltip hover
+            _bindSlotHover(self, btn, ci)
+
             col += 1
             if col >= COLS then col = 0; row += 1 end
         end
@@ -950,6 +1153,8 @@ function InventoryController:RefreshUI()
                     _startDrag(self, ci, "hotbar", cs)
                 end
             end)
+            -- Wire tooltip hover
+            _bindSlotHover(self, btn, ci)
         end
     end
 
@@ -1037,6 +1242,13 @@ function InventoryController:Init(dependencies: {[string]: any}?)
                 and input.UserInputType == Enum.UserInputType.Keyboard
                 and input.Character == "`")
         if bt or kc == Enum.KeyCode.I then self:ToggleOpen() end
+    end)
+
+    -- Tooltip following
+    RunService.Heartbeat:Connect(function()
+        if self._tooltipRoot and self._tooltipRoot.Visible then
+            _positionTooltip(self)
+        end
     end)
 
     self._initialized = true
