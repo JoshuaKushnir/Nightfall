@@ -1,7 +1,7 @@
 --!strict
 --[[
-    VoidExpression Unit Tests — Moveset format
-    Issue #149: refactor Aspect system to full moveset (5 moves × 3 talents)
+    VoidExpression Unit Tests -- Moveset format
+    Issue #149: refactor Aspect system to full moveset (5 moves x 3 talents)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -24,6 +24,16 @@ local function assert_eq(a: any, b: any, label: string?)
     end
 end
 
+local function assert_vec3_close(a: Vector3, b: Vector3, epsilon: number, label: string?)
+    local d = (a - b).Magnitude
+    if d > epsilon then
+        error(("%s: distance %.3f > epsilon %.3f  |  got (%g,%g,%g) expected (%g,%g,%g)"):format(
+            label or "vec3", d, epsilon,
+            a.X, a.Y, a.Z,
+            b.X, b.Y, b.Z))
+    end
+end
+
 local function makeCharacter(position: Vector3): (any, BasePart)
     local char = Instance.new("Model")
     local root = Instance.new("Part") :: BasePart
@@ -37,9 +47,9 @@ local function makeCharacter(position: Vector3): (any, BasePart)
     return player, root
 end
 
-print("\n── VoidExpression Unit Tests (moveset) ──────────────────────────────────")
+print("\n-- VoidExpression Unit Tests (moveset) ----------------------------------")
 
--- ─── Moveset structure ────────────────────────────────────────────────────────
+-- Moveset structure
 
 test("Void.AspectId == 'Void'", function()
     assert_eq(Void.AspectId, "Void")
@@ -53,7 +63,7 @@ test("Void.Moves has exactly 5 moves", function()
     assert_eq(#Void.Moves, 5)
 end)
 
--- ─── Move 1 — Blink ──────────────────────────────────────────────────────────
+-- Move 1 - Blink
 
 test("Moves[1].Id == 'Blink'", function()
     assert_eq(Void.Moves[1].Id, "Blink")
@@ -95,11 +105,13 @@ test("Moves[1].ClientActivate is a function", function()
     assert(type(Void.Moves[1].ClientActivate) == "function")
 end)
 
-test("Moves[1].OnActivate does not error — forward blink, no nearby targets", function()
+test("Moves[1].OnActivate does not error -- forward blink, no nearby targets", function()
     local player, root = makeCharacter(Vector3.new(-500, 0, 0))
     Void.Moves[1].OnActivate(player, nil)
     root.Parent.Parent = nil
 end)
+
+-- Blink behaviour -- all synchronous (root.CFrame set directly in OnActivate)
 
 test("Moves[1].OnActivate sets StatusBlinkBoost on caster character", function()
     local player, root = makeCharacter(Vector3.new(-600, 0, 0))
@@ -126,12 +138,23 @@ test("Moves[1].OnActivate sets BlinkBoostExpiry to a future tick", function()
     root.Parent.Parent = nil
 end)
 
+test("Moves[1].OnActivate teleports caster ~10 studs forward", function()
+    local startPos = Vector3.new(-900, 0, 0)
+    local player, root = makeCharacter(startPos)
+    -- Face +X so the blink fires in the +X direction
+    root.CFrame = CFrame.new(startPos, startPos + Vector3.new(1, 0, 0))
+    Void.Moves[1].OnActivate(player, nil)
+    local expectedPos = startPos + Vector3.new(10, 0, 0)
+    assert_vec3_close(root.Position, expectedPos, 1.5, "Blink teleport distance")
+    root.Parent.Parent = nil
+end)
+
 test("Moves[1].OnActivate silently exits when character is nil", function()
     local player: any = { Character = nil, Name = "NoChar", UserId = 88841 }
     Void.Moves[1].OnActivate(player, nil)
 end)
 
--- ─── Move 3 — PhaseShift (Defensive) ─────────────────────────────────────────
+-- Move 3 - PhaseShift (Defensive)
 
 test("Moves[3].Id == 'PhaseShift'", function()
     assert_eq(Void.Moves[3].Id, "PhaseShift")
@@ -145,7 +168,7 @@ test("Moves[3].MoveType == 'Defensive'", function()
     assert_eq(Void.Moves[3].MoveType, "Defensive")
 end)
 
--- ─── Move 5 — IsolationField ─────────────────────────────────────────────────
+-- Move 5 - IsolationField
 
 test("Moves[5].Id == 'IsolationField'", function()
     assert_eq(Void.Moves[5].Id, "IsolationField")
@@ -155,7 +178,7 @@ test("Moves[5].Slot == 5", function()
     assert_eq(Void.Moves[5].Slot, 5)
 end)
 
--- ─── Talents ─────────────────────────────────────────────────────────────────
+-- Talents
 
 test("Each move has exactly 3 Talents", function()
     for i, move in ipairs(Void.Moves) do
@@ -175,6 +198,21 @@ test("All Talents have IsUnlocked = false", function()
     end
 end)
 
+test("All Talents have Id, Name, InteractsWith, Description fields", function()
+    for i, move in ipairs(Void.Moves) do
+        for j, talent in ipairs(move.Talents) do
+            assert(type(talent.Id) == "string",
+                ("Moves[%d].Talents[%d].Id"):format(i, j))
+            assert(type(talent.Name) == "string",
+                ("Moves[%d].Talents[%d].Name"):format(i, j))
+            assert(type(talent.InteractsWith) == "string",
+                ("Moves[%d].Talents[%d].InteractsWith"):format(i, j))
+            assert(type(talent.Description) == "string",
+                ("Moves[%d].Talents[%d].Description"):format(i, j))
+        end
+    end
+end)
+
 test("Moves have sequential Slots 1-5", function()
     for i, move in ipairs(Void.Moves) do
         assert_eq(move.Slot, i, ("Moves[%d].Slot"):format(i))
@@ -187,130 +225,6 @@ test("All Moves have AspectId == 'Void'", function()
     end
 end)
 
--- ── Summary ──────────────────────────────────────────────────────────────────
-print(("── VoidExpression: %d passed, %d failed ─────────────────────────────────"):format(passed, failed))
-if failed > 0 then error(("VoidExpression tests: %d failure(s)"):format(failed)) end
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace         = game:GetService("Workspace")
-
-local Void = require(ReplicatedStorage.Shared.abilities.Void)
-
-local passed = 0
-local failed = 0
-
-local function test(name: string, fn: () -> ())
-    local ok, err = pcall(fn)
-    if ok then passed += 1; print(("    ✓ %s"):format(name))
-    else   failed += 1; warn(("    ✗ %s\n      %s"):format(name, tostring(err))) end
-end
-
-local function assert_eq(a: any, b: any, label: string?)
-    if a ~= b then error((label or "") .. (" expected %s got %s"):format(tostring(b), tostring(a))) end
-end
-
-local function makeCharacter(position: Vector3): (any, BasePart)
-    local char = Instance.new("Model")
-    local root = Instance.new("Part") :: BasePart
-    root.Name     = "HumanoidRootPart"
-    root.CFrame   = CFrame.new(position)
-    root.Anchored = false
-    root.Size     = Vector3.new(1, 2, 1)
-    root.Parent   = char
-    char.Parent   = Workspace
-    local player: any = { Character = char, Name = "VoidTestPlayer", UserId = 88840 }
-    return player, root
-end
-
-print("\n── VoidExpression Unit Tests ─────────────────────────────────────────────")
-
-test("Void has correct Id = 'Blink'", function()
-    assert_eq(Void.Id, "Blink")
-end)
-
-test("Void has Type = 'Expression'", function()
-    assert_eq(Void.Type, "Expression")
-end)
-
-test("Void has ManaCost = 20", function()
-    assert_eq(Void.ManaCost, 20)
-end)
-
-test("Void has Cooldown = 4", function()
-    assert_eq(Void.Cooldown, 4)
-end)
-
-test("Void is instant — CastTime = 0", function()
-    assert_eq(Void.CastTime, 0)
-end)
-
-test("Void has Range = 10 (blink distance)", function()
-    assert_eq(Void.Range, 10)
-end)
-
-test("Void.OnActivate does not error — no target nearby (forward blink)", function()
-    local player, root = makeCharacter(Vector3.new(-500, 0, 0))
-    Void.OnActivate(player, nil)
-    root.Parent.Parent = nil
-end)
-
-test("Void.OnActivate grants VoidPostureBonusCharge on caster character", function()
-    local player, root = makeCharacter(Vector3.new(-600, 0, 0))
-    Void.OnActivate(player, nil)
-    local charge = root.Parent:GetAttribute("VoidPostureBonusCharge")
-    assert(type(charge) == "number" and charge > 0,
-        "VoidPostureBonusCharge should be a positive number, got: " .. tostring(charge))
-    root.Parent.Parent = nil
-end)
-
-test("VoidPostureBonusCharge value is 20", function()
-    local player, root = makeCharacter(Vector3.new(-700, 0, 0))
-    Void.OnActivate(player, nil)
-    local charge = root.Parent:GetAttribute("VoidPostureBonusCharge") :: number?
-    assert_eq(charge, 20, "VoidPostureBonusCharge")
-    root.Parent.Parent = nil
-end)
-
-test("VoidPostureBonusExpiry is set to a future tick", function()
-    local player, root = makeCharacter(Vector3.new(-800, 0, 0))
-    Void.OnActivate(player, nil)
-    local expiry = root.Parent:GetAttribute("VoidPostureBonusExpiry") :: number?
-    assert(type(expiry) == "number" and expiry > tick(),
-        "VoidPostureBonusExpiry should be a future tick: " .. tostring(expiry))
-    root.Parent.Parent = nil
-end)
-
-test("Void.OnActivate sets PostureRegenBlocked on target within 3 studs", function()
-    local caster, _ = makeCharacter(Vector3.new(-1000, 0, 0))
-
-    -- Target right behind the caster (within BEHIND_OFFSET + 1 = 3 studs of dest)
-    local targetChar = Instance.new("Model")
-    local targetRoot = Instance.new("Part") :: BasePart
-    targetRoot.Name     = "HumanoidRootPart"
-    targetRoot.CFrame   = CFrame.new(-1000, 0, -2)  -- ~2 studs away along Z
-    targetRoot.Size     = Vector3.new(2, 4, 2)
-    targetRoot.Anchored = false
-    targetRoot.Parent   = targetChar
-    targetChar.Parent   = Workspace
-
-    local targetPlayer: any = { Character = targetChar, Name = "VoidTarget", UserId = 88841 }
-    _ = targetPlayer  -- reference to avoid unused warning
-
-    local ok = pcall(Void.OnActivate, caster, nil)
-    assert(ok, "OnActivate should not throw")
-
-    targetChar:Destroy()
-    caster.Character:Destroy()
-end)
-
-test("Void.OnActivate silently exits when character is nil", function()
-    local player: any = { Character = nil, Name = "NoChar", UserId = 88842 }
-    Void.OnActivate(player, nil)
-end)
-
-test("Void has ClientActivate function", function()
-    assert(type(Void.ClientActivate) == "function")
-end)
-
-print(("── VoidExpression: %d passed, %d failed ─────────────────────────────────"):format(passed, failed))
+-- Summary
+print(("-- VoidExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("VoidExpression tests: %d failure(s)"):format(failed)) end

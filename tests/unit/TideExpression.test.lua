@@ -1,7 +1,7 @@
 --!strict
 --[[
-    TideExpression Unit Tests — Moveset format
-    Issue #149: refactor Aspect system to full moveset (5 moves × 3 talents)
+    TideExpression Unit Tests -- Moveset format
+    Issue #149: refactor Aspect system to full moveset (5 moves x 3 talents)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -37,9 +37,9 @@ local function makeCharacter(position: Vector3): (any, BasePart)
     return player, root
 end
 
-print("\n── TideExpression Unit Tests (moveset) ──────────────────────────────────")
+print("\n-- TideExpression Unit Tests (moveset) ----------------------------------")
 
--- ─── Moveset structure ────────────────────────────────────────────────────────
+-- Moveset structure
 
 test("Tide.AspectId == 'Tide'", function()
     assert_eq(Tide.AspectId, "Tide")
@@ -53,7 +53,7 @@ test("Tide.Moves has exactly 5 moves", function()
     assert_eq(#Tide.Moves, 5)
 end)
 
--- ─── Move 1 — Current ────────────────────────────────────────────────────────
+-- Move 1 - Current
 
 test("Moves[1].Id == 'Current'", function()
     assert_eq(Tide.Moves[1].Id, "Current")
@@ -108,7 +108,23 @@ test("Moves[1].OnActivate silently exits when character is nil", function()
     Tide.Moves[1].OnActivate(player, nil)
 end)
 
--- ─── Move 3 — Swell (Defensive) ──────────────────────────────────────────────
+-- Current behaviour
+-- All effects (StatusGrounded, IncomingPostureDamage) are applied inside HitboxService
+-- OnHit / Touched callbacks -- not synchronously reachable. Verify attribute contracts.
+
+test("StatusGrounded attribute contract: SetAttribute/GetAttribute round-trips correctly", function()
+    local player, root = makeCharacter(Vector3.new(1200, 0, 0))
+    local char = player.Character
+    char:SetAttribute("StatusGrounded", nil)
+    assert_eq(char:GetAttribute("StatusGrounded"), nil, "StatusGrounded initial nil")
+    char:SetAttribute("StatusGrounded", true)
+    assert_eq(char:GetAttribute("StatusGrounded"), true, "StatusGrounded after set")
+    char:SetAttribute("StatusGrounded", nil)
+    assert_eq(char:GetAttribute("StatusGrounded"), nil, "StatusGrounded cleared")
+    root.Parent.Parent = nil
+end)
+
+-- Move 3 - Swell (Defensive)
 
 test("Moves[3].Id == 'Swell'", function()
     assert_eq(Tide.Moves[3].Id, "Swell")
@@ -118,7 +134,7 @@ test("Moves[3].MoveType == 'Defensive'", function()
     assert_eq(Tide.Moves[3].MoveType, "Defensive")
 end)
 
--- ─── Talents ─────────────────────────────────────────────────────────────────
+-- Talents
 
 test("Each move has exactly 3 Talents", function()
     for i, move in ipairs(Tide.Moves) do
@@ -138,6 +154,21 @@ test("All Talents have IsUnlocked = false", function()
     end
 end)
 
+test("All Talents have Id, Name, InteractsWith, Description fields", function()
+    for i, move in ipairs(Tide.Moves) do
+        for j, talent in ipairs(move.Talents) do
+            assert(type(talent.Id) == "string",
+                ("Moves[%d].Talents[%d].Id"):format(i, j))
+            assert(type(talent.Name) == "string",
+                ("Moves[%d].Talents[%d].Name"):format(i, j))
+            assert(type(talent.InteractsWith) == "string",
+                ("Moves[%d].Talents[%d].InteractsWith"):format(i, j))
+            assert(type(talent.Description) == "string",
+                ("Moves[%d].Talents[%d].Description"):format(i, j))
+        end
+    end
+end)
+
 test("Moves have sequential Slots 1-5", function()
     for i, move in ipairs(Tide.Moves) do
         assert_eq(move.Slot, i, ("Moves[%d].Slot"):format(i))
@@ -150,112 +181,6 @@ test("All Moves have AspectId == 'Tide'", function()
     end
 end)
 
--- ── Summary ──────────────────────────────────────────────────────────────────
-print(("── TideExpression: %d passed, %d failed ─────────────────────────────────"):format(passed, failed))
-if failed > 0 then error(("TideExpression tests: %d failure(s)"):format(failed)) end
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace         = game:GetService("Workspace")
-
-local Tide = require(ReplicatedStorage.Shared.abilities.Tide)
-
-local passed = 0
-local failed = 0
-
-local function test(name: string, fn: () -> ())
-    local ok, err = pcall(fn)
-    if ok then passed += 1; print(("    ✓ %s"):format(name))
-    else   failed += 1; warn(("    ✗ %s\n      %s"):format(name, tostring(err))) end
-end
-
-local function assert_eq(a: any, b: any, label: string?)
-    if a ~= b then error((label or "") .. (" expected %s got %s"):format(tostring(b), tostring(a))) end
-end
-
-local function makeCharacter(position: Vector3): (any, BasePart)
-    local char = Instance.new("Model")
-    local root = Instance.new("Part") :: BasePart
-    root.Name      = "HumanoidRootPart"
-    root.CFrame    = CFrame.new(position)
-    root.Anchored  = true
-    root.Size      = Vector3.new(1, 2, 1)
-    root.Parent    = char
-    char.Parent    = Workspace
-    local player: any = { Character = char, Name = "TideTestPlayer", UserId = 88810 }
-    return player, root
-end
-
-print("\n── TideExpression Unit Tests ─────────────────────────────────────────────")
-
-test("Tide has correct Id = 'Current'", function()
-    assert_eq(Tide.Id, "Current")
-end)
-
-test("Tide has Type = 'Expression'", function()
-    assert_eq(Tide.Type, "Expression")
-end)
-
-test("Tide has ManaCost = 20", function()
-    assert_eq(Tide.ManaCost, 20)
-end)
-
-test("Tide has Cooldown = 7", function()
-    assert_eq(Tide.Cooldown, 7)
-end)
-
-test("Tide has Range = 15 (surge distance)", function()
-    assert_eq(Tide.Range, 15)
-end)
-
-test("Tide.OnActivate does not error with valid character and no target", function()
-    local player, root = makeCharacter(Vector3.new(500, 0, 0))
-    Tide.OnActivate(player, nil)
-    root.Parent.Parent = nil
-end)
-
-test("Tide.OnActivate does not error with an explicit targetPosition", function()
-    local player, root = makeCharacter(Vector3.new(600, 0, 0))
-    Tide.OnActivate(player, Vector3.new(615, 0, 0))
-    root.Parent.Parent = nil
-end)
-
-test("Tide.OnActivate silently exits when character is nil", function()
-    local player: any = { Character = nil, Name = "NoChar", UserId = 88811 }
-    Tide.OnActivate(player, nil)
-end)
-
-test("Tide applies IncomingPostureDamage attribute to nearby target on surge hit", function()
-    -- Spawn caster
-    local caster, _ = makeCharacter(Vector3.new(700, 0, 0))
-    -- Spawn target in surge path (15 studs away)
-    local targetChar = Instance.new("Model")
-    local targetRoot = Instance.new("Part") :: BasePart
-    targetRoot.Name     = "HumanoidRootPart"
-    targetRoot.CFrame   = CFrame.new(710, 0, 0)
-    targetRoot.Size     = Vector3.new(3, 6, 3)  -- slightly large for overlap
-    targetRoot.Anchored = true
-    targetRoot.Parent   = targetChar
-    targetChar.Parent   = Workspace
-
-    local targetPlayer: any = {
-        Character = targetChar,
-        Name      = "TideTarget",
-        UserId    = 88812,
-    }
-    -- Inject target into Players service via the mock table pattern
-    -- (In a real test runner, Players:GetPlayers returns actual players;
-    --  here we verify attribute is writable without side-effect errors.)
-    local ok = pcall(Tide.OnActivate, caster, Vector3.new(710, 0, 0))
-    assert(ok, "OnActivate should not throw")
-
-    -- Cleanup
-    targetChar.Parent = nil
-    caster.Character.Parent = nil
-end)
-
-test("Tide has ClientActivate function", function()
-    assert(type(Tide.ClientActivate) == "function")
-end)
-
-print(("── TideExpression: %d passed, %d failed ────────────────────────────────"):format(passed, failed))
+-- Summary
+print(("-- TideExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("TideExpression tests: %d failure(s)"):format(failed)) end
