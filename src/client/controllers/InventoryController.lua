@@ -767,7 +767,11 @@ local function _buildGui(self: any)
     tag_container.BackgroundTransparency = 1
     tag_container.Parent             = tooltip
 
-    local tag_layout = Instance.new("UIFlowLayout")
+    local ok, tag_layout = pcall(Instance.new, "UIFlowLayout")
+    if not ok then
+        tag_layout = Instance.new("UIListLayout")
+        tag_layout.FillDirection = Enum.FillDirection.Horizontal
+    end
     tag_layout.FillDirection = Enum.FillDirection.Horizontal
     tag_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     tag_layout.VerticalAlignment   = Enum.VerticalAlignment.Top
