@@ -5,11 +5,15 @@
 **Issues:** #62 (Inventory system design iteration)
 
 ### What Was Built
-- **`src/client/controllers/InventoryController.lua`** — Phase 3 layout refinement (completing #62):
-  - **Replaced manual yOff positioning with automatic layout stacking**: Scroll now uses `UIListLayout` vertical (6px padding) to hold category blocks; each category contains internal `UIGridLayout` (62×62px cells, 4 columns, 7×7px padding). Eliminates all manual `bx/by/yOff` calculations — no overlap logic needed, UILayout handles positioning automatically.
+- **`src/client/controllers/InventoryController.lua`** — Phase 3 layout refinement + Deepwoken aesthetic polish (completing #62):
+  - **Replaced manual yOff positioning with automatic layout stacking**: Scroll now uses `UIListLayout` vertical (6px padding) to hold category blocks; each category contains internal `UIGridLayout` (70×70px cells, 4 columns, 8×8px padding). Eliminates all manual `bx/by/yOff` calculations — no overlap logic needed, UILayout handles positioning automatically.
   - **Restored category organization**: Rebuilt bag rendering to group items by `CAT_ORDER` (Weapon, Charm, Consumable, Misc). Each category creates a collapsible header block with ▾/▸ toggle. Cards rendered inside per-category grid. Collapse state persists in `self._collapsed[cat] = boolean`.
   - **Eliminated redundant detail panel**: Deleted entire `_createDetailSection` function (~70 lines). Removed state variables `self._detailSection`, `self._detailName`, `self._detailMeta`, `self._detailDesc`. All item inspection now routing through hover-only tooltip system (same as Phase 1).
   - **Unified hotbar into tooltip system**: Modified hotbar slot button event handlers to call `_showTooltip(self, item)` / `_hideTooltip(self, item)` on `MouseEnter`/`MouseLeave` (replacing old `_bindSlotHover` pattern). Hotbar now uses identical tooltip behavior as bag cards.
+  - **Repositioned panel to left side (Deepwoken layout)**: Changed `_createInventoryRoot` Position from `0.64x, 0.11y` (right) to `0.02x, 0.07y` (left); Size from `36% × 78%` to `38% × 60%` for compact left sidebar matching Deepwoken aesthetic. Updates `_createHotbar` to use AnchorPoint (0.5, 1) and position bottom-center instead of fixed left edge.
+  - **Enlarged cards for readability**: Increased grid cell size from 62×62px to 70×70px with 8×8px padding (was 7×7px). Updated `SLOT_INNER` and `SLOT_OUTER` from 52/56px to 70/74px for hotbar slots to match bag cards visually.
+  - **Enhanced card styling**: Reduced rarity border stroke opacity from 0.4 to 0.25 for more solid, parchment-like appearance.
+  - **Added tooltip edge clamping**: Updated `_positionTooltip(self)` to clamp tooltip Position when it approaches viewport edges (leaves 10px margin), preventing off-screen rendering when hovering near screen borders.
   - **Simplified method calls**: Removed call to `_createDetailSection` in `_buildGui`. Now calls only 3 layout functions (`_createInventoryRoot`, `_createBagSection`, `_createHotbar`) then creates tooltip frame.
 
 ### Integration Points
@@ -25,7 +29,7 @@
 - None new (Phase 2 category system placeholder removed entirely, replaced with cleanly integrated category blocks).
 
 ### Next Session Should Start On
-Issue #62 continuation: **Studio test** — Verify category blocks display correctly, collapse toggles work, grids don't overlap, tooltip positioning/rendering at 62×62 cell size. Then refine hotbar positioning if needed to prevent player character blocking in narrow viewports.
+Issue #62 continuation: **Studio test** — Verify left panel layout, category blocks, collapse toggles, enlarged cards (70×70), tooltip edge clamping. Then refine hotbar positioning if needed to prevent player character obstruction in narrow viewports.
 
 ---
 
