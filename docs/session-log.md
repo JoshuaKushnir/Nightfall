@@ -32,9 +32,10 @@
 - **Panel toggle positioning bug**: Fixed ToggleOpen to position panel on LEFT side (0.02x) instead of right edge (1, tx). When open stays at left. When closed moves to -0.4x off-screen. Removed issue where panel appeared on right after toggling.
 - **Empty bar at bottom of bag**: Fixed scroll frame sizing from -38px to -54px. Now accounts for 8px top padding + 32px header + 6px gap + 8px bottom padding. Scroll fill bagFrame completely without gap.
 - **Initial panel position mismatch**: Fixed panel to start OFF-SCREEN at -0.4x when `_isOpen = false`, instead of starting on-screen at 0.02x. Now matches initial state correctly.
+- **Scrollable area extended**: Changed bag section frame to fill root height (UDim2.new(1,0,1,0)), allowing the scroll frame to reach the bottom edge of the panel instead of stopping early.
 
 ### Next Session Should Start On
-Issue #62 continuation: **Continue Studio testing** — Verify toggle animation smooth, panel starts hidden and appears on toggle, bag scroll fills completely. Test all drag/drop and category collapse interactions.
+Issue #62 continuation: **More Studio testing** — Verify toggle animation smooth, panel starts hidden and appears on toggle, bag scroll fills completely to bottom. Test all drag/drop and category collapse interactions.
 
 ---
 
