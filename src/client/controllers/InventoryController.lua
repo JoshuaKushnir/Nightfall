@@ -635,7 +635,7 @@ local function _createBagSection(self: any)
         self:RefreshUI()
     end)
 
-    -- Scrollable grid of big slots
+    -- Scrollable area with vertical layout for category blocks
     local scroll = Instance.new("ScrollingFrame")
     scroll.Name = "BagScroll"
     scroll.Size = UDim2.new(1, 0, 1, -38)
@@ -648,85 +648,16 @@ local function _createBagSection(self: any)
     scroll.LayoutOrder = 2
     scroll.Parent = bagFrame
 
-    local grid = Instance.new("UIGridLayout")
-    grid.CellSize = UDim2.new(0, 68, 0, 68)       -- bigger, readable slots
-    grid.CellPadding = UDim2.new(0, 6, 0, 6)
-    grid.FillDirectionMaxCells = 4                -- 4 columns
-    grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
-    grid.SortOrder = Enum.SortOrder.LayoutOrder
-    grid.Parent = scroll
+    local scrollLayout = Instance.new("UIListLayout")
+    scrollLayout.FillDirection = Enum.FillDirection.Vertical
+    scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    scrollLayout.Padding = UDim.new(0, 6)
+    scrollLayout.Parent = scroll
 
     self._bagScroll = scroll
 end
 
-local function _createDetailSection(self: any)
-    local detail = Instance.new("Frame")
-    detail.Name = "DetailSection"
-    detail.Size = UDim2.new(1, 0, 0.38, 0)
-    detail.BackgroundColor3 = PAL.PANEL_RAISED
-    detail.BackgroundTransparency = 0.05
-    detail.BorderColor3 = PAL.DIVIDER
-    detail.BorderSizePixel = 1
-    detail.LayoutOrder = 2
-    detail.Parent = self._invRoot
-    _corner(detail, 2)
 
-    local padding = Instance.new("UIPadding")
-    padding.PaddingTop    = UDim.new(0, 10)
-    padding.PaddingBottom = UDim.new(0, 10)
-    padding.PaddingLeft   = UDim.new(0, 12)
-    padding.PaddingRight  = UDim.new(0, 12)
-    padding.Parent = detail
-
-    local layout = Instance.new("UIListLayout")
-    layout.FillDirection = Enum.FillDirection.Vertical
-    layout.SortOrder     = Enum.SortOrder.LayoutOrder
-    layout.Padding       = UDim.new(0, 6)
-    layout.Parent = detail
-
-    local nameLabel = Instance.new("TextLabel")
-    nameLabel.Name = "ItemName"
-    nameLabel.Size = UDim2.new(1, 0, 0, 24)
-    nameLabel.BackgroundTransparency = 1
-    nameLabel.Font = Enum.Font.GothamMedium
-    nameLabel.TextSize = 18
-    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-    nameLabel.TextColor3 = PAL.TEXT_PRI
-    nameLabel.Text = "No item selected"
-    nameLabel.LayoutOrder = 1
-    nameLabel.Parent = detail
-
-    local metaLabel = Instance.new("TextLabel")
-    metaLabel.Name = "ItemMeta"
-    metaLabel.Size = UDim2.new(1, 0, 0, 16)
-    metaLabel.BackgroundTransparency = 1
-    metaLabel.Font = Enum.Font.Gotham
-    metaLabel.TextSize = 12
-    metaLabel.TextXAlignment = Enum.TextXAlignment.Left
-    metaLabel.TextColor3 = PAL.TEXT_ACCENT
-    metaLabel.Text = ""
-    metaLabel.LayoutOrder = 2
-    metaLabel.Parent = detail
-
-    local descLabel = Instance.new("TextLabel")
-    descLabel.Name = "ItemDesc"
-    descLabel.Size = UDim2.new(1, 0, 1, -50)
-    descLabel.BackgroundTransparency = 1
-    descLabel.Font = Enum.Font.Gotham
-    descLabel.TextSize = 13
-    descLabel.TextXAlignment = Enum.TextXAlignment.Left
-    descLabel.TextYAlignment = Enum.TextYAlignment.Top
-    descLabel.TextWrapped = true
-    descLabel.TextColor3 = PAL.TEXT_SEC
-    descLabel.Text = "Hover an item to see its details."
-    descLabel.LayoutOrder = 3
-    descLabel.Parent = detail
-
-    self._detailSection = detail
-    self._detailName = nameLabel
-    self._detailMeta = metaLabel
-    self._detailDesc = descLabel
-end
 
 local function _createHotbar(self: any)
     local gui = self._screenGui
@@ -768,7 +699,6 @@ local function _buildGui(self: any)
 
     _createInventoryRoot(self)
     _createBagSection(self)
-    _createDetailSection(self)
     _createHotbar(self)
 
     -- ── Tooltip frame ────────────────────────────────────────────────────────
@@ -875,137 +805,149 @@ function InventoryController:RefreshUI()
     end
 
     -- ── BAG ───────────────────────────────────────────────────────────────────
-    -- Clear old cards
+    -- Clear old category blocks
     for _, c in ipairs(scroll:GetChildren()) do
-        if c:IsA("Frame") and not c:FindFirstChild("UIGridLayout") then
-            c:Destroy()
-        end
+        if c:IsA("Frame") or c:IsA("TextButton") then c:Destroy() end
     end
 
     local search = string.lower(self._search)
-    local BSIZE  = 68  -- bigger slots for readability
-    local BGAP   = 6
 
-    -- Filter items: exclude slotted, apply search
-    local displayItems: {any} = {}
+    -- Group items by category
+    local groups: {[string]: {any}} = {}
     for _, item in ipairs(self._inventory) do
         if slottedIds[item.Id] then continue end
         if search ~= "" and not string.find(string.lower(item.Name or ""), search, 1, true) then continue end
-        table.insert(displayItems, item)
+        local cat = item.Category or "Materials"
+        if cat == "AspectMove" then cat = "Abilities" end
+        if not groups[cat] then groups[cat] = {} end
+        table.insert(groups[cat], item)
     end
 
-    -- Create card for each display item (UIGridLayout will arrange)
-    for _, item in ipairs(displayItems) do
-        local rarity = item.Rarity or "Common"
-        local rarityCol = RARITY_COLOR[rarity] or PAL.TEXT_SEC
-        local catCol    = CAT_COLOR[item.Category or "Materials"] or PAL.TEXT_SEC
+    -- Create category blocks with internal grids
+    for _, cat in ipairs(CAT_ORDER) do
+        local items = groups[cat]
+        if not items or #items == 0 then continue end
 
-        -- Card background — carved stone inset (68×68px via UIGridLayout)
-        local card = Instance.new("Frame")
-        card.Name             = "Card_"..item.Id
-        card.BackgroundColor3 = PAL.PANEL_MID
-        card.BorderSizePixel  = 0
-        card.Parent           = scroll
-        _corner(card, 2)
+        local catColor = CAT_COLOR[cat] or PAL.TEXT_SEC
 
-        -- Rarity border — thin, sharp
-        _stroke(card, rarityCol, 1, 0.4)
-        
-        -- Cooldown Overlay for Bag
-        if _isAbility(item) then
-            local cdOverlay = Instance.new("Frame")
-            cdOverlay.Name               = "CooldownOverlay"
-            cdOverlay.Size               = UDim2.fromScale(1, 0) 
-            cdOverlay.Position           = UDim2.fromScale(0, 0)
-            cdOverlay.BackgroundColor3   = Color3.new(0,0,0)
-            cdOverlay.BackgroundTransparency = 0.6
-            cdOverlay.BorderSizePixel    = 0
-            cdOverlay.ZIndex             = card.ZIndex + 2
-            cdOverlay.Visible            = false
-            cdOverlay.Parent             = card
+        -- Category block — wraps header + grid
+        local block = Instance.new("Frame")
+        block.Name = "Cat_" .. cat
+        block.BackgroundTransparency = 1
+        block.Size = UDim2.new(1, -16, 0, 0)
+        block.AutomaticSize = Enum.AutomaticSize.Y
+        block.Parent = scroll
 
-            task.spawn(function()
-                while card and card.Parent do
-                    local char = localPlayer.Character
-                    if not char then task.wait(0.5); continue end
-                    local abilityId = item.AbilityId or item.Id
-                    local cdTag = char:GetAttribute("CD_" .. abilityId) :: number?
-                    
-                    if cdTag and cdTag > tick() then
-                        local remaining = cdTag - tick()
-                        local totalCd = item.Cooldown or 5
-                        local progress = math.clamp(remaining / totalCd, 0, 1)
-                        
-                        cdOverlay.Visible = true
-                        cdOverlay.Size    = UDim2.fromScale(1, progress)
-                    else
-                        cdOverlay.Visible = false
-                    end
-                    task.wait(0.1)
+        local blockLayout = Instance.new("UIListLayout")
+        blockLayout.FillDirection = Enum.FillDirection.Vertical
+        blockLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        blockLayout.Padding = UDim.new(0, 4)
+        blockLayout.Parent = block
+
+        -- Category header with collapse toggle
+        local catHdr = Instance.new("TextButton")
+        catHdr.Name = "Header"
+        catHdr.Size = UDim2.new(1, 0, 0, 20)
+        catHdr.BackgroundTransparency = 1
+        catHdr.AutoButtonColor = false
+        catHdr.Text = (self._collapsed[cat] and "▸  " or "▾  ") .. string.upper(CAT_LABEL[cat] or cat)
+        catHdr.TextColor3 = PAL.TEXT_ACCENT
+        catHdr.Font = Enum.Font.Antique
+        catHdr.TextSize = 12
+        catHdr.TextXAlignment = Enum.TextXAlignment.Left
+        catHdr.Parent = block
+
+        local rule = Instance.new("Frame")
+        rule.Size = UDim2.new(1, 0, 0, 1)
+        rule.BackgroundColor3 = PAL.DIVIDER
+        rule.BorderSizePixel = 0
+        rule.Parent = block
+
+        local capturedCat = cat
+        catHdr.MouseButton1Click:Connect(function()
+            self._collapsed[capturedCat] = not self._collapsed[capturedCat]
+            self:RefreshUI()
+        end)
+
+        if self._collapsed[cat] then continue end
+
+        -- Grid frame for items
+        local grid = Instance.new("Frame")
+        grid.Name = "Grid"
+        grid.BackgroundTransparency = 1
+        grid.Size = UDim2.new(1, 0, 0, 0)
+        grid.AutomaticSize = Enum.AutomaticSize.Y
+        grid.Parent = block
+
+        local gridLayout = Instance.new("UIGridLayout")
+        gridLayout.CellSize = UDim2.new(0, 62, 0, 62)
+        gridLayout.CellPadding = UDim2.new(0, 7, 0, 7)
+        gridLayout.FillDirectionMaxCells = 4
+        gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+        gridLayout.Parent = grid
+
+        -- Build cards for items in this category
+        for _, item in ipairs(items) do
+            local rarity = item.Rarity or "Common"
+            local rarityCol = RARITY_COLOR[rarity] or PAL.TEXT_SEC
+
+            local card = Instance.new("Frame")
+            card.Name = "Card_" .. item.Id
+            card.BackgroundColor3 = PAL.PANEL_MID
+            card.BorderSizePixel = 0
+            card.Parent = grid
+            _corner(card, 2)
+            _stroke(card, rarityCol, 1, 0.4)
+
+            -- Category stripe
+            local stripe = Instance.new("Frame")
+            stripe.Size = UDim2.new(0, 3, 1, 0)
+            stripe.BackgroundColor3 = catColor
+            stripe.BackgroundTransparency = 0.1
+            stripe.BorderSizePixel = 0
+            stripe.Parent = card
+            _corner(stripe, 1)
+
+            -- Item name label
+            local nameL = Instance.new("TextLabel")
+            nameL.Size = UDim2.new(1, -8, 1, -8)
+            nameL.Position = UDim2.fromOffset(7, 4)
+            nameL.BackgroundTransparency = 1
+            nameL.TextColor3 = PAL.TEXT_PRI
+            nameL.TextWrapped = true
+            nameL.TextScaled = true
+            nameL.Font = Enum.Font.Antique
+            nameL.Text = item.Name or "?"
+            nameL.Parent = card
+
+            -- Click/drag button
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.fromScale(1, 1)
+            btn.BackgroundTransparency = 1
+            btn.Text = ""
+            btn.AutoButtonColor = false
+            btn.Parent = card
+
+            local ci = item
+
+            btn.MouseEnter:Connect(function()
+                card.BackgroundColor3 = PAL.SLOT_HOVER
+                _showTooltip(self, ci)
+            end)
+
+            btn.MouseLeave:Connect(function()
+                card.BackgroundColor3 = PAL.PANEL_MID
+                _hideTooltip(self, ci)
+            end)
+
+            btn.MouseButton1Click:Connect(function() _onBagClick(self, ci) end)
+            btn.InputBegan:Connect(function(inp)
+                if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+                    _startDrag(self, ci, "bag", nil)
                 end
             end)
         end
-
-        -- Left category stripe — 3px wide, full height
-        local stripe = Instance.new("Frame")
-        stripe.Size             = UDim2.new(0, 3, 1, 0)
-        stripe.BackgroundColor3 = catCol
-        stripe.BackgroundTransparency = 0.1
-        stripe.BorderSizePixel  = 0
-        stripe.Parent           = card
-        _corner(stripe, 1)
-
-        -- Item name
-        local nameL = Instance.new("TextLabel")
-        nameL.Size        = UDim2.new(1, -8, 1, -8)
-        nameL.Position    = UDim2.fromOffset(7, 4)
-        nameL.BackgroundTransparency = 1
-        nameL.TextColor3  = PAL.TEXT_PRI
-        nameL.TextWrapped = true
-        nameL.TextScaled  = true
-        nameL.Font        = Enum.Font.Antique
-        nameL.Text        = item.Name or "?"
-        nameL.Parent      = card
-
-        -- Rarity initial bottom-right (C / U / R / L)
-        local rarityInitial = (rarity ~= "Common") and string.sub(rarity, 1, 1) or nil
-        if rarityInitial then
-            local rl = Instance.new("TextLabel")
-            rl.Size     = UDim2.fromOffset(12, 12)
-            rl.Position = UDim2.new(1, -14, 1, -14)
-            rl.BackgroundTransparency = 1
-            rl.Text     = rarityInitial
-            rl.TextColor3 = rarityCol
-            rl.TextSize = 9
-            rl.Font     = Enum.Font.GothamBold
-            rl.Parent   = card
-        end
-
-        -- Click button overlay
-        local btn = Instance.new("TextButton")
-        btn.Size = UDim2.fromScale(1, 1)
-        btn.BackgroundTransparency = 1
-        btn.Text = ""; btn.AutoButtonColor = false; btn.Parent = card
-
-        btn.MouseEnter:Connect(function()
-            card.BackgroundColor3 = PAL.SLOT_HOVER
-            _stroke(card, rarityCol, 1, 0)  -- fully opaque on hover
-        end)
-        btn.MouseLeave:Connect(function()
-            card.BackgroundColor3 = PAL.PANEL_MID
-            -- restore stroke (recreate since we can't easily mutate)
-        end)
-
-        local ci = item
-        btn.MouseButton1Click:Connect(function() _onBagClick(self, ci) end)
-        btn.InputBegan:Connect(function(inp)
-            if inp.UserInputType == Enum.UserInputType.MouseButton1 then
-                _startDrag(self, ci, "bag", nil)
-            end
-        end)
-
-        -- Wire tooltip hover
-        _bindSlotHover(self, btn, ci)
     end
 
     -- ── HOTBAR ────────────────────────────────────────────────────────────────
@@ -1146,13 +1088,17 @@ function InventoryController:RefreshUI()
             if ci then _onHotbarActivate(self, cs) end
         end)
         if ci then
+            btn.MouseEnter:Connect(function()
+                _showTooltip(self, ci)
+            end)
+            btn.MouseLeave:Connect(function()
+                _hideTooltip(self, ci)
+            end)
             btn.InputBegan:Connect(function(inp)
                 if inp.UserInputType == Enum.UserInputType.MouseButton1 then
                     _startDrag(self, ci, "hotbar", cs)
                 end
             end)
-            -- Wire tooltip hover
-            _bindSlotHover(self, btn, ci)
         end
     end
 
