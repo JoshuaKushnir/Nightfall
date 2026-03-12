@@ -32,8 +32,8 @@ local localPlayer     = Players.LocalPlayer
 -- ─── Layout ───────────────────────────────────────────────────────────────────
 
 local HOTBAR_SLOTS = 8
-local SLOT_OUTER   = 56    -- cell stride (px)
-local SLOT_INNER   = 52    -- rendered slot size (px)
+local SLOT_OUTER   = 74    -- cell stride (px)
+local SLOT_INNER   = 70    -- rendered slot size (px)
 local INV_W        = 348
 local INV_H        = 460
 
@@ -410,6 +410,20 @@ local function _positionTooltip(self: any)
     local offset = Vector2.new(18, 20)
     local x = mouse.X + offset.X
     local y = mouse.Y + offset.Y
+
+    -- Clamp so tooltip stays on screen
+    local gui = self._screenGui
+    if gui then
+        local viewX, viewY = workspace.CurrentCamera.ViewportSize.X, workspace.CurrentCamera.ViewportSize.Y
+        local size = self._tooltipRoot.AbsoluteSize
+        if x + size.X > viewX - 10 then
+            x = viewX - size.X - 10
+        end
+        if y + size.Y > viewY - 10 then
+            y = viewY - size.Y - 10
+        end
+    end
+
     self._tooltipRoot.Position = UDim2.fromOffset(x, y)
 end
 
@@ -536,8 +550,8 @@ local function _createInventoryRoot(self: any)
     local gui = self._screenGui
     local root = Instance.new("Frame")
     root.Name = "InventoryRoot"
-    root.Size = UDim2.new(0.36, 0, 0.78, 0)   -- tall column on the right
-    root.Position = UDim2.new(0.64, 0, 0.11, 0)
+    root.Size = UDim2.new(0.38, 0, 0.6, 0)    -- left panel: 38% width, 60% height
+    root.Position = UDim2.new(0.02, 0, 0.07, 0)  -- left margin, top margin
     root.BackgroundColor3 = PAL.PANEL
     root.BackgroundTransparency = 0.15
     root.BorderColor3 = PAL.GOLD_LINE
@@ -663,8 +677,9 @@ local function _createHotbar(self: any)
     local gui = self._screenGui
     local hb = Instance.new("Frame")
     hb.Name = "HotbarRoot"
-    hb.Size = UDim2.new(0.32, 0, 0, 80)
-    hb.Position = UDim2.new(0.34, 0, 1, -94) -- centered low, not blocking feet
+    hb.AnchorPoint = Vector2.new(0.5, 1)
+    hb.Position = UDim2.new(0.5, 0, 1, -18)    -- bottom center
+    hb.Size = UDim2.new(0, HOTBAR_SLOTS * SLOT_OUTER + 16, 0, SLOT_INNER + 26)
     hb.BackgroundTransparency = 1
     hb.BorderSizePixel = 0
     hb.Parent = gui
@@ -880,8 +895,8 @@ function InventoryController:RefreshUI()
         grid.Parent = block
 
         local gridLayout = Instance.new("UIGridLayout")
-        gridLayout.CellSize = UDim2.new(0, 62, 0, 62)
-        gridLayout.CellPadding = UDim2.new(0, 7, 0, 7)
+        gridLayout.CellSize = UDim2.new(0, 70, 0, 70)
+        gridLayout.CellPadding = UDim2.new(0, 8, 0, 8)
         gridLayout.FillDirectionMaxCells = 4
         gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
         gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
@@ -898,7 +913,7 @@ function InventoryController:RefreshUI()
             card.BorderSizePixel = 0
             card.Parent = grid
             _corner(card, 2)
-            _stroke(card, rarityCol, 1, 0.4)
+            _stroke(card, rarityCol, 1, 0.25)
 
             -- Category stripe
             local stripe = Instance.new("Frame")
