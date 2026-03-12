@@ -500,6 +500,236 @@ local function _bindSlotHover(self: any, button: TextButton, item: any)
     end
 end
 
+-- ─── UI Layout Helpers ──────────────────────────────────────────────────────────
+
+local function _styleSlot(frame: Frame, selected: boolean?)
+    frame.BackgroundColor3 = selected and PAL.SLOT_HOVER or PAL.SLOT_BG
+    frame.BorderColor3 = PAL.DIVIDER
+    frame.BorderSizePixel = selected and 2 or 1
+end
+
+local function _createInventoryRoot(self: any)
+    local gui = self._screenGui
+    local root = Instance.new("Frame")
+    root.Name = "InventoryRoot"
+    root.Size = UDim2.new(0.36, 0, 0.78, 0)   -- tall column on the right
+    root.Position = UDim2.new(0.64, 0, 0.11, 0)
+    root.BackgroundColor3 = PAL.PANEL
+    root.BackgroundTransparency = 0.15
+    root.BorderColor3 = PAL.GOLD_LINE
+    root.BorderSizePixel = 1
+    root.Parent = gui
+    _corner(root, 3)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop    = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft   = UDim.new(0, 12)
+    padding.PaddingRight  = UDim.new(0, 12)
+    padding.Parent = root
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder     = Enum.SortOrder.LayoutOrder
+    layout.Padding       = UDim.new(0, 8)
+    layout.Parent = root
+
+    self._invRoot = root
+end
+
+local function _createBagSection(self: any)
+    local bagFrame = Instance.new("Frame")
+    bagFrame.Name = "BagSection"
+    bagFrame.Size = UDim2.new(1, 0, 0.6, 0)
+    bagFrame.BackgroundColor3 = PAL.PANEL_MID
+    bagFrame.BackgroundTransparency = 0.05
+    bagFrame.BorderColor3 = PAL.DIVIDER
+    bagFrame.BorderSizePixel = 1
+    bagFrame.LayoutOrder = 1
+    bagFrame.Parent = self._invRoot
+    _corner(bagFrame, 2)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop    = UDim.new(0, 8)
+    padding.PaddingBottom = UDim.new(0, 8)
+    padding.PaddingLeft   = UDim.new(0, 8)
+    padding.PaddingRight  = UDim.new(0, 8)
+    padding.Parent = bagFrame
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder     = Enum.SortOrder.LayoutOrder
+    layout.Padding       = UDim.new(0, 6)
+    layout.Parent = bagFrame
+
+    -- Header row (title + search)
+    local header = Instance.new("Frame")
+    header.Name = "HeaderRow"
+    header.Size = UDim2.new(1, 0, 0, 32)
+    header.BackgroundTransparency = 1
+    header.LayoutOrder = 1
+    header.Parent = bagFrame
+
+    local headerLayout = Instance.new("UIListLayout")
+    headerLayout.FillDirection = Enum.FillDirection.Horizontal
+    headerLayout.SortOrder     = Enum.SortOrder.LayoutOrder
+    headerLayout.Padding       = UDim.new(0, 8)
+    headerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    headerLayout.VerticalAlignment   = Enum.VerticalAlignment.Center
+    headerLayout.Parent = header
+
+    local title = Instance.new("TextLabel")
+    title.Name = "BagTitle"
+    title.Size = UDim2.new(0, 120, 1, 0)
+    title.BackgroundTransparency = 1
+    title.Font = Enum.Font.GothamMedium
+    title.TextSize = 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextColor3 = PAL.TEXT_PRI
+    title.Text = "INVENTORY"
+    title.Parent = header
+
+    local searchBox = Instance.new("TextBox")
+    searchBox.Name = "SearchBox"
+    searchBox.Size = UDim2.new(1, -128, 1, 0)
+    searchBox.BackgroundColor3 = PAL.SEARCH_BG
+    searchBox.BackgroundTransparency = 0
+    searchBox.BorderColor3 = PAL.DIVIDER
+    searchBox.BorderSizePixel = 1
+    searchBox.ClearTextOnFocus = false
+    searchBox.Font = Enum.Font.Gotham
+    searchBox.TextSize = 12
+    searchBox.TextColor3 = PAL.TEXT_PRI
+    searchBox.PlaceholderText = "Search..."
+    searchBox.PlaceholderColor3 = PAL.TEXT_DIM
+    searchBox.TextXAlignment = Enum.TextXAlignment.Left
+    searchBox.Parent = header
+    _corner(searchBox, 1)
+
+    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        self._search = string.lower(searchBox.Text)
+        self:RefreshUI()
+    end)
+
+    -- Scrollable grid of big slots
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "BagScroll"
+    scroll.Size = UDim2.new(1, 0, 1, -38)
+    scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarThickness = 2
+    scroll.ScrollBarImageColor3 = PAL.SCROLL_CLR
+    scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.LayoutOrder = 2
+    scroll.Parent = bagFrame
+
+    local grid = Instance.new("UIGridLayout")
+    grid.CellSize = UDim2.new(0, 68, 0, 68)       -- bigger, readable slots
+    grid.CellPadding = UDim2.new(0, 6, 0, 6)
+    grid.FillDirectionMaxCells = 4                -- 4 columns
+    grid.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    grid.SortOrder = Enum.SortOrder.LayoutOrder
+    grid.Parent = scroll
+
+    self._bagScroll = scroll
+end
+
+local function _createDetailSection(self: any)
+    local detail = Instance.new("Frame")
+    detail.Name = "DetailSection"
+    detail.Size = UDim2.new(1, 0, 0.38, 0)
+    detail.BackgroundColor3 = PAL.PANEL_RAISED
+    detail.BackgroundTransparency = 0.05
+    detail.BorderColor3 = PAL.DIVIDER
+    detail.BorderSizePixel = 1
+    detail.LayoutOrder = 2
+    detail.Parent = self._invRoot
+    _corner(detail, 2)
+
+    local padding = Instance.new("UIPadding")
+    padding.PaddingTop    = UDim.new(0, 10)
+    padding.PaddingBottom = UDim.new(0, 10)
+    padding.PaddingLeft   = UDim.new(0, 12)
+    padding.PaddingRight  = UDim.new(0, 12)
+    padding.Parent = detail
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Vertical
+    layout.SortOrder     = Enum.SortOrder.LayoutOrder
+    layout.Padding       = UDim.new(0, 6)
+    layout.Parent = detail
+
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Name = "ItemName"
+    nameLabel.Size = UDim2.new(1, 0, 0, 24)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Font = Enum.Font.GothamMedium
+    nameLabel.TextSize = 18
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextColor3 = PAL.TEXT_PRI
+    nameLabel.Text = "No item selected"
+    nameLabel.LayoutOrder = 1
+    nameLabel.Parent = detail
+
+    local metaLabel = Instance.new("TextLabel")
+    metaLabel.Name = "ItemMeta"
+    metaLabel.Size = UDim2.new(1, 0, 0, 16)
+    metaLabel.BackgroundTransparency = 1
+    metaLabel.Font = Enum.Font.Gotham
+    metaLabel.TextSize = 12
+    metaLabel.TextXAlignment = Enum.TextXAlignment.Left
+    metaLabel.TextColor3 = PAL.TEXT_ACCENT
+    metaLabel.Text = ""
+    metaLabel.LayoutOrder = 2
+    metaLabel.Parent = detail
+
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Name = "ItemDesc"
+    descLabel.Size = UDim2.new(1, 0, 1, -50)
+    descLabel.BackgroundTransparency = 1
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextSize = 13
+    descLabel.TextXAlignment = Enum.TextXAlignment.Left
+    descLabel.TextYAlignment = Enum.TextYAlignment.Top
+    descLabel.TextWrapped = true
+    descLabel.TextColor3 = PAL.TEXT_SEC
+    descLabel.Text = "Hover an item to see its details."
+    descLabel.LayoutOrder = 3
+    descLabel.Parent = detail
+
+    self._detailSection = detail
+    self._detailName = nameLabel
+    self._detailMeta = metaLabel
+    self._detailDesc = descLabel
+end
+
+local function _createHotbar(self: any)
+    local gui = self._screenGui
+    local hb = Instance.new("Frame")
+    hb.Name = "HotbarRoot"
+    hb.Size = UDim2.new(0.32, 0, 0, 80)
+    hb.Position = UDim2.new(0.34, 0, 1, -94) -- centered low, not blocking feet
+    hb.BackgroundTransparency = 1
+    hb.BorderSizePixel = 0
+    hb.Parent = gui
+
+    local slotsFrame = Instance.new("Frame")
+    slotsFrame.Name = "Slots"
+    slotsFrame.Size = UDim2.new(1, 0, 1, 0)
+    slotsFrame.BackgroundTransparency = 1
+    slotsFrame.Parent = hb
+
+    local layout = Instance.new("UIListLayout")
+    layout.FillDirection = Enum.FillDirection.Horizontal
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    layout.VerticalAlignment   = Enum.VerticalAlignment.Center
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = slotsFrame
+
+    self._hotbarRoot = hb
+end
+
 -- ─── GUI helpers ──────────────────────────────────────────────────────────────
 
 local function _corner(parent: Instance, r: number)
@@ -534,159 +764,12 @@ local function _buildGui(self: any)
     sg.IgnoreGuiInset = false
     sg.Parent         = localPlayer:WaitForChild("PlayerGui")
 
-    -- ── Outer panel ─────────────────────────────────────────────────────────
-    -- Sharp corners (r=3) — this isn't a mobile game
-    local root = Instance.new("Frame")
-    root.Name                   = "InventoryRoot"
-    root.Size                   = UDim2.fromOffset(INV_W, INV_H)
-    root.Position               = UDim2.new(1, 10, 0.07, 0)  -- offscreen right
-    root.BackgroundColor3       = PAL.PANEL
-    root.BorderSizePixel        = 0
-    root.ClipsDescendants       = true
-    root.Parent                 = sg
-    _corner(root, 3)
+    self._screenGui = sg
 
-    -- Outer gold border — single pixel, tarnished
-    _stroke(root, PAL.DIVIDER, 1)
-
-    -- Inner bevel — very dark inset line just inside the border
-    local bevel = Instance.new("Frame")
-    bevel.Size             = UDim2.new(1, -4, 1, -4)
-    bevel.Position         = UDim2.fromOffset(2, 2)
-    bevel.BackgroundTransparency = 1
-    bevel.BorderSizePixel  = 0
-    bevel.Parent           = root
-    _stroke(bevel, Color3.fromRGB(8, 6, 4), 1)
-
-    -- Subtle top-to-bottom darkening gradient
-    local grad = Instance.new("UIGradient")
-    grad.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(30, 24, 17)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 11,  8)),
-    })
-    grad.Rotation = 90
-    grad.Parent   = root
-
-    -- ── Header bar ──────────────────────────────────────────────────────────
-    local hdr = Instance.new("Frame")
-    hdr.Name             = "Header"
-    hdr.Size             = UDim2.new(1, 0, 0, 46)
-    hdr.BackgroundColor3 = PAL.HEADER_BG
-    hdr.BorderSizePixel  = 0
-    hdr.Parent           = root
-    _corner(hdr, 3)
-    -- Flush bottom so rounded top corners sit naturally
-    local hFlush = Instance.new("Frame")
-    hFlush.Size = UDim2.new(1, 0, 0, 8)
-    hFlush.Position = UDim2.new(0, 0, 1, -8)
-    hFlush.BackgroundColor3 = PAL.HEADER_BG
-    hFlush.BorderSizePixel  = 0
-    hFlush.Parent           = hdr
-
-    -- Gold rule under header — the signature line
-    local goldRule = Instance.new("Frame")
-    goldRule.Size             = UDim2.new(1, 0, 0, 1)
-    goldRule.Position         = UDim2.new(0, 0, 1, 0)
-    goldRule.BackgroundColor3 = PAL.GOLD_LINE
-    goldRule.BorderSizePixel  = 0
-    goldRule.Parent           = hdr
-
-    -- Second faint rule below gold — depth trick
-    local shadowRule = Instance.new("Frame")
-    shadowRule.Size             = UDim2.new(1, 0, 0, 1)
-    shadowRule.Position         = UDim2.new(0, 0, 1, 1)
-    shadowRule.BackgroundColor3 = Color3.fromRGB(6, 4, 2)
-    shadowRule.BorderSizePixel  = 0
-    shadowRule.Parent           = hdr
-
-    -- Diamond corner ornaments (◆) top-left and top-right of header
-    local function _ornament(xOff: number, align: Enum.TextXAlignment)
-        local o = Instance.new("TextLabel")
-        o.Size     = UDim2.fromOffset(16, 16)
-        o.Position = UDim2.new(if align == Enum.TextXAlignment.Left then 0 else 1, xOff, 0.5, -8)
-        o.BackgroundTransparency = 1
-        o.Text     = "◆"
-        o.TextColor3 = PAL.GOLD_LINE
-        o.TextSize = 8
-        o.Font     = Enum.Font.Gotham
-        o.TextXAlignment = align
-        o.Parent   = hdr
-    end
-    _ornament(6, Enum.TextXAlignment.Left)
-    _ornament(-6, Enum.TextXAlignment.Right)
-
-    -- "INVENTORY" title
-    local title = Instance.new("TextLabel")
-    title.Size           = UDim2.new(1, -80, 1, 0)
-    title.Position       = UDim2.fromOffset(28, 0)
-    title.BackgroundTransparency = 1
-    title.Text           = "I N V E N T O R Y"
-    title.TextColor3     = PAL.TEXT_ACCENT
-    title.Font           = Enum.Font.Antique
-    title.TextSize       = 16
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    -- LetterSpacing is only supported in newer Roblox clients; guard to avoid errors in older environments
-    pcall(function()
-        title.LetterSpacing = 0
-    end)
-    title.Parent         = hdr
-
-    -- Close [×]
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size             = UDim2.fromOffset(24, 24)
-    closeBtn.Position         = UDim2.new(1, -32, 0.5, -12)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(48, 18, 16)
-    closeBtn.BorderSizePixel  = 0
-    closeBtn.Text             = "×"
-    closeBtn.TextColor3       = Color3.fromRGB(190, 110, 100)
-    closeBtn.Font             = Enum.Font.GothamBold
-    closeBtn.TextSize         = 16
-    closeBtn.AutoButtonColor  = false
-    closeBtn.Parent           = hdr
-    _corner(closeBtn, 2)
-    _stroke(closeBtn, Color3.fromRGB(90, 34, 28), 1)
-    closeBtn.MouseButton1Click:Connect(function() self:ToggleOpen() end)
-
-    -- ── Search bar ──────────────────────────────────────────────────────────
-    local searchWrap = Instance.new("Frame")
-    searchWrap.Name             = "SearchWrap"
-    searchWrap.Size             = UDim2.new(1, -16, 0, 26)
-    searchWrap.Position         = UDim2.fromOffset(8, 52)
-    searchWrap.BackgroundColor3 = PAL.SEARCH_BG
-    searchWrap.BorderSizePixel  = 0
-    searchWrap.Parent           = root
-    _corner(searchWrap, 2)
-    _stroke(searchWrap, PAL.DIVIDER, 1)
-
-    -- Search icon (sword glyph fits theme better than 🔍)
-    local searchIco = Instance.new("TextLabel")
-    searchIco.Size = UDim2.fromOffset(22, 26)
-    searchIco.Position = UDim2.fromOffset(5, 0)
-    searchIco.BackgroundTransparency = 1
-    searchIco.Text = "⚔"
-    searchIco.TextColor3 = PAL.TEXT_DIM
-    searchIco.TextSize = 12
-    searchIco.Font = Enum.Font.Antique
-    searchIco.Parent = searchWrap
-
-    local searchBox = Instance.new("TextBox")
-    searchBox.Name              = "SearchBox"
-    searchBox.Size              = UDim2.new(1, -30, 1, 0)
-    searchBox.Position          = UDim2.fromOffset(26, 0)
-    searchBox.BackgroundTransparency = 1
-    searchBox.PlaceholderText   = "Search items..."
-    searchBox.PlaceholderColor3 = PAL.TEXT_DIM
-    searchBox.TextColor3        = PAL.TEXT_PRI
-    searchBox.Font              = Enum.Font.Gotham
-    searchBox.TextSize          = 11
-    searchBox.ClearTextOnFocus  = false
-    searchBox.BorderSizePixel   = 0
-    searchBox.Text              = ""
-    searchBox.Parent            = searchWrap
-    searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        self._search = string.lower(searchBox.Text)
-        self:RefreshUI()
-    end)
+    _createInventoryRoot(self)
+    _createBagSection(self)
+    _createDetailSection(self)
+    _createHotbar(self)
 
     -- ── Tooltip frame ────────────────────────────────────────────────────────
     local tooltip = Instance.new("Frame")
@@ -767,42 +850,12 @@ local function _buildGui(self: any)
     tag_container.BackgroundTransparency = 1
     tag_container.Parent             = tooltip
 
-    local ok, tag_layout = pcall(Instance.new, "UIFlowLayout")
-    if not ok then
-        tag_layout = Instance.new("UIListLayout")
-        tag_layout.FillDirection = Enum.FillDirection.Horizontal
-    end
+    local tag_layout = Instance.new("UIFlowLayout")
     tag_layout.FillDirection = Enum.FillDirection.Horizontal
     tag_layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
     tag_layout.VerticalAlignment   = Enum.VerticalAlignment.Top
     tag_layout.Padding = UDim.new(0, 4)
     tag_layout.Parent  = tag_container
-
-    -- ── Item scroll area ────────────────────────────────────────────────────
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Name                 = "Scroll"
-    scroll.Size                 = UDim2.new(1, -4, 1, -84)
-    scroll.Position             = UDim2.fromOffset(2, 82)
-    scroll.CanvasSize           = UDim2.fromOffset(0, 0)
-    scroll.ScrollBarThickness   = 2
-    scroll.ScrollBarImageColor3 = PAL.SCROLL_CLR
-    scroll.BackgroundTransparency = 1
-    scroll.BorderSizePixel      = 0
-    scroll.Parent               = root
-
-    -- ── Hotbar ──────────────────────────────────────────────────────────────
-    local hotbar = Instance.new("Frame")
-    hotbar.Name              = "HotbarRoot"
-    hotbar.AnchorPoint       = Vector2.new(0.5, 1)
-    hotbar.Position          = UDim2.new(0.5, 0, 1, -18)
-    hotbar.BackgroundTransparency = 1
-    hotbar.Size              = UDim2.fromOffset(0, SLOT_INNER + 22)
-    hotbar.Visible           = false
-    hotbar.Parent            = sg
-
-    self._screenGui  = sg
-    self._invRoot    = root
-    self._hotbarRoot = hotbar
 end
 
 -- ─── RefreshUI ────────────────────────────────────────────────────────────────
