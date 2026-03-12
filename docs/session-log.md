@@ -28,8 +28,12 @@
 ### Tech Debt Created
 - None new (Phase 2 category system placeholder removed entirely, replaced with cleanly integrated category blocks).
 
+### Bugfixes (During Studio Testing)
+- **Panel toggle positioning bug**: Fixed ToggleOpen to position panel on LEFT side (0.02x) instead of right edge (1, tx). When open stays at left. When closed moves to -0.4x off-screen. Removed issue where panel appeared on right after toggling.
+- **Empty bar at bottom of bag**: Fixed scroll frame sizing from -38px to -54px. Now accounts for 8px top padding + 32px header + 6px gap + 8px bottom padding. Scroll fill bagFrame completely without gap.
+
 ### Next Session Should Start On
-Issue #62 continuation: **Studio test** — Verify left panel layout, category blocks, collapse toggles, enlarged cards (70×70), tooltip edge clamping. Then refine hotbar positioning if needed to prevent player character obstruction in narrow viewports.
+Issue #62 continuation: **Continue Studio testing** — Verify toggle animation smooth, panel stays on left through cycles, bag scroll fills completely. Test all drag/drop and category collapse interactions.
 
 ---
 
