@@ -1,5 +1,38 @@
 ﻿# Project Nightfall: Session Intelligence Log
 
+## Session NF-069: Inventory UI Layout Refactor — Modular GUI Functions + UIGridLayout Integration
+**Date:** 2026-02-10
+**Issues:** #62 (Inventory system design iteration)
+
+### What Was Built
+- **`src/client/controllers/InventoryController.lua`** — Major layout refactoring:
+  - **Moved GUI helper functions early** (_corner, _stroke, _divider) to lines 503-528 before layout helpers depend on them
+  - **Added four modular layout creation functions** (lines 532-754):
+    - `_createInventoryRoot(self)`: Creates 36% width × 78% height inventory column at (0.64, 0.11) with UIListLayout vertical stacking
+    - `_createBagSection(self)`: Creates 60% bag frame with header row (title + search), scrollable grid (UIGridLayout 4 columns × 68×68px cells), stores ref `self._bagScroll`
+    - `_createDetailSection(self)`: Creates 38% detail panel below bag with Name/Meta/Description labels, stores refs `self._detailName`, `self._detailMeta`, `self._detailDesc`
+    - `_createHotbar(self)`: Creates 32% viewport width hotbar at (0.34, 0, 1, -94) with horizontal UIListLayout for 8 slots
+  - **Simplified _buildGui** (lines 757-854): Now calls four modular functions + creates tooltip frame (UIListLayout for title/subtitle/body/tags)
+  - **Refactored RefreshUI** (lines 866-943): Removed yOff-based positioning, category headers/collapse logic. Now creates flat list of cards parented to scroll — UIGridLayout auto-arranges into 4-column grid. Cards still have all visual elements (rarity border, category stripe, item name, cooldown overlay)
+  - **Replaced UIFlowLayout with UIListLayout** (line 853): Roblox doesn't support UIFlowLayout; tags now use UIListLayout horizontal
+  - **Logged hotbar clearing** (lines 1025-1027): Preserved existing hotbar rendering code for slot creation with cooldown overlays
+
+### Integration Points
+- **Responsive layout**: Inventory panel scales to 36% of viewport width (adapts to any screen resolution), solves the 16:9 responsiveness requirement
+- **Detail panel ready**: Stores refs to detail labels (_detailName, _detailMeta, _detailDesc) — next session can wire hover events to populate these
+- **Tooltip coexists**: Tooltip frame created independently at end of _buildGui, positioned via mouse + 18/20 offset (unchanged from Phase 1)
+- **UIGridLayout auto-sizing**: RefreshUI no longer manually calculates `yOff` or scroll canvas size — UIGridLayout + AutomaticCanvasSize handle it automatically
+
+### Spec Gaps Encountered
+- **Hotbar slot size**: Old hotbar uses SLOT_INNER/SLOT_OUTER constants (appears to be ~62px). New layout specifies 68px cells in bag. May need to unify hotbar to match 68px for consistency, or verify hotbar positioning is correct (checked: new hotbar position is 0.34, 0, 1, -94 which is centered, 94px from bottom — good)
+
+### Tech Debt Created
+- **Category system unused**: Old category collapse/headers removed; categories defined but not rendered. If categories needed again, add back category header rows with collapse toggles (low priority — current flat grid is cleaner)
+- **Search bar parenting**: Search box now lives in bag section header row, integrated with bag scroll. Previously was separate UI element. Works fine, no technical debt.
+
+### Next Session Should Start On
+Issue #62 continuation: **Wire detail panel hover updates** + **Test layout in Studio** to confirm 16:9 responsiveness and verify hotbar doesn't block character view. Then consider refining hotbar slot sizes/positioning if needed.
+
 ## Session NF-068: Depth-1 Ability Unit Test Augmentation
 **Date:** 2026-06-23
 **Issues:** #172 (Depth-1 ability tests)
