@@ -579,7 +579,7 @@ end
 local function _createBagSection(self: any)
     local bagFrame = Instance.new("Frame")
     bagFrame.Name = "BagSection"
-    bagFrame.Size = UDim2.new(1, 0, 0.6, 0)
+    bagFrame.Size = UDim2.new(1, 0, 1, 0)   -- fill entire inventory root vertically
     bagFrame.BackgroundColor3 = PAL.PANEL_MID
     bagFrame.BackgroundTransparency = 0.05
     bagFrame.BorderColor3 = PAL.DIVIDER
