@@ -551,7 +551,8 @@ local function _createInventoryRoot(self: any)
     local root = Instance.new("Frame")
     root.Name = "InventoryRoot"
     root.Size = UDim2.new(0.38, 0, 0.6, 0)    -- left panel: 38% width, 60% height
-    root.Position = UDim2.new(0.02, 0, 0.07, 0)  -- left margin, top margin
+    -- Start OFF-SCREEN (panel starts closed)
+    root.Position = UDim2.new(-0.4, 0, 0.07, 0)
     root.BackgroundColor3 = PAL.PANEL
     root.BackgroundTransparency = 0.15
     root.BorderColor3 = PAL.GOLD_LINE
