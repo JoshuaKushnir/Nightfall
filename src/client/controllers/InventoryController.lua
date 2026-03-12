@@ -652,7 +652,7 @@ local function _createBagSection(self: any)
     -- Scrollable area with vertical layout for category blocks
     local scroll = Instance.new("ScrollingFrame")
     scroll.Name = "BagScroll"
-    scroll.Size = UDim2.new(1, 0, 1, -38)
+    scroll.Size = UDim2.new(1, 0, 1, -54)
     scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
     scroll.ScrollBarThickness = 2
@@ -1146,10 +1146,11 @@ function InventoryController:ToggleOpen()
     self._isOpen = not self._isOpen
     local root = self._invRoot :: Frame?
     if root then
-        local tx = self._isOpen and (-(INV_W + 10)) or 10
+        -- When open: stay at 0.02x (left). When closed: move to -0.4x (off-screen left)
+        local xOffset = self._isOpen and 0.02 or -0.4
         TweenService:Create(root,
             TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-            { Position = UDim2.new(1, tx, 0.07, 0) }):Play()
+            { Position = UDim2.new(xOffset, 0, 0.07, 0) }):Play()
     end
     self:RefreshUI()
 end
