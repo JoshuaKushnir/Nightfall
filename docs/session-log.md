@@ -1,5 +1,34 @@
 ﻿# Project Nightfall: Session Intelligence Log
 
+## Session NF-070: Inventory UI Layout Polish — Category Groups, Hover-Only Tooltips, Auto Layout
+**Date:** 2026-02-24
+**Issues:** #62 (Inventory system design iteration)
+
+### What Was Built
+- **`src/client/controllers/InventoryController.lua`** — Phase 3 layout refinement (completing #62):
+  - **Replaced manual yOff positioning with automatic layout stacking**: Scroll now uses `UIListLayout` vertical (6px padding) to hold category blocks; each category contains internal `UIGridLayout` (62×62px cells, 4 columns, 7×7px padding). Eliminates all manual `bx/by/yOff` calculations — no overlap logic needed, UILayout handles positioning automatically.
+  - **Restored category organization**: Rebuilt bag rendering to group items by `CAT_ORDER` (Weapon, Charm, Consumable, Misc). Each category creates a collapsible header block with ▾/▸ toggle. Cards rendered inside per-category grid. Collapse state persists in `self._collapsed[cat] = boolean`.
+  - **Eliminated redundant detail panel**: Deleted entire `_createDetailSection` function (~70 lines). Removed state variables `self._detailSection`, `self._detailName`, `self._detailMeta`, `self._detailDesc`. All item inspection now routing through hover-only tooltip system (same as Phase 1).
+  - **Unified hotbar into tooltip system**: Modified hotbar slot button event handlers to call `_showTooltip(self, item)` / `_hideTooltip(self, item)` on `MouseEnter`/`MouseLeave` (replacing old `_bindSlotHover` pattern). Hotbar now uses identical tooltip behavior as bag cards.
+  - **Simplified method calls**: Removed call to `_createDetailSection` in `_buildGui`. Now calls only 3 layout functions (`_createInventoryRoot`, `_createBagSection`, `_createHotbar`) then creates tooltip frame.
+
+### Integration Points
+- **Automatic positioning prevents overlap**: UIListLayout vertical + UIGridLayout inside each category block auto-arrange items without manual positioning — cleaner code, no collision logic needed.
+- **Unified detail inspection**: Both bag and hotbar now use `_showTooltip(self, item)` / `_hideTooltip(self, item)` — single source of truth for item display, consistent Deepwoken-style card appearance.
+- **Heartbeat tooltip tracking**: Tooltip already wired (exists in Init function at line 1192) — `_positionTooltip(self)` called every frame when tooltip visible, follows mouse smoothly.
+- **Category persistence**: Collapse state survives across `RefreshUI()` calls via `self._collapsed` table — user-friendly collapsible organization.
+
+### Spec Gaps Encountered
+- None new (all Phase 3 requirements met).
+
+### Tech Debt Created
+- None new (Phase 2 category system placeholder removed entirely, replaced with cleanly integrated category blocks).
+
+### Next Session Should Start On
+Issue #62 continuation: **Studio test** — Verify category blocks display correctly, collapse toggles work, grids don't overlap, tooltip positioning/rendering at 62×62 cell size. Then refine hotbar positioning if needed to prevent player character blocking in narrow viewports.
+
+---
+
 ## Session NF-069: Inventory UI Layout Refactor — Modular GUI Functions + UIGridLayout Integration
 **Date:** 2026-02-10
 **Issues:** #62 (Inventory system design iteration)
