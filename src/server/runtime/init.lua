@@ -72,6 +72,7 @@ local dependencies = {
 	ZoneService     = services.ZoneService,
 	AbilitySystem   = services.AbilitySystem,
 	DummyService    = services.DummyService,
+	TrainingToolService = services.TrainingToolService,
 }
 
 for name, service in services do
@@ -104,6 +105,7 @@ local startOrder = {
 	"DataService",
 	"AspectService",       -- new Aspect system logic
 	"InventoryService",    -- handles inventory & item usage
+	"TrainingToolService", -- handles training tool usage
 	"WeaponService",       -- #69: equip system (after NetworkService)
 	"DefenseService",      -- Defense mechanics
 	"CombatService",       -- Combat validation and damage application
@@ -332,6 +334,172 @@ if services.NetworkService and services.DummyService then
 						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "aspect_unavailable" } })
 					end
 				end
+			end
+
+		-- Progression testing commands ---
+		elseif cmd == "kill_player" then
+			-- Debug: force player death to test shard loss on death
+			local char = player.Character
+			if char then
+				local humanoid = char:FindFirstChildOfClass("Humanoid")
+				if humanoid then
+					humanoid.Health = 0
+					print(`[AdminCommand] {player.Name} killed (debug death)`)
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "killed" } })
+					end
+				else
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "no_humanoid" } })
+					end
+				end
+			else
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "no_character" } })
+				end
+			end
+
+		elseif cmd == "set_ring" then
+			-- Debug: change player's ring to test soft caps
+			local ring = tonumber(args[1]) or 1
+			ring = math.clamp(ring, 0, 5)
+			local ProgressionSvc = services.ProgressionService
+			if ProgressionSvc then
+				ProgressionSvc.SetPlayerRing(player, ring)
+				print(`[AdminCommand] {player.Name} set to Ring {ring}`)
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("ring_%d"):format(ring) } })
+				end
+			else
+				warn("[AdminCommand] ProgressionService not available")
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "progression_unavailable" } })
+				end
+			end
+
+		elseif cmd == "reset_progression" then
+			-- Debug: reset all progression for retesting from scratch
+			local DataSvc = services.DataService
+			local ProgressionSvc = services.ProgressionService
+			if DataSvc and ProgressionSvc then
+				local profile = DataSvc:GetProfile(player)
+				if profile then
+					profile.TotalResonance = 0
+					profile.ResonanceShards = 0
+					profile.StatPoints = 0
+					profile.Stats = { Strength = 0, Fortitude = 0, Agility = 0, Intelligence = 0, Willpower = 0, Charisma = 0 }
+					profile.DisciplineId = "Wayward"
+					-- Reset derived values
+					profile.Health.Max = 100
+					profile.Health.Current = 100
+					profile.Posture.Max = 100
+					profile.Mana.Max = 100
+					profile.Mana.Regen = 2.0
+					-- Reset additional progression fields
+					profile.CurrentRing = 0
+					profile.OmenMarks = 0
+					profile.Level = 1
+					profile.Experience = 0
+					profile.Inventory = {}
+					profile.EquippedItems = {}
+					profile.Mantras = {}
+					profile.ActiveCooldowns = {}
+					profile.AspectData = nil
+					ProgressionSvc.SyncToClient(player)
+					print(`[AdminCommand] {player.Name} progression reset`)
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "progression_reset" } })
+					end
+				else
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "no_profile" } })
+					end
+				end
+			else
+				warn("[AdminCommand] DataService not available")
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "data_unavailable" } })
+				end
+			end
+
+		elseif cmd == "grant_stat_points" then
+			-- Debug: directly grant stat points (bypasses resonance milestone)
+			local amount = tonumber(args[1]) or 1
+			local DataSvc = services.DataService
+			if DataSvc then
+				local profile = DataSvc:GetProfile(player)
+				if profile then
+					profile.StatPoints = (profile.StatPoints or 0) + amount
+					print(`[AdminCommand] {player.Name} +{amount} stat points (total: {profile.StatPoints})`)
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = ("+%d stat_points"):format(amount) } })
+					end
+					-- Also sync to update UI
+					local ProgressionSvc = services.ProgressionService
+					if ProgressionSvc then
+						ProgressionSvc.SyncToClient(player)
+					end
+				else
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "no_profile" } })
+					end
+				end
+			else
+				warn("[AdminCommand] DataService not available")
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "data_unavailable" } })
+				end
+			end
+
+		elseif cmd == "grant_training_tool" then
+			-- Debug: grant a training tool to player's inventory
+			-- Usage: /admin grant_training_tool [stat] [rarity]
+			-- stat: Strength, Fortitude, Agility, Intelligence, Willpower, Charisma
+			-- rarity: Common, Uncommon, Rare
+			local statName = args[1] or "Strength"
+			local rarity = args[2] or "Common"
+			
+			-- Validate stat name
+			local validStats = {Strength=true, Fortitude=true, Agility=true, Intelligence=true, Willpower=true, Charisma=true}
+			if not validStats[statName] then
+				warn("[AdminCommand] Invalid stat name: " .. statName)
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "invalid_stat" } })
+				end
+				return
+			end
+			
+			-- Build item ID
+			local rarityLower = string.lower(rarity)
+			local itemId = "training_tool_" .. string.lower(statName) .. "_" .. rarityLower
+			
+			-- Check if item exists via ItemRegistry
+			local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
+			if not ItemRegistry.Has(itemId) then
+				warn("[AdminCommand] Training tool not found: " .. itemId)
+				if NetworkService and player then
+					NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "item_not_found" } })
+				end
+				return
+			end
+			
+			-- Add item to inventory
+			local InventorySvc = services.InventoryService
+			if InventorySvc then
+				local itemDef = ItemRegistry.Get(itemId)
+				local success = InventorySvc.GiveItem(player, itemDef)
+				if success then
+					print(`[AdminCommand] {player.Name} received {itemId}`)
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = itemId } })
+					end
+				else
+					if NetworkService and player then
+						NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Error = "give_failed" } })
+					end
+				end
+			else
+				warn("[AdminCommand] InventoryService not available")
 			end
 		else
 			warn(`[AdminCommand] Unknown admin command: {cmd}`)

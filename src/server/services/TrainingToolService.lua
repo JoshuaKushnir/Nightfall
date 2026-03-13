@@ -1,0 +1,128 @@
+--!strict
+--[[
+    Class: TrainingToolService
+    Description: Server authority for training tool usage — allows players to consume
+                 tangible items to directly increase stats, replacing abstract StatPoints
+                 during transition period.
+    
+    Public API:
+        TrainingToolService.UseTrainingTool(player, itemId) -> (boolean, string?)
+            → Consumes one training tool of the given itemId and applies its stat increase.
+            → Returns success and optional error message.
+            
+    Dependencies: DataService, NetworkService, InventoryService, ProgressionService
+]]
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local DataService = require(script.Parent.DataService)
+local ProgressionService = require(script.Parent.ProgressionService)
+local NetworkService = require(script.Parent.NetworkService)
+local ProgressionTypes = require(ReplicatedStorage.Shared.types.ProgressionTypes)
+local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes)
+local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
+
+local TrainingToolService = {}
+TrainingToolService._initialized = false
+
+--[[
+    UseTrainingTool(player, itemId) -> (boolean, string?)
+    Consumes one training tool of the given itemId and applies its stat increase.
+    
+    @param player  The player using the tool
+    @param itemId  The ItemId of the training tool to use
+    @returns (success, errorReason?)
+]]
+function TrainingToolService.UseTrainingTool(player: Player, itemId: string): (boolean, string?)
+    -- Validate itemId is a known training tool via ItemRegistry
+    local toolDef = ItemRegistry.Get(itemId)
+    if not toolDef then
+        warn(("[TrainingToolService] %s attempted to use unknown item: %s"):format(player.Name, itemId))
+        return false, "UnknownItem"
+    end
+    
+    -- Verify this is actually a training tool
+    if toolDef.Category ~= "Tools" or not toolDef.TrainingToolId then
+        warn(("[TrainingToolService] %s attempted to use non-training tool: %s"):format(player.Name, itemId))
+        return false, "NotTrainingTool"
+    end
+    
+    -- Get player profile
+    local profile = DataService:GetProfile(player)
+    if not profile then
+        return false, "NoProfile"
+    end
+
+    -- Lazy load InventoryService to avoid circular dependency
+    local InventoryService = require(script.Parent.InventoryService)
+    
+    -- Check if player has the item in inventory
+    local hasItem, itemSlot = InventoryService:HasItem(player, itemId, 1)
+    if not hasItem then
+        return false, "ItemNotFound"
+    end
+    
+    -- Consume one item
+    local success, errorMsg = InventoryService:ConsumeItem(player, itemId, 1)
+    if not success then
+        warn(("[TrainingToolService] %s failed to consume item %s: %s"):format(player.Name, itemId, errorMsg or "unknown"))
+        return false, errorMsg or "ConsumeFailed"
+    end
+    
+    -- Apply the stat increase via ProgressionService
+    local statName = toolDef.StatToIncrease
+    local amount = toolDef.Amount
+    
+    local allocSuccess, allocError = ProgressionService.AllocateStat(player, statName, amount)
+    if not allocSuccess then
+        -- Refund the consumed item on failure (player shouldn't lose item if stat can't be allocated)
+        InventoryService:AddItem(player, itemId, 1)
+        warn(("[TrainingToolService] %s failed to allocate stat %s+%d: %s (item refunded)"):format(player.Name, statName, amount, allocError or "unknown"))
+        return false, allocError or "StatAllocationFailed"
+    end
+    
+    -- Success! Notify client
+    local statValue = profile.Stats[statName] or 0
+    local remainingPoints = profile.StatPoints or 0
+    
+    -- We don't need to send a custom event because AllocateStat already sends StatAllocated
+    -- But we could send a specific training tool used event for UI feedback
+    -- For now, rely on the existing StatAllocated event
+    
+    print(("[TrainingToolService] %s used %s: +%d %s (total: %d, unspent points: %d)") 
+        :format(player.Name, itemId, amount, statName, statValue, remainingPoints))
+    
+    return true, nil
+end
+
+--[[
+    Init() -> void
+    Initializes the service.
+]]
+function TrainingToolService:Init()
+    print("[TrainingToolService] Initializing...")
+    self._initialized = true
+    print("[TrainingToolService] Initialized successfully")
+end
+
+--[[
+    Start() -> void
+    Starts the service and sets up any necessary connections.
+]]
+function TrainingToolService:Start()
+    print("[TrainingToolService] Starting...")
+    -- Register handler for UseTrainingTool events from clients
+    NetworkService:RegisterHandler("UseTrainingTool", function(player: Player, packet: any)
+        if type(packet) ~= "table"
+            or type(packet.Slot) ~= "string"
+            or type(packet.ItemId) ~= "string" then
+            warn(("[TrainingToolService] Bad UseTrainingTool packet from %s"):format(player.Name))
+            return
+        end
+        TrainingToolService.UseTrainingTool(player, packet.ItemId)
+    end)
+    print("[TrainingToolService] Started successfully")
+end
+
+return TrainingToolService

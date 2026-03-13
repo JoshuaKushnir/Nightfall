@@ -8,6 +8,8 @@ This document distills the core concepts and systems for Nightbound, transformin
 
 **Vael** is a continent trapped in twilight. The last light comes from a failing Solstice Pillar at **Hearthspire**. Rings radiate outward from the city, each darker and more dangerous than the last. Players inhabit the role of **Drifters**: twilight‑marked beings who repeatedly die and return, grow stronger with each return, and are feared as omens. The central mystery is not only what is devouring the light, but whether the darkness itself is a choice.
 
+**[→ Comprehensive World & Enemy Roster Design](World_Design.md)** — Full specifications for all zones, enemy types, minibosses, and world atmosphere across all four rings.
+
 ---
 
 ## 🔥 The Dimmings (Content Phases)
@@ -43,13 +45,24 @@ Each “Dimming” is a major world update that pushes the horizon outward and i
 
 ## ⚙️ Progression Systems
 
-Everything ties back to **Resonance**, the universal currency earned by combat, exploration, crafting, and surviving. It gates upgrades,Aspect mastery, and access to deeper rings. Death costs Shards and applies a temporary luminance debuff. Soft caps per ring ensure forward momentum.
+Everything ties back to **Resonance**, the universal currency earned by combat, exploration, crafting, and surviving. It gates upgrades, Aspect mastery, and access to deeper rings. Death costs Shards and applies a temporary luminance debuff. Soft caps per ring ensure forward momentum.
+
+The progression loop is fundamentally about **the cost of knowledge**. Every ring asks the player to understand something harder than the previous:
+
+* **Ring 0 (Hearthspire)** – Understand who you are (Aspect identity, world orientation)
+* **Ring 1 (Verdant Shelf)** – Understand what you were (Hollowed as former Drifters, pattern reading through Witnessing)
+* **Ring 2 (Ashfeld)** – Understand what you're becoming (Omen corruption, faction allegiance, political consequences)
+* **Ring 3 (Vael Depths)** – Understand what the world was (Memory Fragments, pre-twilight lore, Codex interpretation)
+* **Ring 4 (Gloam)** – Understand what you're capable of losing (Luminance drain, Streak significance, identity persistence)
+* **Ring 5 (The Null)** – Understand what the darkness actually is (Convergence, collective authorship, endgame legacy)
+
+**[→ Full Ring Progression Loop Design](Ring_Progression_Loop.md)**
 
 ### Three Pillars of Growth
 
 * **Aspect** *(future work)* – Elemental identities (six at launch) each with three branches: Expression (active ability), Form (passive), and Communion (group utility). Cross‑Aspect synergies are planned.
 * **Discipline** *(designed & partially implemented)* – Four physical paths (Wayward, Ironclad, Silhouette, Resonant) that alter movement, combat, and weapon mastery. You can cross‑train by spending Resonance.
-* **Omen** *(future)* – Marks accrue from dying, deep exploration, Choir choices, and overusing Aspects. Five thresholds grant passive corruptions visible to others; cleansing has a cost.
+* **Omen** *(future)* – Marks accrue from dying, deep exploration, Choir choices, and overusing Aspects. Five thresholds grant passive corruptions visible to others; cleansing has a cost. Introduced at Ring 2, crystallizes into permanent choice at Ring 4.
 
 > ⚠️ **Spec gaps** include weapon weight classes, tuning numbers, shard loss on death, breath costs, and similar parameters. Each gap must spawn a `spec-gap` issue with a placeholder value.
 

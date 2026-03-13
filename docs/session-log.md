@@ -1,5 +1,61 @@
 ﻿# Project Nightfall: Session Intelligence Log
 
+## Session NF-071: World & Enemy Roster Design Documentation
+**Date:** 2026-03-13
+**Issues:** [#178](https://github.com/JoshuaKushnir/Nightfall/issues/178) (World & Enemy Roster Design)
+
+### What Was Built
+- **`docs/Game Plan/World_Design.md`** — Comprehensive 2,000+ line design document covering all four rings:
+  - **Ring 0 (Hearthspire)** visual reference with Solstice Pillar description and city architecture
+  - **Ring 1 (Verdant Shelf)** — 3 zones (Canopy Road, Drowned Meadow, Ashward Fringe), 3 enemy types per zone, 3 minibosses (Hollow Keeper, Tidecaller Echo, Duskwalker Warden). Enemy archetypes: Hollowed, Creatures, Duskwalkers.
+  - **Ring 2 (Ashfeld)** — 3 zones (Ashroads, Dried Basin, Choir Outpost), 3 enemy types per zone, 3 minibosses (Choir Taskmaster, Basin Wraith, Choir Adjudicant). New archetypes: Ashen Choir, Preserved, Choir elites.
+  - **Ring 3 (Vael Depths)** — 3 zones (Hall of Accord, Collapsed Archive, Memorial Quarter), 3 enemy types per zone, 3 minibosses (Last Accord-Keeper, Archivist-Weave, First Drifter). New archetypes: Preserved, Threadweavers, Memory Shades.
+  - **Ring 4 (Gloam)** — 3 zones (Windfield, Sunken Choir Shrine, Null Approach), 3 enemy types per zone, 3 minibosses (Luminance Eater, Shrine's Chosen, Null Sentinel). New archetypes: Vaelborn, Elite Choir (Omen-corrupted).
+  - **Ring 5 (The Null)** reference documentation with Convergence event description.
+  - **World atmosphere/visuals** for each ring: sky descriptions, architecture, lighting, environmental storytelling.
+  - **Enemy archetype progression matrix** showing enemy types appearing by Ring and their characteristic mechanics.
+  - **Implementation roadmap** with Phase 4a-d breakdown (World Structure, Enemy AI, NPC Dialogue, Zone Triggers).
+  - **Spec gaps & placeholders** documented for tuning (HP, Posture, Ability values, Resonance rewards).
+  - **Integration notes** with StateService, HitboxService, AspectService, CombatService, NetworkService.
+
+- **`docs/Game Plan/Main.md`** — Updated with reference link to World_Design.md in the "World & Identity" section.
+
+- **GitHub Issue #178** created with full acceptance criteria and blocking dependencies to #175, #176, #177.
+
+### Design Principles Applied
+- **3-enemy-type structure** ensures each zone teaches a specific mechanic progression
+- **Miniboss-per-zone** creates narrative anchors and lore opportunities
+- **Witnessing system** integration throughout (enemies affected by prior observation)
+- **Environmental storytelling** as primary narrative vehicle between dialogue elements
+- **Player agency in Luminance management** (actively punishes being too bright in Ring 4)
+- **Readable telegraphs & visual clarity** prioritized over complexity
+- **Two-phase miniboss designs** provide escalation and tone shifts
+
+### Integration Points
+- **Blocks downstream implementation**: #175 (Basic enemy AI uses this roster), #176 (HUD resonance display needs zone knowledge), #177 (DialogueService references NPC locations from zones)
+- **StateService requirements**: Document specifies enemy state machines (Idle, Patrol, Aggro, Casting, Dead)
+- **HitboxService requirements**: Document specifies enemy melee ranges, ability AoE radii, hit feedback
+- **AspectService integration**: Choir ability usage (Ash, Ember, Gale, Tide, Void, Silhouette) documented throughout
+- **Network synchronization**: Enemy position updates, ability sync, Convergence event triggers
+
+### Spec Gaps Documented (Pending Tuning)
+- Enemy HP/Posture values: To be tuned during Ring 1-4 playtest
+- Choir ability damage/cooldowns: Pending magic system completion (Phase 3)
+- Miniboss phase 2 thresholds: 50% HP baseline, adjusted per encounter during playtesting
+- Resonance rewards per miniboss: Scaled by ring difficulty (Phase 4b spec gap issue)
+- Witnessing mechanic specifics: Codex entry unlock thresholds vs. combat advantage specifics pending Phase 4c dialogue implementation
+- Enemy spawn rates and patrol density: Pending Zone 4b-4c testing (Gloam may need density reduction for performance)
+
+### Tech Debt Created
+- Enemy animation library not yet created (listed as prerequisite for Phase 4b implementation)
+- Convergence event design deferred to Phase 5 (noted as separate design category)
+- Ring 5 detailed encounter design not included (Ring 5 is event-driven, not zone-driven)
+
+### Next Session Should Start On
+Issue [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175): **Basic enemy AI — NPC aggro + pathfind + swing** — Implement the first enemy type (Hollowed Drifter from Zone 1A) to establish the AI pattern that will be replicated across the full roster.
+
+---
+
 ## Session NF-070: Inventory UI Layout Polish — Category Groups, Hover-Only Tooltips, Auto Layout
 **Date:** 2026-02-24
 **Issues:** #62 (Inventory system design iteration)

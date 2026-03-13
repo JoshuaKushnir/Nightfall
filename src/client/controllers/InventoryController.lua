@@ -156,6 +156,9 @@ end
 local function _isWeapon(item: any): boolean
     return item ~= nil and (item.Category == "Weapons" or item.Category == "Weapon")
 end
+local function _isTrainingTool(item: any): boolean
+    return item ~= nil and item.Category == "Tools" and item.TrainingToolId ~= nil
+end
 
 local function _slotOf(self: any, itemId: string): number?
     for i = 1, HOTBAR_SLOTS do
@@ -279,6 +282,11 @@ local function _onHotbarActivate(self: any, slot: number)
     elseif _isWeapon(item) then
         _toggleHold(self, slot)
         self:RefreshUI()
+    elseif _isTrainingTool(item) then
+        -- Use training tool directly
+        if self._networkController then
+            self._networkController:SendToServer("UseTrainingTool", {Slot = tostring(slot), ItemId = item.Id})
+        end
     else
         if self._networkController then
             self._networkController:SendToServer("UseItem", {Slot = tostring(slot), ItemId = item.Id})

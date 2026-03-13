@@ -56,7 +56,15 @@ export type WeaponItem = ItemBase & {
     WeaponId: string,
 }
 
-export type Item = AspectMoveItem | AbilityItem | WeaponItem
+export type Item = AspectMoveItem | AbilityItem | WeaponItem | TrainingToolItem
+
+-- Training tool item that can be used to directly increase stats
+export type TrainingToolItem = ItemBase & {
+    Category: "Tools",
+    TrainingToolId: string,  -- references a definition in TrainingToolService
+    StatToIncrease: ProgressionTypes.StatName,
+    Amount: number,          -- how many points to increase the stat by
+}
 
 -- runtime aliases to satisfy require() calls without building real objects
 local _exports: any = {}

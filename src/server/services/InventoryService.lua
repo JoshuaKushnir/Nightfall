@@ -156,6 +156,12 @@ function InventoryService.UseItem(player: Player, itemId: string, target: Player
         AbilitySystem.HandleUseAbilityById(player, (item :: any).AbilityId)
         return true, nil
     end
+    -- Training tool item (stat increase tools)
+    if item.Category == "Tools" then
+        -- Lazy load to avoid circular dependency
+        local TrainingToolService = require(script.Parent.TrainingToolService)
+        return TrainingToolService.UseTrainingTool(player, item.Id)
+    end
     return false, "UnhandledCategory"
 end
 

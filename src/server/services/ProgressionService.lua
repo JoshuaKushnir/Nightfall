@@ -36,6 +36,7 @@ local RESONANCE_GRANTS       = ProgressionTypes.RESONANCE_GRANTS
 local SHARD_LOSS_FRACTION    = ProgressionTypes.SHARD_LOSS_FRACTION
 local VALID_STAT_NAMES       = ProgressionTypes.VALID_STAT_NAMES
 local STAT_POINT_MILESTONE   = ProgressionTypes.STAT_POINT_MILESTONE
+local ENABLE_STAT_POINT_MILESTONES = ProgressionTypes.ENABLE_STAT_POINT_MILESTONES
 local STAT_MAX_PER_STAT      = ProgressionTypes.STAT_MAX_PER_STAT
 local STAT_PER_POINT         = ProgressionTypes.STAT_PER_POINT
 local DISCIPLINE_STAT_MAP    = ProgressionTypes.DISCIPLINE_STAT_MAP
@@ -238,13 +239,16 @@ function ProgressionService.GrantResonance(player: Player, amount: number, sourc
 
     -- ─── Stat point milestones ───────────────────────────────────────────────────────
     -- Award 1 StatPoint per STAT_POINT_MILESTONE of TotalResonance crossed
-    local prevMilestone = math.floor(prevTotal / STAT_POINT_MILESTONE)
-    local newMilestone  = math.floor(profile.TotalResonance / STAT_POINT_MILESTONE)
-    local newPoints     = newMilestone - prevMilestone
-    if newPoints > 0 then
-        profile.StatPoints = (profile.StatPoints or 0) + newPoints
-        print(("[ProgressionService] %s earned %d stat point(s) (milestone %d→%d, total unspent: %d)")
-            :format(player.Name, newPoints, prevMilestone, newMilestone, profile.StatPoints))
+    -- Only award if ENABLE_STAT_POINT_MILESTONES is true (allows transition to training tools)
+    if ProgressionTypes.ENABLE_STAT_POINT_MILESTONES then
+        local prevMilestone = math.floor(prevTotal / STAT_POINT_MILESTONE)
+        local newMilestone  = math.floor(profile.TotalResonance / STAT_POINT_MILESTONE)
+        local newPoints     = newMilestone - prevMilestone
+        if newPoints > 0 then
+            profile.StatPoints = (profile.StatPoints or 0) + newPoints
+            print(("[ProgressionService] %s earned %d stat point(s) (milestone %d→%d, total unspent: %d)")
+                :format(player.Name, newPoints, prevMilestone, newMilestone, profile.StatPoints))
+        end
     end
 
     _syncToClient(player, profile, shardGrant, source)

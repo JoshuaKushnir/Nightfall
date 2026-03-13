@@ -22,6 +22,7 @@ local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 
 local DebugInput = {}
+DebugInput._lastRingIndex = 0  -- For cycling rings in debug
 
 -- Debug mode is ONLY active inside Roblox Studio — never in public servers
 local DebugMode = RunService:IsStudio()
@@ -45,6 +46,10 @@ function DebugInput:Init()
 	print("[DebugInput] Press Ctrl+Shift+D to list all settings")
 	print("[DebugInput] Press G to grant 200 debug Resonance (earns 1 stat point for panel testing)")
 	print("[DebugInput] Press Y to cycle debug aspect (assign & max branches)")
+	print("[DebugInput] Press Ctrl+K to kill yourself (test shard loss on death)")
+	print("[DebugInput] Press Ctrl+R to reset all progression")
+	print("[DebugInput] Press Ctrl+T to cycle rings (0-5)")
+	print("[DebugInput] Press Ctrl+Shift+G to grant 10 stat points directly")
 
 	-- Listen for admin/debug responses from server (DebugInfo)
 	local networkFolder = ReplicatedStorage:FindFirstChild("NetworkEvents")
@@ -115,6 +120,27 @@ function DebugInput:Init()
 		if input.KeyCode == Enum.KeyCode.Y then
 			DebugInput._CycleAspect()
 		end
+
+		-- Ctrl+K: Kill self (test shard loss on death)
+		if input.KeyCode == Enum.KeyCode.K and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			DebugInput._SendAdminCommand({ Command = "kill_player", Args = {} })
+		end
+
+		-- Ctrl+R: Reset all progression
+		if input.KeyCode == Enum.KeyCode.R and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			DebugInput._SendAdminCommand({ Command = "reset_progression", Args = {} })
+		end
+
+		-- Ctrl+T: Cycle rings (0-5)
+		if input.KeyCode == Enum.KeyCode.T and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+			DebugInput._CycleRing()
+		end
+
+		-- Ctrl+Shift+G: Grant 10 stat points directly
+		if input.KeyCode == Enum.KeyCode.G and UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+			DebugInput._SendAdminCommand({ Command = "grant_stat_points", Args = { "10" } })
+		end
+
 		-- / (Slash): open local command prompt (commands typed here are NOT sent to public chat)
 		if input.KeyCode == Enum.KeyCode.Slash then
 			DebugInput._OpenCommandPrompt()
@@ -221,6 +247,26 @@ function DebugInput._CycleAspect()
 end
 
 --[[
+	Cycle through rings (0-5) to test soft caps and ring transitions.
+	Ring 0 = Hearthspire (no cap)
+	Ring 1 = The Verdant Shelf (cap: 2000)
+	Ring 2 = The Ashfeld (cap: 10000)
+	Ring 3 = The Vael Depths (cap: 30000)
+	Ring 4 = The Gloam (cap: 100000)
+	Ring 5 = The Null (no cap)
+]]
+function DebugInput._CycleRing()
+	local rings = {0, 1, 2, 3, 4, 5}
+	DebugInput._lastRingIndex = (DebugInput._lastRingIndex or 0) + 1
+	if DebugInput._lastRingIndex > #rings then
+		DebugInput._lastRingIndex = 1
+	end
+	local ring = rings[DebugInput._lastRingIndex]
+	DebugInput._SendAdminCommand({ Command = "set_ring", Args = { tostring(ring) } })
+	print("[DebugInput] cycling debug ring -> "..ring)
+end
+
+--[[
 	Spawn a dummy via AdminCommand (sends request to server; local-only input)
 ]]
 function DebugInput._SendAdminSpawnDummy()
@@ -324,6 +370,32 @@ function DebugInput._HandleCommand(text: string)
 			-- /admin grant_resonance [amount]
 			local amount = tokens[3] or "200"
 			DebugInput._SendAdminCommand({ Command = "grant_resonance", Args = { amount } })
+			return
+		elseif sub == "kill_player" then
+			-- /admin kill_player
+			DebugInput._SendAdminCommand({ Command = "kill_player", Args = {} })
+			return
+		elseif sub == "set_ring" then
+			-- /admin set_ring [0-5]
+			local ring = tokens[3] or "1"
+			DebugInput._SendAdminCommand({ Command = "set_ring", Args = { ring } })
+			return
+		elseif sub == "reset_progression" then
+			-- /admin reset_progression
+			DebugInput._SendAdminCommand({ Command = "reset_progression", Args = {} })
+			return
+		elseif sub == "grant_stat_points" then
+			-- /admin grant_stat_points [amount]
+			local amount = tokens[3] or "1"
+			DebugInput._SendAdminCommand({ Command = "grant_stat_points", Args = { amount } })
+			return
+		elseif sub == "grant_training_tool" then
+			-- /admin grant_training_tool [stat] [rarity]
+			-- stat: Strength, Fortitude, Agility, Intelligence, Willpower, Charisma
+			-- rarity: Common, Uncommon, Rare
+			local stat = tokens[3] or "Strength"
+			local rarity = tokens[4] or "Common"
+			DebugInput._SendAdminCommand({ Command = "grant_training_tool", Args = { stat, rarity } })
 			return
 		else
 			-- fallback: forward any other admin command verbatim

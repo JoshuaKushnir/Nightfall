@@ -181,6 +181,10 @@ local VALID_STAT_NAMES: {[string]: true} = {
 -- SPEC-GAP: value is a placeholder — issue #129
 local STAT_POINT_MILESTONE = 200
 
+-- Configuration flag to enable/disable stat point milestone awards
+-- When false, players must use training tools to increase stats instead of earning StatPoints from Resonance
+local ENABLE_STAT_POINT_MILESTONES = true
+
 -- Maximum points a player may invest in a single stat
 -- SPEC-GAP: cap needs design sign-off — issue #129
 local STAT_MAX_PER_STAT = 20
@@ -208,12 +212,13 @@ local DISCIPLINE_STAT_MAP: {[DisciplineId]: {string}} = {
 }
 
 return {
-    RING_CONFIGS          = RING_CONFIGS,
-    RESONANCE_GRANTS      = RESONANCE_GRANTS,
-    SHARD_LOSS_FRACTION   = SHARD_LOSS_FRACTION,
-    VALID_STAT_NAMES      = VALID_STAT_NAMES,
-    STAT_POINT_MILESTONE  = STAT_POINT_MILESTONE,
-    STAT_MAX_PER_STAT     = STAT_MAX_PER_STAT,
-    STAT_PER_POINT        = STAT_PER_POINT,
-    DISCIPLINE_STAT_MAP   = DISCIPLINE_STAT_MAP,
+    RING_CONFIGS              = RING_CONFIGS,
+    RESONANCE_GRANTS          = RESONANCE_GRANTS,
+    SHARD_LOSS_FRACTION       = SHARD_LOSS_FRACTION,
+    VALID_STAT_NAMES          = VALID_STAT_NAMES,
+    STAT_POINT_MILESTONE      = STAT_POINT_MILESTONE,
+    ENABLE_STAT_POINT_MILESTONES = ENABLE_STAT_POINT_MILESTONES,
+    STAT_MAX_PER_STAT         = STAT_MAX_PER_STAT,
+    STAT_PER_POINT            = STAT_PER_POINT,
+    DISCIPLINE_STAT_MAP       = DISCIPLINE_STAT_MAP,
 }
