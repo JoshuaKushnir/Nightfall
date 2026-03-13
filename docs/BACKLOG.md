@@ -188,33 +188,81 @@ To ensure features are actuated immediately as backend systems are built, each m
 
 ---
 
-## 🎯 MVP Definition
-**Minimum Viable Product includes:**
+## 🎯 MVP Definition — Accurate Status (Updated March 2026)
 
-**Backend Systems:**
-- ✅ Player data persistence (ProfileService) - [Issue #24](https://github.com/JoshuaKushnir/Nightfall/issues/24)
-- ✅ State management & reactivity - [Issues #25, #26, #27](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-1)
-- ✅ Basic combat logic (hitboxes, parrying) - [Issues #28, #30](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
-- ✅ 5-10 starter mantras with cooldown/mana - [Issues #31-33](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
-- ✅ Character progression (leveling, stat allocation) - [Issue #35](https://github.com/JoshuaKushnir/Nightfall/issues/35)
-- ✅ Equipment system (3-5 armor sets) - [Issue #36](https://github.com/JoshuaKushnir/Nightfall/issues/36)
+> **Last full re-evaluation:** Session NF-070, March 12 2026
 
-**Frontend/UI Systems:**
-- ✅ Client state binding & data sync - [Issue #42](https://github.com/JoshuaKushnir/Nightfall/issues/42)
-- ✅ Combat animations & visual feedback - [Issues #29, #43](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-2)
-- ✅ Mantra casting UI & keybinds - [Issues #44-45](https://github.com/JoshuaKushnir/Nightfall/issues?q=is%3Aissue+label%3Aphase-3)
-- ✅ Character sheet (stats, progression display) - [Issue #46](https://github.com/JoshuaKushnir/Nightfall/issues/46)
-- ✅ Equipment inventory & loadout UI - [Issue #47](https://github.com/JoshuaKushnir/Nightfall/issues/47)
-- ✅ Dialogue UI with branching options - [Issue #34](https://github.com/JoshuaKushnir/Nightfall/issues/34)
-- ✅ Responsive UI polish - [Issue #39](https://github.com/JoshuaKushnir/Nightfall/issues/39)
+---
 
-**Post-MVP (Future Updates):**
-- Advanced PvP arenas
+### ✅ DONE — Do not touch
+
+| # | System | Notes |
+|---|--------|-------|
+| 1 | Core infrastructure (DataService, StateService, NetworkService, Bootstrap) | Phase 1 complete |
+| 2 | Combat loop (hitboxes, CombatService, parry/block, damage numbers) | Phase 2 complete |
+| 3 | Aspect types, registry, switching, cooldowns, mana regen | Phase 3 complete |
+| 4 | Inventory system (InventoryService, InventoryController — Deepwoken layout) | #151 + #62 complete |
+| 5 | Stat allocation (Strength, Fortitude, Intelligence, etc. — P-key panel) | NF-042/NF-043 complete |
+| 6 | Resonance & Ring soft caps, shard loss on death | NF-041 complete |
+| 7 | Movement (sprint, dash, lunge, wall-run, ledge catch, vault, slide + collision fixes) | NF-034 + NF-061/062 complete |
+| 8 | CI/CD pipeline (test runner, poll_task.py, GitHub Actions) | Infrastructure session complete |
+
+---
+
+### 🔴 CRITICAL — Blocking. Nothing fun works without these.
+
+| Priority | System | What's Missing | Issue | Scope |
+|----------|--------|----------------|-------|-------|
+| 1 | **Depth-1 Ember abilities** | Every Aspect ability is a stub. No cast produces real effects. Core gameplay loop — without it the game is a running simulator. | [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174) | 1 session per Aspect; Ember first |
+| 2 | **Basic enemy AI** | Dummy mobs are passive. No PvE target = no resonance loop, nothing to kill. Even one NPC that walks toward you and swings unlocks the feedback loop. | [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175) | Medium — NPC state machine |
+| 3 | **HUD resonance display** | Players cannot see their core progression currency. Stat panel (P-key) exists but HUD doesn't subscribe to resonance listeners. | [#176](https://github.com/JoshuaKushnir/Nightfall/issues/176) | Small — 1 session |
+| 4 | **Zone / ring trigger system** | `ProgressionService.SetPlayerRing` has no caller. Ring gating, luminance drain, and soft caps are all dead code. | [#176](https://github.com/JoshuaKushnir/Nightfall/issues/176) | Medium — bundled with HUD |
+
+---
+
+### 🟡 HIGH — Needed for a complete MVP
+
+| Priority | System | What's Missing | Scope |
+|----------|--------|----------------|-------|
+| 5 | Remaining Depth-1 abilities (Ash, Tide, Gale, Void) | Once Ember pattern established, all four follow the same template. | 1 session each |
+| 6 | **Branching Dialogue System** | NetworkTypes has DialogueStart/Choice/QuestAccept/QuestComplete defined. DialogueService + DialogueController don't exist. | [#177](https://github.com/JoshuaKushnir/Nightfall/issues/177) — Phase 4 kickoff |
+| 7 | **Equipment / Armor System** | InventoryService can hold armor items. ArmorService that applies stat modifiers doesn't exist. | Medium |
+| 8 | **Character sheet UI** | P-key stat panel exists. Full character sheet (equipped armor, aspect, discipline, stat totals) doesn't. | Small |
+
+---
+
+### 🟢 MEDIUM — Polish that matters for launch
+
+| Priority | System | Notes |
+|----------|--------|-------|
+| 9 | Omen system | Five thresholds, passive corruptions, visible to others. Designed, not built. |
+| 10 | Luminance drain in deep zones | Ring 4+ mechanic. Depends on zone triggers (#176). |
+| 11 | The Between (death respawn experience) | 30-second between-state, ally revive, Ember Point system. Designed, not built. |
+| 12 | VFX/Animations on abilities | Everything is stubs. Even simple particles would dramatically change perceived quality. |
+| 13 | DataStore fail-safes | ProfileService wrapper exists; exponential backoff + graceful shutdown are mocked, not hardened. |
+
+---
+
+### 🔵 POST-MVP — Do not build yet
+
 - Guild/clan system
-- World bosses and raids
-- Expanded narrative (quest chains)
+- World bosses / Convergences
 - Crafting and economy
 - Seasonal events
+- Ring 5 (The Null)
+- The Ashen Record (account-wide meta progression)
+- Advanced PvP arenas / Dueling Grounds
+
+---
+
+### 🗓️ The Next 4 Sessions (Optimal Sequencing)
+
+| Session | Issue | Scope |
+|---------|-------|-------|
+| Session 1 | [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174) — Depth-1 Ember abilities | Real hitbox + damage + VFX stub |
+| Session 2 | [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175) — Basic enemy AI | One NPC type: aggro + pathfind + swing |
+| Session 3 | [#176](https://github.com/JoshuaKushnir/Nightfall/issues/176) — HUD resonance + zone triggers | Small, bundled |
+| Session 4 | [#177](https://github.com/JoshuaKushnir/Nightfall/issues/177) — DialogueService + Controller | Phase 4 kickoff |
 
 ---
 

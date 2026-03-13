@@ -468,7 +468,7 @@ Always create a `spec-gap` labeled issue when you use a placeholder. Never silen
 
 ## 🗺️ CURRENT PROJECT STATE (update this header each planning session)
 
-**Last updated:** February 2026 — Session NF-040
+**Last updated:** March 2026 — Session NF-070
 
 | Phase | Status | Notes |
 |---|---|---|
@@ -476,14 +476,16 @@ Always create a `spec-gap` labeled issue when you use a placeholder. Never silen
 | Phase 1: Core Framework | ✅ Complete | DataService, NetworkService, StateService, Bootstrap |
 | Phase 2: Combat & Movement | ✅ Complete | Hitbox, Combat, Defense, Movement |
 | Phase 3: Aspect System | ✅ Complete | Types, Registry, Service, Controller, cooldowns, mana regen |
-| Phase 3: Inventory | 🔄 In Progress | InventoryService done (NF-040), UI pending |
-| Phase 4: World & Narrative | ⏳ Not Started | Progression, dialogue, discipline, weapons |
+| Phase 3: Inventory | ✅ Complete | InventoryService + InventoryController (Deepwoken layout, NF-070) |
+| Phase 3: Depth-1 Abilities | 🔄 In Progress | All OnActivate stubs — Ember first (#174) |
+| Phase 4: World & Narrative | ⏳ Not Started | Dialogue (#177), enemy AI (#175), zone triggers (#176) |
 | Phase 5: Polish & Launch | ⏳ Not Started | Anti-cheat audit, performance, final checklist |
 
 **Next unblocked work:**
-1. Custom Inventory UI (InventoryController, equipment panel, bag grid)
-2. Aspect stub → real ability implementations (Depth 1 per Aspect)
-3. Phase 4 planning and issue creation
+1. [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174) — Depth-1 Ember abilities (real hitbox + damage + VFX stub)
+2. [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175) — Basic enemy AI (NPC aggro + pathfind + swing)
+3. [#176](https://github.com/JoshuaKushnir/Nightfall/issues/176) — HUD resonance display + zone ring triggers
+4. [#177](https://github.com/JoshuaKushnir/Nightfall/issues/177) — DialogueService + DialogueController (Phase 4 kickoff)
 
 ---
 

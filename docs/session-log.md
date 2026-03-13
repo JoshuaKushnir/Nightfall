@@ -34,8 +34,17 @@
 - **Initial panel position mismatch**: Fixed panel to start OFF-SCREEN at -0.4x when `_isOpen = false`, instead of starting on-screen at 0.02x. Now matches initial state correctly.
 - **Scrollable area extended**: Changed bag section frame to fill root height (UDim2.new(1,0,1,0)), allowing the scroll frame to reach the bottom edge of the panel instead of stopping early.
 
+### MVP Priority Re-evaluation (March 12 2026)
+Following inventory completion a full MVP priority audit was performed. Four blocking issues created for the next four sessions:
+- **[#174](https://github.com/JoshuaKushnir/Nightfall/issues/174)** — Depth-1 Ember abilities (real hitbox + damage + VFX stub)
+- **[#175](https://github.com/JoshuaKushnir/Nightfall/issues/175)** — Basic enemy AI (NPC aggro + pathfind + swing)
+- **[#176](https://github.com/JoshuaKushnir/Nightfall/issues/176)** — HUD resonance display + zone ring triggers (bundled)
+- **[#177](https://github.com/JoshuaKushnir/Nightfall/issues/177)** — DialogueService + DialogueController (Phase 4 kickoff)
+
+See [BACKLOG.md](BACKLOG.md) for the full tiered DONE / CRITICAL / HIGH / MEDIUM / POST-MVP breakdown.
+
 ### Next Session Should Start On
-Issue #62 continuation: **More Studio testing** — Verify toggle animation smooth, panel starts hidden and appears on toggle, bag scroll fills completely to bottom. Test all drag/drop and category collapse interactions.
+Issue [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174): **Depth-1 Ember abilities** — Implement real hitbox activation, damage application, and VFX stub for at least one Ember move. Pattern established here becomes the template for all remaining Aspects.
 
 ---
 
