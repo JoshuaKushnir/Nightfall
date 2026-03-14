@@ -1,3 +1,26 @@
+## Session NF-073: Implemented Ring 1 Five Hollowed Variant AI
+**Date:** 2026-03-13  
+**Issues:** #179, #180
+
+### What Was Built
+- **src/client/runtime/init.lua:** Fixed dependencies nil issue, closing #179.
+- **src/shared/types/HitboxTypes.lua:** Shifted hitbox Owner type to Player | string to allow Enemy instances to safely broadcast hit strikes across the network using ID names.
+- **src/shared/types/HollowedTypes.lua:** Introduced MaxPoise, CurrentPoise along with three new combat states (Dodging, Stunned, Blocking). Added exact structs matching the five target permutations (Wayward, Ironclad, Silhouette, Resonant, Ember).
+- **src/server/services/HollowedService.lua:** 
+  - Completely erased math-based spatial auto-hitting inside _AttackPlayer.
+  - Injected true Hitbox volumes spanning exact ranges during attacks directly interacting with server latency properly via _ExecuteHitboxAttack.
+  - Mapped a 5-block branching logic route in _TickAI that implements varied styles of mobility and frame execution logic for the specific model's config. (e.g. Dashing to distance with Silhouette, Slow approach and Slam with Ember).
+
+### Integration Points
+- Allows HitboxService to securely bridge gap between CombatService generic functions and non-player objects.
+- Enables specific posture breaking interactions because enemy states can correctly resolve boolean Stunned.
+
+### Spec Gaps Encountered
+- Hardcoded sphere vs box ranges on enemy hitboxes based on general approximation (e.g. Ironclad sphere radius of 6, Resonant projectile assumption using a far cast offset). Placed temporary values subject to Studio re-evaluation.
+
+### Next Session Should Start On
+Issue #180 Test / Close: Boot Roblox Studio to ensure syntax validity in Luau and confirm spawn behaviors physically. Once #180 is closed, proceed to Issue #181 (Witnessing System).
+
 
 ## Session NF-073: Implemented Ring 1 Five Hollowed Variant AI
 **Date:** 2026-03-13  
@@ -2746,4 +2769,5 @@ Implement custom drag/drop layout or continue refining actual physical Aspect co
 
 ### Next Session Should Start On
 Issue #180: Five Hollowed enemy types with distinct movesets — Flesh out the 5 base combat variants mapped out in the Hollowed configuration for Witnessing.
+
 
