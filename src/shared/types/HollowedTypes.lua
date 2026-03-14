@@ -23,6 +23,7 @@ export type HollowedConfig = {
 	Id             : string,   -- unique config id, e.g. "basic_hollowed"
 	DisplayName    : string,   -- shown in the model billboard
 	MaxHealth      : number,   -- full HP pool
+	MaxPoise       : number,   -- max posture pressure before staggering
 	AttackDamage   : number,   -- HP damage dealt per swing
 	PostureDamage  : number,   -- posture pressure added per hit
 	AggroRange     : number,   -- studs — detect players within this radius
@@ -40,7 +41,7 @@ export type HollowedConfig = {
 --[[
 	AI state machine values for an active Hollowed instance.
 ]]
-export type HollowedState = "Patrol" | "Aggro" | "Attacking" | "Dead"
+export type HollowedState = "Patrol" | "Aggro" | "Attacking" | "Dead" | "Dodging" | "Stunned" | "Blocking"
 
 --[[
 	Runtime data for a single spawned Hollowed.
@@ -52,6 +53,7 @@ export type HollowedData = {
 	SpawnCFrame      : CFrame,       -- original spawn position + orientation
 	RootPosition     : Vector3,      -- current world position of HumanoidRootPart
 	CurrentHealth    : number,
+	CurrentPoise     : number,
 	MaxHealth        : number,
 	State            : HollowedState,
 	Target           : Player?,      -- current aggro target (nil when patrolling)

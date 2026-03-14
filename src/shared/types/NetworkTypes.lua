@@ -98,13 +98,22 @@ export type NetworkEvent =
 
 	-- Death & Respawn (#144)
 	| "ShardLost"        -- Server → Client: shards deducted on death (amount + new total)
+
+	-- Ring 1: Progression & CODEX (#179)
+	| "CodexUnlocked"          -- Server → Client: newly observed entity added to codex
+	| "EmberPointPlaceRequest" -- Client → Server: attempt to place a point
+	| "EmberPointDeployResult" -- Server → Client: result of place attempt
+	| "EmberPointSync"         -- Server → Client: active ember point data
+	| "ProgressionGateBlocked" -- Server → Client: reason a ring transition was denied
+	| "RingChanged"            -- Server → Client: player entered a new ring boundary
+	| "WitnessProgress"        -- Server → Client: progress percentage towards witnessing a target
+	| "WitnessStarted"         -- Server → Client: player started observing an entity
+	| "WitnessFailed"          -- Server → Client: observation interrupted
+
 	| "PlayerRespawned"  -- Server → Client: player respawned at Ember Point or default spawn
 
 	-- Movement (client requests validated on server)
 	| "RequestSlide"
-
-	-- Zone
-	| "RingChanged"          -- Server → Client: player entered a new ring boundary
 
 	-- Weapon Combat Pipeline (#171)
 	| "WeaponAttackRequest"  -- Client → Server: weapon swing intent
@@ -297,6 +306,8 @@ export type ProgressionSyncPacket = {
 	HasChosenDiscipline: boolean,
 	DisciplineId: string,
 	OmenMarks: number,
+	CodexEntries: {[string]: any}?,
+	ActiveEmberPointId: string?,
 }
 
 export type DisciplineSelectRequiredPacket = {}
@@ -511,6 +522,52 @@ export type RingChangedPacket = {
 	NewRing: number,  -- 0–5, ring the player just entered
 }
 
+export type CodexUnlockedPacket = {
+	EntryId: string,
+	Title: string,
+}
+
+export type EmberPointPlaceRequestPacket = {
+	-- Empty request, handled by server location validation
+}
+
+export type EmberPointPlacedPacket = {
+	-- Unused for now, maybe use EmberPointDeployResult natively
+}
+
+export type EmberPointDeployResultPacket = {
+	Success: boolean,
+	EmberPointId: string?,
+	Reason: string?,
+}
+
+export type EmberPointSyncPacket = {
+	-- Send current active ember
+	ActiveEmberPointId: string?,
+}
+
+export type ProgressionGateBlockedPacket = {
+	AttemptedRing: number,
+	Reason: string,
+	MissingConditions: {string}?,
+}
+
+export type WitnessProgressPacket = {
+	TargetInstanceId: string,
+	Progress: number,
+}
+
+export type WitnessStartedPacket = {
+	TargetInstanceId: string,
+	TargetName: string,
+	Duration: number,
+}
+
+export type WitnessFailedPacket = {
+	TargetInstanceId: string,
+	Reason: string,
+}
+
 -- Unified packet type for type safety
 export type NetworkPacket = 
 	StateChangedPacket
@@ -552,6 +609,14 @@ export type NetworkPacket =
 	| DebugInfoPacket
 	| WeaponAttackRequestPacket
 	| AttackResultPacket
+	| CodexUnlockedPacket
+	| EmberPointPlaceRequestPacket
+	| EmberPointDeployResultPacket
+	| EmberPointSyncPacket
+	| ProgressionGateBlockedPacket
+	| WitnessProgressPacket
+	| WitnessStartedPacket
+	| WitnessFailedPacket
 
 -- Network Event Direction
 export type EventDirection = "ServerToClient" | "ClientToServer" | "Bidirectional"
@@ -939,6 +1004,30 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Player crossed a ring boundary or entered a named zone (server fires to owning client). Packet includes OldRing/NewRing and optional ZoneName.",
 	},
+	ProgressionGateBlocked = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Reason a ring transition was denied",
+	},
+	CodexUnlocked = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Newly observed entity added to codex",
+	},
+	EmberPointPlaced = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Client requests to place an Ember Point",
+	},
+	EmberPointSync = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Sync active Ember Point data",
+	},
 
 	-- Admin/Debug
 	AdminCommand = {
@@ -947,11 +1036,41 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = true,
 		Description = "Client sends admin command",
 	},
+	UseTrainingTool = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Client uses a training tool item to increase stats",
+	},
 	DebugInfo = {
 		Direction = "Bidirectional",
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Debug information exchange",
+	},
+	CodexUnlocked = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = 5,
+		RequiresValidation = false,
+		Description = "Notify client of new Codex unlock",
+	},
+	EmberPointPlaceRequest = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 2,
+		RequiresValidation = true,
+		Description = "Request to place a new Ember Point",
+	},
+	EmberPointDeployResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Result of attempting to place Ember Point",
+	},
+	ProgressionGateBlocked = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify client why they cannot transition ring",
 	},
 }
 

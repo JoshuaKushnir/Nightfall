@@ -39,13 +39,48 @@ local function _normalizeItemData(item: any): any
     return item
 end
 
+-- Helper to enrich item with full data from ItemRegistry if available
+local function _enrichItem(item: any): any
+    if item.Id and not item.Name then
+        -- Try to look up full item definition from ItemRegistry
+        local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
+        local fullDef = ItemRegistry.Get(item.Id)
+        if fullDef then
+            -- Merge full definition into item (preservingQuantity if present)
+            local quantity = item.Quantity
+            for k, v in fullDef do
+                item[k] = v
+            end
+            if quantity then
+                item.Quantity = quantity
+            end
+        end
+    end
+    return _normalizeItemData(item)
+end
+
 -- internal helper: send current inventory/equipped state to a single client
 local function _syncInventory(player: Player)
     local profile = DataService:GetProfile(player)
     if not profile then return end
+    
+    -- Enrich and normalize inventory items before sending to client
+    local enrichedInventory = {}
+    for _, item in ipairs(profile.Inventory or {}) do
+        table.insert(enrichedInventory, _enrichItem(item))
+    end
+    
+    -- Also enrich equipped items
+    local enrichedEquipped = {}
+    for slot, item in pairs(profile.EquippedItems or {}) do
+        if item then
+            enrichedEquipped[slot] = _enrichItem(item)
+        end
+    end
+    
     NetworkService:SendToClient(player, "InventorySync", {
-        Inventory = profile.Inventory or {},
-        Equipped = profile.EquippedItems or {},
+        Inventory = enrichedInventory,
+        Equipped = enrichedEquipped,
     })
 end
 

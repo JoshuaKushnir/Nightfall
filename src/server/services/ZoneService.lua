@@ -166,6 +166,45 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
 
     if newRing == oldRing and newZone == oldZone then return end
 
+    -- Check Ring 2 Progression Gate
+    if newRing == 2 and oldRing < 2 then
+        local profile = nil
+        local dsOk, DataService = pcall(require, game:GetService("ServerScriptService").Server.services.DataService)
+        if dsOk and DataService then
+            profile = DataService:GetProfile(player)
+        end
+        if profile then
+            local requiredEntries = {"Hollowed.Wayward", "Hollowed.Ironclad", "Hollowed.Silhouette", "Hollowed.Resonant", "Hollowed.Ember", "Duskwalker"}
+            local missing = {}
+            for _, id in requiredEntries do
+                if not profile.CodexEntries or not profile.CodexEntries[id] or profile.CodexEntries[id].State ~= "Witnessed" then
+                    table.insert(missing, id)
+                end
+            end
+            if not profile.DuskwalkerSurvived then
+                table.insert(missing, "Duskwalker Encounter Not Passed")
+            end
+            
+            if #missing > 0 then
+                if NetworkService then
+                    NetworkService:SendToClient(player, "ProgressionGateBlocked", { AttemptedRing = 2, Reason = "You must understand the Hollowed and survive the Duskwalker.", MissingConditions = missing })
+                end
+                
+                -- Teleport back to safe limit by offsetting towards old origin
+                local char = player.Character
+                if char and char.PrimaryPart then
+                    local lastPos = _lastPosition[uid]
+                    if lastPos then
+                        local dir = (lastPos - char.PrimaryPart.Position).Unit
+                        char:SetPrimaryPartCFrame(char.PrimaryPart.CFrame + dir * 15) -- push back 15 studs
+                    end
+                end
+                
+                return -- Reject new ring update
+            end
+        end
+    end
+
     _ringCache[uid] = newRing
     _zoneCache[uid] = newZone
 

@@ -110,12 +110,12 @@ local dependencies = {
 	AspectController    = controllers.AspectController,
 	InventoryController = controllers.InventoryController,
 	ProgressionController = controllers.ProgressionController,
+	PlayerHUDController = controllers.PlayerHUDController,
 }
 
 for name, controller in controllers do
 	if type(controller) == "table" and controller.Init then
 		local success, err = pcall(controller.Init, controller, dependencies)
-		
 		if not success then
 			warn(`[Client] ❌ Failed to initialize {name}: {err}`)
 			initSuccess = false

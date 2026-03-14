@@ -36,6 +36,7 @@ local RunService         = game:GetService("RunService")
 local CollectionService  = game:GetService("CollectionService")
 local Workspace          = game:GetService("Workspace")
 local ReplicatedStorage  = game:GetService("ReplicatedStorage")
+local HitboxService    = require(ReplicatedStorage.Shared.modules.HitboxService)
 
 local StateService     = require(ReplicatedStorage.Shared.modules.StateService)
 local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
@@ -71,8 +72,9 @@ local NPC_HIT_DAMAGE_VAR = 0.10  -- ±10% attack damage variance (mirrors Combat
 local CONFIGS: {[string]: HollowedConfig} = {
 	basic_hollowed = {
 		Id             = "basic_hollowed",
-		DisplayName    = "Hollowed",
+		DisplayName    = "Wayward Hollowed",
 		MaxHealth      = 80,
+		MaxPoise       = 100,
 		AttackDamage   = 12,
 		PostureDamage  = 18,
 		AggroRange     = 30,
@@ -80,9 +82,73 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PatrolRadius   = 20,
 		MoveSpeed      = 8,
 		AttackCooldown = 2.0,
-		ResonanceGrant = 25,  -- matches Kill_Enemy rate (spec-gap placeholder)
+		ResonanceGrant = 25,
 		RespawnDelay   = 12,
 		BodyColor      = BrickColor.new("Dark stone grey"),
+	},
+	ironclad_hollowed = {
+		Id             = "ironclad_hollowed",
+		DisplayName    = "Ironclad Hollowed",
+		MaxHealth      = 150,
+		MaxPoise       = 250,
+		AttackDamage   = 20,
+		PostureDamage  = 40,
+		AggroRange     = 25,
+		AttackRange    = 6,
+		PatrolRadius   = 15,
+		MoveSpeed      = 6,
+		AttackCooldown = 3.5,
+		ResonanceGrant = 50,
+		RespawnDelay   = 20,
+		BodyColor      = BrickColor.new("Black"),
+	},
+	silhouette_hollowed = {
+		Id             = "silhouette_hollowed",
+		DisplayName    = "Silhouette",
+		MaxHealth      = 60,
+		MaxPoise       = 80,
+		AttackDamage   = 15,
+		PostureDamage  = 10,
+		AggroRange     = 35,
+		AttackRange    = 4,
+		PatrolRadius   = 25,
+		MoveSpeed      = 14,
+		AttackCooldown = 1.5,
+		ResonanceGrant = 35,
+		RespawnDelay   = 15,
+		BodyColor      = BrickColor.new("Ghost grey"),
+	},
+	resonant_hollowed = {
+		Id             = "resonant_hollowed",
+		DisplayName    = "Resonant Hollowed",
+		MaxHealth      = 75,
+		MaxPoise       = 60,
+		AttackDamage   = 25,
+		PostureDamage  = 15,
+		AggroRange     = 40,
+		AttackRange    = 20,
+		PatrolRadius   = 20,
+		MoveSpeed      = 7,
+		AttackCooldown = 4.0,
+		ResonanceGrant = 60,
+		RespawnDelay   = 15,
+		BodyColor      = BrickColor.new("Bright violet"),
+	},
+	ember_hollowed = {
+		Id             = "ember_hollowed",
+		DisplayName    = "Ember Hollowed",
+		MaxHealth      = 200,
+		MaxPoise       = 300,
+		AttackDamage   = 30,
+		PostureDamage  = 50,
+		AggroRange     = 35,
+		AttackRange    = 8,
+		PatrolRadius   = 25,
+		MoveSpeed      = 10,
+		AttackCooldown = 2.5,
+		ResonanceGrant = 100,
+		RespawnDelay   = 30,
+		BodyColor      = BrickColor.new("Deep orange"),
 	},
 }
 
@@ -278,41 +344,108 @@ end
 	Handles HP subtraction and posture gain.  Sets player Dead if HP reaches 0.
 	Broadcasts HitConfirmed event to all clients.
 ]]
-local function _AttackPlayer(data: HollowedData, targetPlayer: Player)
-	local config = CONFIGS[data.ConfigId]
-	if not config then return end
+local function _ExecuteHitboxAttack(data: HollowedData, model: Model, config: HollowedConfig, shape: "Box" | "Sphere", size: Vector3, offset: Vector3, duration: number)
+	data.State = "Attacking"
+	data.LastAttackTick = tick()
+	_UpdateVisuals(data.InstanceId)
 
-	-- Validate target still alive and not in iframes
-	local targetData = StateService:GetPlayerData(targetPlayer)
-	if not targetData then return end
-	if targetData.State == "Dead" or targetData.State == "Dodging" then return end
+	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not root then return end
 
-	-- Damage variance ±10% (mirrors CombatService._ApplyDamageVariance)
-	local variance    = config.AttackDamage * NPC_HIT_DAMAGE_VAR
-	local finalDamage = math.floor(
-		math.random(math.floor(config.AttackDamage - variance), math.ceil(config.AttackDamage + variance))
-	)
+	local hitboxConfig = {
+		Shape = shape,
+		Owner = data.InstanceId, 
+		Damage = config.AttackDamage,
+		PostureDamage = config.PostureDamage,
+		CFrame = root.CFrame * CFrame.new(offset),
+		Size = size,
+		Radius = size.X, -- Assuming uniform if sphere
+		Duration = duration,
+	}
 
-	-- Apply posture pressure (enemy hit on unblocked player drains posture)
-	if PostureService then
-		PostureService.DrainPosture(targetPlayer, config.PostureDamage, "NPC")
-	end
+	-- Trigger hitbox logic. The server calculates collisions via module instantly
+	HitboxService.CreateHitbox(hitboxConfig)
 
-	-- Apply HP damage
-	targetData.Health.Current = math.max(0, targetData.Health.Current - finalDamage)
-	print(("[HollowedService] %s attacked %s for %d HP"):format(data.InstanceId, targetPlayer.Name, finalDamage))
+	-- Lock in attack state for cooldown, then resume
+	task.delay(duration + 0.5, function()
+		if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Attacking" then
+			_instances[data.InstanceId].State = "Aggro"
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+end
 
-	-- Check player death
-	if targetData.Health.Current <= 0 then
-		StateService:SetPlayerState(targetPlayer, "Dead")
-		print(("[HollowedService] %s killed %s"):format(data.InstanceId, targetPlayer.Name))
-	end
+--[[
+	Execute the specific custom AI move set per variant instead of just swinging.
+]]
+local function _ExecuteVariantAI(data: HollowedData, model: Model, config: HollowedConfig, dt: number, targetRoot: BasePart, now: number)
+	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
+	local toTarget = targetRoot.Position - rootPos
+	local dist = toTarget.Magnitude
 
-	-- Broadcast hit feedback (treats NPC as "attacker name" string)
-	local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT)
-	if hitEvent then
-		-- Fire using attacker=nil pattern; clients receive instanceId as the attacker identifier
-		hitEvent:FireAllClients(nil, targetPlayer, finalDamage, false, false)
+	if data.ConfigId == "basic_hollowed" then
+		-- Basic Wayward: Close in and swing
+		if dist <= config.AttackRange then
+			if now - data.LastAttackTick >= config.AttackCooldown then
+				_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(4, 4, 4), Vector3.new(0, 0, -3), 0.3)
+			end
+		else
+			local stepDir = toTarget.Unit
+			local stepVec = stepDir * config.MoveSpeed * dt
+			_MoveModel(model, stepVec, targetRoot.Position)
+		end
+	
+	elseif data.ConfigId == "ironclad_hollowed" then
+		-- Ironclad: occasionally blocks while moving, heavy slam
+		if dist <= config.AttackRange then
+			if now - data.LastAttackTick >= config.AttackCooldown then
+				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(6, 6, 6), Vector3.new(0, 0, -2), 0.5)
+			end
+		else
+			-- Move forward
+			local stepDir = toTarget.Unit
+			local stepVec = stepDir * config.MoveSpeed * dt
+			_MoveModel(model, stepVec, targetRoot.Position)
+			-- Randomly block
+			if math.random() < 0.05 and data.State ~= "Blocking" then
+				data.State = "Blocking"
+				task.delay(1.5, function() if data.State == "Blocking" then data.State = "Aggro" end end)
+			end
+		end
+
+	elseif data.ConfigId == "silhouette_hollowed" then
+		-- Silhouette: Stays just out of reach, dashes in
+		if dist > config.AttackRange and dist < 12 and now - data.LastAttackTick >= config.AttackCooldown then
+			-- Dash attack
+			_MoveModel(model, toTarget.Unit * 8, targetRoot.Position)
+			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(3, 4, 3), Vector3.new(0, 0, -2), 0.2)
+		elseif dist <= config.AttackRange then
+			-- Back up
+			_MoveModel(model, -toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
+		else
+			-- Approach
+			_MoveModel(model, toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
+		end
+		
+	elseif data.ConfigId == "resonant_hollowed" then
+		-- Resonant: Casts spheres from afar
+		if dist <= config.AttackRange then
+			if now - data.LastAttackTick >= config.AttackCooldown then
+				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(8, 8, 8), Vector3.new(0, 0, -dist), 0.5)
+			end
+		else
+			_MoveModel(model, toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
+		end
+
+	elseif data.ConfigId == "ember_hollowed" then
+		-- Ember: Wide cleave sweeps
+		if dist <= config.AttackRange then
+			if now - data.LastAttackTick >= config.AttackCooldown then
+				_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(8, 4, 6), Vector3.new(0, 0, -4), 0.6)
+			end
+		else
+			_MoveModel(model, toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
+		end
 	end
 end
 
@@ -366,30 +499,7 @@ local function _TickAI(instanceId: string, dt: number)
 		local targetRoot = targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not targetRoot then return end
 
-		local toTarget = targetRoot.Position - rootPos
-		local dist     = toTarget.Magnitude
-
-		if dist <= config.AttackRange then
-			-- Within attack range
-			if now - data.LastAttackTick >= config.AttackCooldown then
-				data.State = "Attacking"
-				data.LastAttackTick = now
-				_UpdateVisuals(instanceId)
-				_AttackPlayer(data, target)
-				-- Return to Aggro after a brief pause (handled next tick)
-				task.delay(0.5, function()
-					if _instances[instanceId] and _instances[instanceId].State == "Attacking" then
-						_instances[instanceId].State = "Aggro"
-						_UpdateVisuals(instanceId)
-					end
-				end)
-			end
-		else
-			-- Move toward player
-			local stepDir = toTarget.Unit
-			local stepVec = stepDir * config.MoveSpeed * dt
-			_MoveModel(model, stepVec, targetRoot.Position)
-		end
+		_ExecuteVariantAI(data, model, config, dt, targetRoot, now)
 
 	elseif data.State == "Patrol" then
 		-- Idle at waypoint: wait before picking next
@@ -441,6 +551,7 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame): strin
 		RootPosition    = spawnCF.Position,
 		CurrentHealth   = config.MaxHealth,
 		MaxHealth       = config.MaxHealth,
+		CurrentPoise    = config.MaxPoise,
 		State           = "Patrol",
 		Target          = nil,
 		LastAttackTick  = 0,
@@ -474,13 +585,38 @@ end
 	attacker: the Player who landed the hit.
 	Returns true if still alive, false if just killed.
 ]]
-function HollowedService.ApplyDamage(instanceId: string, damage: number, attacker: Player?): boolean
+function HollowedService.ApplyDamage(instanceId: string, damage: number, attacker: Player?, postureDamage: number?): boolean
 	local data   = _instances[instanceId]
 	local config = data and CONFIGS[data.ConfigId]
 	if not data or not config or not data.IsActive then return false end
-	if data.State == "Dead" then return false end
+	if data.State == "Dead" or data.State == "Dodging" then return false end
 
+	-- Handle Blocking phase (Ironclad primarily)
+	if data.State == "Blocking" then
+		print(("[HollowedService] %s BLOCKED hit from %s"):format(instanceId, attacker and attacker.Name or "Unknown"))
+		-- Potentially apply heavy posture damage or spark effects here
+		return true 
+	end
+
+	-- Apply HP damage
 	data.CurrentHealth = math.max(0, data.CurrentHealth - damage)
+	
+	-- Apply Posture damage if stunned mechanics are active
+	if postureDamage then
+		data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
+		if data.CurrentPoise <= 0 then
+			data.State = "Stunned"
+			print(("[HollowedService] %s was STUNNED!"):format(instanceId))
+			-- Recover poise after 3 seconds
+			task.delay(3, function()
+				if _instances[instanceId] and _instances[instanceId].State == "Stunned" then
+					_instances[instanceId].State = "Aggro"
+					_instances[instanceId].CurrentPoise = config.MaxPoise
+				end
+			end)
+		end
+	end
+
 	_UpdateVisuals(instanceId)
 
 	print(("[HollowedService] %s took %d damage — HP %d/%d"):format(
@@ -573,10 +709,13 @@ function HollowedService:Start()
 		warn("[HollowedService] No parts tagged 'HollowedSpawn' found — no Hollowed spawned. Tag Parts in Ring 1 to populate.")
 	end
 
+	local variantList = {"basic_hollowed", "ironclad_hollowed", "silhouette_hollowed", "resonant_hollowed", "ember_hollowed"}
+
 	for _, part in spawnParts do
 		if part:IsA("BasePart") then
 			local spawnCF = (part :: BasePart).CFrame
-			HollowedService.SpawnInstance("basic_hollowed", spawnCF)
+			local randomVariant = variantList[math.random(1, #variantList)]
+			HollowedService.SpawnInstance(randomVariant, spawnCF)
 		end
 	end
 

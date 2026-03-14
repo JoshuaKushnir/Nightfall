@@ -189,6 +189,15 @@ local ENABLE_STAT_POINT_MILESTONES = true
 -- SPEC-GAP: cap needs design sign-off — issue #129
 local STAT_MAX_PER_STAT = 20
 
+-- Training tool stat level caps by rarity
+-- Higher rarity tools can level stats higher; lower rarity tools have a cap
+local TRAINING_TOOL_STAT_CAPS: {[string]: number} = {
+    Common   = 5,   -- Common tools can only level stat up to 5
+    Uncommon = 10,  -- Uncommon tools can level up to 10
+    Rare     = 20,  -- Rare tools can level up to 20 (matches STAT_MAX_PER_STAT)
+    Legendary = 20, -- Legendary tools can also level to max
+}
+
 -- How much each allocated point adds to combat values (server-authoritative)
 -- Layout: { HealthMax, PostureMax, ManaMax, ManaRegen, BreakBase }
 -- SPEC-GAP: scaling values are design placeholders — issue #129
@@ -221,4 +230,5 @@ return {
     STAT_MAX_PER_STAT         = STAT_MAX_PER_STAT,
     STAT_PER_POINT            = STAT_PER_POINT,
     DISCIPLINE_STAT_MAP       = DISCIPLINE_STAT_MAP,
+    TRAINING_TOOL_STAT_CAPS   = TRAINING_TOOL_STAT_CAPS,
 }

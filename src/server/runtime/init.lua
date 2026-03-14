@@ -337,7 +337,8 @@ if services.NetworkService and services.DummyService then
 			end
 
 		-- Progression testing commands ---
-		elseif cmd == "kill_player" then
+		-- Only allow these debug commands in Studio (not public servers)
+		elseif DebugMode and cmd == "kill_player" then
 			-- Debug: force player death to test shard loss on death
 			local char = player.Character
 			if char then
@@ -359,7 +360,7 @@ if services.NetworkService and services.DummyService then
 				end
 			end
 
-		elseif cmd == "set_ring" then
+		elseif DebugMode and cmd == "set_ring" then
 			-- Debug: change player's ring to test soft caps
 			local ring = tonumber(args[1]) or 1
 			ring = math.clamp(ring, 0, 5)
@@ -377,7 +378,7 @@ if services.NetworkService and services.DummyService then
 				end
 			end
 
-		elseif cmd == "reset_progression" then
+		elseif DebugMode and cmd == "reset_progression" then
 			-- Debug: reset all progression for retesting from scratch
 			local DataSvc = services.DataService
 			local ProgressionSvc = services.ProgressionService
@@ -422,7 +423,7 @@ if services.NetworkService and services.DummyService then
 				end
 			end
 
-		elseif cmd == "grant_stat_points" then
+		elseif DebugMode and cmd == "grant_stat_points" then
 			-- Debug: directly grant stat points (bypasses resonance milestone)
 			local amount = tonumber(args[1]) or 1
 			local DataSvc = services.DataService
@@ -451,7 +452,7 @@ if services.NetworkService and services.DummyService then
 				end
 			end
 
-		elseif cmd == "grant_training_tool" then
+		elseif DebugMode and cmd == "grant_training_tool" then
 			-- Debug: grant a training tool to player's inventory
 			-- Usage: /admin grant_training_tool [stat] [rarity]
 			-- stat: Strength, Fortitude, Agility, Intelligence, Willpower, Charisma

@@ -405,7 +405,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			end
 		elseif isHollowed then
 			-- Dispatch to HollowedService; it handles health, death, and Resonance grant.
-			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, attacker)
+			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, hitData.PostureDamage, attacker)
 			if not stillAlive then
 				print(`[CombatService] ☠️ Hollowed defeated! ({finalDamage} damage)`)
 			else

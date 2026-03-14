@@ -160,6 +160,16 @@ local function _isTrainingTool(item: any): boolean
     return item ~= nil and item.Category == "Tools" and item.TrainingToolId ~= nil
 end
 
+-- Check if a training tool is equipable (can be held like a weapon)
+local function _isEquippableTrainingTool(item: any): boolean
+    return _isTrainingTool(item) and item.IsEquipable == true
+end
+
+-- Get weapon registry ID for a training tool (uses its ID as weapon ID)
+local function _trainingToolRegId(item: any): string
+    return item.Id
+end
+
 local function _slotOf(self: any, itemId: string): number?
     for i = 1, HOTBAR_SLOTS do
         local e = self._equipped[tostring(i)]
@@ -225,7 +235,7 @@ local function _unslotItem(self: any, slot: number)
     if self._networkController then
         self._networkController:SendToServer("UnequipItem", {Slot = tostring(slot)})
     end
-    if item and _isWeapon(item) then
+    if item and (_isWeapon(item) or _isEquippableTrainingTool(item)) then
         if self._heldSlot == slot then
             self._heldSlot = nil
             _playUnequipAnim(_weaponRegId(item))
@@ -239,12 +249,13 @@ end
 local function _toggleHold(self: any, slot: number)
     local item = self._equipped[tostring(slot)]
     if not item then return end
-    if not _isWeapon(item) then return end
+    if not _isWeapon(item) and not _isEquippableTrainingTool(item) then return end
 
     if self._heldSlot == slot then
         -- Currently held → sheathe (unequip tool, keep slot)
         self._heldSlot = nil
-        _playUnequipAnim(_weaponRegId(item))
+        local regId = _isWeapon(item) and _weaponRegId(item) or _trainingToolRegId(item)
+        _playUnequipAnim(regId)
         local remote = NetworkProvider:GetRemoteEvent("UnequipWeapon")
         if remote then remote:FireServer() end
     else
@@ -252,15 +263,17 @@ local function _toggleHold(self: any, slot: number)
         -- If another slot was held, sheathe it first
         if self._heldSlot then
             local prevItem = self._equipped[tostring(self._heldSlot)]
-            if prevItem and _isWeapon(prevItem) then
-                _playUnequipAnim(_weaponRegId(prevItem))
+            if prevItem and (_isWeapon(prevItem) or _isEquippableTrainingTool(prevItem)) then
+                local prevRegId = _isWeapon(prevItem) and _weaponRegId(prevItem) or _trainingToolRegId(prevItem)
+                _playUnequipAnim(prevRegId)
                 local remote = NetworkProvider:GetRemoteEvent("UnequipWeapon")
                 if remote then remote:FireServer() end
             end
         end
         self._heldSlot = slot
         local remote = NetworkProvider:GetRemoteEvent("EquipWeapon")
-        if remote then remote:FireServer(_weaponRegId(item)) end
+        local regId = _isWeapon(item) and _weaponRegId(item) or _trainingToolRegId(item)
+        if remote then remote:FireServer(regId) end
     end
 end
 
@@ -279,11 +292,11 @@ local function _onHotbarActivate(self: any, slot: number)
         else
             NetworkProvider:FireServer("AbilityCastRequest", {AbilityId = abilityId, TargetPosition = mouse.Hit.p})
         end
-    elseif _isWeapon(item) then
+    elseif _isWeapon(item) or _isEquippableTrainingTool(item) then
         _toggleHold(self, slot)
         self:RefreshUI()
     elseif _isTrainingTool(item) then
-        -- Use training tool directly
+        -- Non-equippable training tool - use directly (legacy behavior)
         if self._networkController then
             self._networkController:SendToServer("UseTrainingTool", {Slot = tostring(slot), ItemId = item.Id})
         end

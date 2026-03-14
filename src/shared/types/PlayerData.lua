@@ -10,6 +10,18 @@
 
 local AspectTypes = require(game:GetService("ReplicatedStorage").Shared.types.AspectTypes) :: any
 local ItemTypes = require(game:GetService("ReplicatedStorage").Shared.types.ItemTypes) :: any
+local CodexTypes = require(game:GetService("ReplicatedStorage").Shared.types.CodexTypes) :: any
+
+-- Ember Point definitions
+export type SerializedVector3 = { X: number, Y: number, Z: number }
+
+export type EmberPointData = {
+	Id: string,
+	Position: SerializedVector3,
+	Ring: number,
+	SetAt: number,
+	UsedCount: number,
+}
 
 -- Component Types
 export type HealthComponent = {
@@ -96,6 +108,12 @@ export type PlayerData = {
 	-- Progression System
 	CurrentRing: number,  -- 0–5: which Ring the player is currently in
 	OmenMarks: number,    -- 0–5 Umbral Marks (Omen system — Phase 4+)
+
+	-- Ring 1 Progression Data (#179)
+	CodexEntries: {[CodexTypes.CodexEntryId]: CodexTypes.CodexEntry}, -- keys are e.g. Hollowed variant IDs or "Duskwalker"
+	EmberPoints: {[string]: EmberPointData},  -- custom placed spawn points
+	ActiveEmberPointId: string?,       -- the currently active respawn point id
+	DuskwalkerSurvived: boolean?,      -- has the player passed the Duskwalker encounter?
 
 	-- Inventory & equipment (items stored in the player's backpack/config)
 	Inventory: {ItemTypes.Item},      -- items in backpack or stash

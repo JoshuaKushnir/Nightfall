@@ -466,9 +466,27 @@ Always create a `spec-gap` labeled issue when you use a placeholder. Never silen
 
 ---
 
+## 🎮 THE RING PROGRESSION PHILOSOPHY
+
+**Status: DESIGN LOCKED** (Session NF-071)
+
+The progression loop replaces generic "bandit beater" grinding with a **coherent beginner-to-endgame arc** that teaches through understanding, not reflexes.
+
+Each ring teaches the player to comprehend something increasingly profound:
+- **Ring 0 (Hearthspire):** Understand who you are (Aspect identity)
+- **Ring 1 (Verdant Shelf):** Understand what you were (Hollowed mirrors, Witnessing, Codex)
+- **Ring 2 (Ashfeld):** Understand what you're becoming (Omen, corruption, faction choice)
+- **Ring 3 (Vael Depths):** Understand what world was (Memory Fragments, lore payoff)
+- **Ring 4 (Gloam):** Understand what you're losing (Luminance drain, Streak)
+- **Ring 5 (The Null):** Understand what darkness is (Convergence, endgame legacy)
+
+**[→ Full Design Doc](../docs/Game%20Plan/Ring_Progression_Loop.md)**
+
+---
+
 ## 🗺️ CURRENT PROJECT STATE (update this header each planning session)
 
-**Last updated:** March 2026 — Session NF-070
+**Last updated:** March 13, 2026 — Session NF-071 (Ring Progression Redesign)
 
 | Phase | Status | Notes |
 |---|---|---|
@@ -478,14 +496,15 @@ Always create a `spec-gap` labeled issue when you use a placeholder. Never silen
 | Phase 3: Aspect System | ✅ Complete | Types, Registry, Service, Controller, cooldowns, mana regen |
 | Phase 3: Inventory | ✅ Complete | InventoryService + InventoryController (Deepwoken layout, NF-070) |
 | Phase 3: Depth-1 Abilities | 🔄 In Progress | All OnActivate stubs — Ember first (#174) |
-| Phase 4: World & Narrative | ⏳ Not Started | Dialogue (#177), enemy AI (#175), zone triggers (#176) |
+| **Ring 1: Progression Loop** | 🔄 In Progress | Hollowed enemies (#180), Witnessing (#181), Ember Points + Duskwalker (#182) — **Epic: #179** |
+| Phase 4: World & Narrative | ⏳ Not Started | Dialogue (#177), enemy AI improvements, zone design |
 | Phase 5: Polish & Launch | ⏳ Not Started | Anti-cheat audit, performance, final checklist |
 
-**Next unblocked work:**
-1. [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174) — Depth-1 Ember abilities (real hitbox + damage + VFX stub)
-2. [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175) — Basic enemy AI (NPC aggro + pathfind + swing)
-3. [#176](https://github.com/JoshuaKushnir/Nightfall/issues/176) — HUD resonance display + zone ring triggers
-4. [#177](https://github.com/JoshuaKushnir/Nightfall/issues/177) — DialogueService + DialogueController (Phase 4 kickoff)
+**Next unblocked work (prioritized):**
+1. **[#179 Epic](https://github.com/JoshuaKushnir/Nightfall/issues/179)** — Ring 1 Verdant Shelf progression loop (foundational for entire game)
+2. [#180](https://github.com/JoshuaKushnir/Nightfall/issues/180) — Five Hollowed enemy types with distinct movesets
+3. [#181](https://github.com/JoshuaKushnir/Nightfall/issues/181) — Witnessing system + Codex entries (observation rewards knowledge)
+4. [#182](https://github.com/JoshuaKushnir/Nightfall/issues/182) — Ember Points + Duskwalker gate (player agency + readiness test)
 
 ---
 

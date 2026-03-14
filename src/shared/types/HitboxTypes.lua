@@ -13,7 +13,7 @@ export type HitboxShape = "Box" | "Sphere" | "Raycast" | "Circle" | "Square" | "
 export type HitboxConfig = {
 	-- Core properties
 	Shape: HitboxShape,
-	Owner: Player,
+	Owner: Player | string,
 	Damage: number,
 	
 	-- Box/Sphere properties

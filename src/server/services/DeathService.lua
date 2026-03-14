@@ -60,10 +60,20 @@ local _pendingRespawn: {[Player]: boolean} = {}
 -- ─── Private helpers ──────────────────────────────────────────────────────────
 
 --[[
-    _findNearestEmberPoint(characterCFrame)
-    Returns the CFrame of the nearest tagged EmberPoint, or nil if none exist.
+    _findActiveEmberPoint(player, originCFrame)
+    Returns the CFrame of the active player EmberPoint. If none, falls back to nearest tagged EmberPoint, or nil if none exist.
 ]]
-local function _findNearestEmberPoint(origin: CFrame): CFrame?
+local function _findActiveEmberPoint(player: Player, origin: CFrame?): CFrame?
+    local profile = _requireDataService():GetProfile(player)
+    if profile and profile.ActiveEmberPointId then
+        local ptData = profile.EmberPoints and profile.EmberPoints[profile.ActiveEmberPointId]
+        if ptData and ptData.Position then
+            return CFrame.new(ptData.Position.X, ptData.Position.Y, ptData.Position.Z)
+        end
+    end
+
+    if not origin then return nil end
+
     local best: CFrame? = nil
     local bestDist = math.huge
 
@@ -123,7 +133,9 @@ local function _respawnPlayer(player: Player)
     local spawnCFrame: CFrame? = nil
     local char = player.Character
     if char and char.PrimaryPart then
-        spawnCFrame = _findNearestEmberPoint(char.PrimaryPart.CFrame)
+        spawnCFrame = _findActiveEmberPoint(player, char.PrimaryPart.CFrame)
+    else
+        spawnCFrame = _findActiveEmberPoint(player, nil)
     end
 
     -- 3a. Immediately reset state back to Idle before the character appears

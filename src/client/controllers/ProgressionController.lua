@@ -70,8 +70,8 @@ local STAT_UI_EFFECTS: {[string]: string} = {
     Charisma     = "Phase 4+",
 }
 
--- Toggle keybind — P key opens/closes the stat panel
-local PANEL_KEYBIND = Enum.KeyCode.P
+-- Toggle keybind — ` (backtick) opens/closes the stat panel
+local PANEL_KEYBIND = Enum.KeyCode.Backquote
 
 -- ─── Module State ─────────────────────────────────────────────────────────────
 
@@ -233,27 +233,27 @@ local function _buildStatPanel()
         valueLbl.Parent     = rowBg
         _statValueLabels[statName] = valueLbl
 
-        -- +1 button
-        local plusBtn = Instance.new("TextButton")
-        plusBtn.AnchorPoint = Vector2.new(1, 0.5)
-        plusBtn.Position    = UDim2.new(1, -6, 0.5, 0)
-        plusBtn.Size        = UDim2.fromOffset(30, 24)
-        plusBtn.BackgroundColor3 = Color3.fromRGB(70, 60, 100)
-        plusBtn.BorderSizePixel  = 0
-        plusBtn.Text        = "+"
-        plusBtn.Font        = Enum.Font.GothamBold
-        plusBtn.TextColor3  = Color3.new(1, 1, 1)
-        plusBtn.TextSize    = 16
-        plusBtn.ZIndex      = 4
-        plusBtn.Parent      = rowBg
-        Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 4)
-
-        local capturedStat = statName
-        plusBtn.Activated:Connect(function()
-            if _state.StatPoints > 0 and (_state.Stats[capturedStat] or 0) < 20 then
-                ProgressionController:AllocateStat(capturedStat, 1)
-            end
-        end)
+        -- [DISABLED] +1 button - manual stat allocation removed
+        -- Users can now only increase stats via training tools
+        -- local plusBtn = Instance.new("TextButton")
+        -- plusBtn.AnchorPoint = Vector2.new(1, 0.5)
+        -- plusBtn.Position    = UDim2.new(1, -6, 0.5, 0)
+        -- plusBtn.Size        = UDim2.fromOffset(30, 24)
+        -- plusBtn.BackgroundColor3 = Color3.fromRGB(70, 60, 100)
+        -- plusBtn.BorderSizePixel  = 0
+        -- plusBtn.Text        = "+"
+        -- plusBtn.Font        = Enum.Font.GothamBold
+        -- plusBtn.TextColor3  = Color3.new(1, 1, 1)
+        -- plusBtn.TextSize    = 16
+        -- plusBtn.ZIndex      = 4
+        -- plusBtn.Parent      = rowBg
+        -- Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 4)
+        -- local capturedStat = statName
+        -- plusBtn.Activated:Connect(function()
+        --     if _state.StatPoints > 0 and (_state.Stats[capturedStat] or 0) < 20 then
+        --         ProgressionController:AllocateStat(capturedStat, 1)
+        --     end
+        -- end)
     end
 
     -- Discipline label at bottom
@@ -448,8 +448,33 @@ function ProgressionController:Start()
 
         _refreshStatUI()
         _notifyListeners()
-    end)
+    end)    
+    NetworkController:RegisterHandler("ProgressionGateBlocked", function(packet: any)
+        local PlayerHUDController = require(script.Parent.PlayerHUDController)
 
+        if packet.Reason == "MissingCodex" then
+            PlayerHUDController:ShowToast(
+                "Gate Blocked", 
+                "You lack the understanding of the Hollowed.",
+                Color3.fromRGB(200, 50, 50),
+                5.0
+            )
+        elseif packet.Reason == "NoDuskwalker" then
+            PlayerHUDController:ShowToast(
+                "Gate Blocked", 
+                "You must survive the Duskwalker's trial first.",
+                Color3.fromRGB(200, 50, 50),
+                5.0
+            )
+        else
+            PlayerHUDController:ShowToast(
+                "Gate Blocked", 
+                "You are not ready to proceed.",
+                Color3.fromRGB(200, 50, 50),
+                5.0
+            )
+        end
+    end)
     -- Toggle stat panel with P key
     UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
         if gameProcessed then return end
@@ -462,7 +487,7 @@ function ProgressionController:Start()
         end
     end)
 
-    print("[ProgressionController] Started  (press P to open stat allocation panel)")
+    print("[ProgressionController] Started  (press ` to open stat allocation panel)")
 end
 
 return ProgressionController

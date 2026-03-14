@@ -26,6 +26,17 @@ local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
 local TrainingToolService = {}
 TrainingToolService._initialized = false
 
+-- Cooldown tracking: [player.UserId] = { [statName] = lastUsedTime }
+local _cooldowns = {}
+
+-- Clean up cooldowns when player leaves to prevent memory leak
+local function _onPlayerRemoving(player: Player)
+	_cooldowns[player.UserId] = nil
+end
+
+-- Register player removal handler
+Players.PlayerRemoving:Connect(_onPlayerRemoving)
+
 --[[
     UseTrainingTool(player, itemId) -> (boolean, string?)
     Consumes one training tool of the given itemId and applies its stat increase.
@@ -48,6 +59,23 @@ function TrainingToolService.UseTrainingTool(player: Player, itemId: string): (b
         return false, "NotTrainingTool"
     end
     
+    -- Check cooldown for this stat type
+    local cooldownSeconds = toolDef.Cooldown or 5  -- Default 5 second cooldown
+    local statName = toolDef.StatToIncrease
+    local userId = player.UserId
+    
+    if not _cooldowns[userId] then
+        _cooldowns[userId] = {}
+    end
+    
+    local lastUsed = _cooldowns[userId][statName] or 0
+    local currentTime = tick()  -- Use tick() for sub-second precision
+    
+    if currentTime - lastUsed < cooldownSeconds then
+        local remaining = cooldownSeconds - (currentTime - lastUsed)
+        return false, "CooldownActive"
+    end
+    
     -- Get player profile
     local profile = DataService:GetProfile(player)
     if not profile then
@@ -57,30 +85,39 @@ function TrainingToolService.UseTrainingTool(player: Player, itemId: string): (b
     -- Lazy load InventoryService to avoid circular dependency
     local InventoryService = require(script.Parent.InventoryService)
     
-    -- Check if player has the item in inventory
-    local hasItem, itemSlot = InventoryService:HasItem(player, itemId, 1)
+    -- Check if player has the item in inventory (inline check since HasItem doesn't exist)
+    local hasItem = false
+    for _, v in ipairs(profile.Inventory or {}) do
+        if v.Id == itemId then
+            hasItem = true
+            break
+        end
+    end
     if not hasItem then
         return false, "ItemNotFound"
     end
     
-    -- Consume one item
-    local success, errorMsg = InventoryService:ConsumeItem(player, itemId, 1)
+    -- Consume one item using RemoveItem (ConsumeItem doesn't exist)
+    local success = InventoryService.RemoveItem(player, itemId)
     if not success then
-        warn(("[TrainingToolService] %s failed to consume item %s: %s"):format(player.Name, itemId, errorMsg or "unknown"))
-        return false, errorMsg or "ConsumeFailed"
+        warn(("[TrainingToolService] %s failed to consume item %s"):format(player.Name, itemId))
+        return false, "ConsumeFailed"
     end
     
     -- Apply the stat increase via ProgressionService
-    local statName = toolDef.StatToIncrease
     local amount = toolDef.Amount
     
     local allocSuccess, allocError = ProgressionService.AllocateStat(player, statName, amount)
     if not allocSuccess then
         -- Refund the consumed item on failure (player shouldn't lose item if stat can't be allocated)
-        InventoryService:AddItem(player, itemId, 1)
+        -- Use GiveItem instead of AddItem
+        InventoryService.GiveItem(player, toolDef)
         warn(("[TrainingToolService] %s failed to allocate stat %s+%d: %s (item refunded)"):format(player.Name, statName, amount, allocError or "unknown"))
         return false, allocError or "StatAllocationFailed"
     end
+    
+    -- Update cooldown timestamp for this stat
+    _cooldowns[userId][statName] = currentTime
     
     -- Success! Notify client
     local statValue = profile.Stats[statName] or 0
@@ -90,8 +127,7 @@ function TrainingToolService.UseTrainingTool(player: Player, itemId: string): (b
     -- But we could send a specific training tool used event for UI feedback
     -- For now, rely on the existing StatAllocated event
     
-    print(("[TrainingToolService] %s used %s: +%d %s (total: %d, unspent points: %d)") 
-        :format(player.Name, itemId, amount, statName, statValue, remainingPoints))
+    print(("[TrainingToolService] %s used %s: +%d %s (total: %d, unspent points: %d)"):format(player.Name, itemId, amount, statName, statValue, remainingPoints))
     
     return true, nil
 end

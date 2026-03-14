@@ -741,6 +741,97 @@ end
 
 local PlayerHUDController = {}
 
+-- Cached toast container
+local toastContainer: Frame?
+
+--[[
+	Displays a floating toast notification.
+]]
+function PlayerHUDController:ShowToast(title: string, subtitle: string, color: Color3?, duration: number?)
+	if not screenGui then return end
+	
+	if not toastContainer then
+		toastContainer = Instance.new("Frame")
+		toastContainer.Name = "ToastContainer"
+		toastContainer.Size = UDim2.new(0, 300, 0.5, 0)
+		toastContainer.Position = UDim2.new(0.5, 0, 0.1, 0)
+		toastContainer.AnchorPoint = Vector2.new(0.5, 0)
+		toastContainer.BackgroundTransparency = 1
+		toastContainer.Parent = screenGui
+		
+		local listLayout = Instance.new("UIListLayout")
+		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		listLayout.Padding = UDim.new(0, 10)
+		listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		listLayout.Parent = toastContainer
+	end
+	
+	color = color or Color3.fromRGB(220, 200, 150)
+	duration = duration or 4.0
+	
+	local toast = Instance.new("Frame")
+	toast.Size = UDim2.new(0, 280, 0, 60)
+	toast.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	toast.BackgroundTransparency = 0.2
+	toast.BorderSizePixel = 0
+	toast.ClipsDescendants = true
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = color
+	stroke.Thickness = 1
+	stroke.Parent = toast
+	
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, -20, 0.5, 0)
+	titleLabel.Position = UDim2.new(0, 10, 0, 5)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.TextColor3 = color
+	titleLabel.TextSize = 16
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.Text = title
+	titleLabel.Parent = toast
+	
+	local subLabel = Instance.new("TextLabel")
+	subLabel.Size = UDim2.new(1, -20, 0.5, -5)
+	subLabel.Position = UDim2.new(0, 10, 0.5, 0)
+	subLabel.BackgroundTransparency = 1
+	subLabel.Font = Enum.Font.Gotham
+	subLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+	subLabel.TextSize = 14
+	subLabel.TextXAlignment = Enum.TextXAlignment.Left
+	subLabel.Text = subtitle
+	subLabel.Parent = toast
+	
+	toast.Parent = toastContainer
+	
+	toast.Position = UDim2.new(0, 50, 0, 0)
+	toast.BackgroundTransparency = 1
+	titleLabel.TextTransparency = 1
+	subLabel.TextTransparency = 1
+	stroke.Transparency = 1
+	
+	local inInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	TweenService:Create(toast, inInfo, {Position = UDim2.new(0,0,0,0), BackgroundTransparency = 0.2}):Play()
+	TweenService:Create(titleLabel, inInfo, {TextTransparency = 0}):Play()
+	TweenService:Create(subLabel, inInfo, {TextTransparency = 0}):Play()
+	TweenService:Create(stroke, inInfo, {Transparency = 0}):Play()
+	
+	task.delay(duration, function()
+		if not toast or not toast.Parent then return end
+		local outInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local t = TweenService:Create(toast, outInfo, {BackgroundTransparency = 1})
+		TweenService:Create(titleLabel, outInfo, {TextTransparency = 1}):Play()
+		TweenService:Create(subLabel, outInfo, {TextTransparency = 1}):Play()
+		TweenService:Create(stroke, outInfo, {Transparency = 1}):Play()
+		
+		t.Completed:Connect(function()
+			toast:Destroy()
+		end)
+		t:Play()
+	end)
+end
+
 --[[
 	Initializes the controller (called by runtime)
 ]]

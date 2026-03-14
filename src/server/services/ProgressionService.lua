@@ -426,6 +426,8 @@ function ProgressionService.SyncToClient(player: Player)
         OmenMarks       = profile.OmenMarks or 0,
         StatPoints      = profile.StatPoints or 0,
         Stats           = stats,
+        CodexEntries    = profile.CodexEntries or {},
+        ActiveEmberPointId = profile.ActiveEmberPointId,
     })
 end
 
@@ -499,6 +501,39 @@ function ProgressionService:Start()
             return
         end
         ProgressionService.AllocateStat(player, packet.StatName, packet.Amount)
+    end)
+
+    -- Ember Point Placement
+    NetworkService:RegisterHandler("EmberPointPlaceRequest", function(player: Player, packet: any)
+        -- Validate ring rules (free in ring 1, otherwise assume ok for MVP)
+        local profile = DataService:GetProfile(player)
+        if not profile then return end
+        
+        local char = player.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        if not root then return end
+        
+        local pointId = game:GetService("HttpService"):GenerateGUID(false)
+        local pos = root.Position
+        
+        if not profile.EmberPoints then profile.EmberPoints = {} end
+        profile.EmberPoints[pointId] = {
+            Id = pointId,
+            Position = {X=pos.X, Y=pos.Y, Z=pos.Z},
+            Ring = profile.CurrentRing or 1,
+            SetAt = os.time(),
+            UsedCount = 0
+        }
+        profile.ActiveEmberPointId = pointId
+        
+        NetworkService:SendToClient(player, "EmberPointDeployResult", {
+            Success = true,
+            EmberPointId = pointId
+        })
+        NetworkService:SendToClient(player, "EmberPointSync", {
+            ActiveEmberPointId = pointId
+        })
+        print(("[ProgressionService] %s placed new Ember Point in Ring %d"):format(player.Name, profile.CurrentRing or 1))
     end)
 
     print("[ProgressionService] Started successfully")

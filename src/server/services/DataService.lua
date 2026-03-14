@@ -119,8 +119,22 @@ local DEFAULT_PLAYER_DATA: PlayerData = {
 		Accessory1 = nil,
 		Accessory2 = nil,
 	},
-	Inventory = {},
-	
+	Inventory = {
+		-- Starting training tools - 5 of each stat type
+		{ Id = "training_tool_strength_common", Quantity = 5 },
+		{ Id = "training_tool_fortitude_common", Quantity = 5 },
+		{ Id = "training_tool_agility_common", Quantity = 5 },
+		{ Id = "training_tool_intelligence_common", Quantity = 5 },
+		{ Id = "training_tool_willpower_common", Quantity = 5 },
+		{ Id = "training_tool_charisma_common", Quantity = 5 },
+	},
+
+	-- Ring 1 Progression Data (#179)
+	CodexEntries = {},
+	WitnessedDuskwalker = false,
+	EmberPoints = {},
+	ActiveEmberPointId = nil,
+
 	-- Progression Systems
 	Class = "None",
 	ElementAffinities = {},

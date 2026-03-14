@@ -28,6 +28,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local _registry: {[string]: any} = {}
 -- keyed by ItemConfig.Category — for grouping items by category
 local _byCategory: {[string]: {[string]: any}} = {}
+-- keyed by ItemConfig.LootPools — for fast pool lookups
+local _byPool: {[string]: {[string]: any}} = {}
 -- true once _Discover() has run
 local _loaded = false
 
@@ -50,6 +52,14 @@ local function _RegisterConfig(config: any, moduleName: string, stats: {discover
 	if cat and type(cat) == "string" then
 		_byCategory[cat] = _byCategory[cat] or {}
 		_byCategory[cat][config.Id] = config
+	end
+
+	-- Index by LootPool if present (for fast GetByPool lookups)
+	if config.LootPools then
+		for _, pool in config.LootPools do
+			_byPool[pool] = _byPool[pool] or {}
+			_byPool[pool][config.Id] = config
+		end
 	end
 
 	stats.discovered += 1
@@ -80,18 +90,18 @@ local function _DiscoverFolder(folder: Instance, stats: {discovered: number, rej
 			local err = nil
 
 			-- Basic validation: check required fields
-			if not config.Id or type(config.Id) ~= "string" then
+			if not result.Id or type(result.Id) ~= "string" then
 				err = "Missing or invalid 'Id' field"
 				valid = false
-			elseif not config.Category or type(config.Category) ~= "string" then
+			elseif not result.Category or type(result.Category) ~= "string" then
 				err = "Missing or invalid 'Category' field"
 				valid = false
-			elseif config.Category == "Tools" then
+			elseif result.Category == "Tools" then
 				-- Training tools need additional validation
-				if not config.StatToIncrease or type(config.StatToIncrease) ~= "string" then
+				if not result.StatToIncrease or type(result.StatToIncrease) ~= "string" then
 					err = "Training tool missing 'StatToIncrease'"
 					valid = false
-				elseif type(config.Amount) ~= "number" or config.Amount <= 0 then
+				elseif type(result.Amount) ~= "number" or result.Amount <= 0 then
 					err = "Training tool missing or invalid 'Amount'"
 					valid = false
 				end
@@ -172,18 +182,7 @@ end
 ]]
 function ItemRegistry.GetByPool(poolName: string): {any}
 	_Discover()
-	local result: {any} = {}
-	for _, config in _registry do
-		if config.LootPools then
-			for _, pool in config.LootPools do
-				if pool == poolName then
-					table.insert(result, config)
-					break
-				end
-			end
-		end
-	end
-	return result
+	return _byPool[poolName] or {}
 end
 
 --[[

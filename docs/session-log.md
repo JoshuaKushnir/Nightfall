@@ -2696,3 +2696,30 @@ Issue #138: ProgressionService ï¿½ close after Studio manual verification, th
 ### Next Session Should Start On
 Implement custom drag/drop layout or continue refining actual physical Aspect combat implementations (VFX/hitboxes).
 
+
+## Session NF-072: Ring 1 Progression Loop Implementation
+**Date:** 2026-03-13
+**Issues:** #179
+
+### What Was Built
+- **src/server/services/WitnessService.lua:** Added WitnessService backend that tracks 30-second continuous line-of-sight to the Hollowed without entering combat, persisting Codex entries.
+- **src/client/controllers/WitnessController.lua:** Added visual feedback using a TweenService-based progress bar and dynamic text, tracking player look targets dynamically.
+- **src/server/services/ZoneService.lua:** Bound a Ring 2 zone restrictor checking if the player profile contains all 5 required Hollowed Codex entries and the DuskwalkerSurvived flag.
+- **src/server/services/ProgressionService.lua:** Linked EmberPointPlaceRequest backend listener creating local checkpoint configurations seamlessly into ProfileService state.
+- **src/shared/types/NetworkTypes.lua:** Statically typed all the required GateBlock, CodexUnlock, and EmberPoint packets.
+- **src/client/controllers/EmberPointController.lua:** Bound key K for casting down resting states to allow fast respawn point creation.
+- **src/client/controllers/PlayerHUDController.lua:** Injected ShowToast as a generic text sliding UI element, hooked into ProgressionGateBlocked packet to broadcast hard-stops directly to player GUI.
+- **tests/unit/WitnessService.test.lua:** Stub unit tests defined.
+
+### Integration Points
+- Death mechanics now properly inspect the PlayerData.EmberPoints config tables rather than Workspace global markers.
+- Gate rejections gracefully intercept ZoneService movement and force absolute stud-displacement logic securely.
+
+### Spec Gaps Encountered
+- UI assets for the Witnessing loop required manual Frame generation; this is currently a generic Bar + Label configuration that animates on-the-fly.
+
+### Tech Debt Created
+- The WitnessService 1.0 logic runs line-of-sight raycasts on each Heartbeat without spatial partitioning optimizations.
+
+### Next Session Should Start On
+Issue #180: Five Hollowed enemy types with distinct movesets — Flesh out the 5 base combat variants mapped out in the Hollowed configuration for Witnessing.

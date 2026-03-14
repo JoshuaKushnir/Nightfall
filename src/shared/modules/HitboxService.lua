@@ -197,7 +197,8 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 		end)
 	end
 
-	print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {config.Owner.Name})`)
+	local ownerName = type(config.Owner) == "string" and config.Owner or (typeof(config.Owner) == "Instance" and config.Owner.Name or "Unknown")
+	print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {ownerName})`)
 	return hitbox
 end
 
