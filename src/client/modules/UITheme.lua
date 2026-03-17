@@ -59,6 +59,13 @@ export type UITheme = {
 		RarityUncommon: Color3,
 		RarityRare: Color3,
 		RarityEpic: Color3,
+		
+		-- Combat feedback colors
+		CriticalDamage: Color3,
+		NormalDamage: Color3,
+		BlockShield: Color3,
+		MissText: Color3,
+		BreakText: Color3,
 	},
 	
 	Typography: {
@@ -177,6 +184,13 @@ local UITheme: UITheme = {
 		RarityUncommon = Color3.fromRGB(100, 200, 100),-- Green
 		RarityRare = Color3.fromRGB(100, 150, 255),    -- Blue
 		RarityEpic = Color3.fromRGB(200, 100, 255),    -- Purple
+		
+		-- Combat feedback colors
+		CriticalDamage = Color3.fromRGB(255, 100, 100),-- Bright critical red
+		NormalDamage = Color3.fromRGB(220, 220, 100),  -- Light yellow for normal hits
+		BlockShield = Color3.fromRGB(100, 150, 255),   -- Cool blue for block
+		MissText = Color3.fromRGB(200, 200, 200),      -- Light grey for miss
+		BreakText = Color3.fromRGB(255, 120, 0),       -- Bright orange for break
 	},
 	
 	Typography = {

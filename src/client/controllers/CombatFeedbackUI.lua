@@ -20,21 +20,26 @@ local UserInputService = game:GetService("UserInputService")
 
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
+local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
 
 local CombatFeedbackUI = {}
 
--- Constants
-local DAMAGE_NUMBER_DURATION = 1.5 -- Seconds to show damage number
-local DAMAGE_NUMBER_SPEED = 30 -- Studs per second upward
+-- Animation & timing constants (use UITheme.Motion where possible)
+local DAMAGE_NUMBER_DURATION = 1.5  -- Seconds to show damage number
+local DAMAGE_NUMBER_SPEED = 30      -- Studs per second upward
 local CRITICAL_MULTIPLIER = 2.0
-local CRITICAL_COLOR = Color3.fromRGB(255, 215, 0) -- Gold
-local NORMAL_COLOR = Color3.fromRGB(255, 255, 255) -- White
-local HEAL_COLOR = Color3.fromRGB(0, 255, 0) -- Green
+local STAGGER_FLASH_INTERVAL = 0.08 -- Duration per flash in stagger cycle
+local STAGGER_FLASH_CYCLES = 3      -- Number of orange flashes
+local FADE_STEP_DURATION = 0.05     -- Standard fade step timing
 
--- Posture bar colours (#157: high = danger, low = safe)
-local POSTURE_COLOR_SAFE     = Color3.fromRGB(180, 180, 220) -- cool grey  = low pressure
-local POSTURE_COLOR_WARNING  = Color3.fromRGB(255, 140,  50) -- orange     = building up
-local POSTURE_COLOR_DANGER   = Color3.fromRGB(220,  50,  50) -- red        = about to suppress
+-- Color references from UITheme (instead of hardcoded RGB)
+local CRITICAL_COLOR = UITheme.Palette.CriticalDamage
+local NORMAL_COLOR = UITheme.Palette.NormalDamage
+local HEAL_COLOR = UITheme.Palette.HealthGreen
+local POSTURE_COLOR_SAFE = UITheme.Palette.PostureGrey
+local POSTURE_COLOR_WARNING = UITheme.Palette.PostureOrange
+local POSTURE_COLOR_DANGER = UITheme.Palette.PostureRed
 
 -- Active floating numbers
 local FloatingNumbers: {{
@@ -161,6 +166,7 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	gui.Name = "PostureHUD"
 	gui.ResetOnSpawn = false
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.DisplayOrder = HUDLayout.Layers.HUD
 	gui.Parent = playerGui
 
 	-- Outer container (bottom-centre of screen, just below the HP bar)
@@ -168,22 +174,22 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	bar.Name = "PostureBar"
 	bar.Size = UDim2.new(0, 300, 0, 18)
 	bar.Position = UDim2.new(0.5, -150, 1, -125)  -- Raised to clear hotbar (Issue #153)
-	bar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	bar.BackgroundColor3 = UITheme.Palette.PanelDark
 	bar.BorderSizePixel = 0
 	bar.Parent = gui
 
-	Instance.new("UICorner", bar).CornerRadius = UDim.new(0, 4)
+	Instance.new("UICorner", bar).CornerRadius = UITheme.Corners.Small
 
-	-- Fill bar
+	-- Fill bar (starts empty = safe state)
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
-	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.Size = UDim2.new(0, 0, 1, 0)
 	fill.Position = UDim2.new(0, 0, 0, 0)
 	fill.BackgroundColor3 = POSTURE_COLOR_SAFE
 	fill.BorderSizePixel = 0
 	fill.Parent = bar
 
-	Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
+	Instance.new("UICorner", fill).CornerRadius = UITheme.Corners.Small
 
 	-- Label
 	local label = Instance.new("TextLabel")
@@ -191,15 +197,11 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	label.Size = UDim2.new(1, 0, 0, 14)
 	label.Position = UDim2.new(0, 0, -1.2, 0)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(200, 200, 200)
-	label.Font = Enum.Font.GothamMedium
-	label.TextSize = 11
+	label.TextColor3 = UITheme.Palette.TextPrimary
+	label.Font = UITheme.Typography.FontBold
+	label.TextSize = UITheme.Typography.SizeXSmall
 	label.Text = "POSTURE"
 	label.Parent = bar
-
-	-- NEW: bar starts empty (0 pressure on spawn)
-	fill.Size = UDim2.new(0, 0, 1, 0)
-	fill.BackgroundColor3 = POSTURE_COLOR_SAFE
 
 	print("[CombatFeedbackUI] Posture bar created")
 	return { bar = bar, fill = fill }
@@ -242,18 +244,18 @@ function CombatFeedbackUI._PlayStaggerFlash(playerId: number, duration: number)
 		end
 	end
 
-	-- Flash orange × 3 then revert
+	-- Flash orange × STAGGER_FLASH_CYCLES then revert
 	task.spawn(function()
-		for _ = 1, 3 do
+		for _ = 1, STAGGER_FLASH_CYCLES do
 			for _, part in parts do
-				part.Color = Color3.fromRGB(255, 140, 40)
+				part.Color = UITheme.Palette.PostureOrange
 			end
-			task.wait(0.08)
+			task.wait(STAGGER_FLASH_INTERVAL)
 			for _, part in parts do
 				-- Revert to default (let Roblox Humanoid handle actual colour)
 				part.Color = Color3.fromRGB(163, 162, 165)
 			end
-			task.wait(0.08)
+			task.wait(STAGGER_FLASH_INTERVAL)
 		end
 	end)
 end
@@ -277,14 +279,15 @@ function CombatFeedbackUI._ShowBreakFeedback(targetId: number, damage: number)
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.ResetOnSpawn = false
 	screenGui.Name = "BreakFeedback"
+	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 
 	local label = Instance.new("TextLabel")
 	label.Size = UDim2.new(0, 160, 0, 50)
 	label.BackgroundTransparency = 1
 	label.TextScaled = true
-	label.Font = Enum.Font.GothamBold
-	label.TextColor3 = Color3.fromRGB(255, 80, 0)
+	label.Font = UITheme.Typography.FontBold
+	label.TextColor3 = UITheme.Palette.BreakText
 	label.Text = ("BREAK! -%d"):format(damage)
 
 	local camera = workspace.CurrentCamera
@@ -295,7 +298,7 @@ function CombatFeedbackUI._ShowBreakFeedback(targetId: number, damage: number)
 	task.spawn(function()
 		for i = 1, 15 do
 			label.TextTransparency = i / 15
-			task.wait(0.04)
+			task.wait(FADE_STEP_DURATION)
 		end
 		screenGui:Destroy()
 	end)
@@ -334,6 +337,7 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.ResetOnSpawn = false
 	screenGui.Name = "DamageNumber"
+	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	
 	local textLabel = Instance.new("TextLabel")
@@ -341,7 +345,7 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 	textLabel.Size = UDim2.new(0, 100, 0, 50)
 	textLabel.BackgroundTransparency = 1
 	textLabel.TextScaled = true
-	textLabel.Font = Enum.Font.GothamBold
+	textLabel.Font = UITheme.Typography.FontBold
 	textLabel.TextColor3 = isCritical and CRITICAL_COLOR or NORMAL_COLOR
 	
 	-- Format damage text
@@ -421,7 +425,7 @@ function CombatFeedbackUI.ShowBlockFeedback(player: Player?)
 	part.Size = Vector3.new(1, 1, 1)
 	part.CanCollide = false
 	part.CFrame = rootPart.CFrame + rootPart.CFrame.LookVector * 5
-	part.Color = Color3.fromRGB(100, 100, 255) -- Blue shield
+	part.Color = UITheme.Palette.BlockShield
 	part.Transparency = 0.5
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
@@ -431,7 +435,7 @@ function CombatFeedbackUI.ShowBlockFeedback(player: Player?)
 	task.spawn(function()
 		for i = 1, 10 do
 			part.Transparency = 0.5 + (i / 10) * 0.5
-			task.wait(0.05)
+			task.wait(FADE_STEP_DURATION)
 		end
 		part:Destroy()
 	end)
@@ -458,7 +462,7 @@ function CombatFeedbackUI.ShowParryFeedback(player: Player?, attacker: Player?)
 	part.Size = Vector3.new(0.5, 0.5, 0.5)
 	part.CanCollide = false
 	part.CFrame = rootPart.CFrame + rootPart.CFrame.LookVector * 3
-	part.Color = Color3.fromRGB(255, 165, 0) -- Orange spark
+	part.Color = UITheme.Palette.PostureOrange
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Parent = workspace
@@ -493,7 +497,8 @@ function CombatFeedbackUI.ShowClashFeedback(attacker: Player?, defender: Player?
 			label.Size = UDim2.new(1, 0, 1, 0)
 			label.BackgroundTransparency = 1
 			label.Text = "CLASH!"
-			label.TextColor3 = Color3.new(1, 0, 0)
+			label.TextColor3 = UITheme.Palette.HealthRed
+			label.Font = UITheme.Typography.FontBold
 			label.TextScaled = true
 			label.Parent = billboard
 			billboard.Parent = rootPart
@@ -524,6 +529,7 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.ResetOnSpawn = false
 	screenGui.Name = "MissIndicator"
+	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	
 	local textLabel = Instance.new("TextLabel")
@@ -531,8 +537,8 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 	textLabel.Size = UDim2.new(0, 150, 0, 50)
 	textLabel.BackgroundTransparency = 1
 	textLabel.TextScaled = true
-	textLabel.Font = Enum.Font.GothamBold
-	textLabel.TextColor3 = Color3.fromRGB(200, 200, 200) -- Gray
+	textLabel.Font = UITheme.Typography.FontBold
+	textLabel.TextColor3 = UITheme.Palette.MissText
 	textLabel.Text = "MISS"
 	
 	local camera = workspace.CurrentCamera
@@ -545,7 +551,7 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 	task.spawn(function()
 		for i = 1, 10 do
 			textLabel.TextTransparency = i / 10
-			task.wait(0.05)
+			task.wait(FADE_STEP_DURATION)
 		end
 		screenGui:Destroy()
 	end)
@@ -555,6 +561,11 @@ end
 	Show a full-screen YOU DIED overlay when the local player enters Dead state.
 	Fades in over 1 s, waits 2.5 s, then fades out and destroys itself.
 	Respawn detection: the overlay self-removes so the next spawn is clean.
+	
+	TIMING IS CRITICAL - must preserve exactly:
+	- Fade IN: 1s (20 steps × 0.05s)
+	- HOLD: 2.5s at full opacity
+	- Fade OUT: 0.5s (10 steps × 0.05s)
 ]]
 function CombatFeedbackUI._ShowDeathScreen()
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
@@ -567,13 +578,14 @@ function CombatFeedbackUI._ShowDeathScreen()
 	gui.Name = "DeathScreen"
 	gui.ResetOnSpawn = false
 	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.DisplayOrder = HUDLayout.Layers.Modal
 	gui.Parent = playerGui
 
 	-- Dark overlay
 	local overlay = Instance.new("Frame")
 	overlay.Name = "Overlay"
 	overlay.Size = UDim2.new(1, 0, 1, 0)
-	overlay.BackgroundColor3 = Color3.fromRGB(10, 0, 0)
+	overlay.BackgroundColor3 = UITheme.Palette.HealthRed
 	overlay.BackgroundTransparency = 1
 	overlay.BorderSizePixel = 0
 	overlay.Parent = gui
@@ -584,8 +596,8 @@ function CombatFeedbackUI._ShowDeathScreen()
 	label.Size = UDim2.new(0, 400, 0, 100)
 	label.Position = UDim2.new(0.5, -200, 0.4, -50)
 	label.BackgroundTransparency = 1
-	label.TextColor3 = Color3.fromRGB(200, 20, 20)
-	label.Font = Enum.Font.GothamBold
+	label.TextColor3 = UITheme.Palette.HealthRed
+	label.Font = UITheme.Typography.FontBold
 	label.TextSize = 72
 	label.Text = "YOU DIED"
 	label.TextTransparency = 1
@@ -596,30 +608,30 @@ function CombatFeedbackUI._ShowDeathScreen()
 	sub.Size = UDim2.new(0, 400, 0, 40)
 	sub.Position = UDim2.new(0.5, -200, 0.4, 60)
 	sub.BackgroundTransparency = 1
-	sub.TextColor3 = Color3.fromRGB(160, 160, 160)
-	sub.Font = Enum.Font.Gotham
+	sub.TextColor3 = UITheme.Palette.TextSecondary
+	sub.Font = UITheme.Typography.FontRegular
 	sub.TextSize = 22
 	sub.Text = "Respawning..."
 	sub.TextTransparency = 1
 	sub.Parent = overlay
 
 	task.spawn(function()
-		-- Fade in (1 s)
+		-- Fade in (1 s) - 20 steps × 0.05s
 		for i = 1, 20 do
 			overlay.BackgroundTransparency = 1 - (i / 20) * 0.70
 			label.TextTransparency = 1 - (i / 20)
 			sub.TextTransparency = 1 - (i / 20)
-			task.wait(0.05)
+			task.wait(FADE_STEP_DURATION)
 		end
 
 		task.wait(2.5)
 
-		-- Fade out (0.5 s)
+		-- Fade out (0.5 s) - 10 steps × 0.05s
 		for i = 1, 10 do
 			overlay.BackgroundTransparency = 0.30 + (i / 10) * 0.70
 			label.TextTransparency = i / 10
 			sub.TextTransparency = i / 10
-			task.wait(0.05)
+			task.wait(FADE_STEP_DURATION)
 		end
 		gui:Destroy()
 	end)
@@ -638,11 +650,12 @@ function CombatFeedbackUI._PlaySuppressedVignette()
 	local gui = Instance.new("ScreenGui")
 	gui.Name = "SuppressedVignette"
 	gui.ResetOnSpawn = false
+	gui.DisplayOrder = HUDLayout.Layers.Modal
 	gui.Parent = playerGui
 
 	local frame = Instance.new("Frame")
 	frame.Size = UDim2.new(1, 0, 1, 0)
-	frame.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+	frame.BackgroundColor3 = UITheme.Palette.HealthRed
 	frame.BackgroundTransparency = 1
 	frame.BorderSizePixel = 0
 	frame.Parent = gui
@@ -654,7 +667,7 @@ function CombatFeedbackUI._PlaySuppressedVignette()
 	})
 
 	task.spawn(function()
-		-- Two quick pulses
+		-- Two quick pulses - 2 × (8 + 8 steps × 0.04s) = ~0.64s total
 		for _ = 1, 2 do
 			for i = 1, 8 do
 				frame.BackgroundTransparency = 1 - (i / 8) * 0.6
