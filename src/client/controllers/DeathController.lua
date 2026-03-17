@@ -5,17 +5,26 @@
                  (which is owned by CombatFeedbackUI). Specifically:
                    - Listens for ShardLost and shows a "Shards Lost" popup HUD message
                    - Listens for PlayerRespawned to dismiss any lingering death UI
-    Dependencies: NetworkController
+    Dependencies: NetworkController, UITheme, HUDLayout
     Issue: #144 — Death respawn flow
 ]]
 
 local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
+local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
 
 local DeathController = {}
 
 -- Private state
 local _networkController: any  = nil
 local _shardPopup: ScreenGui?  = nil
+
+-- UI timing constants
+local SHARD_POPUP_HOLD_TIME = 2.5  -- Hold visible before fade
+local SHARD_POPUP_FADE_TIME = 0.6  -- Fade out duration (12 steps × 0.05s)
+local FADE_STEP_DURATION = 0.05
 
 -- ─── UI helpers ───────────────────────────────────────────────────────────────
 
@@ -29,7 +38,7 @@ end
 --[[
     _showShardLostPopup(loss, newTotal)
     Displays a brief overlay in the top-centre showing how many Shards were lost.
-    Auto-dismisses after 3.5 seconds.
+    Auto-dismisses after 3.15 seconds (2.5s hold + 0.6s fade).
 ]]
 local function _showShardLostPopup(loss: number, newTotal: number)
     _dismissShardPopup()
@@ -41,6 +50,7 @@ local function _showShardLostPopup(loss: number, newTotal: number)
     gui.ResetOnSpawn = false
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.IgnoreGuiInset = true
+    gui.DisplayOrder = HUDLayout.Layers.Toast
     gui.Parent = playerGui
     _shardPopup = gui
 
@@ -49,7 +59,7 @@ local function _showShardLostPopup(loss: number, newTotal: number)
     frame.Name = "Pill"
     frame.Size = UDim2.new(0, 280, 0, 56)
     frame.Position = UDim2.new(0.5, -140, 0, 64)
-    frame.BackgroundColor3 = Color3.fromRGB(24, 8, 8)
+    frame.BackgroundColor3 = UITheme.Palette.PanelDark
     frame.BackgroundTransparency = 0.15
     frame.BorderSizePixel = 0
     frame.ZIndex = 10
@@ -66,9 +76,9 @@ local function _showShardLostPopup(loss: number, newTotal: number)
     icon.Position = UDim2.fromOffset(6, 0)
     icon.BackgroundTransparency = 1
     icon.Text = "◈"
-    icon.TextColor3 = Color3.fromRGB(200, 50, 50)
+    icon.TextColor3 = UITheme.Palette.HealthRed
     icon.TextSize = 26
-    icon.Font = Enum.Font.GothamBold
+    icon.Font = UITheme.Typography.FontBold
     icon.ZIndex = 11
     icon.Parent = frame
 
@@ -79,9 +89,9 @@ local function _showShardLostPopup(loss: number, newTotal: number)
     lossLabel.Position = UDim2.fromOffset(48, 4)
     lossLabel.BackgroundTransparency = 1
     lossLabel.Text = "-" .. tostring(loss) .. " Shards"
-    lossLabel.TextColor3 = Color3.fromRGB(220, 120, 120)
-    lossLabel.TextSize = 17
-    lossLabel.Font = Enum.Font.GothamBold
+    lossLabel.TextColor3 = UITheme.Palette.HealthRed
+    lossLabel.TextSize = UITheme.Typography.SizeMedium
+    lossLabel.Font = UITheme.Typography.FontBold
     lossLabel.TextXAlignment = Enum.TextXAlignment.Left
     lossLabel.ZIndex = 11
     lossLabel.Parent = frame
@@ -93,24 +103,24 @@ local function _showShardLostPopup(loss: number, newTotal: number)
     remainLabel.Position = UDim2.new(0, 48, 0.55, 0)
     remainLabel.BackgroundTransparency = 1
     remainLabel.Text = tostring(newTotal) .. " remaining"
-    remainLabel.TextColor3 = Color3.fromRGB(160, 140, 140)
-    remainLabel.TextSize = 13
-    remainLabel.Font = Enum.Font.Gotham
+    remainLabel.TextColor3 = UITheme.Palette.TextSecondary
+    remainLabel.TextSize = UITheme.Typography.SizeXSmall
+    remainLabel.Font = UITheme.Typography.FontRegular
     remainLabel.TextXAlignment = Enum.TextXAlignment.Left
     remainLabel.ZIndex = 11
     remainLabel.Parent = frame
 
-    -- Auto-dismiss after 3.5 s with fade
-    task.delay(2.5, function()
+    -- Auto-dismiss after hold time with fade
+    task.delay(SHARD_POPUP_HOLD_TIME, function()
         if not _shardPopup then return end
-        -- Fade out over 0.6 s
+        -- Fade out over duration
         for i = 1, 12 do
             if not _shardPopup then return end
             frame.BackgroundTransparency = 0.15 + (i / 12) * 0.85
             icon.TextTransparency       = i / 12
             lossLabel.TextTransparency  = i / 12
             remainLabel.TextTransparency = i / 12
-            task.wait(0.05)
+            task.wait(FADE_STEP_DURATION)
         end
         _dismissShardPopup()
     end)

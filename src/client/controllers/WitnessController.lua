@@ -18,6 +18,8 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NetworkTypes = require(Shared.types.NetworkTypes)
+local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
+local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
 
 local WitnessController = {}
 WitnessController._initialized = false
@@ -46,6 +48,7 @@ local function createUI()
 	witnessGui.Name = "WitnessHUD"
 	witnessGui.ResetOnSpawn = false
 	witnessGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	witnessGui.DisplayOrder = HUDLayout.Layers.HUD
 	witnessGui.Parent = playerGui
 	
 	-- Witness Progress Bar (Bottom Center)
@@ -53,29 +56,29 @@ local function createUI()
 	witnessContainer.Name = "WitnessContainer"
 	witnessContainer.Size = UDim2.new(0, 300, 0, 40)
 	witnessContainer.Position = UDim2.new(0.5, -150, 0.8, 0)
-	witnessContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	witnessContainer.BackgroundColor3 = UITheme.Palette.PanelDark
 	witnessContainer.BackgroundTransparency = 1
 	witnessContainer.BorderSizePixel = 0
 	witnessContainer.Visible = false
 	witnessContainer.Parent = witnessGui
 	
 	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(150, 150, 180)
-	stroke.Thickness = 1
+	stroke.Color = UITheme.Palette.BreathTeal
+	stroke.Thickness = UITheme.Strokes.Thin
 	stroke.Parent = witnessContainer
 	
 	local barBg = Instance.new("Frame")
 	barBg.Name = "BarBg"
 	barBg.Size = UDim2.new(1, -6, 1, -24)
 	barBg.Position = UDim2.new(0, 3, 1, -19)
-	barBg.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+	barBg.BackgroundColor3 = UITheme.Palette.PanelMid
 	barBg.BorderSizePixel = 0
 	barBg.Parent = witnessContainer
 	
 	witnessBar = Instance.new("Frame")
 	witnessBar.Name = "Fill"
 	witnessBar.Size = UDim2.new(0, 0, 1, 0)
-	witnessBar.BackgroundColor3 = Color3.fromRGB(0, 180, 200)
+	witnessBar.BackgroundColor3 = UITheme.Palette.BreathTeal
 	witnessBar.BorderSizePixel = 0
 	witnessBar.Parent = barBg
 	
@@ -84,9 +87,9 @@ local function createUI()
 	witnessLabel.Size = UDim2.new(1, 0, 0, 16)
 	witnessLabel.Position = UDim2.new(0, 0, 0, 2)
 	witnessLabel.BackgroundTransparency = 1
-	witnessLabel.Font = Enum.Font.GothamMedium
-	witnessLabel.TextColor3 = Color3.fromRGB(200, 210, 220)
-	witnessLabel.TextSize = 14
+	witnessLabel.Font = UITheme.Typography.FontBold
+	witnessLabel.TextColor3 = UITheme.Palette.TextPrimary
+	witnessLabel.TextSize = UITheme.Typography.SizeSmall
 	witnessLabel.Text = "Witnessing..."
 	witnessLabel.Parent = witnessContainer
 end
