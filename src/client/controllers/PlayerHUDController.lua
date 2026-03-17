@@ -26,6 +26,9 @@ local Shared = ReplicatedStorage.Shared
 
 -- Modules
 local UIBinding = require(script.Parent.Parent.modules.UIBinding)
+local UITheme = require(script.Parent.Parent.modules.UITheme)
+local HUDPrimitives = require(script.Parent.Parent.modules.HUDPrimitives)
+local HUDLayout = require(script.Parent.Parent.modules.HUDLayout)
 local AspectRegistry = require(Shared.modules.AspectRegistry)
 
 -- Types
@@ -91,26 +94,40 @@ local function createMovementHUD()
 	movementGui.Name = "MovementHUD"
 	movementGui.ResetOnSpawn = false
 	movementGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	movementGui.DisplayOrder = 10
+	movementGui.DisplayOrder = HUDLayout.Layers.HUD + 1
 	movementGui.Parent = playerGui
 
-	-- Root panel — bottom-left
+	-- Root panel — bottom-left using HUDLayout
 	local panel = Instance.new("Frame")
 	panel.Name = "MovementPanel"
 	panel.Size = UDim2.new(0, 220, 0, 78)
-	panel.Position = UDim2.new(0, 16, 1, -94)
-	panel.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-	panel.BackgroundTransparency = 0.35
+	panel.AnchorPoint = HUDLayout.Anchors.BottomLeft
+	panel.Position = UDim2.new(
+		HUDLayout.Anchors.BottomLeft.X,
+		HUDLayout.SafeArea.SideMargin,
+		HUDLayout.Anchors.BottomLeft.Y,
+		-HUDLayout.SafeArea.BottomMargin
+	)
+	panel.BackgroundColor3 = UITheme.Palette.PanelDark
+	panel.BackgroundTransparency = UITheme.Opacity.PanelBackground
 	panel.BorderSizePixel = 0
 	panel.Parent = movementGui
+	
 	local panelCorner = Instance.new("UICorner")
-	panelCorner.CornerRadius = UDim.new(0, 8)
+	panelCorner.CornerRadius = UITheme.Corners.Medium
 	panelCorner.Parent = panel
+	
+	local panelStroke = Instance.new("UIStroke")
+	panelStroke.Color = UITheme.Palette.AccentIron
+	panelStroke.Thickness = UITheme.Strokes.Standard
+	panelStroke.Transparency = 0.3
+	panelStroke.Parent = panel
+	
 	local panelPadding = Instance.new("UIPadding")
-	panelPadding.PaddingLeft   = UDim.new(0, 12)
-	panelPadding.PaddingRight  = UDim.new(0, 12)
-	panelPadding.PaddingTop    = UDim.new(0, 10)
-	panelPadding.PaddingBottom = UDim.new(0, 10)
+	panelPadding.PaddingLeft = UITheme.Spacing.PaddingMedium
+	panelPadding.PaddingRight = UITheme.Spacing.PaddingMedium
+	panelPadding.PaddingTop = UITheme.Spacing.PaddingSmall
+	panelPadding.PaddingBottom = UITheme.Spacing.PaddingSmall
 	panelPadding.Parent = panel
 
 	-- ── BREATH ROW ──────────────────────────────────────────────
@@ -120,9 +137,9 @@ local function createMovementHUD()
 	breathRowLabel.Position = UDim2.new(0, 0, 0, 0)
 	breathRowLabel.BackgroundTransparency = 1
 	breathRowLabel.Text = "BREATH"
-	breathRowLabel.TextColor3 = Color3.fromRGB(160, 210, 220)
-	breathRowLabel.TextSize = 11
-	breathRowLabel.Font = Enum.Font.GothamBold
+	breathRowLabel.TextColor3 = UITheme.Palette.BreathTeal
+	breathRowLabel.TextSize = UITheme.Typography.SizeSmall
+	breathRowLabel.Font = UITheme.Typography.FontBold
 	breathRowLabel.TextXAlignment = Enum.TextXAlignment.Left
 	breathRowLabel.Parent = panel
 
@@ -130,34 +147,37 @@ local function createMovementHUD()
 	breathBg.Name = "BreathBg"
 	breathBg.Size = UDim2.new(1, 0, 0, 16)
 	breathBg.Position = UDim2.new(0, 0, 0, 16)
-	breathBg.BackgroundColor3 = Color3.fromRGB(30, 35, 42)
+	breathBg.BackgroundColor3 = UITheme.Palette.PanelMid
 	breathBg.BorderSizePixel = 0
 	breathBg.Parent = panel
+	
 	local breathBgCorner = Instance.new("UICorner")
-	breathBgCorner.CornerRadius = UDim.new(0, 4)
+	breathBgCorner.CornerRadius = UITheme.Corners.Small
 	breathBgCorner.Parent = breathBg
 
 	breathBarFill = Instance.new("Frame")
 	breathBarFill.Name = "BreathFill"
 	breathBarFill.Size = UDim2.new(1, 0, 1, 0)
-	breathBarFill.BackgroundColor3 = Color3.fromRGB(56, 182, 190)
+	breathBarFill.BackgroundColor3 = UITheme.Palette.BreathTeal
 	breathBarFill.BorderSizePixel = 0
 	breathBarFill.Parent = breathBg
+	
 	local fillCorner = Instance.new("UICorner")
-	fillCorner.CornerRadius = UDim.new(0, 4)
+	fillCorner.CornerRadius = UITheme.Corners.Small
 	fillCorner.Parent = breathBarFill
 
 	-- Exhausted flash overlay (hidden by default)
 	exhaustedOverlay = Instance.new("Frame")
 	exhaustedOverlay.Name = "ExhaustedOverlay"
 	exhaustedOverlay.Size = UDim2.new(1, 0, 1, 0)
-	exhaustedOverlay.BackgroundColor3 = Color3.fromRGB(200, 50, 30)
+	exhaustedOverlay.BackgroundColor3 = UITheme.Palette.BreathRed
 	exhaustedOverlay.BackgroundTransparency = 1
 	exhaustedOverlay.BorderSizePixel = 0
 	exhaustedOverlay.ZIndex = 5
 	exhaustedOverlay.Parent = breathBg
+	
 	local exhaustedCorner = Instance.new("UICorner")
-	exhaustedCorner.CornerRadius = UDim.new(0, 4)
+	exhaustedCorner.CornerRadius = UITheme.Corners.Small
 	exhaustedCorner.Parent = exhaustedOverlay
 
 	breathLabel = Instance.new("TextLabel")
@@ -165,9 +185,9 @@ local function createMovementHUD()
 	breathLabel.Size = UDim2.new(1, 0, 1, 0)
 	breathLabel.BackgroundTransparency = 1
 	breathLabel.Text = "100"
-	breathLabel.TextColor3 = Color3.fromRGB(220, 240, 245)
-	breathLabel.TextSize = 11
-	breathLabel.Font = Enum.Font.GothamBold
+	breathLabel.TextColor3 = UITheme.Palette.TextPrimary
+	breathLabel.TextSize = UITheme.Typography.SizeSmall
+	breathLabel.Font = UITheme.Typography.FontBold
 	breathLabel.ZIndex = 6
 	breathLabel.Parent = breathBg
 
@@ -178,9 +198,9 @@ local function createMovementHUD()
 	momentumRowLabel.Position = UDim2.new(0, 0, 0, 40)
 	momentumRowLabel.BackgroundTransparency = 1
 	momentumRowLabel.Text = "MOMENTUM"
-	momentumRowLabel.TextColor3 = Color3.fromRGB(215, 175, 100)
-	momentumRowLabel.TextSize = 11
-	momentumRowLabel.Font = Enum.Font.GothamBold
+	momentumRowLabel.TextColor3 = UITheme.Palette.AccentGold
+	momentumRowLabel.TextSize = UITheme.Typography.SizeSmall
+	momentumRowLabel.Font = UITheme.Typography.FontBold
 	momentumRowLabel.TextXAlignment = Enum.TextXAlignment.Left
 	momentumRowLabel.Parent = panel
 
@@ -188,21 +208,23 @@ local function createMovementHUD()
 	momentumBg.Name = "MomentumBg"
 	momentumBg.Size = UDim2.new(1, 0, 0, 16)
 	momentumBg.Position = UDim2.new(0, 0, 0, 56)
-	momentumBg.BackgroundColor3 = Color3.fromRGB(30, 28, 20)
+	momentumBg.BackgroundColor3 = UITheme.Palette.PanelMid
 	momentumBg.BorderSizePixel = 0
 	momentumBg.Parent = panel
+	
 	local momentumBgCorner = Instance.new("UICorner")
-	momentumBgCorner.CornerRadius = UDim.new(0, 4)
+	momentumBgCorner.CornerRadius = UITheme.Corners.Small
 	momentumBgCorner.Parent = momentumBg
 
 	momentumFill = Instance.new("Frame")
 	momentumFill.Name = "MomentumFill"
 	momentumFill.Size = UDim2.new(0, 0, 1, 0)
-	momentumFill.BackgroundColor3 = Color3.fromRGB(160, 110, 30)
+	momentumFill.BackgroundColor3 = UITheme.Palette.AccentGold
 	momentumFill.BorderSizePixel = 0
 	momentumFill.Parent = momentumBg
+	
 	local momentumFillCorner = Instance.new("UICorner")
-	momentumFillCorner.CornerRadius = UDim.new(0, 4)
+	momentumFillCorner.CornerRadius = UITheme.Corners.Small
 	momentumFillCorner.Parent = momentumFill
 
 	momentumLabel = Instance.new("TextLabel")
@@ -210,17 +232,13 @@ local function createMovementHUD()
 	momentumLabel.Size = UDim2.new(1, 0, 1, 0)
 	momentumLabel.BackgroundTransparency = 1
 	momentumLabel.Text = "1.0×"
-	momentumLabel.TextColor3 = Color3.fromRGB(230, 200, 140)
-	momentumLabel.TextSize = 11
-	momentumLabel.Font = Enum.Font.GothamBold
+	momentumLabel.TextColor3 = UITheme.Palette.TextAccent
+	momentumLabel.TextSize = UITheme.Typography.SizeSmall
+	momentumLabel.Font = UITheme.Typography.FontBold
 	momentumLabel.ZIndex = 4
 	momentumLabel.Parent = momentumBg
 end
 
---[[
-	Polled each Heartbeat. Reads MovementController getters and updates
-	breath bar, exhausted flash, and momentum fill+colour.
-]]
 local MOMENTUM_CAP = 3.0
 local exhaustPulseTime = 0
 
@@ -241,13 +259,13 @@ local function updateMovementHUD(dt: number)
 	-- Text
 	breathLabel.Text = tostring(math.floor(breath))
 
-	-- Colour: teal → yellow → orange as Breath gets low
+	-- Colour: teal → yellow → orange as Breath gets low (using UITheme thresholds)
 	if pct > 0.5 then
-		breathBarFill.BackgroundColor3 = Color3.fromRGB(56, 182, 190)
+		breathBarFill.BackgroundColor3 = UITheme.Palette.BreathTeal
 	elseif pct > 0.2 then
-		breathBarFill.BackgroundColor3 = Color3.fromRGB(210, 170, 50)
+		breathBarFill.BackgroundColor3 = UITheme.Palette.BreathYellow
 	else
-		breathBarFill.BackgroundColor3 = Color3.fromRGB(210, 60, 40)
+		breathBarFill.BackgroundColor3 = UITheme.Palette.BreathRed
 	end
 
 	-- Exhausted flash overlay
@@ -271,22 +289,22 @@ local function updateMovementHUD(dt: number)
 		math.min(1, dt * 6)
 	)
 
-	-- Colour: dull gold → bright orange → blazing gold at cap
+	-- Colour: dull gold → bright orange → blazing gold at cap (using UITheme)
 	if mPct < 0.5 then
-		momentumFill.BackgroundColor3 = Color3.fromRGB(130, 90, 25)
+		momentumFill.BackgroundColor3 = UITheme.Palette.AccentGold
 	elseif mPct < 0.85 then
-		momentumFill.BackgroundColor3 = Color3.fromRGB(210, 130, 30)
+		momentumFill.BackgroundColor3 = UITheme.Palette.PostureOrange
 	else
-		momentumFill.BackgroundColor3 = Color3.fromRGB(255, 200, 50)
+		momentumFill.BackgroundColor3 = UITheme.Palette.AccentGold
 	end
 
 	-- Label shows multiplier; "MAX" when at cap
 	if mult >= MOMENTUM_CAP - 0.01 then
 		momentumLabel.Text = "MAX"
-		momentumLabel.TextColor3 = Color3.fromRGB(255, 230, 80)
+		momentumLabel.TextColor3 = UITheme.Palette.AccentGold
 	else
 		momentumLabel.Text = string.format("%.1f×", mult)
-		momentumLabel.TextColor3 = Color3.fromRGB(230, 200, 140)
+		momentumLabel.TextColor3 = UITheme.Palette.TextAccent
 	end
 end
 
@@ -310,27 +328,39 @@ local function createResonanceHUD()
 	resonanceGui.Name = "ResonanceHUD"
 	resonanceGui.ResetOnSpawn = false
 	resonanceGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	resonanceGui.DisplayOrder = 11
+	resonanceGui.DisplayOrder = HUDLayout.Layers.HUD + 2
 	resonanceGui.Parent = playerGui
 
 	local panel = Instance.new("Frame")
 	panel.Name = "ResonancePanel"
 	panel.Size = UDim2.new(0, 200, 0, 60)
-	panel.Position = UDim2.new(1, -216, 1, -94)  -- bottom-right, mirroring movement HUD
-	panel.BackgroundColor3 = Color3.fromRGB(12, 12, 16)
-	panel.BackgroundTransparency = 0.35
+	panel.AnchorPoint = HUDLayout.Anchors.BottomRight
+	panel.Position = UDim2.new(
+		HUDLayout.Anchors.BottomRight.X,
+		-HUDLayout.SafeArea.SideMargin,
+		HUDLayout.Anchors.BottomRight.Y,
+		-HUDLayout.SafeArea.BottomMargin
+	)
+	panel.BackgroundColor3 = UITheme.Palette.PanelDark
+	panel.BackgroundTransparency = UITheme.Opacity.PanelBackground
 	panel.BorderSizePixel = 0
 	panel.Parent = resonanceGui
 
 	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
+	corner.CornerRadius = UITheme.Corners.Medium
 	corner.Parent = panel
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = UITheme.Palette.AccentIron
+	stroke.Thickness = UITheme.Strokes.Standard
+	stroke.Transparency = 0.3
+	stroke.Parent = panel
 
 	local padding = Instance.new("UIPadding")
-	padding.PaddingLeft   = UDim.new(0, 12)
-	padding.PaddingRight  = UDim.new(0, 12)
-	padding.PaddingTop    = UDim.new(0, 10)
-	padding.PaddingBottom = UDim.new(0, 10)
+	padding.PaddingLeft = UITheme.Spacing.PaddingMedium
+	padding.PaddingRight = UITheme.Spacing.PaddingMedium
+	padding.PaddingTop = UITheme.Spacing.PaddingSmall
+	padding.PaddingBottom = UITheme.Spacing.PaddingSmall
 	padding.Parent = panel
 
 	-- RESONANCE row
@@ -339,9 +369,9 @@ local function createResonanceHUD()
 	resTitleLbl.Position = UDim2.fromOffset(0, 0)
 	resTitleLbl.BackgroundTransparency = 1
 	resTitleLbl.Text = "RESONANCE"
-	resTitleLbl.TextColor3 = Color3.fromRGB(170, 130, 220)
-	resTitleLbl.TextSize = 11
-	resTitleLbl.Font = Enum.Font.GothamBold
+	resTitleLbl.TextColor3 = UITheme.Palette.AccentGold
+	resTitleLbl.TextSize = UITheme.Typography.SizeSmall
+	resTitleLbl.Font = UITheme.Typography.FontBold
 	resTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	resTitleLbl.Parent = panel
 
@@ -351,9 +381,9 @@ local function createResonanceHUD()
 	_resonanceLabel.Position = UDim2.new(0.6, 0, 0, 0)
 	_resonanceLabel.BackgroundTransparency = 1
 	_resonanceLabel.Text = "0"
-	_resonanceLabel.TextColor3 = Color3.fromRGB(210, 185, 255)
-	_resonanceLabel.TextSize = 11
-	_resonanceLabel.Font = Enum.Font.GothamBold
+	_resonanceLabel.TextColor3 = UITheme.Palette.TextAccent
+	_resonanceLabel.TextSize = UITheme.Typography.SizeSmall
+	_resonanceLabel.Font = UITheme.Typography.FontBold
 	_resonanceLabel.TextXAlignment = Enum.TextXAlignment.Right
 	_resonanceLabel.Parent = panel
 
@@ -363,9 +393,9 @@ local function createResonanceHUD()
 	shardsTitleLbl.Position = UDim2.fromOffset(0, 26)
 	shardsTitleLbl.BackgroundTransparency = 1
 	shardsTitleLbl.Text = "SHARDS"
-	shardsTitleLbl.TextColor3 = Color3.fromRGB(120, 195, 155)
-	shardsTitleLbl.TextSize = 11
-	shardsTitleLbl.Font = Enum.Font.GothamBold
+	shardsTitleLbl.TextColor3 = UITheme.Palette.TextSecondary
+	shardsTitleLbl.TextSize = UITheme.Typography.SizeSmall
+	shardsTitleLbl.Font = UITheme.Typography.FontBold
 	shardsTitleLbl.TextXAlignment = Enum.TextXAlignment.Left
 	shardsTitleLbl.Parent = panel
 
@@ -375,9 +405,9 @@ local function createResonanceHUD()
 	_shardsLabel.Position = UDim2.new(0.6, 0, 0, 26)
 	_shardsLabel.BackgroundTransparency = 1
 	_shardsLabel.Text = "0"
-	_shardsLabel.TextColor3 = Color3.fromRGB(160, 235, 195)
-	_shardsLabel.TextSize = 11
-	_shardsLabel.Font = Enum.Font.GothamBold
+	_shardsLabel.TextColor3 = UITheme.Palette.TextPrimary
+	_shardsLabel.TextSize = UITheme.Typography.SizeSmall
+	_shardsLabel.Font = UITheme.Typography.FontBold
 	_shardsLabel.TextXAlignment = Enum.TextXAlignment.Right
 	_shardsLabel.Parent = panel
 end
@@ -456,23 +486,35 @@ local function createHUD()
 	screenGui.Name = "PlayerHUD"
 	screenGui.ResetOnSpawn = false
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = playerGui
 	
 	-- HUD Frame
 	hudFrame = Instance.new("Frame")
 	hudFrame.Name = "HUDFrame"
 	hudFrame.Size = UDim2.new(0, 250, 0, 200)
-	hudFrame.Position = UDim2.new(0, 20, 0, 20)
-	hudFrame.BackgroundTransparency = 0.3
-	hudFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	hudFrame.AnchorPoint = HUDLayout.Anchors.TopLeft
+	hudFrame.Position = UDim2.new(0, HUDLayout.SafeArea.SideMargin, 0, HUDLayout.SafeArea.TopMargin)
+	hudFrame.BackgroundTransparency = UITheme.Opacity.PanelBackground
+	hudFrame.BackgroundColor3 = UITheme.Palette.PanelDark
 	hudFrame.BorderSizePixel = 0
 	hudFrame.Parent = screenGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UITheme.Corners.Medium
+	corner.Parent = hudFrame
+	
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = UITheme.Palette.AccentIron
+	stroke.Thickness = UITheme.Strokes.Standard
+	stroke.Transparency = 0.3
+	stroke.Parent = hudFrame
 
 	-- Zone notification (Deepwoken-style) — invisible container anchored upper-center
 	zoneFrame = Instance.new("Frame")
 	zoneFrame.Name = "ZoneNotification"
-	zoneFrame.AnchorPoint = Vector2.new(0.5, 0)
-	zoneFrame.Position = UDim2.new(0.5, 0, 0, 80)
+	zoneFrame.AnchorPoint = HUDLayout.Anchors.TopCenter
+	zoneFrame.Position = UDim2.new(HUDLayout.Anchors.TopCenter.X, 0, 0, 80)
 	zoneFrame.Size = UDim2.new(0, 340, 0, 52)
 	zoneFrame.BackgroundTransparency = 1
 	zoneFrame.BorderSizePixel = 0
@@ -482,10 +524,10 @@ local function createHUD()
 	-- Top divider line
 	zoneTopDiv = Instance.new("Frame")
 	zoneTopDiv.Name = "TopDivider"
-	zoneTopDiv.AnchorPoint = Vector2.new(0.5, 0)
-	zoneTopDiv.Position = UDim2.new(0.5, 0, 0, 0)
+	zoneTopDiv.AnchorPoint = HUDLayout.Anchors.TopCenter
+	zoneTopDiv.Position = UDim2.new(HUDLayout.Anchors.TopCenter.X, 0, 0, 0)
 	zoneTopDiv.Size = UDim2.new(0, 0, 0, 1)
-	zoneTopDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+	zoneTopDiv.BackgroundColor3 = UITheme.Palette.AccentGold
 	zoneTopDiv.BackgroundTransparency = 1
 	zoneTopDiv.BorderSizePixel = 0
 	zoneTopDiv.Parent = zoneFrame
@@ -493,14 +535,14 @@ local function createHUD()
 	-- Zone name label (center)
 	zoneNameLabel = Instance.new("TextLabel")
 	zoneNameLabel.Name = "ZoneName"
-	zoneNameLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-	zoneNameLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+	zoneNameLabel.AnchorPoint = HUDLayout.Anchors.Center
+	zoneNameLabel.Position = UDim2.new(HUDLayout.Anchors.Center.X, 0, 0.5, 0)
 	zoneNameLabel.Size = UDim2.new(1, 0, 1, -10)
 	zoneNameLabel.BackgroundTransparency = 1
-	zoneNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	zoneNameLabel.TextColor3 = UITheme.Palette.TextPrimary
 	zoneNameLabel.TextTransparency = 1
 	zoneNameLabel.TextSize = 28
-	zoneNameLabel.Font = Enum.Font.GothamBold
+	zoneNameLabel.Font = UITheme.Typography.FontBold
 	zoneNameLabel.Text = ""
 	zoneNameLabel.TextXAlignment = Enum.TextXAlignment.Center
 	zoneNameLabel.Parent = zoneFrame
@@ -509,17 +551,12 @@ local function createHUD()
 	zoneBotDiv = Instance.new("Frame")
 	zoneBotDiv.Name = "BotDivider"
 	zoneBotDiv.AnchorPoint = Vector2.new(0.5, 1)
-	zoneBotDiv.Position = UDim2.new(0.5, 0, 1, 0)
+	zoneBotDiv.Position = UDim2.new(HUDLayout.Anchors.BottomCenter.X, 0, 1, 0)
 	zoneBotDiv.Size = UDim2.new(0, 0, 0, 1)
-	zoneBotDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+	zoneBotDiv.BackgroundColor3 = UITheme.Palette.AccentGold
 	zoneBotDiv.BackgroundTransparency = 1
 	zoneBotDiv.BorderSizePixel = 0
 	zoneBotDiv.Parent = zoneFrame
-	
-	-- Add corner
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 8)
-	corner.Parent = hudFrame
 	
 	-- Title
 	local title = Instance.new("TextLabel")
@@ -527,16 +564,16 @@ local function createHUD()
 	title.Size = UDim2.new(1, 0, 0, 30)
 	title.BackgroundTransparency = 1
 	title.Text = "NIGHTFALL"
-	title.TextColor3 = Color3.fromRGB(200, 150, 255)
-	title.TextSize = 18
-	title.Font = Enum.Font.GothamBold
+	title.TextColor3 = UITheme.Palette.AccentGold
+	title.TextSize = UITheme.Typography.SizeLarge
+	title.Font = UITheme.Typography.FontBold
 	title.Parent = hudFrame
 	
-	-- Create stat bars
-	local _, health = createStatBar("Health", UDim2.new(0, 20, 0, 40), Color3.fromRGB(200, 50, 50))
+	-- Create stat bars with theme colors
+	local _, health = createStatBar("Health", UDim2.new(0, 20, 0, 40), UITheme.Palette.HealthGreen)
 	healthBar = health
 	
-	local _, mana = createStatBar("Mana", UDim2.new(0, 20, 0, 75), Color3.fromRGB(50, 100, 200))
+	local _, mana = createStatBar("Mana", UDim2.new(0, 20, 0, 75), UITheme.Palette.HealthYellow)
 	manaBar = mana
 	
 	-- Create info labels
@@ -588,16 +625,16 @@ local function createHUD()
 		-- configure style
 		if isRingChange then
 			zoneFrame.Size = UDim2.new(0, 340, 0, 58)
-			zoneNameLabel.TextColor3 = Color3.fromRGB(255, 210, 80)
+			zoneNameLabel.TextColor3 = UITheme.Palette.AccentGold
 			zoneNameLabel.TextSize = 30
-			zoneNameLabel.Font = Enum.Font.GothamBold
-			zoneTopDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
-			zoneBotDiv.BackgroundColor3 = Color3.fromRGB(235, 185, 60)
+			zoneNameLabel.Font = UITheme.Typography.FontBold
+			zoneTopDiv.BackgroundColor3 = UITheme.Palette.AccentGold
+			zoneBotDiv.BackgroundColor3 = UITheme.Palette.AccentGold
 		else
 			zoneFrame.Size = UDim2.new(0, 280, 0, 40)
-			zoneNameLabel.TextColor3 = Color3.fromRGB(210, 210, 210)
+			zoneNameLabel.TextColor3 = UITheme.Palette.TextPrimary
 			zoneNameLabel.TextSize = 20
-			zoneNameLabel.Font = Enum.Font.Gotham
+			zoneNameLabel.Font = UITheme.Typography.FontRegular
 		end
 
 		-- reset to fully transparent before show
@@ -610,12 +647,20 @@ local function createHUD()
 		zoneFrame.Visible = true
 
 		-- fade-in text
-		local inInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local inInfo = TweenInfo.new(
+			UITheme.Motion.TransitionFast,
+			Enum.EasingStyle.Quad,
+			Enum.EasingDirection.Out
+		)
 		TweenService:Create(zoneNameLabel, inInfo, { TextTransparency = 0 }):Play()
 
 		if isRingChange then
 			-- divider lines slide outward from center
-			local divInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			local divInfo = TweenInfo.new(
+				UITheme.Motion.TransitionNormal,
+				Enum.EasingStyle.Quad,
+				Enum.EasingDirection.Out
+			)
 			TweenService:Create(zoneTopDiv, divInfo, {
 				Size = UDim2.new(0, 300, 0, 1),
 				BackgroundTransparency = 0,
@@ -628,7 +673,7 @@ local function createHUD()
 
 		-- hold 3 s then fade out
 		zoneFadeThread = task.delay(3, function()
-			local outInfo = TweenInfo.new(0.55, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+			local outInfo = TweenInfo.new(UITheme.Motion.TransitionSlow, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 			TweenService:Create(zoneNameLabel, outInfo, { TextTransparency = 1 }):Play()
 			TweenService:Create(zoneTopDiv, outInfo, { BackgroundTransparency = 1 }):Play()
 			local finTween = TweenService:Create(zoneBotDiv, outInfo, { BackgroundTransparency = 1 })
@@ -754,40 +799,44 @@ function PlayerHUDController:ShowToast(title: string, subtitle: string, color: C
 		toastContainer = Instance.new("Frame")
 		toastContainer.Name = "ToastContainer"
 		toastContainer.Size = UDim2.new(0, 300, 0.5, 0)
-		toastContainer.Position = UDim2.new(0.5, 0, 0.1, 0)
-		toastContainer.AnchorPoint = Vector2.new(0.5, 0)
+		toastContainer.AnchorPoint = HUDLayout.Anchors.TopCenter
+		toastContainer.Position = UDim2.new(HUDLayout.Anchors.TopCenter.X, 0, 0, 10)
 		toastContainer.BackgroundTransparency = 1
 		toastContainer.Parent = screenGui
 		
 		local listLayout = Instance.new("UIListLayout")
 		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		listLayout.Padding = UDim.new(0, 10)
+		listLayout.Padding = UITheme.Spacing.GapMedium
 		listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 		listLayout.Parent = toastContainer
 	end
 	
-	color = color or Color3.fromRGB(220, 200, 150)
+	color = color or UITheme.Palette.AccentGold
 	duration = duration or 4.0
 	
 	local toast = Instance.new("Frame")
 	toast.Size = UDim2.new(0, 280, 0, 60)
-	toast.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-	toast.BackgroundTransparency = 0.2
+	toast.BackgroundColor3 = UITheme.Palette.PanelDark
+	toast.BackgroundTransparency = UITheme.Opacity.PanelBackground
 	toast.BorderSizePixel = 0
 	toast.ClipsDescendants = true
 	
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UITheme.Corners.Medium
+	corner.Parent = toast
+	
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = color
-	stroke.Thickness = 1
+	stroke.Thickness = UITheme.Strokes.Standard
 	stroke.Parent = toast
 	
 	local titleLabel = Instance.new("TextLabel")
 	titleLabel.Size = UDim2.new(1, -20, 0.5, 0)
 	titleLabel.Position = UDim2.new(0, 10, 0, 5)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Font = Enum.Font.GothamBold
+	titleLabel.Font = UITheme.Typography.FontBold
 	titleLabel.TextColor3 = color
-	titleLabel.TextSize = 16
+	titleLabel.TextSize = UITheme.Typography.SizeMedium
 	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 	titleLabel.Text = title
 	titleLabel.Parent = toast
@@ -796,9 +845,9 @@ function PlayerHUDController:ShowToast(title: string, subtitle: string, color: C
 	subLabel.Size = UDim2.new(1, -20, 0.5, -5)
 	subLabel.Position = UDim2.new(0, 10, 0.5, 0)
 	subLabel.BackgroundTransparency = 1
-	subLabel.Font = Enum.Font.Gotham
-	subLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-	subLabel.TextSize = 14
+	subLabel.Font = UITheme.Typography.FontRegular
+	subLabel.TextColor3 = UITheme.Palette.TextSecondary
+	subLabel.TextSize = UITheme.Typography.SizeSmall
 	subLabel.TextXAlignment = Enum.TextXAlignment.Left
 	subLabel.Text = subtitle
 	subLabel.Parent = toast
@@ -811,15 +860,19 @@ function PlayerHUDController:ShowToast(title: string, subtitle: string, color: C
 	subLabel.TextTransparency = 1
 	stroke.Transparency = 1
 	
-	local inInfo = TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-	TweenService:Create(toast, inInfo, {Position = UDim2.new(0,0,0,0), BackgroundTransparency = 0.2}):Play()
+	local inInfo = TweenInfo.new(
+		UITheme.Motion.TransitionFast,
+		Enum.EasingStyle.Back,
+		Enum.EasingDirection.Out
+	)
+	TweenService:Create(toast, inInfo, { Position = UDim2.new(0,0,0,0), BackgroundTransparency = UITheme.Opacity.PanelBackground}):Play()
 	TweenService:Create(titleLabel, inInfo, {TextTransparency = 0}):Play()
 	TweenService:Create(subLabel, inInfo, {TextTransparency = 0}):Play()
 	TweenService:Create(stroke, inInfo, {Transparency = 0}):Play()
 	
 	task.delay(duration, function()
 		if not toast or not toast.Parent then return end
-		local outInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		local outInfo = TweenInfo.new(UITheme.Motion.TransitionNormal, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 		local t = TweenService:Create(toast, outInfo, {BackgroundTransparency = 1})
 		TweenService:Create(titleLabel, outInfo, {TextTransparency = 1}):Play()
 		TweenService:Create(subLabel, outInfo, {TextTransparency = 1}):Play()
