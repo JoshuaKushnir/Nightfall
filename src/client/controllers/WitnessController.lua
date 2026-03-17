@@ -153,7 +153,7 @@ function WitnessController:Start()
 			PlayerHUDController:ShowToast(
 				"Codex Unlocked",
 				"Knowledge acquired: " .. packet.EntryId,
-				Color3.fromRGB(0, 200, 255),
+				UITheme.Palette.BreathTeal,
 				5.0
 			)
 		end
