@@ -1,3 +1,56 @@
+## Session NF-074: HUD Revamp Phase 3-5 - Foundation Modules & Migration Complete
+**Date:** 2026-03-16  
+**Issues:** #183
+
+### What Was Built
+- **src/client/modules/UITheme.lua:** Centralized visual tokens (17+ palette colors, typography, spacing, corners, strokes, motion timings, opacity presets, bar thresholds) enabling single-source-of-truth for all HUD styling. High-ornate design direction (parchment + iron + gold accents).
+- **src/client/modules/HUDLayout.lua:** Centralized positioning system (9 anchor points, safe area margins, 5-layer DisplayOrder system) preventing Z-order conflicts across all HUD surfaces.
+- **src/client/modules/HUDPrimitives.lua:** Reusable component factory functions (PanelShell, Label, StatBar, ValueChip, applyCorner, applyStroke) applying UITheme consistently across all UI builds.
+- **src/client/controllers/PlayerHUDController.lua:** Refactored core gameplay HUD (health/mana/level/state) + Movement HUD (breath/momentum) + Resonance HUD + Zone notifications + Toast system to use UITheme palette, HUDLayout positioning, HUDPrimitives constructors.
+- **src/client/controllers/CombatFeedbackUI.lua:** Refactored combat feedback (posture bar, damage numbers, block/parry/miss/break callouts, death overlay, stagger flash, suppressed vignette) to use UITheme colors + HUDLayout layers. Critical timing preserved exactly (death screen: 1s fade-in, 2.5s hold, 0.5s fade-out).
+- **src/client/controllers/WitnessController.lua:** Refactored witness progress bar to use UITheme.Palette.BreathTeal fill + HUDLayout anchor positioning.
+- **src/client/controllers/DeathController.lua:** Refactored shard loss popup to use UITheme.Palette.HealthRed for loss icon + HUDLayout.Layers.Toast DisplayOrder.
+
+### Integration Points
+- All HUD controllers now reference centralized UITheme module (no more hardcoded RGB colors across 4+ files).
+- All ScreenGui elements positioned via HUDLayout anchor system (prevents overlap, standardizes safe area margins).
+- All animation timings use standardized UITheme.Motion constants (0.2s quick / 0.35s normal / 0.5s slow).
+- Witness and Death overlays now stack correctly via HUDLayout.Layers (Toast=60, Modal=50 prevents Z-order conflicts).
+
+### Spec Gaps Encountered
+- None â€” all behavioral contracts preserved exactly (color thresholds, animation timings, visibility states, event handlers).
+
+### Tech Debt Created
+- Performance: CombatFeedbackUI damage numbers still create per-ScreenGui per-hit (burst lag risk). Consolidated pooling deferred to future sprint as optional optimization.
+- Future consolidation: All toast rendering could be unified to shared container (PlayerHUDController.ToastContainer model).
+
+### Files Changed
+- UITheme.lua (new, ~300 lines)
+- HUDLayout.lua (new, ~100 lines)
+- HUDPrimitives.lua (new, ~250 lines)
+- PlayerHUDController.lua (~900 lines refactored)
+- CombatFeedbackUI.lua (~600 lines refactored)
+- WitnessController.lua (~160 lines refactored)
+- DeathController.lua (~150 lines refactored)
+
+### Commits
+1. refactor(#183): PlayerHUDController migrated to UITheme, HUDLayout, HUDPrimitives - Phase 3a complete
+2. refactor(#183): CombatFeedbackUI migrated to UITheme palette, HUDLayout layers - Phase 4a complete
+3. refactor(#183): WitnessController and DeathController migrated to UITheme, HUDLayout - Phase 4b complete
+4. refactor(#183): Remove final hardcoded color from WitnessController - use UITheme.Palette.BreathTeal for Codex unlock toast
+
+### Next Session Should Start On
+Issue #???: Manual Roblox Studio testing of all HUD elements (Phase 6 acceptance). Verify:
+- All colors render correctly in high-ornate theme
+- State-driven thresholds trigger properly (breath bar tealâ†’yellowâ†’red, posture greyâ†’orangeâ†’red)
+- Death screen timing (1s in, 2.5s hold, 0.5s out) precise
+- No Z-order conflicts across overlays
+- No performance spikes during burst damage numbers
+
+Followed by: Write unit tests for HUD controller visibility state, color thresholds, animation triggers.
+
+---
+
 ## Session NF-073: Implemented Ring 1 Five Hollowed Variant AI
 **Date:** 2026-03-13  
 **Issues:** #179, #180
@@ -20,43 +73,15 @@
 
 ### Next Session Should Start On
 Issue #180 Test / Close: Boot Roblox Studio to ensure syntax validity in Luau and confirm spawn behaviors physically. Once #180 is closed, proceed to Issue #181 (Witnessing System).
-
-
-## Session NF-073: Implemented Ring 1 Five Hollowed Variant AI
-**Date:** 2026-03-13  
-**Issues:** #179, #180
-
-### What Was Built
-- **src/client/runtime/init.lua:** Fixed dependencies nil issue, closing #179.
-- **src/shared/types/HitboxTypes.lua:** Shifted hitbox Owner type to Player | string to allow Enemy instances to safely broadcast hit strikes across the network using ID names.
-- **src/shared/types/HollowedTypes.lua:** Introduced MaxPoise, CurrentPoise along with three new combat states (Dodging, Stunned, Blocking). Added exact structs matching the five target permutations (Wayward, Ironclad, Silhouette, Resonant, Ember).
-- **src/server/services/HollowedService.lua:** 
-  - Completely erased math-based spatial auto-hitting inside _AttackPlayer.
-  - Injected true Hitbox volumes spanning exact ranges during attacks directly interacting with server latency properly via _ExecuteHitboxAttack.
-  - Mapped a 5-block branching logic route in _TickAI that implements varied styles of mobility and frame execution logic for the specific model's config. (e.g. Dashing to distance with Silhouette, Slow approach and Slam with Ember).
-
-### Integration Points
-- Allows HitboxService to securely bridge gap between CombatService generic functions and non-player objects.
-- Enables specific posture breaking interactions because enemy states can correctly resolve boolean Stunned.
-
-### Spec Gaps Encountered
-- Hardcoded sphere vs box ranges on enemy hitboxes based on general approximation (e.g. Ironclad sphere radius of 6, Resonant projectile assumption using a far cast offset). Placed temporary values subject to Studio re-evaluation.
-
-### Next Session Should Start On
-Issue #180 Test / Close: Boot Roblox Studio to ensure syntax validity in Luau and confirm spawn behaviors physically. Once #180 is closed, proceed to Issue #181 (Witnessing System).
-# Project Nightfall: Session Intelligence Log
-
-## Session NF-071: World & Enemy Roster Design Documentation
-**Date:** 2026-03-13
 **Issues:** [#178](https://github.com/JoshuaKushnir/Nightfall/issues/178) (World & Enemy Roster Design)
 
 ### What Was Built
-- **`docs/Game Plan/World_Design.md`** — Comprehensive 2,000+ line design document covering all four rings:
+- **`docs/Game Plan/World_Design.md`** ï¿½ Comprehensive 2,000+ line design document covering all four rings:
   - **Ring 0 (Hearthspire)** visual reference with Solstice Pillar description and city architecture
-  - **Ring 1 (Verdant Shelf)** — 3 zones (Canopy Road, Drowned Meadow, Ashward Fringe), 3 enemy types per zone, 3 minibosses (Hollow Keeper, Tidecaller Echo, Duskwalker Warden). Enemy archetypes: Hollowed, Creatures, Duskwalkers.
-  - **Ring 2 (Ashfeld)** — 3 zones (Ashroads, Dried Basin, Choir Outpost), 3 enemy types per zone, 3 minibosses (Choir Taskmaster, Basin Wraith, Choir Adjudicant). New archetypes: Ashen Choir, Preserved, Choir elites.
-  - **Ring 3 (Vael Depths)** — 3 zones (Hall of Accord, Collapsed Archive, Memorial Quarter), 3 enemy types per zone, 3 minibosses (Last Accord-Keeper, Archivist-Weave, First Drifter). New archetypes: Preserved, Threadweavers, Memory Shades.
-  - **Ring 4 (Gloam)** — 3 zones (Windfield, Sunken Choir Shrine, Null Approach), 3 enemy types per zone, 3 minibosses (Luminance Eater, Shrine's Chosen, Null Sentinel). New archetypes: Vaelborn, Elite Choir (Omen-corrupted).
+  - **Ring 1 (Verdant Shelf)** ï¿½ 3 zones (Canopy Road, Drowned Meadow, Ashward Fringe), 3 enemy types per zone, 3 minibosses (Hollow Keeper, Tidecaller Echo, Duskwalker Warden). Enemy archetypes: Hollowed, Creatures, Duskwalkers.
+  - **Ring 2 (Ashfeld)** ï¿½ 3 zones (Ashroads, Dried Basin, Choir Outpost), 3 enemy types per zone, 3 minibosses (Choir Taskmaster, Basin Wraith, Choir Adjudicant). New archetypes: Ashen Choir, Preserved, Choir elites.
+  - **Ring 3 (Vael Depths)** ï¿½ 3 zones (Hall of Accord, Collapsed Archive, Memorial Quarter), 3 enemy types per zone, 3 minibosses (Last Accord-Keeper, Archivist-Weave, First Drifter). New archetypes: Preserved, Threadweavers, Memory Shades.
+  - **Ring 4 (Gloam)** ï¿½ 3 zones (Windfield, Sunken Choir Shrine, Null Approach), 3 enemy types per zone, 3 minibosses (Luminance Eater, Shrine's Chosen, Null Sentinel). New archetypes: Vaelborn, Elite Choir (Omen-corrupted).
   - **Ring 5 (The Null)** reference documentation with Convergence event description.
   - **World atmosphere/visuals** for each ring: sky descriptions, architecture, lighting, environmental storytelling.
   - **Enemy archetype progression matrix** showing enemy types appearing by Ring and their characteristic mechanics.
@@ -64,7 +89,7 @@ Issue #180 Test / Close: Boot Roblox Studio to ensure syntax validity in Luau an
   - **Spec gaps & placeholders** documented for tuning (HP, Posture, Ability values, Resonance rewards).
   - **Integration notes** with StateService, HitboxService, AspectService, CombatService, NetworkService.
 
-- **`docs/Game Plan/Main.md`** — Updated with reference link to World_Design.md in the "World & Identity" section.
+- **`docs/Game Plan/Main.md`** ï¿½ Updated with reference link to World_Design.md in the "World & Identity" section.
 
 - **GitHub Issue #178** created with full acceptance criteria and blocking dependencies to #175, #176, #177.
 
@@ -98,31 +123,31 @@ Issue #180 Test / Close: Boot Roblox Studio to ensure syntax validity in Luau an
 - Ring 5 detailed encounter design not included (Ring 5 is event-driven, not zone-driven)
 
 ### Next Session Should Start On
-Issue [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175): **Basic enemy AI — NPC aggro + pathfind + swing** — Implement the first enemy type (Hollowed Drifter from Zone 1A) to establish the AI pattern that will be replicated across the full roster.
+Issue [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175): **Basic enemy AI ï¿½ NPC aggro + pathfind + swing** ï¿½ Implement the first enemy type (Hollowed Drifter from Zone 1A) to establish the AI pattern that will be replicated across the full roster.
 
 ---
 
-## Session NF-070: Inventory UI Layout Polish — Category Groups, Hover-Only Tooltips, Auto Layout
+## Session NF-070: Inventory UI Layout Polish ï¿½ Category Groups, Hover-Only Tooltips, Auto Layout
 **Date:** 2026-02-24
 **Issues:** #62 (Inventory system design iteration)
 
 ### What Was Built
-- **`src/client/controllers/InventoryController.lua`** — Phase 3 layout refinement + Deepwoken aesthetic polish (completing #62):
-  - **Replaced manual yOff positioning with automatic layout stacking**: Scroll now uses `UIListLayout` vertical (6px padding) to hold category blocks; each category contains internal `UIGridLayout` (70×70px cells, 4 columns, 8×8px padding). Eliminates all manual `bx/by/yOff` calculations — no overlap logic needed, UILayout handles positioning automatically.
+- **`src/client/controllers/InventoryController.lua`** ï¿½ Phase 3 layout refinement + Deepwoken aesthetic polish (completing #62):
+  - **Replaced manual yOff positioning with automatic layout stacking**: Scroll now uses `UIListLayout` vertical (6px padding) to hold category blocks; each category contains internal `UIGridLayout` (70ï¿½70px cells, 4 columns, 8ï¿½8px padding). Eliminates all manual `bx/by/yOff` calculations ï¿½ no overlap logic needed, UILayout handles positioning automatically.
   - **Restored category organization**: Rebuilt bag rendering to group items by `CAT_ORDER` (Weapon, Charm, Consumable, Misc). Each category creates a collapsible header block with ?/? toggle. Cards rendered inside per-category grid. Collapse state persists in `self._collapsed[cat] = boolean`.
   - **Eliminated redundant detail panel**: Deleted entire `_createDetailSection` function (~70 lines). Removed state variables `self._detailSection`, `self._detailName`, `self._detailMeta`, `self._detailDesc`. All item inspection now routing through hover-only tooltip system (same as Phase 1).
   - **Unified hotbar into tooltip system**: Modified hotbar slot button event handlers to call `_showTooltip(self, item)` / `_hideTooltip(self, item)` on `MouseEnter`/`MouseLeave` (replacing old `_bindSlotHover` pattern). Hotbar now uses identical tooltip behavior as bag cards.
-  - **Repositioned panel to left side (Deepwoken layout)**: Changed `_createInventoryRoot` Position from `0.64x, 0.11y` (right) to `0.02x, 0.07y` (left); Size from `36% × 78%` to `38% × 60%` for compact left sidebar matching Deepwoken aesthetic. Updates `_createHotbar` to use AnchorPoint (0.5, 1) and position bottom-center instead of fixed left edge.
-  - **Enlarged cards for readability**: Increased grid cell size from 62×62px to 70×70px with 8×8px padding (was 7×7px). Updated `SLOT_INNER` and `SLOT_OUTER` from 52/56px to 70/74px for hotbar slots to match bag cards visually.
+  - **Repositioned panel to left side (Deepwoken layout)**: Changed `_createInventoryRoot` Position from `0.64x, 0.11y` (right) to `0.02x, 0.07y` (left); Size from `36% ï¿½ 78%` to `38% ï¿½ 60%` for compact left sidebar matching Deepwoken aesthetic. Updates `_createHotbar` to use AnchorPoint (0.5, 1) and position bottom-center instead of fixed left edge.
+  - **Enlarged cards for readability**: Increased grid cell size from 62ï¿½62px to 70ï¿½70px with 8ï¿½8px padding (was 7ï¿½7px). Updated `SLOT_INNER` and `SLOT_OUTER` from 52/56px to 70/74px for hotbar slots to match bag cards visually.
   - **Enhanced card styling**: Reduced rarity border stroke opacity from 0.4 to 0.25 for more solid, parchment-like appearance.
   - **Added tooltip edge clamping**: Updated `_positionTooltip(self)` to clamp tooltip Position when it approaches viewport edges (leaves 10px margin), preventing off-screen rendering when hovering near screen borders.
   - **Simplified method calls**: Removed call to `_createDetailSection` in `_buildGui`. Now calls only 3 layout functions (`_createInventoryRoot`, `_createBagSection`, `_createHotbar`) then creates tooltip frame.
 
 ### Integration Points
-- **Automatic positioning prevents overlap**: UIListLayout vertical + UIGridLayout inside each category block auto-arrange items without manual positioning — cleaner code, no collision logic needed.
-- **Unified detail inspection**: Both bag and hotbar now use `_showTooltip(self, item)` / `_hideTooltip(self, item)` — single source of truth for item display, consistent Deepwoken-style card appearance.
-- **Heartbeat tooltip tracking**: Tooltip already wired (exists in Init function at line 1192) — `_positionTooltip(self)` called every frame when tooltip visible, follows mouse smoothly.
-- **Category persistence**: Collapse state survives across `RefreshUI()` calls via `self._collapsed` table — user-friendly collapsible organization.
+- **Automatic positioning prevents overlap**: UIListLayout vertical + UIGridLayout inside each category block auto-arrange items without manual positioning ï¿½ cleaner code, no collision logic needed.
+- **Unified detail inspection**: Both bag and hotbar now use `_showTooltip(self, item)` / `_hideTooltip(self, item)` ï¿½ single source of truth for item display, consistent Deepwoken-style card appearance.
+- **Heartbeat tooltip tracking**: Tooltip already wired (exists in Init function at line 1192) ï¿½ `_positionTooltip(self)` called every frame when tooltip visible, follows mouse smoothly.
+- **Category persistence**: Collapse state survives across `RefreshUI()` calls via `self._collapsed` table ï¿½ user-friendly collapsible organization.
 
 ### Spec Gaps Encountered
 - None new (all Phase 3 requirements met).
@@ -138,46 +163,46 @@ Issue [#175](https://github.com/JoshuaKushnir/Nightfall/issues/175): **Basic ene
 
 ### MVP Priority Re-evaluation (March 12 2026)
 Following inventory completion a full MVP priority audit was performed. Four blocking issues created for the next four sessions:
-- **[#174](https://github.com/JoshuaKushnir/Nightfall/issues/174)** — Depth-1 Ember abilities (real hitbox + damage + VFX stub)
-- **[#175](https://github.com/JoshuaKushnir/Nightfall/issues/175)** — Basic enemy AI (NPC aggro + pathfind + swing)
-- **[#176](https://github.com/JoshuaKushnir/Nightfall/issues/176)** — HUD resonance display + zone ring triggers (bundled)
-- **[#177](https://github.com/JoshuaKushnir/Nightfall/issues/177)** — DialogueService + DialogueController (Phase 4 kickoff)
+- **[#174](https://github.com/JoshuaKushnir/Nightfall/issues/174)** ï¿½ Depth-1 Ember abilities (real hitbox + damage + VFX stub)
+- **[#175](https://github.com/JoshuaKushnir/Nightfall/issues/175)** ï¿½ Basic enemy AI (NPC aggro + pathfind + swing)
+- **[#176](https://github.com/JoshuaKushnir/Nightfall/issues/176)** ï¿½ HUD resonance display + zone ring triggers (bundled)
+- **[#177](https://github.com/JoshuaKushnir/Nightfall/issues/177)** ï¿½ DialogueService + DialogueController (Phase 4 kickoff)
 
 See [BACKLOG.md](BACKLOG.md) for the full tiered DONE / CRITICAL / HIGH / MEDIUM / POST-MVP breakdown.
 
 ### Next Session Should Start On
-Issue [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174): **Depth-1 Ember abilities** — Implement real hitbox activation, damage application, and VFX stub for at least one Ember move. Pattern established here becomes the template for all remaining Aspects.
+Issue [#174](https://github.com/JoshuaKushnir/Nightfall/issues/174): **Depth-1 Ember abilities** ï¿½ Implement real hitbox activation, damage application, and VFX stub for at least one Ember move. Pattern established here becomes the template for all remaining Aspects.
 
 ---
 
-## Session NF-069: Inventory UI Layout Refactor — Modular GUI Functions + UIGridLayout Integration
+## Session NF-069: Inventory UI Layout Refactor ï¿½ Modular GUI Functions + UIGridLayout Integration
 **Date:** 2026-02-10
 **Issues:** #62 (Inventory system design iteration)
 
 ### What Was Built
-- **`src/client/controllers/InventoryController.lua`** — Major layout refactoring:
+- **`src/client/controllers/InventoryController.lua`** ï¿½ Major layout refactoring:
   - **Moved GUI helper functions early** (_corner, _stroke, _divider) to lines 503-528 before layout helpers depend on them
   - **Added four modular layout creation functions** (lines 532-754):
-    - `_createInventoryRoot(self)`: Creates 36% width × 78% height inventory column at (0.64, 0.11) with UIListLayout vertical stacking
-    - `_createBagSection(self)`: Creates 60% bag frame with header row (title + search), scrollable grid (UIGridLayout 4 columns × 68×68px cells), stores ref `self._bagScroll`
+    - `_createInventoryRoot(self)`: Creates 36% width ï¿½ 78% height inventory column at (0.64, 0.11) with UIListLayout vertical stacking
+    - `_createBagSection(self)`: Creates 60% bag frame with header row (title + search), scrollable grid (UIGridLayout 4 columns ï¿½ 68ï¿½68px cells), stores ref `self._bagScroll`
     - `_createDetailSection(self)`: Creates 38% detail panel below bag with Name/Meta/Description labels, stores refs `self._detailName`, `self._detailMeta`, `self._detailDesc`
     - `_createHotbar(self)`: Creates 32% viewport width hotbar at (0.34, 0, 1, -94) with horizontal UIListLayout for 8 slots
   - **Simplified _buildGui** (lines 757-854): Now calls four modular functions + creates tooltip frame (UIListLayout for title/subtitle/body/tags)
-  - **Refactored RefreshUI** (lines 866-943): Removed yOff-based positioning, category headers/collapse logic. Now creates flat list of cards parented to scroll — UIGridLayout auto-arranges into 4-column grid. Cards still have all visual elements (rarity border, category stripe, item name, cooldown overlay)
+  - **Refactored RefreshUI** (lines 866-943): Removed yOff-based positioning, category headers/collapse logic. Now creates flat list of cards parented to scroll ï¿½ UIGridLayout auto-arranges into 4-column grid. Cards still have all visual elements (rarity border, category stripe, item name, cooldown overlay)
   - **Replaced UIFlowLayout with UIListLayout** (line 853): Roblox doesn't support UIFlowLayout; tags now use UIListLayout horizontal
   - **Logged hotbar clearing** (lines 1025-1027): Preserved existing hotbar rendering code for slot creation with cooldown overlays
 
 ### Integration Points
 - **Responsive layout**: Inventory panel scales to 36% of viewport width (adapts to any screen resolution), solves the 16:9 responsiveness requirement
-- **Detail panel ready**: Stores refs to detail labels (_detailName, _detailMeta, _detailDesc) — next session can wire hover events to populate these
+- **Detail panel ready**: Stores refs to detail labels (_detailName, _detailMeta, _detailDesc) ï¿½ next session can wire hover events to populate these
 - **Tooltip coexists**: Tooltip frame created independently at end of _buildGui, positioned via mouse + 18/20 offset (unchanged from Phase 1)
-- **UIGridLayout auto-sizing**: RefreshUI no longer manually calculates `yOff` or scroll canvas size — UIGridLayout + AutomaticCanvasSize handle it automatically
+- **UIGridLayout auto-sizing**: RefreshUI no longer manually calculates `yOff` or scroll canvas size ï¿½ UIGridLayout + AutomaticCanvasSize handle it automatically
 
 ### Spec Gaps Encountered
-- **Hotbar slot size**: Old hotbar uses SLOT_INNER/SLOT_OUTER constants (appears to be ~62px). New layout specifies 68px cells in bag. May need to unify hotbar to match 68px for consistency, or verify hotbar positioning is correct (checked: new hotbar position is 0.34, 0, 1, -94 which is centered, 94px from bottom — good)
+- **Hotbar slot size**: Old hotbar uses SLOT_INNER/SLOT_OUTER constants (appears to be ~62px). New layout specifies 68px cells in bag. May need to unify hotbar to match 68px for consistency, or verify hotbar positioning is correct (checked: new hotbar position is 0.34, 0, 1, -94 which is centered, 94px from bottom ï¿½ good)
 
 ### Tech Debt Created
-- **Category system unused**: Old category collapse/headers removed; categories defined but not rendered. If categories needed again, add back category header rows with collapse toggles (low priority — current flat grid is cleaner)
+- **Category system unused**: Old category collapse/headers removed; categories defined but not rendered. If categories needed again, add back category header rows with collapse toggles (low priority ï¿½ current flat grid is cleaner)
 - **Search bar parenting**: Search box now lives in bag section header row, integrated with bag scroll. Previously was separate UI element. Works fine, no technical debt.
 
 ### Next Session Should Start On
@@ -188,38 +213,38 @@ Issue #62 continuation: **Wire detail panel hover updates** + **Test layout in S
 **Issues:** #172 (Depth-1 ability tests)
 
 ### What Was Built
-- **`tests/unit/AshExpression.test.lua`** — Removed stale legacy duplicate test body (pre-moveset-refactor copy that used flat fields `Ash.Id`/`Ash.Type` instead of `Ash.Moves[1]`). Added `AshenStep behaviour` test block: asserts that calling `Moves[1].OnActivate` synchronously spawns an `AshenStepAfterimage` BasePart in Workspace at the caster origin (via `task.spawn(_spawnAfterimage)` which runs in-frame). Existing `Moves[1].Range == 12` already covered the dash distance constant.
-- **`tests/unit/EmberExpression.test.lua`** — Removed stale legacy duplicate test body. Added `Ignite behaviour` test block: (1) `HeatStacks` attribute contract round-trips via `SetAttribute`/`GetAttribute`, (2) `StatusBurning` readable at max stacks (3), (3) `OnActivate` does not touch caster's own `HeatStacks` (only fires via `HitboxService.OnHit` against targets — not testable synchronously).
-- **`tests/unit/GaleExpression.test.lua`** — Removed stale legacy duplicate test body. Added `WindStrike behaviour` test block: `StatusWeightless` attribute contract (set to `true` then clear to `nil` round-trips correctly). Existing `Moves[1].Range == 12` covers the dash distance.
+- **`tests/unit/AshExpression.test.lua`** ï¿½ Removed stale legacy duplicate test body (pre-moveset-refactor copy that used flat fields `Ash.Id`/`Ash.Type` instead of `Ash.Moves[1]`). Added `AshenStep behaviour` test block: asserts that calling `Moves[1].OnActivate` synchronously spawns an `AshenStepAfterimage` BasePart in Workspace at the caster origin (via `task.spawn(_spawnAfterimage)` which runs in-frame). Existing `Moves[1].Range == 12` already covered the dash distance constant.
+- **`tests/unit/EmberExpression.test.lua`** ï¿½ Removed stale legacy duplicate test body. Added `Ignite behaviour` test block: (1) `HeatStacks` attribute contract round-trips via `SetAttribute`/`GetAttribute`, (2) `StatusBurning` readable at max stacks (3), (3) `OnActivate` does not touch caster's own `HeatStacks` (only fires via `HitboxService.OnHit` against targets ï¿½ not testable synchronously).
+- **`tests/unit/GaleExpression.test.lua`** ï¿½ Removed stale legacy duplicate test body. Added `WindStrike behaviour` test block: `StatusWeightless` attribute contract (set to `true` then clear to `nil` round-trips correctly). Existing `Moves[1].Range == 12` covers the dash distance.
 
 ### Integration Points
-- These tests verify the attribute contracts that game state depends on: `HeatStacks`, `StatusBurning`, `StatusWeightless` are all character `Instance:SetAttribute` values — confirming Roblox's attribute API behaves as expected is a prerequisite for trusting the live ability effects.
+- These tests verify the attribute contracts that game state depends on: `HeatStacks`, `StatusBurning`, `StatusWeightless` are all character `Instance:SetAttribute` values ï¿½ confirming Roblox's attribute API behaves as expected is a prerequisite for trusting the live ability effects.
 - Afterimage test confirms the synchronous side-effect path of `task.spawn` fires within the same frame, which is the core timing assumption of AshenStep's particle trail.
 
 ### Spec Gaps Encountered
-- `HitboxService.CreateHitbox.OnHit` is physics-driven and not invocable in synchronous unit tests — full OnHit behaviour (HeatStacks increment, StatusWeightless application) must be verified in Roblox Studio manual test.
+- `HitboxService.CreateHitbox.OnHit` is physics-driven and not invocable in synchronous unit tests ï¿½ full OnHit behaviour (HeatStacks increment, StatusWeightless application) must be verified in Roblox Studio manual test.
 
 ### Tech Debt Created
 - None.
 
 ### Next Session Should Start On
-Issue #173: Progression system (ProgressionService, XP/level flow, rank gate) — first unblocked Phase 4 milestone.
+Issue #173: Progression system (ProgressionService, XP/level flow, rank gate) ï¿½ first unblocked Phase 4 milestone.
 
-## Session NF-065: Aspect System Integration — EffectRunner + PassiveSystem
+## Session NF-065: Aspect System Integration ï¿½ EffectRunner + PassiveSystem
 **Date:** 2026-06-17
-**Issues:** #168 (BOM — closed, never existed), #169 (feint-cancel — closed, already fixed), #170 (EffectRunner + PassiveSystem — implemented and closed)
+**Issues:** #168 (BOM ï¿½ closed, never existed), #169 (feint-cancel ï¿½ closed, already fixed), #170 (EffectRunner + PassiveSystem ï¿½ implemented and closed)
 
 ### What Was Built
-- **`src/shared/types/EffectTypes.lua`** — Shared type exports: `EffectDef`, `EffectContext`, `HitContext`, `EffectEvent`. Used by EffectRunner and ability files.
-- **`src/server/services/AbilityValidator.lua`** — Stateless `ValidateUse(player, abilityDef)`: checks alive, state gate, mana, cooldown (via character attribute `CD_<id>`), root position. Returns `(ok, reason, context)`.
-- **`src/server/services/PassiveSystem.lua`** — `ApplyHooks(stage, event)`: collects active passives for the caster (currently all `Type="Passive"` from AbilityRegistry), applies tag + kind filter checks, runs `Multiply / Add / Cancel` modifiers against `event.computedDamage` / `event.computedPosture`.
-- **`src/server/services/EffectRunner.lua`** — `Register(kind, fn)` + `Run(effectDef, eventCtx, hitCtx, passiveSystem)`. Pipeline: BeforeEffect hooks ? handler ? AfterEffect hooks. PassiveSystem injected at runtime to break circular require.
-- **`src/server/services/EffectHandlers.lua`** — `RegisterAll(effectRunner, postureService)` registers five handlers: `Damage` (HP via IncomingHPDamage attribute + stat scaling), `PostureDamage` (via PostureService.DrainPosture), `ApplyStatus` (sets `Status_<id>` attribute + auto-clear), `Knockback` (AssemblyLinearVelocity impulse), `Heal` (Humanoid.Health direct add). VFX are stubs.
-- **`src/server/services/AbilitySystem.lua`** — now requires EffectRunner + AbilityValidator. `HandleUseAbility` calls `AbilityValidator.ValidateUse()`, then iterates `ability.effects` through `EffectRunner:Run()`, then calls `OnActivate` (always — handles movement/VFX not expressible as EffectDef).
-- **`src/shared/types/AspectTypes.lua`** — Added `effects: {any}?` optional field to `AspectAbility` (backward-compatible).
-- **`src/shared/abilities/Ash.lua`** — AshenStep proof-of-concept: `effects = {{ kind="PostureDamage", postureBase=15, tags={"Expression","Ash"} }}`. OnActivate still runs for dash + afterimage VFX.
-- **`src/server/runtime/init.lua`** — EffectRunner + PassiveSystem added to explicit `startOrder`; `EffectHandlers.RegisterAll(services.EffectRunner, services.PostureService)` called after all services start.
-- **`src/client/controllers/ActionController.lua`** — Dodge base distance tuned to 20 studs.
+- **`src/shared/types/EffectTypes.lua`** ï¿½ Shared type exports: `EffectDef`, `EffectContext`, `HitContext`, `EffectEvent`. Used by EffectRunner and ability files.
+- **`src/server/services/AbilityValidator.lua`** ï¿½ Stateless `ValidateUse(player, abilityDef)`: checks alive, state gate, mana, cooldown (via character attribute `CD_<id>`), root position. Returns `(ok, reason, context)`.
+- **`src/server/services/PassiveSystem.lua`** ï¿½ `ApplyHooks(stage, event)`: collects active passives for the caster (currently all `Type="Passive"` from AbilityRegistry), applies tag + kind filter checks, runs `Multiply / Add / Cancel` modifiers against `event.computedDamage` / `event.computedPosture`.
+- **`src/server/services/EffectRunner.lua`** ï¿½ `Register(kind, fn)` + `Run(effectDef, eventCtx, hitCtx, passiveSystem)`. Pipeline: BeforeEffect hooks ? handler ? AfterEffect hooks. PassiveSystem injected at runtime to break circular require.
+- **`src/server/services/EffectHandlers.lua`** ï¿½ `RegisterAll(effectRunner, postureService)` registers five handlers: `Damage` (HP via IncomingHPDamage attribute + stat scaling), `PostureDamage` (via PostureService.DrainPosture), `ApplyStatus` (sets `Status_<id>` attribute + auto-clear), `Knockback` (AssemblyLinearVelocity impulse), `Heal` (Humanoid.Health direct add). VFX are stubs.
+- **`src/server/services/AbilitySystem.lua`** ï¿½ now requires EffectRunner + AbilityValidator. `HandleUseAbility` calls `AbilityValidator.ValidateUse()`, then iterates `ability.effects` through `EffectRunner:Run()`, then calls `OnActivate` (always ï¿½ handles movement/VFX not expressible as EffectDef).
+- **`src/shared/types/AspectTypes.lua`** ï¿½ Added `effects: {any}?` optional field to `AspectAbility` (backward-compatible).
+- **`src/shared/abilities/Ash.lua`** ï¿½ AshenStep proof-of-concept: `effects = {{ kind="PostureDamage", postureBase=15, tags={"Expression","Ash"} }}`. OnActivate still runs for dash + afterimage VFX.
+- **`src/server/runtime/init.lua`** ï¿½ EffectRunner + PassiveSystem added to explicit `startOrder`; `EffectHandlers.RegisterAll(services.EffectRunner, services.PostureService)` called after all services start.
+- **`src/client/controllers/ActionController.lua`** ï¿½ Dodge base distance tuned to 20 studs.
 
 ### Integration Points
 - Full aspect ability cast flow: `AbilityCastRequest ? AbilitySystem._onCastRequest ? AbilityValidator.ValidateUse() ? EffectRunner:Run() for each effectDef ? PassiveSystem BeforeEffect/AfterEffect ? EffectHandlers[kind] ? OnActivate`
@@ -230,11 +255,11 @@ Issue #173: Progression system (ProgressionService, XP/level flow, rank gate) — 
 - None new.
 
 ### Tech Debt Created
-- `PassiveSystem._getActivePassives` returns all `Type="Passive"` abilities regardless of player's equipped weapon — TODO filter by equipped weapon ID once WeaponService lookup is stable (noted in PassiveSystem with `-- TODO` comment)
-- EffectHandlers Damage handler uses character attribute `IncomingHPDamage` pipeline — requires CombatService `_ProcessDamageAttributes` to be polling on Heartbeat (verify in Studio)
+- `PassiveSystem._getActivePassives` returns all `Type="Passive"` abilities regardless of player's equipped weapon ï¿½ TODO filter by equipped weapon ID once WeaponService lookup is stable (noted in PassiveSystem with `-- TODO` comment)
+- EffectHandlers Damage handler uses character attribute `IncomingHPDamage` pipeline ï¿½ requires CombatService `_ProcessDamageAttributes` to be polling on Heartbeat (verify in Studio)
 
 ### Next Session Should Start On
-Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
+Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays ï¿½ whichever is prioritized.
 
 
 ## Session NF-066: Feint Input & Cancellation API
@@ -253,16 +278,16 @@ Issue #82 (Phase 4: Ring structure + world progression) or migration of remainin
 - Tests already exercise the new API.
 
 ### Next Session Should Start On
-Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays — whichever is prioritized.
+Issue #82 (Phase 4: Ring structure + world progression) or migration of remaining Ash/Tide/Ember/Gale/Void moves to data-driven `effects[]` arrays ï¿½ whichever is prioritized.
 
 ---
 
-## Session NF-067: Refined Feint System — Early-Cancel + Damage Delay
+## Session NF-067: Refined Feint System ï¿½ Early-Cancel + Damage Delay
 **Date:** 2026-03-09
 **Issues:** #169 (refinement follow-up), continuation of feint mechanics
 
 ### What Was Built
-- **`src/client/controllers/ActionController.lua`** — Comprehensive refactor of feint system:
+- **`src/client/controllers/ActionController.lua`** ï¿½ Comprehensive refactor of feint system:
   - Added `CanFeint: boolean = false` module-scope flag. Set to `true` at attack start, set to `false` when hitbox spawns.
   - In `_PlayActionLocal`, added: `if config.Type == "Attack" then CanFeint = true end` to enable feint window.
   - In hitbox spawn `task.delay()`, added: `CanFeint = false` right before creating hitbox config. This locks out feints once hitbox is queued.
@@ -273,8 +298,8 @@ Issue #82 (Phase 4: Ring structure + world progression) or migration of remainin
 - **Feint Window**: From action start until `hitTime` (when hitbox is created). Easy double-feint or chain until then.
 - **Commit Window**: After hitbox spawn until damage is applied (0.08s). Client-side cancellation (stun, interrupt) can still null the hit via the re-check in task.delay.
 - **Tuning Parameters**:
-  - `DAMAGE_DELAY = 0.08` — Adjustable per swing preference (0.06–0.12 range typical).
-  - `config.HitStartFrame` — Controls when hitbox spawns (0.25–0.35 typical for melee feel).
+  - `DAMAGE_DELAY = 0.08` ï¿½ Adjustable per swing preference (0.06ï¿½0.12 range typical).
+  - `config.HitStartFrame` ï¿½ Controls when hitbox spawns (0.25ï¿½0.35 typical for melee feel).
 - Feelwise: hitbox appears early (visual contact), damage happens slightly later (server has time to validate), full cancel still possible during commit window.
 
 ### Integration Points
@@ -298,28 +323,28 @@ Issue #82 (Phase 4: Ring structure) or extended feint tests (multi-feint spam, f
 
 ## Session NF-064: WeaponService.HandleAttackRequest, Combo Input, Weapon Scaling
 **Date:** 2026-03-11
-**Issues:** #171 (weapon-attack pipeline — completing remaining acceptance criteria)
+**Issues:** #171 (weapon-attack pipeline ï¿½ completing remaining acceptance criteria)
 
 ### What Was Built
-- **`src/server/services/WeaponService.lua`** — Added `HandleAttackRequest(player, packet)`: full server-side attack pipeline (100ms rate gate, weapon-id match via `GetEquipped()`, 3s timestamp sanity, state guard, Box hitbox from weapon's `Range`/`BaseDamage`, `CombatService.ValidateHit` in `OnHit`, `AttackResult` reply via `NetworkProvider`). Added lazy requires for `CombatService` and `HitboxService` to avoid circular deps. Added `MIN_SWING_INTERVAL = 0.10` constant.
-- **`src/server/runtime/init.lua`** — Replaced buggy inline `WeaponAttackRequest` handler (called non-existent `GetEquippedWeaponId` method) with a clean packet-shape validator that delegates to `WeaponService.HandleAttackRequest`. Removed `CombatService` guard from the `if` condition (no longer needed at runtime level).
-- **`src/client/controllers/WeaponController.lua`** — Added combo state vars (`_comboIndex`, `_lastAttackTime`, `_comboResetTime = 0.8`). Added `SetWeapon(weaponId?)` (sets held weapon, resets combo). Added `BindInputs()` (M1 ? Light, M2 ? Heavy via `_tryAttack`). `_tryAttack` advances combo index through `LightSequence` length and calls `PlaySwing()`. `BindInputs()` now called from `Start()`.
-- **`src/server/services/AspectService.lua`** — Lazily requires `WeaponService`; adds top-level `WeaponRegistry` require. In `ExecuteAbility`, computes `scaledDamage = BaseDamage + weapon.BaseDamage * WeaponScale` when `ability.ScaleWithWeapon` is true. Replaced all 4 hardcoded `ability.BaseDamage` references in AoE/single hitbox creation and `ValidateHit` calls with `scaledDamage`.
+- **`src/server/services/WeaponService.lua`** ï¿½ Added `HandleAttackRequest(player, packet)`: full server-side attack pipeline (100ms rate gate, weapon-id match via `GetEquipped()`, 3s timestamp sanity, state guard, Box hitbox from weapon's `Range`/`BaseDamage`, `CombatService.ValidateHit` in `OnHit`, `AttackResult` reply via `NetworkProvider`). Added lazy requires for `CombatService` and `HitboxService` to avoid circular deps. Added `MIN_SWING_INTERVAL = 0.10` constant.
+- **`src/server/runtime/init.lua`** ï¿½ Replaced buggy inline `WeaponAttackRequest` handler (called non-existent `GetEquippedWeaponId` method) with a clean packet-shape validator that delegates to `WeaponService.HandleAttackRequest`. Removed `CombatService` guard from the `if` condition (no longer needed at runtime level).
+- **`src/client/controllers/WeaponController.lua`** ï¿½ Added combo state vars (`_comboIndex`, `_lastAttackTime`, `_comboResetTime = 0.8`). Added `SetWeapon(weaponId?)` (sets held weapon, resets combo). Added `BindInputs()` (M1 ? Light, M2 ? Heavy via `_tryAttack`). `_tryAttack` advances combo index through `LightSequence` length and calls `PlaySwing()`. `BindInputs()` now called from `Start()`.
+- **`src/server/services/AspectService.lua`** ï¿½ Lazily requires `WeaponService`; adds top-level `WeaponRegistry` require. In `ExecuteAbility`, computes `scaledDamage = BaseDamage + weapon.BaseDamage * WeaponScale` when `ability.ScaleWithWeapon` is true. Replaced all 4 hardcoded `ability.BaseDamage` references in AoE/single hitbox creation and `ValidateHit` calls with `scaledDamage`.
 
 ### Integration Points
 - `WeaponService.HandleAttackRequest` is the canonical entry point for all melee swings; the runtime just validates packet shape and delegates.
-- `WeaponController.BindInputs` activates on `Start()` — M1/M2 are live from game launch.
+- `WeaponController.BindInputs` activates on `Start()` ï¿½ M1/M2 are live from game launch.
 - `AspectService.ExecuteAbility` now supports weapon-amplified ability damage when abilities set `ScaleWithWeapon = true` and `WeaponScale = 0.5`.
 
 ### Spec Gaps Encountered
-- None new — all placeholders from NF-063 carried forward unchanged.
+- None new ï¿½ all placeholders from NF-063 carried forward unchanged.
 
 ### Tech Debt Created
-- `BindInputs()` does not unbind on character death/respawn — connections accumulate if called multiple times (currently safe since it's called once). Tracked as future cleanup.
-- Hitbox `Shape = "Box"` used for melee — a cone or capsule would be more accurate; deferred to art/feel pass.
+- `BindInputs()` does not unbind on character death/respawn ï¿½ connections accumulate if called multiple times (currently safe since it's called once). Tracked as future cleanup.
+- Hitbox `Shape = "Box"` used for melee ï¿½ a cone or capsule would be more accurate; deferred to art/feel pass.
 
 ### Next Session Should Start On
-Issue #82 (Phase 4 progression system) or a new issue for real ability implementations at Depth 1 per Aspect — whichever the user prioritizes.
+Issue #82 (Phase 4 progression system) or a new issue for real ability implementations at Depth 1 per Aspect ï¿½ whichever the user prioritizes.
 
 
 ## Session NF-063: Weapon-Attack Pipeline & Registry Class Index
@@ -327,13 +352,13 @@ Issue #82 (Phase 4 progression system) or a new issue for real ability implement
 **Issues:** #171 (weapon-attack pipeline, movement modifiers, WeaponRegistry class index)
 
 ### What Was Built
-- **`src/shared/types/WeaponTypes.lua`** — Added optional fields to `WeaponConfig`: `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HeavyWindup`, `HitWindowStart`, `HitWindowEnd`, `Class`, `OnEquipClient`, `OnUnequipClient`.
-- **`src/shared/modules/WeaponRegistry.lua`** — Replaced flat `GetChildren()` scan with a recursive `_DiscoverFolder()` that walks sub-folders. Added `_byClass` index and `GetClass(class)` public API. Fixed `_Reload()` to clear `_byClass`.
-- **`src/shared/types/NetworkTypes.lua`** — Added `WeaponAttackRequest` and `AttackResult` to the `NetworkEvent` union; added `WeaponAttackRequestPacket` and `AttackResultPacket` type exports; registered EVENT_METADATA entries for both.
-- **`src/server/services/CombatService.lua`** — Added movement-state modifiers in `ValidateHit()`: Sliding target ? 50% posture damage; WallRunning ? TODO stub.
-- **`src/server/runtime/init.lua`** — Registered `WeaponAttackRequest` server handler: validates packet, checks equipped weapon match, timestamp sanity, state guard, then calls `CombatService.ValidateHit()` and fires `AttackResult` back to client.
-- **`src/client/controllers/WeaponController.lua`** — Added `PlaySwing(attackType, sequenceIndex)` public function; fires `WeaponAttackRequest` RemoteEvent with weapon id, attack type, sequence index, client time, and camera aim data.
-- **`src/shared/weapons/Sword/IronSabre.lua`** *(new)* — Reference weapon under the `Sword` class. Demonstrates all new fields: `Class`, `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HitWindowStart/End`, `OnEquipClient/OnUnequipClient` stubs.
+- **`src/shared/types/WeaponTypes.lua`** ï¿½ Added optional fields to `WeaponConfig`: `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HeavyWindup`, `HitWindowStart`, `HitWindowEnd`, `Class`, `OnEquipClient`, `OnUnequipClient`.
+- **`src/shared/modules/WeaponRegistry.lua`** ï¿½ Replaced flat `GetChildren()` scan with a recursive `_DiscoverFolder()` that walks sub-folders. Added `_byClass` index and `GetClass(class)` public API. Fixed `_Reload()` to clear `_byClass`.
+- **`src/shared/types/NetworkTypes.lua`** ï¿½ Added `WeaponAttackRequest` and `AttackResult` to the `NetworkEvent` union; added `WeaponAttackRequestPacket` and `AttackResultPacket` type exports; registered EVENT_METADATA entries for both.
+- **`src/server/services/CombatService.lua`** ï¿½ Added movement-state modifiers in `ValidateHit()`: Sliding target ? 50% posture damage; WallRunning ? TODO stub.
+- **`src/server/runtime/init.lua`** ï¿½ Registered `WeaponAttackRequest` server handler: validates packet, checks equipped weapon match, timestamp sanity, state guard, then calls `CombatService.ValidateHit()` and fires `AttackResult` back to client.
+- **`src/client/controllers/WeaponController.lua`** ï¿½ Added `PlaySwing(attackType, sequenceIndex)` public function; fires `WeaponAttackRequest` RemoteEvent with weapon id, attack type, sequence index, client time, and camera aim data.
+- **`src/shared/weapons/Sword/IronSabre.lua`** *(new)* ï¿½ Reference weapon under the `Sword` class. Demonstrates all new fields: `Class`, `PostureDamage`, `HeavyPostureDamage`, `StaminaCost`, `LightSequence`, `HitWindowStart/End`, `OnEquipClient/OnUnequipClient` stubs.
 
 ### Integration Points
 - `WeaponRegistry.GetClass("Sword")` now returns all configs registered under the Sword sub-folder.
@@ -341,7 +366,7 @@ Issue #82 (Phase 4 progression system) or a new issue for real ability implement
 - Sliding state modifier wires into the existing `StateService`/blackboard pipeline with no new dependencies.
 
 ### Spec Gaps Encountered
-- `BaseDamage` used in the server handler as the raw damage value (per existing schema) — `Damage` field does not exist.
+- `BaseDamage` used in the server handler as the raw damage value (per existing schema) ï¿½ `Damage` field does not exist.
 - WallRunning hitstun increase deferred: no wall-run state is currently emitted by MovementService. Created comment stub in CombatService.
 
 ### Tech Debt Created
@@ -349,15 +374,15 @@ Issue #82 (Phase 4 progression system) or a new issue for real ability implement
 - `WeaponAttackRequest` handler resolves hits without spatial hitbox validation; actual hitbox intersection from weapon config is a follow-up (requires server-side hitbox creation).
 
 ### Next Session Should Start On
-Issue #171 follow-up or Issue #82: Phase 4 world progression — whichever is highest priority.
+Issue #171 follow-up or Issue #82: Phase 4 world progression ï¿½ whichever is highest priority.
 
 
 **Date:** 2026-03-09
 **Issues:** #199 (dodge flinging into walls)
 
 ### What Was Built
-- **src/client/controllers/MovementController.lua** — Updated ApplyImpulse to return 	rue, lv (the actual spawned BodyVelocity object) so that callers can explicitly destroy the forces instead of waiting for a blind timed out expiry.
-- **src/client/controllers/ActionController.lua** — Fixed Roblox solver instability during dodging into walls. Previously, the engine fought between an infinitely strong BodyVelocity pushing the player into the wall and an OnFrame hook attempting to zero .AssemblyLinearVelocity. Now, as soon as ActionController detects a raycast or overlapping wall collision, it searches for the tag _impulse_dodge and actively :Destroy()s it, snapping the player slightly out of the wall structure (lastSafeCFrame).
+- **src/client/controllers/MovementController.lua** ï¿½ Updated ApplyImpulse to return 	rue, lv (the actual spawned BodyVelocity object) so that callers can explicitly destroy the forces instead of waiting for a blind timed out expiry.
+- **src/client/controllers/ActionController.lua** ï¿½ Fixed Roblox solver instability during dodging into walls. Previously, the engine fought between an infinitely strong BodyVelocity pushing the player into the wall and an OnFrame hook attempting to zero .AssemblyLinearVelocity. Now, as soon as ActionController detects a raycast or overlapping wall collision, it searches for the tag _impulse_dodge and actively :Destroy()s it, snapping the player slightly out of the wall structure (lastSafeCFrame).
 
 ### Integration Points
 - This ensures fluid collision limits for both dodging and sliding without physics desynchronization rendering the character invisible or launching them.
@@ -371,9 +396,9 @@ Issue #82: Phase 4 world progression.
 **Issues:** #169 (feinting allows damage), DummyService compilation error
 
 ### What Was Built
-- **`src/server/services/DummyService.lua`** — Fixed missing `end` statement in knockback gating logic (line 531). The `if attackerPosition then` block wasn't properly closed, causing compilation failure.
-- **`src/shared/types/ActionTypes.lua`** — Added `IsCanceled: boolean` field to Action type. Set to true when action is canceled early (feint/interrupt).
-- **`src/client/controllers/ActionController.lua`** — Implemented feinting damage prevention:
+- **`src/server/services/DummyService.lua`** ï¿½ Fixed missing `end` statement in knockback gating logic (line 531). The `if attackerPosition then` block wasn't properly closed, causing compilation failure.
+- **`src/shared/types/ActionTypes.lua`** ï¿½ Added `IsCanceled: boolean` field to Action type. Set to true when action is canceled early (feint/interrupt).
+- **`src/client/controllers/ActionController.lua`** ï¿½ Implemented feinting damage prevention:
   - Action initialization now sets `IsCanceled = false` 
   - Early cancel window (CancelFrame-triggered interrupt) now sets `action.IsCanceled = true`
   - OnHit callback checks `if action.IsCanceled then` and returns early, preventing HitRequest from being sent to server
@@ -385,7 +410,7 @@ Issue #82: Phase 4 world progression.
 - Works for all action types (melee attacks, abilities) since all go through _PlayActionLocal
 
 ### Spec Gaps Encountered
-- None — feinting mechanism was already implemented via CancelFrame; this just adds the cancel marker
+- None ï¿½ feinting mechanism was already implemented via CancelFrame; this just adds the cancel marker
 
 ### Tech Debt Created
 - None
@@ -397,7 +422,7 @@ Issue #82: Phase 4 world progression.
 - m1 ? m2 (cancel at CancelFrame) ? chained attack (legal) ? both hit ?
 
 ### Next Session Should Start On
-Issue #82: `feat(world): Ring structure + Luminance drain zones` — if no further combat polish needed, move to Phase 4 world progression.
+Issue #82: `feat(world): Ring structure + Luminance drain zones` ï¿½ if no further combat polish needed, move to Phase 4 world progression.
 
 ---
 
@@ -406,42 +431,42 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — if no further
 **Issues:** #59 (unified combat system)
 
 ### What Was Built
-- **`src/shared/modules/CombatBlackboard.lua`** — Added `IsCasting`, `ComboCount`, `ComboExpiry`, `LastActionType` fields so all combat controllers share spell/melee state.
-- **`src/client/controllers/ActionController.lua`** — Core of the session:
+- **`src/shared/modules/CombatBlackboard.lua`** ï¿½ Added `IsCasting`, `ComboCount`, `ComboExpiry`, `LastActionType` fields so all combat controllers share spell/melee state.
+- **`src/client/controllers/ActionController.lua`** ï¿½ Core of the session:
   - Added `CombatBlackboard` import.
   - Queue logic now allows `"Ability"` type alongside `"Attack"` and `"Dodge"`.
   - `_PlayActionLocal`: sets `CombatBlackboard.IsCasting = true` and `LastActionType` on ability start; clears `IsCasting` in `action.Cleanup`.
-  - `PlayAbilityAction(abilityId, targetPos)` — new public function that creates an `ActionConfig{Type="Ability", Duration=0.55, CancelFrame=0.65}` and fires it through `PlayAction`.
+  - `PlayAbilityAction(abilityId, targetPos)` ï¿½ new public function that creates an `ActionConfig{Type="Ability", Duration=0.55, CancelFrame=0.65}` and fires it through `PlayAction`.
     *Spell casts now increment the combo counter and update the blackboard, so ability-to-ability and ability-to-melee chains truly advance the combo sequence.*
     *Refreshing `LastComboTime` ensures the melee combo window stays alive through a cast.*
-  - `GetComboCount()` — exposes current combo depth for external readers.
-- **`src/client/controllers/CombatController.lua`** — Casting state added to `_stateModules` (inline stub; no dedicated module needed). `_resolveActiveState` priority: Stunned > Attack > **Casting** > Block > Idle. `NotifyActionStarted/Ended` handle `"Ability"` type for `IsCasting`.
-- **`src/client/controllers/InventoryController.lua`** — `_onHotbarActivate` and `_onBagClick` ability paths now route through `ActionController.PlayAbilityAction` instead of direct `FireServer`. Falls back to direct fire if ActionController unavailable. Stored as `self._actionController` from Init dependencies.
-- **`src/client/controllers/AspectController.lua`** — Added `ASPECT_ABILITY_MAP` (Ash?AshenStep, Tide?Current, Ember?Ignite, Gale?WindStrike, Void?Blink). E key in `_onKeyInput` fires current aspect's Depth-1 ability via `ActionController.PlayAbilityAction`. Reads `ActionController` from dependencies.
-- **`src/client/runtime/init.lua`** — `ActionController` added to the shared `dependencies` table so InventoryController and AspectController receive it during Init.
-- **`src/server/services/CombatService.lua`** & **`src/server/services/DummyService.lua`** — dummy knockback is now gated by `hitData.IsFinisher` (m1s no longer push training dummies); CombatService also passes nil to `ApplyDamage()` for non-finisher swings.
-- **`src/client/controllers/ActionController.lua`** — ability casts increment combo counters and keep CombatBlackboard in sync (supports spell?spell chaining).
+  - `GetComboCount()` ï¿½ exposes current combo depth for external readers.
+- **`src/client/controllers/CombatController.lua`** ï¿½ Casting state added to `_stateModules` (inline stub; no dedicated module needed). `_resolveActiveState` priority: Stunned > Attack > **Casting** > Block > Idle. `NotifyActionStarted/Ended` handle `"Ability"` type for `IsCasting`.
+- **`src/client/controllers/InventoryController.lua`** ï¿½ `_onHotbarActivate` and `_onBagClick` ability paths now route through `ActionController.PlayAbilityAction` instead of direct `FireServer`. Falls back to direct fire if ActionController unavailable. Stored as `self._actionController` from Init dependencies.
+- **`src/client/controllers/AspectController.lua`** ï¿½ Added `ASPECT_ABILITY_MAP` (Ash?AshenStep, Tide?Current, Ember?Ignite, Gale?WindStrike, Void?Blink). E key in `_onKeyInput` fires current aspect's Depth-1 ability via `ActionController.PlayAbilityAction`. Reads `ActionController` from dependencies.
+- **`src/client/runtime/init.lua`** ï¿½ `ActionController` added to the shared `dependencies` table so InventoryController and AspectController receive it during Init.
+- **`src/server/services/CombatService.lua`** & **`src/server/services/DummyService.lua`** ï¿½ dummy knockback is now gated by `hitData.IsFinisher` (m1s no longer push training dummies); CombatService also passes nil to `ApplyDamage()` for non-finisher swings.
+- **`src/client/controllers/ActionController.lua`** ï¿½ ability casts increment combo counters and keep CombatBlackboard in sync (supports spell?spell chaining).
 ### Integration Points
 - Melee ? spell ? melee: all chain through ActionController's cancel-window system (`CancelFrame=0.65` for spells).
-- Server-side damage untouched — ability still fires `AbilityCastRequest` RemoteEvent from `OnStart` callback inside the queued action, so it only fires when the action actually executes (not when queued).
+- Server-side damage untouched ï¿½ ability still fires `AbilityCastRequest` RemoteEvent from `OnStart` callback inside the queued action, so it only fires when the action actually executes (not when queued).
 - `LastComboTime` is refreshed on ability cast, so a spell mid-combo does not break the melee chain.
 
 ### Spec Gaps Encountered
-- None — all ability IDs were already established in AspectRegistry.
+- None ï¿½ all ability IDs were already established in AspectRegistry.
 
 ### Tech Debt Created
 - Casting state in CombatController is an inline stub; a dedicated `CastingState.lua` module would be cleaner but isn't needed until animation hooks are added.
 
 ### Next Session Should Start On
-Issue #82: `feat(world): Ring structure + Luminance drain zones` — world progression layer is the next unblocked Phase 4 work.
+Issue #82: `feat(world): Ring structure + Luminance drain zones` ï¿½ world progression layer is the next unblocked Phase 4 work.
 
 ## Session NF-061: Slide collision and fling bugfix
 **Date:** 2026-03-09  
 **Issues:** #?? (placeholder for user report)
 
 ### What Was Built
-- **`src/shared/movement/states/SlideState.lua`** — added raycast-based obstacle detection during slides, early rejection when an object is immediately ahead, and zeroed horizontal velocity when a slide stops. Prevents phasing through geometry and stops the character from being flung when colliding with objects or other players/dummies.
-- **`tests/unit/MovementController.test.lua`** — new unit tests covering the collision behaviour, velocity zeroing on slide stop, and early obstacle rejection.
+- **`src/shared/movement/states/SlideState.lua`** ï¿½ added raycast-based obstacle detection during slides, early rejection when an object is immediately ahead, and zeroed horizontal velocity when a slide stops. Prevents phasing through geometry and stops the character from being flung when colliding with objects or other players/dummies.
+- **`tests/unit/MovementController.test.lua`** ï¿½ new unit tests covering the collision behaviour, velocity zeroing on slide stop, and early obstacle rejection.
 
 ### Integration Points
 - SlideState now proactively stops slides on collision and informs MovementController via Blackboard flags.
@@ -454,7 +479,7 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — world progres
 - Could later refactor collision logic into a shared utility if other movement states need similar checks.
 
 ### Next Session Should Start On
-Issue #[NUMBER]: [TITLE] — choose the next unblocked task (e.g., continue world progression or inventory UI)
+Issue #[NUMBER]: [TITLE] ï¿½ choose the next unblocked task (e.g., continue world progression or inventory UI)
 
 ---
 
@@ -463,12 +488,12 @@ Issue #[NUMBER]: [TITLE] — choose the next unblocked task (e.g., continue world 
 **Issues:** #?? (follow-up to rolling bug report)
 
 ### What Was Built
-- **`src/client/controllers/ActionController.lua`** — rewrote dodge handling:
+- **`src/client/controllers/ActionController.lua`** ï¿½ rewrote dodge handling:
   * Removed previous `CanCollide` disable logic (rolls now collide normally).
   * Added early raycast check to cancel rolls that would start inside a wall.
   * Added per-frame raycast and touching-parts checks to zero horizontal velocity when hitting walls, characters, or dummies.
   * Kept last-safe-CFrame recovery to avoid getting stuck inside geometry on roll end.
-- **`tests/unit/ActionController.test.lua`** — new unit tests verifying dodge cancellation when a wall is immediately ahead and velocity zeroing when touching external parts.
+- **`tests/unit/ActionController.test.lua`** ï¿½ new unit tests verifying dodge cancellation when a wall is immediately ahead and velocity zeroing when touching external parts.
 
 ### Integration Points
 - Dodge actions now respect collisions like every other movement state; phasing through walls is eliminated while still preventing fling on impact.
@@ -482,7 +507,7 @@ Issue #[NUMBER]: [TITLE] — choose the next unblocked task (e.g., continue world 
 - None; previous collision-disable code removed, simplifying roll logic.
 
 ### Next Session Should Start On
-Issue #[NUMBER]: [TITLE] — continue Phase 4 or other pending work.
+Issue #[NUMBER]: [TITLE] ï¿½ continue Phaseï¿½4 or other pending work.
 
 ---
 
@@ -491,30 +516,30 @@ Issue #[NUMBER]: [TITLE] — continue Phase 4 or other pending work.
 **Issues:** #146 (ability bar HUD)
 
 ### What Was Built
-- **`src/client/controllers/PlayerHUDController.lua`** — Removed entire ability bar system: `AspectController` injection, `ABILITY_KEYS`/`ABILITY_KEY_LABELS` tables, `_slotFrames`/`_slotOverlays`/`_slotNameLabels`/`_slotTimeLabels` arrays, `createAbilityBar()` function, `updateAbilityBar()` function (the crash source), and all associated `Heartbeat` connection + `Shutdown()` cleanup. Root cause: NF-057 deleted `AspectController._keybinds` but `updateAbilityBar` still indexed it every frame ? `attempt to index nil with EnumItem` spam in output.
+- **`src/client/controllers/PlayerHUDController.lua`** ï¿½ Removed entire ability bar system: `AspectController` injection, `ABILITY_KEYS`/`ABILITY_KEY_LABELS` tables, `_slotFrames`/`_slotOverlays`/`_slotNameLabels`/`_slotTimeLabels` arrays, `createAbilityBar()` function, `updateAbilityBar()` function (the crash source), and all associated `Heartbeat` connection + `Shutdown()` cleanup. Root cause: NF-057 deleted `AspectController._keybinds` but `updateAbilityBar` still indexed it every frame ? `attempt to index nil with EnumItem` spam in output.
 
 ### Integration Points
-- `createAbilityBar()` was already commented out in `Start()` before this session — the UI was never built. Only the `Heartbeat:Connect(updateAbilityBar)` connection remained live, causing the crash.
-- Hotbar UI (slots 1–8 with cooldowns) is handled by `InventoryController` — no gap in player-facing ability display from this removal.
+- `createAbilityBar()` was already commented out in `Start()` before this session ï¿½ the UI was never built. Only the `Heartbeat:Connect(updateAbilityBar)` connection remained live, causing the crash.
+- Hotbar UI (slots 1ï¿½8 with cooldowns) is handled by `InventoryController` ï¿½ no gap in player-facing ability display from this removal.
 
 ### Spec Gaps Encountered
 - None
 
 ### Tech Debt Created
-- None — the removed code was dead apart from the crash.
+- None ï¿½ the removed code was dead apart from the crash.
 
 ### Next Session Should Start On
-BOM bug fix: strip U+FEFF from 5 aspect ability files (Ash, Tide, Ember, Gale, Void) — files fail to load, making aspect abilities non-functional. Then Issue #82: `feat(world): Ring structure + Luminance drain zones`.
+BOM bug fix: strip U+FEFF from 5 aspect ability files (Ash, Tide, Ember, Gale, Void) ï¿½ files fail to load, making aspect abilities non-functional. Then Issue #82: `feat(world): Ring structure + Luminance drain zones`.
 
 ---
 
-## Session NF-057: Remove direct ability keybinds — hotbar-only activation
+## Session NF-057: Remove direct ability keybinds ï¿½ hotbar-only activation
 **Date:** 2026-03-09
-**Issues:** NF-057 (inline fix, no dedicated GitHub issue — single-file scope)
+**Issues:** NF-057 (inline fix, no dedicated GitHub issue ï¿½ single-file scope)
 
 ### What Was Built
-- **`src/client/controllers/AspectController.lua`** — Removed `_keybinds` table (Z/X/C/V ? nil map), removed `abilityId` branch from `_onKeyInput` (kept G ? `_cycleAspect()`), removed duplicate module-level `UserInputService.InputBegan` keybind block, removed `GetEquippedAbilities()` (only iterated `_keybinds`). Abilities are no longer directly triggerable by keyboard; all ability activation now flows exclusively through `InventoryController._onHotbarActivate` (hotbar slots 1–8).
-- **`src/client/controllers/ActionController.lua`** — Removed `E` key ? `UseAbility` RemoteEvent call. Weapon abilities are triggered only through the hotbar equip system.
+- **`src/client/controllers/AspectController.lua`** ï¿½ Removed `_keybinds` table (Z/X/C/V ? nil map), removed `abilityId` branch from `_onKeyInput` (kept G ? `_cycleAspect()`), removed duplicate module-level `UserInputService.InputBegan` keybind block, removed `GetEquippedAbilities()` (only iterated `_keybinds`). Abilities are no longer directly triggerable by keyboard; all ability activation now flows exclusively through `InventoryController._onHotbarActivate` (hotbar slots 1ï¿½8).
+- **`src/client/controllers/ActionController.lua`** ï¿½ Removed `E` key ? `UseAbility` RemoteEvent call. Weapon abilities are triggered only through the hotbar equip system.
 
 ### Integration Points
 - `InventoryController._onHotbarActivate` remains the single correct ability activation path: number key ? hotbar slot ? `AbilityCastRequest` (if ability) or weapon hold toggle (if weapon).
@@ -527,7 +552,7 @@ BOM bug fix: strip U+FEFF from 5 aspect ability files (Ash, Tide, Ember, Gale, V
 - None
 
 ### Next Session Should Start On
-Issue #82: `feat(world): Ring structure + Luminance drain zones` — next Phase 4 block. Otherwise check Epic #148 for any newly unblocked sub-issues.
+Issue #82: `feat(world): Ring structure + Luminance drain zones` ï¿½ next Phase 4 block. Otherwise check Epic #148 for any newly unblocked sub-issues.
 
 ---
 
@@ -536,14 +561,14 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — next Phase 4 
 **Issues:** #143, #147, #150, #107
 
 ### What Was Built
-- **`src/shared/types/HollowedTypes.lua`** *(new)* — Exports `HollowedConfig`, `HollowedState`, `HollowedData` for the Hollowed enemy system.
-- **`src/server/services/HollowedService.lua`** *(new)* — Full Ring-1 AI service: anchored-part rig, patrol/aggro/attack/dead state machine, Heartbeat loop throttled to 0.2 s/instance, `ApplyDamage` grants 25 Resonance to killer via `ProgressionService.GrantResonance(attacker, 25, "Hollowed")`, respawn after 12 s delay.
-- **`src/server/services/CombatService.lua`** — Added `isHollowed` flag parallel to `isDummy` throughout ValidateHit: target-find, self-hit check, targetData fetch, DamageReduction skip, block skip, damage dispatch (`HollowedService.ApplyDamage`), HitConfirmed NPC path, AbilitySystem abilityTarget.
-- **`src/server/runtime/init.lua`** — Added `"HollowedService"` to startOrder (after `"DeathService"`). Added `PostureService` to dependencies table so HollowedService receives it without lazy-require fallback.
-- **`tests/unit/HollowedService.test.lua`** *(new)* — 10 unit tests: spawn state, model in workspace, invalid config returns nil, damage reduces HP, HP clamps = 0, death sets Dead+IsActive=false, death grants correct Resonance, nil attacker no error, dead NPC returns false on second hit, multi-instance isolation.
-- **`src/client/controllers/WeaponController.lua`** *(commit 612c408, issue #147)* — Placeholder visual Part (PlaceholderBlade) welded to weapon Handle on Equip, removed on Unequip. Sized `0.2 × 0.2 × config.Range`, colored by WeightClass. Skips "fists".
-- **`src/server/DevWorldBootstrap.server.lua`** *(new, issue #107)* — Studio-only bootstrap: creates `ZoneTrigger_Ring1` slab (ZoneService auto-connects), `Ring1Ground` floor, 3 `HollowedSpawn` tagged Parts, `Ring1Entrance` pad. Guarded by `RunService:IsStudio()` — never runs in production.
-- **#150 audit** — All items (Y keybind, `set_aspect` admin command, `NetworkProvider:FireClient`, BloodRage requirement table, DebugSetAspect tests, BACKLOG.md heading) were already present from earlier sessions. Closed without code changes.
+- **`src/shared/types/HollowedTypes.lua`** *(new)* ï¿½ Exports `HollowedConfig`, `HollowedState`, `HollowedData` for the Hollowed enemy system.
+- **`src/server/services/HollowedService.lua`** *(new)* ï¿½ Full Ring-1 AI service: anchored-part rig, patrol/aggro/attack/dead state machine, Heartbeat loop throttled to 0.2 s/instance, `ApplyDamage` grants 25 Resonance to killer via `ProgressionService.GrantResonance(attacker, 25, "Hollowed")`, respawn after 12 s delay.
+- **`src/server/services/CombatService.lua`** ï¿½ Added `isHollowed` flag parallel to `isDummy` throughout ValidateHit: target-find, self-hit check, targetData fetch, DamageReduction skip, block skip, damage dispatch (`HollowedService.ApplyDamage`), HitConfirmed NPC path, AbilitySystem abilityTarget.
+- **`src/server/runtime/init.lua`** ï¿½ Added `"HollowedService"` to startOrder (after `"DeathService"`). Added `PostureService` to dependencies table so HollowedService receives it without lazy-require fallback.
+- **`tests/unit/HollowedService.test.lua`** *(new)* ï¿½ 10 unit tests: spawn state, model in workspace, invalid config returns nil, damage reduces HP, HP clamps = 0, death sets Dead+IsActive=false, death grants correct Resonance, nil attacker no error, dead NPC returns false on second hit, multi-instance isolation.
+- **`src/client/controllers/WeaponController.lua`** *(commit 612c408, issue #147)* ï¿½ Placeholder visual Part (PlaceholderBlade) welded to weapon Handle on Equip, removed on Unequip. Sized `0.2 ï¿½ 0.2 ï¿½ config.Range`, colored by WeightClass. Skips "fists".
+- **`src/server/DevWorldBootstrap.server.lua`** *(new, issue #107)* ï¿½ Studio-only bootstrap: creates `ZoneTrigger_Ring1` slab (ZoneService auto-connects), `Ring1Ground` floor, 3 `HollowedSpawn` tagged Parts, `Ring1Entrance` pad. Guarded by `RunService:IsStudio()` ï¿½ never runs in production.
+- **#150 audit** ï¿½ All items (Y keybind, `set_aspect` admin command, `NetworkProvider:FireClient`, BloodRage requirement table, DebugSetAspect tests, BACKLOG.md heading) were already present from earlier sessions. Closed without code changes.
 
 ### Integration Points
 - HollowedService ? CombatService: `isHollowed` flag enables player hitboxes to register damage on Hollowed models via the existing `ValidateHit` flow
@@ -555,29 +580,29 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — next Phase 4 
 - None new
 
 ### Tech Debt Created
-- Hollowed attack CFrame rotation uses a naive yaw-only formula (`_MoveModel` `rotDelta`), causes all body parts to rotate uniformly. Tracked — fix deferred until Motor6D rig or a proper orientation system. No visible bug for MVP.
-- DevWorldBootstrap geometry is placeholder — Ring-1 final art/geometry is a Studio authoring task outside code scope.
+- Hollowed attack CFrame rotation uses a naive yaw-only formula (`_MoveModel` `rotDelta`), causes all body parts to rotate uniformly. Tracked ï¿½ fix deferred until Motor6D rig or a proper orientation system. No visible bug for MVP.
+- DevWorldBootstrap geometry is placeholder ï¿½ Ring-1 final art/geometry is a Studio authoring task outside code scope.
 
 ### Next Session Should Start On
-Issue #82: `feat(world): Ring structure + Luminance drain zones` — next logical block for Phase 4, currently marked post-mvp. If MVP target shifts, start here. Otherwise check #148 Epic for any newly unblocked sub-issues.
+Issue #82: `feat(world): Ring structure + Luminance drain zones` ï¿½ next logical block for Phase 4, currently marked post-mvp. If MVP target shifts, start here. Otherwise check #148 Epic for any newly unblocked sub-issues.
 
 ---
 
-## Session NF-055: Public-server polish pass — ability dead code, stat wiring, security gates
+## Session NF-055: Public-server polish pass ï¿½ ability dead code, stat wiring, security gates
 **Date:** 2026-03-07
 **Issues:** #161, #162, #163, #164, #165, #166, #167
 
 ### What Was Built
-- **DebugInput.lua (#166):** All developer commands gated behind `RunService:IsStudio()`. Commands silently no-op in live servers — no exploit surface for non-developer players.
+- **DebugInput.lua (#166):** All developer commands gated behind `RunService:IsStudio()`. Commands silently no-op in live servers ï¿½ no exploit surface for non-developer players.
 - **DummyService.lua (#163):** Fixed structural corruption where service functions were defined inside other functions and therefore unreachable. Added `_IsPlayerAllowed` check using `CreatorId OR IsStudio()` to prevent public-server abuse of dummy spawn commands.
 - **AspectService.lua (#164):** Added 5-second rate limit on `SwitchAspect` to prevent rapid-spam cooldown-bypass. Registered `Players.PlayerRemoving` listener to clean up `_lastSwitchTime` table entries and prevent memory accumulation.
-- **ProgressionService.lua + MovementController.lua (#165):** Wired Agility stat to `humanoid:SetAttribute("BaseWalkSpeed", n)` and `humanoid.WalkSpeed` in `_applyStats`. MovementController `OnCharacterAdded` now reads `humanoid:GetAttribute("BaseWalkSpeed")` as the movement speed constant — Agility progression now actually affects how fast characters move.
+- **ProgressionService.lua + MovementController.lua (#165):** Wired Agility stat to `humanoid:SetAttribute("BaseWalkSpeed", n)` and `humanoid.WalkSpeed` in `_applyStats`. MovementController `OnCharacterAdded` now reads `humanoid:GetAttribute("BaseWalkSpeed")` as the movement speed constant ï¿½ Agility progression now actually affects how fast characters move.
 - **CombatFeedbackUI.lua (#167):** Added black-overlay death screen (TweenService fade) that activates when player health hits 0 / state transitions to Dead. Added Suppressed vignette (screen-edge glow) that activates on `Suppressed` attribute and auto-clears. Partial implementation of #144 death respawn flow.
 - **DefenseService.lua (#161):** `StartBlock` now applies `BLOCK_SPEED_REDUCTION (0.6)` to `humanoid.WalkSpeed`. `ReleaseBlock` restores to `BaseWalkSpeed` attribute value. Previously `GetBlockSpeedMultiplier()` existed but was never called anywhere.
 - **Ash.lua + Ember.lua + Gale.lua + Tide.lua + Void.lua (#162):** All 5 Aspect ability files had identical dead-code pattern: second VFX stubs section + duplicate helper functions + module-level `Aspect.OnActivate`/`ClientActivate` referencing undefined constants (e.g., `DASH_DISTANCE` vs the actual `WINDSTRIKE_DASH_DIST`). Under `--!strict` these caused type errors preventing module load. Removed dead code sections entirely (PowerShell file truncation to Moves table closing `}`). Additionally fixed Ember.lua `CinderField.OnActivate` which called `_applyHeatStack` with 4 args in wrong order vs the valid 5-parameter signature.
 
 ### Integration Points
-- Aspect ability files now load cleanly under `--!strict` — AspectService can require all 5 modules without type-check failures
+- Aspect ability files now load cleanly under `--!strict` ï¿½ AspectService can require all 5 modules without type-check failures
 - Block speed is now server-authoritative and consistent with ProgressionService's stat model
 - DebugInput and DummyService are now live-server safe
 - MovementController + ProgressionService form a complete Agility?speed pipeline
@@ -586,25 +611,25 @@ Issue #82: `feat(world): Ring structure + Luminance drain zones` — next logical 
 - None
 
 ### Tech Debt Created
-- Death respawn flow (#144) still needs: Ember Point respawn logic, shard deduction UI, admin cancel command — only the screen overlay was implemented
+- Death respawn flow (#144) still needs: Ember Point respawn logic, shard deduction UI, admin cancel command ï¿½ only the screen overlay was implemented
 
 ### Next Session Should Start On
-Issue #157: `refactor(posture): Invert posture model` — highest-priority open issue, directly enables correct HP/posture display
+Issue #157: `refactor(posture): Invert posture model` ï¿½ highest-priority open issue, directly enables correct HP/posture display
 
 ---
 
-## Session NF-054: Live-game bug sweep — cooldown epoch, climb phasing, breath drain
+## Session NF-054: Live-game bug sweep ï¿½ cooldown epoch, climb phasing, breath drain
 **Date:** 2026-03-07
 **Issues:** #158, #159, #160
 
 ### What Was Built
 - **AspectService.lua (GetCooldowns):** Changed from returning raw `profile.ActiveCooldowns` (absolute server tick() timestamps) to returning remaining duration per ability (`expiry - tick()`). Server/client tick() epochs differ by ~20,000 s in a live game ? raw timestamps appeared as ~20,000 s cooldowns.
-- **AspectController.lua (AbilityDataSync handler):** Reconstructs absolute expiry using `tick() + remaining` (local client epoch) instead of directly assigning the packet. AbilityCastResult path was already using local tick() correctly — no change needed there.
-- **ClimbState.lua (TryStart + Update + Exit):** Removed `RootPart.Anchored = true`. Replaced per-frame CFrame positional override in Update with `AssemblyLinearVelocity`-based movement (physics-simulated, collision active). Rotation/facing still updated via `CFrame.new(root.Position, lookAt)` (orientation only — no positional teleport). Initial CFrame snap in TryStart retained (one-time, safe). `Anchored = false` removed from Exit (was already the default).
+- **AspectController.lua (AbilityDataSync handler):** Reconstructs absolute expiry using `tick() + remaining` (local client epoch) instead of directly assigning the packet. AbilityCastResult path was already using local tick() correctly ï¿½ no change needed there.
+- **ClimbState.lua (TryStart + Update + Exit):** Removed `RootPart.Anchored = true`. Replaced per-frame CFrame positional override in Update with `AssemblyLinearVelocity`-based movement (physics-simulated, collision active). Rotation/facing still updated via `CFrame.new(root.Position, lookAt)` (orientation only ï¿½ no positional teleport). Initial CFrame snap in TryStart retained (one-time, safe). `Anchored = false` removed from Exit (was already the default).
 - **MovementController.lua (UpdateBreath):** Added `if Blackboard.IsClimbing then return end` guard matching the existing `IsWallRunning` guard. Without it, breath regenerated every frame during climb (negating ClimbState's per-frame DrainBreath calls).
 
 ### Integration Points
-- AspectService ? AspectController: cooldown sync now epoch-agnostic — works identically in Studio and live games
+- AspectService ? AspectController: cooldown sync now epoch-agnostic ï¿½ works identically in Studio and live games
 - ClimbState ? MovementController: breath drain/regen now consistent between WallRun and Climb states
 - ClimbState ? Roblox Physics: character participates in collision detection during climb (no more wall phasing)
 
@@ -615,7 +640,7 @@ Issue #157: `refactor(posture): Invert posture model` — highest-priority open is
 - None
 
 ### Next Session Should Start On
-Issue #157: Posture refactor (invert model) — highest-priority open issue, unblocked
+Issue #157: Posture refactor (invert model) ï¿½ highest-priority open issue, unblocked
 
 ---
 
@@ -2768,6 +2793,6 @@ Implement custom drag/drop layout or continue refining actual physical Aspect co
 - The WitnessService 1.0 logic runs line-of-sight raycasts on each Heartbeat without spatial partitioning optimizations.
 
 ### Next Session Should Start On
-Issue #180: Five Hollowed enemy types with distinct movesets — Flesh out the 5 base combat variants mapped out in the Hollowed configuration for Witnessing.
+Issue #180: Five Hollowed enemy types with distinct movesets ï¿½ Flesh out the 5 base combat variants mapped out in the Hollowed configuration for Witnessing.
 
 
