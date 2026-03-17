@@ -18,8 +18,8 @@ local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local NetworkTypes = require(Shared.types.NetworkTypes)
-local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
-local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
+local UITheme = require(script.Parent.Parent.modules.UITheme)
+local HUDLayout = require(script.Parent.Parent.modules.HUDLayout)
 
 local WitnessController = {}
 WitnessController._initialized = false

@@ -73,6 +73,7 @@ local dependencies = {
 	AbilitySystem   = services.AbilitySystem,
 	DummyService    = services.DummyService,
 	TrainingToolService = services.TrainingToolService,
+	WitnessService  = services.WitnessService,
 }
 
 for name, service in services do
@@ -114,6 +115,7 @@ local startOrder = {
 	"DeathService",        -- #144: death→respawn pipeline (needs ProgressionService for shard loss)
 	"HollowedService",     -- #143: Ring 1 enemy AI (patrol/aggro/attack, Resonance grant on kill)
 	"ZoneService",         -- #142: Ring boundary detection (after ProgressionService)
+	"WitnessService",      -- #181: Observation tracking (depends on HollowedService)
 	"EffectRunner",        -- must start before EffectHandlers registers handlers
 	"PassiveSystem",       -- hook pipeline
 }

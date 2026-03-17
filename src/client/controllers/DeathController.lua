@@ -12,8 +12,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
-local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
+local UITheme = require(script.Parent.Parent.modules.UITheme)
+local HUDLayout = require(script.Parent.Parent.modules.HUDLayout)
 
 local DeathController = {}
 

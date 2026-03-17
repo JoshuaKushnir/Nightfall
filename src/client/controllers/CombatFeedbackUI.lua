@@ -20,8 +20,8 @@ local UserInputService = game:GetService("UserInputService")
 
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local UITheme = require(game.StarterGui:FindFirstChild("UITheme") or ReplicatedStorage.Client.modules.UITheme)
-local HUDLayout = require(game.StarterGui:FindFirstChild("HUDLayout") or ReplicatedStorage.Client.modules.HUDLayout)
+local UITheme = require(script.Parent.Parent.modules.UITheme)
+local HUDLayout = require(script.Parent.Parent.modules.HUDLayout)
 
 local CombatFeedbackUI = {}
 
