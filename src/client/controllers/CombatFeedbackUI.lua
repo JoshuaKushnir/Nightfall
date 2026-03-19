@@ -1,16 +1,16 @@
 --!strict
 --[[
 	CombatFeedbackUI.lua
-	
+
 	Issue #43: Combat Feedback UI (Health Bar, Damage Numbers, VFX)
 	Epic: Phase 2 - Combat & Fluidity
-	
+
 	Client-side module for displaying combat feedback including:
 	- Floating damage numbers
 	- Hit/Miss indicators
 	- Block/Parry visual feedback
 	- Enemy health bars
-	
+
 	Dependencies: UIBinding (for reactive updates), HitboxService (for hit events)
 ]]
 
@@ -37,9 +37,6 @@ local FADE_STEP_DURATION = 0.05     -- Standard fade step timing
 local CRITICAL_COLOR = UITheme.Palette.CriticalDamage
 local NORMAL_COLOR = UITheme.Palette.NormalDamage
 local HEAL_COLOR = UITheme.Palette.HealthGreen
-local POSTURE_COLOR_SAFE = UITheme.Palette.PostureGrey
-local POSTURE_COLOR_WARNING = UITheme.Palette.PostureOrange
-local POSTURE_COLOR_DANGER = UITheme.Palette.PostureRed
 
 -- Active floating numbers
 local FloatingNumbers: {{
@@ -97,16 +94,9 @@ function CombatFeedbackUI:Start()
 	end
 
 	-- ── Posture bar (local player only) ────────────────────────────────────
-	local postureBar = CombatFeedbackUI._BuildPostureBar()
+	-- PostureChanged is now handled by PlayerHUDController's cluster bar.
+	-- CombatFeedbackUI no longer owns a standalone posture bar.
 
-	local postureEvent = NetworkProvider:GetRemoteEvent("PostureChanged")
-	if postureEvent then
-		postureEvent.OnClientEvent:Connect(function(playerId: number, current: number, max: number)
-			-- Only update bar for the local player
-			if playerId ~= Players.LocalPlayer.UserId then return end
-			CombatFeedbackUI._UpdatePostureBar(postureBar, current, max)
-		end)
-	end
 
 	-- ── Stagger flash (all visible players) ────────────────────────────────
 	local staggerEvent = NetworkProvider:GetRemoteEvent("Staggered")
@@ -124,7 +114,7 @@ function CombatFeedbackUI:Start()
 			CombatFeedbackUI._ShowBreakFeedback(targetId, damage)
 		end)
 	end
-	
+
 	-- ── Death screen ─────────────────────────────────────────────────────────
 	local stateChangedEvent = NetworkProvider:GetRemoteEvent("StateChanged")
 	if stateChangedEvent then
@@ -156,72 +146,15 @@ end
 -- ─── Posture bar helpers ─────────────────────────────────────────────────────
 
 --[[
-	Create a simple posture bar ScreenGui attached to the local PlayerGui.
-	Returns a table { bar: Frame, fill: Frame } for later updates.
+	DEPRECATED — posture bar is now part of PlayerHUDController's HUD cluster.
+	Kept as a no-op so any stale call sites don't hard-error.
 ]]
 function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
-	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
-
-	local gui = Instance.new("ScreenGui")
-	gui.Name = "PostureHUD"
-	gui.ResetOnSpawn = false
-	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-	gui.DisplayOrder = HUDLayout.Layers.HUD
-	gui.Parent = playerGui
-
-	-- Outer container (bottom-centre of screen, just below the HP bar)
-	local bar = Instance.new("Frame")
-	bar.Name = "PostureBar"
-	bar.Size = UDim2.new(0, 300, 0, 18)
-	bar.Position = UDim2.new(0.5, -150, 1, -125)  -- Raised to clear hotbar (Issue #153)
-	bar.BackgroundColor3 = UITheme.Palette.PanelDark
-	bar.BorderSizePixel = 0
-	bar.Parent = gui
-
-	Instance.new("UICorner", bar).CornerRadius = UITheme.Corners.Small
-
-	-- Fill bar (starts empty = safe state)
-	local fill = Instance.new("Frame")
-	fill.Name = "Fill"
-	fill.Size = UDim2.new(0, 0, 1, 0)
-	fill.Position = UDim2.new(0, 0, 0, 0)
-	fill.BackgroundColor3 = POSTURE_COLOR_SAFE
-	fill.BorderSizePixel = 0
-	fill.Parent = bar
-
-	Instance.new("UICorner", fill).CornerRadius = UITheme.Corners.Small
-
-	-- Label
-	local label = Instance.new("TextLabel")
-	label.Name = "Label"
-	label.Size = UDim2.new(1, 0, 0, 14)
-	label.Position = UDim2.new(0, 0, -1.2, 0)
-	label.BackgroundTransparency = 1
-	label.TextColor3 = UITheme.Palette.TextPrimary
-	label.Font = UITheme.Typography.FontBold
-	label.TextSize = UITheme.Typography.SizeXSmall
-	label.Text = "POSTURE"
-	label.Parent = bar
-
-	print("[CombatFeedbackUI] Posture bar created")
-	return { bar = bar, fill = fill }
+	-- No-op: returns a dummy table so stale callers won't nil-index.
+	local dummy = Instance.new("Frame")
+	return { bar = dummy, fill = dummy }
 end
 
---[[
-	Update the fill width and colour of the posture bar.
-	NEW (#157)
-]]
-function CombatFeedbackUI._UpdatePostureBar(postureBar: {bar: Frame, fill: Frame}, current: number, max: number)
-	if not postureBar then return end
-	local ratio = if max > 0 then math.clamp(current / max, 0, 1) else 0
-	postureBar.fill.Size = UDim2.new(ratio, 0, 1, 0)
-	-- #157: high posture = danger (pressure gauge, not resource bar)
-	postureBar.fill.BackgroundColor3 = if ratio >= 0.75
-		then POSTURE_COLOR_DANGER
-		elseif ratio >= 0.40
-		then POSTURE_COLOR_WARNING
-		else POSTURE_COLOR_SAFE
-end
 --[[
 	Play a brief red flash on the character who was just staggered.
 	We find the player by UserId and flash their parts.
@@ -312,7 +245,7 @@ end
 ]]
 function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritical: boolean, isDummy: boolean)
 	local rootPart = nil
-	
+
 	if isDummy then
 		-- Target is a dummy ID (string)
 		local dummyId = target
@@ -328,18 +261,18 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 		end
 		rootPart = Utils.GetRootPart(player)
 	end
-	
+
 	if not rootPart then
 		return
 	end
-	
+
 	-- Create floating number UI
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.ResetOnSpawn = false
 	screenGui.Name = "DamageNumber"
 	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-	
+
 	local textLabel = Instance.new("TextLabel")
 	textLabel.Name = "DamageLabel"
 	textLabel.Size = UDim2.new(0, 100, 0, 50)
@@ -347,22 +280,22 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 	textLabel.TextScaled = true
 	textLabel.Font = UITheme.Typography.FontBold
 	textLabel.TextColor3 = isCritical and CRITICAL_COLOR or NORMAL_COLOR
-	
+
 	-- Format damage text
 	local damageText = tostring(math.floor(damage))
 	if isCritical then
 		damageText = "CRIT! " .. damageText
 	end
 	textLabel.Text = damageText
-	
+
 	-- Convert world position to screen position
 	local rootPosition = rootPart.Position + Vector3.new(0, 3, 0) -- Above target
 	local camera = workspace.CurrentCamera
 	local screenPosition = camera:WorldToScreenPoint(rootPosition)
 	textLabel.Position = UDim2.new(0, screenPosition.X - 50, 0, screenPosition.Y - 25)
-	
+
 	textLabel.Parent = screenGui
-	
+
 	-- Track floating number
 	table.insert(FloatingNumbers, {
 		TextLabel = textLabel,
@@ -371,7 +304,7 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 		Damage = damage,
 		IsCritical = isCritical,
 	})
-	
+
 	print(`[CombatFeedbackUI] ✓ Damage number: {damage} (Critical: {isCritical})`)
 end
 
@@ -381,24 +314,24 @@ end
 function CombatFeedbackUI._UpdateFloatingNumbers()
 	local now = tick()
 	local camera = workspace.CurrentCamera
-	
+
 	for i = #FloatingNumbers, 1, -1 do
 		local floatNum = FloatingNumbers[i]
 		local elapsed = now - floatNum.StartTime
-		
+
 		-- Check if duration expired
 		if elapsed >= DAMAGE_NUMBER_DURATION then
 			floatNum.TextLabel.Parent:Destroy()
 			table.remove(FloatingNumbers, i)
 			continue
 		end
-		
+
 		-- Update position (drift upward and fade out)
 		local newWorldPos = floatNum.StartPosition + Vector3.new(0, DAMAGE_NUMBER_SPEED * elapsed, 0)
 		local screenPos = camera:WorldToScreenPoint(newWorldPos)
-		
+
 		floatNum.TextLabel.Position = UDim2.new(0, screenPos.X - 50, 0, screenPos.Y - 25)
-		
+
 		-- Fade out
 		local fade = 1 - (elapsed / DAMAGE_NUMBER_DURATION)
 		floatNum.TextLabel.TextTransparency = 1 - fade
@@ -413,12 +346,12 @@ function CombatFeedbackUI.ShowBlockFeedback(player: Player?)
 	if not player or not player.Character then
 		return
 	end
-	
+
 	local rootPart = Utils.GetRootPart(player)
 	if not rootPart then
 		return
 	end
-	
+
 	-- Create brief visual feedback
 	local part = Instance.new("Part")
 	part.Shape = Enum.PartType.Ball
@@ -430,7 +363,7 @@ function CombatFeedbackUI.ShowBlockFeedback(player: Player?)
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Parent = workspace
-	
+
 	-- Fade out
 	task.spawn(function()
 		for i = 1, 10 do
@@ -450,12 +383,12 @@ function CombatFeedbackUI.ShowParryFeedback(player: Player?, attacker: Player?)
 	if not player or not player.Character then
 		return
 	end
-	
+
 	local rootPart = Utils.GetRootPart(player)
 	if not rootPart then
 		return
 	end
-	
+
 	-- Create visual spark effect
 	local part = Instance.new("Part")
 	part.Shape = Enum.PartType.Ball
@@ -466,7 +399,7 @@ function CombatFeedbackUI.ShowParryFeedback(player: Player?, attacker: Player?)
 	part.TopSurface = Enum.SurfaceType.Smooth
 	part.BottomSurface = Enum.SurfaceType.Smooth
 	part.Parent = workspace
-	
+
 	-- Rise and fade
 	task.spawn(function()
 		for i = 1, 15 do
@@ -519,19 +452,19 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 	if not target or not target.Character then
 		return
 	end
-	
+
 	local rootPart = Utils.GetRootPart(target)
 	if not rootPart then
 		return
 	end
-	
+
 	-- Create "MISS" text above target
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.ResetOnSpawn = false
 	screenGui.Name = "MissIndicator"
 	screenGui.DisplayOrder = HUDLayout.Layers.HUD
 	screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-	
+
 	local textLabel = Instance.new("TextLabel")
 	textLabel.Name = "MissLabel"
 	textLabel.Size = UDim2.new(0, 150, 0, 50)
@@ -540,13 +473,13 @@ function CombatFeedbackUI.ShowMiss(attacker: Player?, target: Player?)
 	textLabel.Font = UITheme.Typography.FontBold
 	textLabel.TextColor3 = UITheme.Palette.MissText
 	textLabel.Text = "MISS"
-	
+
 	local camera = workspace.CurrentCamera
 	local screenPosition = camera:WorldToScreenPoint(rootPart.Position + Vector3.new(0, 3, 0))
 	textLabel.Position = UDim2.new(0, screenPosition.X - 75, 0, screenPosition.Y - 25)
-	
+
 	textLabel.Parent = screenGui
-	
+
 	-- Fade out quickly
 	task.spawn(function()
 		for i = 1, 10 do
@@ -561,7 +494,7 @@ end
 	Show a full-screen YOU DIED overlay when the local player enters Dead state.
 	Fades in over 1 s, waits 2.5 s, then fades out and destroys itself.
 	Respawn detection: the overlay self-removes so the next spawn is clean.
-	
+
 	TIMING IS CRITICAL - must preserve exactly:
 	- Fade IN: 1s (20 steps × 0.05s)
 	- HOLD: 2.5s at full opacity
