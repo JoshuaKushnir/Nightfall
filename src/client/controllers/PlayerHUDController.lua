@@ -609,6 +609,11 @@ local function buildHUDCluster()
 		UITheme.Palette.TextPrimary, Enum.TextXAlignment.Right, 5)
 
 
+	local postureContainer = Instance.new("Frame")
+	postureContainer.Name             = "PostureBar"
+	postureContainer.Size             = UDim2.new(0, HUDTheme.HealthBarWidth, 0, HUDTheme.PostureBarHeight)
+	postureContainer.BackgroundColor3 = UITheme.Palette.PanelDark
+	postureContainer.BackgroundTransparency = 0.40
 	postureContainer.BorderSizePixel  = 0
 	postureContainer.ClipsDescendants = true
 	mkCorner(postureContainer, UITheme.Corners.Small)
