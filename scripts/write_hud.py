@@ -1,4 +1,14 @@
---!strict
+import os
+
+path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "src",
+    "client",
+    "controllers",
+    "PlayerHUDController.lua",
+)
+
+content = r"""--!strict
 --[[
 	PlayerHUDController.lua
 
@@ -527,3 +537,13 @@ PlayerHUDController.UpdatePosture      = updatePosture
 PlayerHUDController.UpdateLuminance    = updateLuminance
 
 return PlayerHUDController
+"""
+
+with open(path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+with open(path, "r", encoding="utf-8") as f:
+    lines = f.readlines()
+
+print(f"Written: {path}")
+print(f"Lines:   {len(lines)}")

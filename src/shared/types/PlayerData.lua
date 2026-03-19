@@ -3,7 +3,7 @@
 	Class: PlayerData
 	Description: Strictly typed player data structure for Nightfall
 	Dependencies: None
-	
+
 	This module defines the core data structures for player state management.
 	All player data should conform to these types for type safety across the codebase.
 ]]
@@ -35,6 +35,12 @@ export type ManaComponent = {
 	Regeneration: number,
 }
 
+export type LuminanceComponent = {
+	Current: number,
+	Max: number,
+	Regeneration: number,
+}
+
 export type PostureComponent = {
 	Current: number,
 	Max: number,
@@ -42,15 +48,15 @@ export type PostureComponent = {
 }
 
 -- Player State
-export type PlayerState = 
-	"Idle" 
-	| "Walking" 
-	| "Running" 
-	| "Attacking" 
-	| "Blocking" 
+export type PlayerState =
+	"Idle"
+	| "Walking"
+	| "Running"
+	| "Attacking"
+	| "Blocking"
 	| "Dodging"
-	| "Stunned" 
-	| "Ragdolled" 
+	| "Stunned"
+	| "Ragdolled"
 	| "Casting"
 	| "Dead"
 	| "Clashing"           -- initial push-apart state
@@ -72,25 +78,26 @@ export type Mantra = {
 export type PlayerData = {
 	UserId: number,
 	DisplayName: string,
-	
+
 	-- Core Stats
 	Health: HealthComponent,
 	Mana: ManaComponent,
 	Posture: PostureComponent,
-	
+	Luminance: LuminanceComponent,
+
 	-- State Management
 	State: PlayerState,
 	LastStateChange: number, -- tick() timestamp
-	
+
 	-- Combat Data
 	Mantras: {Mantra},
 	ActiveCooldowns: {[string]: number}, -- Mantra name -> cooldown end time
-	
+
 	-- Aspect System
 	AspectData: AspectTypes.PlayerAspectData?,    -- nil until Aspect chosen at character creation
 	ResonanceShards: number,          -- in-flight currency, lost on death
 	TotalResonance: number,           -- permanent, never lost
-	
+
 	-- Discipline (computed soft label — not a locked choice)
 	DisciplineId: string,
 

@@ -474,8 +474,8 @@ local function _fillTooltip(self: any, item: any)
 
     if tagsRoot then
         for _, child in ipairs(tagsRoot:GetChildren()) do
-            if child:IsA("TextLabel") and child.Name ~= "UIListLayout" then 
-                child:Destroy() 
+            if child:IsA("TextLabel") and child.Name ~= "UIListLayout" then
+                child:Destroy()
             end
         end
         if item.Tags and #item.Tags > 0 then
@@ -1049,7 +1049,7 @@ function InventoryController:RefreshUI()
                         if not char then task.wait(0.5); continue end
                         local abilityId = item.AbilityId or item.Id
                         local cdTag = char:GetAttribute("CD_" .. abilityId) :: number?
-                        
+
                         if cdTag and cdTag > tick() then
                             local remaining = cdTag - tick()
                             -- Logic: server sets CD to total time. We need the "started at" to do a proper percentage.
@@ -1057,11 +1057,11 @@ function InventoryController:RefreshUI()
                             -- Better: The server provides "Cooldown" in the item data.
                             local totalCd = item.Cooldown or 5
                             local progress = math.clamp(remaining / totalCd, 0, 1)
-                            
+
                             cdOverlay.Visible = true
                             cdOverlay.Size    = UDim2.fromScale(1, progress)
                             cdOverlay.Position = UDim2.fromScale(0, 0) -- Stays at top, fills downwards
-                            
+
                             cdLabel.Visible = true
                             cdLabel.Text    = string.format("%.1f", remaining)
                         else
@@ -1166,6 +1166,13 @@ end
 
 function InventoryController:ToggleOpen()
     self._isOpen = not self._isOpen
+    if self._hud then
+        if self._isOpen then
+            self._hud:HideHUD()
+        else
+            self._hud:ShowHUD()
+        end
+    end
     local root = self._invRoot :: Frame?
     if root then
         -- When open: stay at 0.02x (left). When closed: move to -0.4x (off-screen left)
@@ -1187,6 +1194,7 @@ function InventoryController:Init(dependencies: {[string]: any}?)
         self._aspectController  = dependencies.AspectController
         self._networkController = dependencies.NetworkController
         self._actionController  = dependencies.ActionController
+        self._hud               = dependencies.PlayerHUDController
     end
 
     if self._aspectController then
