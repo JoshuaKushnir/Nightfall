@@ -1,3 +1,65 @@
+## Session NF-084: HollowedService AI Optimization — 5 Tick/Movement/Attack Refinements
+
+### What Was Built
+- **Optimization 1: Difficulty-scaled AI tick rates**
+  - Added `BASE_AI_TICK = 0.18` constant and `GetAITickForDiff(diff)` function.
+  - AI ticks now scale per-instance: higher difficulty = faster ticks (shorter intervals).
+  - Formula: `BASE_AI_TICK - 0.06 * (diff / 10)` allows difficulty 10 to tick at ~0.12s vs ~0.18s baseline.
+  - Heartbeat loop now computes per-instance tick rate using `GetAITickForDiff(data.Difficulty)`.
+
+- **Optimization 2: Smooth chasing with Humanoid:Move**
+  - Replaced repeated `_WalkTo` calls in movement logic with `Humanoid:Move(dir, true)` micro-adjustments.
+  - Compute distance delta, clamp movement direction to ±4 studs per frame for smooth, continuous gliding toward targets.
+  - Keeps Hollowed pathing fluid instead of snapping between waypoints; pairs with prediction for natural-feeling pursuit.
+  - `_WalkTo` retained for patrol movement only; variant AI uses Humanoid:Move throughout.
+
+- **Optimization 3: Tight attack windows**
+  - Created new helper `_TryAttack(data, model, config, targetRoot, now)` function.
+  - Difficulty-scaled cooldown: `cdScale = 1.1 - 0.3 * diffNorm`; higher difficulty = shorter cooldown.
+  - Checks range and cooldown before executing; uses 0.18s windup via `task.delay` before hitbox.
+  - Centralizes attack logic for all variants; simplifies `_ExecuteVariantAI` control flow.
+
+- **Optimization 4: Shorter, difficulty-scaled stagger**
+  - When Hollowed enters `"Staggered"` state (via posture break), duration scales by difficulty.
+  - Formula: `base = 0.4 seconds`, `dur = base - 0.2 * diffNorm`; difficulty 10 staggers for ~0.2s vs ~0.4s at difficulty 1.
+  - During stagger, `_TickAI` skips all attacks and movement but allows rotation/targeting updates.
+  - State recovery: after stagger duration, returns to `"Aggro"` if target still exists, else `"Patrol"`.
+
+- **Optimization 5: Prediction for sprinting targets**
+  - Before computing movement targets in `_ExecuteVariantAI`, fetch `targetRoot.AssemblyLinearVelocity`.
+  - Lead time scales with difficulty: `leadTime = 0.2 + 0.2 * diffNorm`; difficulty 10 predicts ~0.4s ahead.
+  - Compute predicted position: `predicted = targetRoot.Position + targetVel * leadTime`.
+  - Use predicted position instead of raw target position in all chasing/movement calculations for better hit likelihood.
+
+### Design Principles Applied
+- Conservative changes: All existing state tracking, validation, and damage logic remain intact.
+- Difficulty curves reward higher difficulty with both faster mechanics and enhanced prediction, creating a skill gap.
+- Per-instance scaling allows spawner to tune individual Hollowed difficulty without service-wide config changes.
+- Stagger state acts as both a punishment mechanic and a performance optimization (skips AI during recovery).
+
+### Integration Points
+- `HollowedService.lua`: All changes localized to HollowedService; no new public API.
+- `HollowedTypes.lua`: No new type changes; uses existing `Difficulty`, `FocusAggression`, `FocusDefense` fields from NF-083.
+- `Heartbeat loop` (Start function): Now uses per-instance AI tick rates via `GetAITickForDiff`.
+- `_TickAI`: Skips Staggered state; `_ExecuteVariantAI` handles prediction and Humanoid:Move.
+
+### Performance Impact
+- Reduced dead-time per instance by using faster ticks on higher difficulty.
+- Humanoid:Move micro-adjustments reduce hitbox test overhead vs repeated pathfinding.
+- Stagger state skip prevents wasted AI evaluations during animation recovery.
+- Prediction trades small CPU cost (vector math) for better AI accuracy and perceived difficulty.
+
+### Files Changed
+- `src/server/services/HollowedService.lua`: Added GetAITickForDiff, _TryAttack, updated _ExecuteVariantAI, _TickAI, ApplyDamage, Heartbeat loop.
+
+### Commits
+- Will follow project convention: reference this session in commit message.
+
+### Next Session Should Start On
+- Performance profiling: verify CPU gains from stagger skip and Humanoid:Move adoption.
+- Playtesting: confirm difficulty scaling feels responsive and predictive movement is fair.
+- Consider extending same optimizations to other enemy types (future epics).
+
 ## Session NF-083: Implement Per-Instance Difficulty for HollowedService
 
 ### What Was Built

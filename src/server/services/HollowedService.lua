@@ -62,11 +62,23 @@ HollowedService._initialized = false
 
 -- ─── Constants ───────────────────────────────────────────────────────────────
 
+local BASE_AI_TICK       = 0.18  -- base AI tick rate; scaled by difficulty
 local AI_TICK_RATE       = 0.2   -- seconds between AI evaluations per NPC
 local PATROL_ARRIVE_DIST = 2.0   -- studs — close enough to waypoint to stop
 local PATROL_WAIT_TIME   = 2.0   -- seconds to idle at each waypoint
 local CONFIRM_HIT_EVENT  = "HitConfirmed"
 local NPC_HIT_DAMAGE_VAR = 0.10  -- ±10% attack damage variance (mirrors CombatService)
+
+-- ─── Difficulty Scaling Helpers ──────────────────────────────────────────────
+
+--[[
+	Get AI tick rate scaled by difficulty.
+	Higher difficulty = faster ticks (lower tick interval).
+	Difficulty range: 1–10 typically.
+]]
+local function GetAITickForDiff(diff: number): number
+	return BASE_AI_TICK - 0.06 * (diff / 10)
+end
 
 -- ─── Enemy Configs ───────────────────────────────────────────────────────────
 
@@ -381,7 +393,7 @@ local function _GetBestTarget(origin: Vector3, maxRange: number, focusTargeting:
 		if data and data.State == "Dead" then continue end
 		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not root then continue end
-		
+
 		local dist = (root.Position - origin).Magnitude
 		if dist <= maxRange then
 			local distScore = -dist
@@ -390,7 +402,7 @@ local function _GetBestTarget(origin: Vector3, maxRange: number, focusTargeting:
 				local hpFrac = (data.CurrentHealth or 100) / (data.MaxHealth or 100)
 				hpScore = (1 - hpFrac) * 30 * focusTargeting
 			end
-			
+
 			local total = distScore + hpScore
 			if total > bestScore then
 				bestScore = total
@@ -591,11 +603,55 @@ end
 
 
 --[[
+	Try to execute an attack if cooldown is ready and target is in range.
+	Scales attack cooldown by difficulty.
+	Returns true if attack was executed, false otherwise.
+]]
+local function _TryAttack(data: HollowedData, model: Model, config: HollowedConfig, targetRoot: BasePart, now: number): boolean
+	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
+	local dist = (targetRoot.Position - rootPos).Magnitude
+
+	-- Check if in attack range
+	if dist > config.AttackRange then
+		return false
+	end
+
+	-- Difficulty-scaled cooldown: 1.1 - 0.3 * diffNorm
+	local diff = data.Difficulty or 1
+	local diffNorm = math.clamp(diff / 10, 0, 1)
+	local cdScale = 1.1 - 0.3 * diffNorm
+	local effectiveCooldown = config.AttackCooldown * cdScale
+
+	-- Check if cooldown is ready
+	if now - data.LastAttackTick < effectiveCooldown then
+		return false
+	end
+
+	-- Execute the attack with brief windup
+	task.delay(0.18, function()
+		if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Aggro" then
+			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(4, 4, 4), Vector3.new(0, 0, -3), 0.3)
+		end
+	end)
+
+	return true
+end
+
+--[[
 	Execute the specific custom AI move set per variant instead of just swinging.
+	Includes prediction for moving targets and Humanoid:Move micro-adjustments.
 ]]
 local function _ExecuteVariantAI(data: HollowedData, model: Model, config: HollowedConfig, dt: number, targetRoot: BasePart, now: number)
 	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
-	local toTarget = targetRoot.Position - rootPos
+
+	-- ── Target prediction ────────────────────────────────────────────────────
+	local targetVel = targetRoot.AssemblyLinearVelocity
+	local diff = data.Difficulty or 1
+	local diffNorm = math.clamp(diff / 10, 0, 1)
+	local leadTime = 0.2 + 0.2 * diffNorm
+	local predictedPos = targetRoot.Position + targetVel * leadTime
+
+	local toTarget = predictedPos - rootPos
 	local dist = toTarget.Magnitude
 	local hasFacingDir = toTarget.Magnitude > 0.01
 
@@ -604,107 +660,120 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 		_PivotModel(model, Vector3.zero, targetRoot.Position)
 	end
 
-	local diff = data.Difficulty or 1
 	local aggro = data.FocusAggression or 1
 	local def = data.FocusDefense or 1
-	local effectiveCooldown = config.AttackCooldown / diff
 
 	if data.ConfigId == "basic_hollowed" then
 		local desiredMin = config.AttackRange * 0.7
 		local desiredMax = config.AttackRange * 1.1
 
-		local shouldAttack = (dist <= config.AttackRange)
-			and (now - data.LastAttackTick >= effectiveCooldown)
-			and (math.random() < 0.25 + aggro * 0.5)
-
-		if shouldAttack then
-			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(4, 4, 4), Vector3.new(0, 0, -3), 0.3)
+		-- Try to attack if conditions met
+		if dist <= config.AttackRange and math.random() < 0.25 + aggro * 0.5 then
+			_TryAttack(data, model, config, targetRoot, now)
 			_SetAnimState(data.InstanceId, model, "Idle")
 		else
-			if dist > desiredMax then
-				_WalkTo(model, targetRoot.Position)
-				_SetAnimState(data.InstanceId, model, "Run")
-			elseif dist < desiredMin then
+			-- Movement with Humanoid:Move micro-adjustments
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local backPos = rootPos - dir * 4
-				_WalkTo(model, backPos)
-				_SetAnimState(data.InstanceId, model, "Run")
-			else
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
-				side = side.Unit
-				local strafeDist = 5 + 5 * aggro
-				local strafePos = rootPos + side * strafeDist * dt * 5
-				_WalkTo(model, strafePos)
-				_SetAnimState(data.InstanceId, model, "Run")
+
+				if dist > desiredMax then
+					-- Chase: move toward predicted position
+					humanoid:Move(dir, true)
+					_SetAnimState(data.InstanceId, model, "Run")
+				elseif dist < desiredMin then
+					-- Back up away from target
+					humanoid:Move(-dir, true)
+					_SetAnimState(data.InstanceId, model, "Run")
+				else
+					-- Strafe around target
+					local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
+					side = side.Unit
+					local strafeMag = 5 + 5 * aggro
+					humanoid:Move(side * math.clamp(strafeMag * dt, -4, 4), true)
+					_SetAnimState(data.InstanceId, model, "Run")
+				end
 			end
 		end
 
 	elseif data.ConfigId == "ironclad_hollowed" then
 		-- Ironclad: occasionally blocks while moving, heavy slam
 		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(6, 6, 6), Vector3.new(0, 0, -2), 0.5)
-			end
+			_TryAttack(data, model, config, targetRoot, now)
 			_SetAnimState(data.InstanceId, model, "Idle")
 		else
-			-- Move forward
-			_WalkTo(model, targetRoot.Position)
+			-- Move forward with Humanoid:Move
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				humanoid:Move(dir, true)
+			end
 			_SetAnimState(data.InstanceId, model, "Run")
 			-- Randomly block
 			if math.random() < (0.05 * def) and data.State ~= "Blocking" then
 				data.State = "Blocking"
-				task.delay(1.5, function() if data.State == "Blocking" then data.State = "Aggro" end end)
+				task.delay(1.5, function() if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Blocking" then _instances[data.InstanceId].State = "Aggro" end end)
 			end
 		end
 
 	elseif data.ConfigId == "silhouette_hollowed" then
 		-- Silhouette: Stays just out of reach, dashes in
-		if dist > config.AttackRange and dist < 12 and now - data.LastAttackTick >= effectiveCooldown then
-			-- Dash attack
+		if dist > config.AttackRange and dist < 12 and _TryAttack(data, model, config, targetRoot, now) then
+			-- Dash attack: move into range before hitting
 			_PivotModel(model, toTarget.Unit * 8, targetRoot.Position)
-			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(3, 4, 3), Vector3.new(0, 0, -2), 0.2)
 			_SetAnimState(data.InstanceId, model, "Run")
 		elseif dist <= config.AttackRange then
-			-- Back up
-			_PivotModel(model, -toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
+			-- Back up with Humanoid:Move
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				humanoid:Move(-dir, true)
+			end
 			_SetAnimState(data.InstanceId, model, "Run")
 		else
-			-- Chase / circle
-			_WalkTo(model, targetRoot.Position)
+			-- Chase / circle with Humanoid:Move
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				humanoid:Move(dir, true)
+			end
 			_SetAnimState(data.InstanceId, model, "Run")
 		end
 
 	elseif data.ConfigId == "resonant_hollowed" then
 		-- Resonant: Casts spheres from afar
 		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(8, 8, 8), Vector3.new(0, 0, -dist), 0.5)
-			end
+			_TryAttack(data, model, config, targetRoot, now)
 			_SetAnimState(data.InstanceId, model, "Idle")
 		else
-			-- Keep distance / chase
-			_WalkTo(model, targetRoot.Position)
+			-- Keep distance / chase with Humanoid:Move
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				humanoid:Move(dir, true)
+			end
 			_SetAnimState(data.InstanceId, model, "Run")
 		end
 
 	elseif data.ConfigId == "ember_hollowed" then
 		-- Ember: Wide cleave sweeps
 		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(8, 4, 6), Vector3.new(0, 0, -4), 0.6)
-			end
+			_TryAttack(data, model, config, targetRoot, now)
 			_SetAnimState(data.InstanceId, model, "Idle")
 		else
-			-- Aggressive chase
-			_WalkTo(model, targetRoot.Position)
+			-- Aggressive chase with Humanoid:Move
+			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
+			if humanoid then
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				humanoid:Move(dir, true)
+			end
 			_SetAnimState(data.InstanceId, model, "Run")
 		end
 	end
 end
 
 --[[
-	Evaluate AI for a single Hollowed instance.  Called every AI_TICK_RATE seconds.
+	Evaluate AI for a single Hollowed instance.  Called every difficulty-scaled AI tick.
 ]]
 local function _TickAI(instanceId: string, dt: number)
 	local data   = _instances[instanceId]
@@ -712,6 +781,15 @@ local function _TickAI(instanceId: string, dt: number)
 	local config = CONFIGS[data.ConfigId]
 	if not data or not model or not config then return end
 	if not data.IsActive or data.State == "Dead" then return end
+
+	-- Skip attacks and movement during stagger, but allow rotation
+	if data.State == "Staggered" then
+		local rootPart = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if rootPart then
+			data.RootPosition = rootPart.Position
+		end
+		return
+	end
 
 	local now          = tick()
 	local rootPart     = model:FindFirstChild("HumanoidRootPart") :: BasePart?
@@ -888,16 +966,23 @@ function HollowedService.ApplyDamage(instanceId: string, damage: number, attacke
 	-- Apply HP damage
 	data.CurrentHealth = math.max(0, data.CurrentHealth - damage)
 
-	-- Apply Posture damage if stunned mechanics are active
+	-- Apply Posture damage and enter stagger state with difficulty scaling
 	if postureDamage then
 		data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
 		if data.CurrentPoise <= 0 then
-			data.State = "Stunned"
-			print(("[HollowedService] %s was STUNNED!"):format(instanceId))
-			-- Recover poise after 3 seconds
-			task.delay(3, function()
-				if _instances[instanceId] and _instances[instanceId].State == "Stunned" then
-					_instances[instanceId].State = "Aggro"
+			data.State = "Staggered"
+			local diff = data.Difficulty or 1
+			local diffNorm = math.clamp(diff / 10, 0, 1)
+			local staggerDuration = 0.4 - 0.2 * diffNorm  -- Higher difficulty = shorter stagger
+			print(("[HollowedService] %s was STAGGERED for %.2fs!"):format(instanceId, staggerDuration))
+			-- Recover poise and return to Aggro
+			task.delay(staggerDuration, function()
+				if _instances[instanceId] and _instances[instanceId].State == "Staggered" then
+					local newState = "Patrol"
+					if _instances[instanceId].Target then
+						newState = "Aggro"
+					end
+					_instances[instanceId].State = newState
 					_instances[instanceId].CurrentPoise = config.MaxPoise
 				end
 			end)
@@ -1070,11 +1155,13 @@ function HollowedService:Start()
 	_heartbeatConn = RunService.Heartbeat:Connect(function(dt: number)
 		local now = tick()
 
-		-- AI tick for existing instances
+		-- AI tick for existing instances with difficulty-scaled tick rates
 		for instanceId, data in _instances do
-			if now - data.LastAITick >= AI_TICK_RATE then
+			local diff = data.Difficulty or 1
+			local aiTick = GetAITickForDiff(diff)
+			if now - data.LastAITick >= aiTick then
 				data.LastAITick = now
-				local ok, err = pcall(_TickAI, instanceId, AI_TICK_RATE)
+				local ok, err = pcall(_TickAI, instanceId, aiTick)
 				if not ok then
 					warn(("[HollowedService] AI tick error for %s: %s"):format(instanceId, tostring(err)))
 				end
