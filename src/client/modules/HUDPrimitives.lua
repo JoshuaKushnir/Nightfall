@@ -1,12 +1,12 @@
 --!strict
 --[[
 	HUDPrimitives.lua
-	
+
 	Reusable HUD UI component builders.
-	
+
 	Provides factory functions for creating consistent HUD elements that use
 	UITheme tokens and follow the high-ornate design language.
-	
+
 	Components:
 	- PanelShell: dark themed frame with ornate border
 	- StatBar: labeled progress bar with fill and threshold coloring
@@ -50,16 +50,13 @@ local HUDPrimitives = {}
 --------------------------------------------------------------------------------
 -- Helper: Apply corner radius
 --------------------------------------------------------------------------------
-local function applyCorner(instance: Instance, radius: UDim)
+function HUDPrimitives.applyCorner(instance: Instance, radius: UDim)
 	local corner = Instance.new("UICorner")
 	corner.CornerRadius = radius
 	corner.Parent = instance
 	return corner
 end
 
---------------------------------------------------------------------------------
--- Helper: Apply stroke (ornate border)
---------------------------------------------------------------------------------
 local function applyStroke(instance: Instance, color: Color3, thickness: number, transparency: number?)
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = color
@@ -84,20 +81,20 @@ function HUDPrimitives.PanelShell(
 	root.Position = position or UDim2.new(0, 0, 0, 0)
 	root.BackgroundColor3 = UITheme.Palette.PanelDark
 	root.BorderSizePixel = 0
-	
+
 	-- Ornate border
 	if not noBorder then
 		applyCorner(root, UITheme.Corners.Medium)
 		applyStroke(root, UITheme.Palette.AccentIron, UITheme.Strokes.Ornate, 0.3)
 	end
-	
+
 	-- Content container (fills panel with padding)
 	local content = Instance.new("Frame")
 	content.Name = "Content"
 	content.Size = UDim2.new(1, 0, 1, 0)
 	content.BackgroundTransparency = 1
 	content.BorderSizePixel = 0
-	
+
 	-- Add padding
 	local padding = Instance.new("UIPadding")
 	padding.PaddingLeft = UITheme.Spacing.PaddingMedium
@@ -105,13 +102,14 @@ function HUDPrimitives.PanelShell(
 	padding.PaddingTop = UITheme.Spacing.PaddingSmall
 	padding.PaddingBottom = UITheme.Spacing.PaddingSmall
 	padding.Parent = content
-	
+
 	content.Parent = root
-	
-	return {
-		Root = root,
-		Content = content,
-	}
+
+		return {
+			Root = root,
+			Content = content,
+			PanelBackground = root,
+		}
 end
 
 --------------------------------------------------------------------------------
@@ -128,13 +126,13 @@ function HUDPrimitives.Label(
 	label.Size = UDim2.new(1, 0, 0, fontSize or UITheme.Typography.SizeMedium)
 	label.BackgroundTransparency = 1
 	label.BorderSizePixel = 0
-	
+
 	label.Font = if bold then UITheme.Typography.FontBold else UITheme.Typography.FontRegular
 	label.TextSize = fontSize or UITheme.Typography.SizeMedium
 	label.TextColor3 = color or UITheme.Palette.TextPrimary
 	label.TextScaled = false
 	label.TextWrapped = true
-	
+
 	return label
 end
 
@@ -149,14 +147,14 @@ function HUDPrimitives.StatBar(
 	initialValue: number?
 ): StatBar
 	local value = initialValue or 0.5
-	
+
 	-- Root container
 	local root = Instance.new("Frame")
 	root.Name = name
 	root.Size = UDim2.new(0, width, 0, height + 24) -- height for bar + label space
 	root.BackgroundTransparency = 1
 	root.BorderSizePixel = 0
-	
+
 	-- Label above bar
 	local labelText = Instance.new("TextLabel")
 	labelText.Name = "Label"
@@ -169,7 +167,7 @@ function HUDPrimitives.StatBar(
 	labelText.TextColor3 = UITheme.Palette.TextSecondary
 	labelText.TextXAlignment = Enum.TextXAlignment.Left
 	labelText.Parent = root
-	
+
 	-- Bar background
 	local barBg = Instance.new("Frame")
 	barBg.Name = "BarBg"
@@ -179,7 +177,7 @@ function HUDPrimitives.StatBar(
 	barBg.BorderSizePixel = 0
 	applyCorner(barBg, UITheme.Corners.Small)
 	barBg.Parent = root
-	
+
 	-- Bar fill (clipped)
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
@@ -191,7 +189,7 @@ function HUDPrimitives.StatBar(
 	-- Clip fill to parent bounds
 	local clipFrame = Instance.new("frame")
 	fill.Parent = barBg
-	
+
 	-- Value label (overlaid on bar)
 	local valueLabel = Instance.new("TextLabel")
 	valueLabel.Name = "Value"
@@ -207,7 +205,7 @@ function HUDPrimitives.StatBar(
 	valueLabel.TextYAlignment = Enum.TextYAlignment.Center
 	valueLabel.ZIndex = barBg.ZIndex + 1
 	valueLabel.Parent = root
-	
+
 	return {
 		Root = root,
 		Label = labelText,
@@ -232,13 +230,13 @@ function HUDPrimitives.ValueChip(
 	root.BackgroundColor3 = UITheme.Palette.PanelMid
 	root.BorderSizePixel = 0
 	applyCorner(root, UITheme.Corners.Medium)
-	
+
 	-- Padding
 	local padding = Instance.new("UIPadding")
 	padding.PaddingLeft = UITheme.Spacing.PaddingSmall
 	padding.PaddingRight = UITheme.Spacing.PaddingSmall
 	padding.Parent = root
-	
+
 	-- List layout (horizontal)
 	local layout = Instance.new("UIListLayout")
 	layout.FillDirection = Enum.FillDirection.Horizontal
@@ -246,7 +244,7 @@ function HUDPrimitives.ValueChip(
 	layout.VerticalAlignment = Enum.VerticalAlignment.Center
 	layout.Padding = UITheme.Spacing.GapSmall
 	layout.Parent = root
-	
+
 	-- Label
 	local label = Instance.new("TextLabel")
 	label.Name = "Label"
@@ -259,7 +257,7 @@ function HUDPrimitives.ValueChip(
 	label.TextColor3 = UITheme.Palette.TextSecondary
 	label.TextXAlignment = Enum.TextXAlignment.Left
 	label.Parent = root
-	
+
 	-- Value
 	local value = Instance.new("TextLabel")
 	value.Name = "Value"
@@ -272,7 +270,7 @@ function HUDPrimitives.ValueChip(
 	value.TextColor3 = UITheme.Palette.TextAccent
 	value.TextXAlignment = Enum.TextXAlignment.Right
 	value.Parent = root
-	
+
 	return {
 		Root = root,
 		Label = label,
@@ -288,14 +286,14 @@ function HUDPrimitives.Toast(
 	duration: number?
 ): Toast
 	local displayDuration = duration or 3.0
-	
+
 	-- ScreenGui
 	local screenGui = Instance.new("ScreenGui")
 	screenGui.Name = "Toast"
 	screenGui.ResetOnSpawn = false
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.DisplayOrder = 50
-	
+
 	-- Container frame
 	local container = Instance.new("Frame")
 	container.Name = "ToastContainer"
@@ -306,7 +304,7 @@ function HUDPrimitives.Toast(
 	applyCorner(container, UITheme.Corners.Medium)
 	applyStroke(container, UITheme.Palette.AccentIron, UITheme.Strokes.Thin, 0.4)
 	container.Parent = screenGui
-	
+
 	-- Text
 	local text = Instance.new("TextLabel")
 	text.Name = "Text"
@@ -319,20 +317,20 @@ function HUDPrimitives.Toast(
 	text.TextColor3 = UITheme.Palette.TextPrimary
 	text.TextWrapped = true
 	text.Parent = container
-	
+
 	-- Padding
 	local padding = Instance.new("UIPadding")
 	padding.PaddingLeft = UITheme.Spacing.PaddingSmall
 	padding.PaddingRight = UITheme.Spacing.PaddingSmall
 	padding.Parent = container
-	
+
 	-- Fade in
 	local fadeIn = TweenService:Create(
 		container,
 		TweenInfo.new(UITheme.Motion.DurationQuick, UITheme.Motion.EasingQuick, UITheme.Motion.EasingInOut),
 		{ BackgroundTransparency = 0 }
 	)
-	
+
 	-- Dismiss function
 	local function dismiss()
 		local fadeOut = TweenService:Create(
@@ -345,11 +343,11 @@ function HUDPrimitives.Toast(
 		end)
 		fadeOut:Play()
 	end
-	
+
 	-- Auto-dismiss after duration
 	task.wait(displayDuration)
 	dismiss()
-	
+
 	return {
 		Root = screenGui,
 		Container = container,
@@ -372,7 +370,7 @@ function HUDPrimitives.Overlay(
 	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	screenGui.DisplayOrder = 100
 	screenGui.IgnoreGuiInset = true
-	
+
 	local overlay = Instance.new("Frame")
 	overlay.Name = "Overlay"
 	overlay.Size = UDim2.new(1, 0, 1, 0)
@@ -380,7 +378,7 @@ function HUDPrimitives.Overlay(
 	overlay.BackgroundTransparency = transparency or 0.5
 	overlay.BorderSizePixel = 0
 	overlay.Parent = screenGui
-	
+
 	return screenGui
 end
 

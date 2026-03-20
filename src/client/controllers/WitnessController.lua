@@ -5,7 +5,7 @@
 	Listens to server events (WitnessStarted, WitnessProgress, CodexUnlocked) and displays
 	the observation progress bar and unlock toasts.
 	Dependencies: NetworkController
-	
+
 	Usage:
 		local WitnessController = require(path.to.WitnessController)
 		WitnessController:Init(dependencies)
@@ -43,14 +43,14 @@ local TOAST_DURATION = 4.0
 local function createUI()
 	local player = Players.LocalPlayer
 	local playerGui = player:WaitForChild("PlayerGui")
-	
+
 	witnessGui = Instance.new("ScreenGui")
 	witnessGui.Name = "WitnessHUD"
 	witnessGui.ResetOnSpawn = false
 	witnessGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 	witnessGui.DisplayOrder = HUDLayout.Layers.HUD
 	witnessGui.Parent = playerGui
-	
+
 	-- Witness Progress Bar (Bottom Center)
 	witnessContainer = Instance.new("Frame")
 	witnessContainer.Name = "WitnessContainer"
@@ -61,12 +61,12 @@ local function createUI()
 	witnessContainer.BorderSizePixel = 0
 	witnessContainer.Visible = false
 	witnessContainer.Parent = witnessGui
-	
+
 	local stroke = Instance.new("UIStroke")
 	stroke.Color = UITheme.Palette.BreathTeal
 	stroke.Thickness = UITheme.Strokes.Thin
 	stroke.Parent = witnessContainer
-	
+
 	local barBg = Instance.new("Frame")
 	barBg.Name = "BarBg"
 	barBg.Size = UDim2.new(1, -6, 1, -24)
@@ -74,14 +74,14 @@ local function createUI()
 	barBg.BackgroundColor3 = UITheme.Palette.PanelMid
 	barBg.BorderSizePixel = 0
 	barBg.Parent = witnessContainer
-	
+
 	witnessBar = Instance.new("Frame")
 	witnessBar.Name = "Fill"
 	witnessBar.Size = UDim2.new(0, 0, 1, 0)
 	witnessBar.BackgroundColor3 = UITheme.Palette.BreathTeal
 	witnessBar.BorderSizePixel = 0
 	witnessBar.Parent = barBg
-	
+
 	witnessLabel = Instance.new("TextLabel")
 	witnessLabel.Name = "TargetLabel"
 	witnessLabel.Size = UDim2.new(1, 0, 0, 16)
@@ -98,56 +98,72 @@ function WitnessController:Init(dependencies: any)
 	NetworkController = dependencies.NetworkController
 	PlayerHUDController = dependencies.PlayerHUDController
 	self._initialized = true
-	
+
 	createUI()
 end
 
 function WitnessController:Start()
 	assert(self._initialized, "Must call Init() before Start()")
-	
+
 	NetworkController:RegisterHandler("WitnessStarted", function(packet: NetworkTypes.WitnessStartedPacket)
 		witnessContainer.Visible = true
 		witnessLabel.Text = "Witnessing: " .. (packet.TargetName or "Unknown")
 		witnessBar.Size = UDim2.new(0, 0, 1, 0)
-		
+
 		if fadeTween then
 			fadeTween:Cancel()
 		end
 		witnessContainer.BackgroundTransparency = 0
 		witnessContainer:FindFirstChildOfClass("UIStroke").Transparency = 0
 	end)
-	
+
 	NetworkController:RegisterHandler("WitnessProgress", function(packet: NetworkTypes.WitnessProgressPacket)
 		if not witnessContainer.Visible then
 			witnessContainer.Visible = true
 			witnessContainer.BackgroundTransparency = 0
 			witnessContainer:FindFirstChildOfClass("UIStroke").Transparency = 0
 		end
-		
+
 		witnessLabel.Text = "Witnessing: " .. (packet.TargetName or "Unknown")
-		
-		local percent = math.clamp(packet.TimeObserved / packet.RequiredTime, 0, 1)
-		
+
+		local percent = math.clamp(packet.Progress, 0, 1)
+
 		TweenService:Create(witnessBar, TweenInfo.new(0.2, Enum.EasingStyle.Linear), {
 			Size = UDim2.new(percent, 0, 1, 0)
 		}):Play()
-		
+
 		-- Hide if broken or completed
 		if packet.Broken or percent >= 1 then
 			task.delay(0.5, function()
 				fadeTween = TweenService:Create(witnessContainer, TweenInfo.new(0.5), {BackgroundTransparency = 1})
 				local strokeTween = TweenService:Create(witnessContainer:FindFirstChildOfClass("UIStroke"), TweenInfo.new(0.5), {Transparency = 1})
-				
+
 				fadeTween.Completed:Connect(function()
 					witnessContainer.Visible = false
 				end)
-				
+
 				fadeTween:Play()
 				strokeTween:Play()
 			end)
 		end
 	end)
-	
+
+	NetworkController:RegisterHandler("WitnessFailed", function(packet: NetworkTypes.WitnessFailedPacket)
+		if witnessContainer.Visible then
+			task.delay(0.5, function()
+				fadeTween = TweenService:Create(witnessContainer, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+				local strokeTween = TweenService:Create(witnessContainer:FindFirstChildOfClass("UIStroke"), TweenInfo.new(0.5), {Transparency = 1})
+
+				fadeTween.Completed:Connect(function()
+					witnessContainer.Visible = false
+				end)
+
+				fadeTween:Play()
+				strokeTween:Play()
+			end)
+		end
+	end)
+
 	NetworkController:RegisterHandler("CodexUnlocked", function(packet: NetworkTypes.CodexUnlockedPacket)
 		if PlayerHUDController then
 			PlayerHUDController:ShowToast(

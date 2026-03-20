@@ -1,30 +1,30 @@
 --!strict
 --[[
 	NetworkController - Client-side network communication handler
-	
+
 	Issue #4: Centralized Network Communication Provider
 	Epic: Phase 1 - Core Framework
-	
+
 	This controller handles all network communication from the client side.
 	It provides type-safe event firing, response handling, and connection retry logic.
-	
+
 	Features:
 	- Type-safe event firing to server
 	- Server event listening with handlers
 	- Promise-based request/response pattern (future)
 	- Connection retry logic
 	- Event queuing for offline periods
-	
+
 	Usage (Client):
 		NetworkController:Init()
 		NetworkController:Start()
-		
+
 		-- Send event to server
 		NetworkController:SendToServer("MantraCast", {
 			MantraId = "FireBlast",
 			TargetPosition = Vector3.new(0, 10, 0),
 		})
-		
+
 		-- Listen for server events
 		NetworkController:RegisterHandler("DamageDealt", function(packet)
 			print(`Took damage: {packet.Damage}`)
@@ -62,18 +62,18 @@ function NetworkController:Init(dependencies)
 		warn("[NetworkController] Already initialized")
 		return
 	end
-	
+
 	print("[NetworkController] Initializing...")
-	
+
 	-- Wait for player
 	local player = Players.LocalPlayer
 	if not player then
 		error("[NetworkController] LocalPlayer not found")
 	end
-	
+
 	-- Initialize NetworkProvider (client-side)
 	NetworkProvider:Init()
-	
+
 	self._initialized = true
 	print("[NetworkController] Initialized successfully")
 end
@@ -86,42 +86,43 @@ function NetworkController:Start()
 	if not self._initialized then
 		error("[NetworkController] Must call Init() before Start()")
 	end
-	
+
 	print("[NetworkController] Starting...")
-	
+
 	-- Connect to all registered network events for client listening
 	local allEvents = NetworkProvider:GetAllEvents()
-	
+
 	for _, eventName in allEvents do
 		local metadata = NetworkProvider:GetEventMetadata(eventName)
-		
+
 		if not metadata then
 			continue
 		end
-		
+
 		-- Only listen to events that server can send
 		if metadata.Direction == "ClientToServer" then
 			continue
 		end
-		
+
 		local remote = NetworkProvider:GetRemoteEvent(eventName)
-		
+
 		if not remote then
 			warn(`[NetworkController] RemoteEvent not found: {eventName}`)
 			continue
 		end
-		
+
 		-- Connect to event
 		remote.OnClientEvent:Connect(function(packet: any)
+			print(`[NetworkController] Received event: {eventName}`)
 			self:_HandleEvent(eventName, packet)
 		end)
-		
+
 		print(`[NetworkController] Listening to event: {eventName}`)
 	end
-	
+
 	-- Process queued events
 	self:_ProcessEventQueue()
-	
+
 	print("[NetworkController] Started successfully")
 end
 
@@ -131,19 +132,25 @@ end
 ]]
 function NetworkController:_HandleEvent(eventName: NetworkEvent, packet: any)
 	local handlers = self._handlers[eventName]
-	
+
 	if not handlers or #handlers == 0 then
 		-- No handlers registered, that's okay for some events
+		print(`[NetworkController] _HandleEvent({eventName}): No handlers registered`)
 		return
 	end
-	
+
+	print(`[NetworkController] _HandleEvent({eventName}): Found {#handlers} handler(s), executing...`)
+
 	-- Execute all handlers
-	for _, handler in handlers do
+	for i, handler in handlers do
+		print(`[NetworkController] _HandleEvent({eventName}): Spawning handler #{i}`)
 		task.spawn(function()
 			local success, err = pcall(handler, packet)
-			
+
 			if not success then
 				warn(`[NetworkController] Handler error for {eventName}: {err}`)
+			else
+				print(`[NetworkController] _HandleEvent({eventName}): Handler #{i} executed successfully`)
 			end
 		end)
 	end
@@ -157,20 +164,20 @@ function NetworkController:_ProcessEventQueue()
 	if #self._eventQueue == 0 then
 		return
 	end
-	
+
 	print(`[NetworkController] Processing {#self._eventQueue} queued events`)
-	
+
 	for _, queuedEvent in self._eventQueue do
 		self:SendToServer(queuedEvent.EventName, queuedEvent.Packet)
 	end
-	
+
 	-- Clear queue
 	table.clear(self._eventQueue)
 end
 
 --[[
 	Register a handler for a network event from the server
-	
+
 	@param eventName - The network event to listen for
 	@param handler - The function to call when the event fires
 ]]
@@ -178,14 +185,14 @@ function NetworkController:RegisterHandler(eventName: NetworkEvent, handler: (pa
 	if not self._handlers[eventName] then
 		self._handlers[eventName] = {}
 	end
-	
+
 	table.insert(self._handlers[eventName], handler)
 	print(`[NetworkController] Registered handler for event: {eventName}`)
 end
 
 --[[
 	Send an event to the server
-	
+
 	@param eventName - The network event to fire
 	@param packet - The data to send
 ]]
@@ -194,14 +201,14 @@ function NetworkController:SendToServer(eventName: NetworkEvent, packet: Network
 		warn("[NetworkController] Not initialized - cannot send event")
 		return
 	end
-	
+
 	local remote = NetworkProvider:GetRemoteEvent(eventName)
-	
+
 	if not remote then
 		warn(`[NetworkController] Cannot send event {eventName}: RemoteEvent not found`)
 		return
 	end
-	
+
 	-- Check connection
 	if not self._isConnected then
 		-- Queue event for later
@@ -216,16 +223,16 @@ function NetworkController:SendToServer(eventName: NetworkEvent, packet: Network
 		end
 		return
 	end
-	
+
 	-- Send to server
 	local success, err = pcall(function()
 		remote:FireServer(packet)
 	end)
-	
+
 	if not success then
 		warn(`[NetworkController] Failed to send event {eventName}: {err}`)
 		self._isConnected = false
-		
+
 		-- Attempt reconnection
 		task.delay(RECONNECT_RETRY_DELAY, function()
 			self._isConnected = true
@@ -236,7 +243,7 @@ end
 
 --[[
 	Check if the controller is connected to the server
-	
+
 	@return boolean - True if connected, false otherwise
 ]]
 function NetworkController:IsConnected(): boolean
@@ -245,7 +252,7 @@ end
 
 --[[
 	Get the number of queued events
-	
+
 	@return number - The queue size
 ]]
 function NetworkController:GetQueueSize(): number

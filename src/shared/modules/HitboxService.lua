@@ -55,7 +55,7 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 		CreatedTime = tick(),
 		HitTargets = {},
 
-		Hit = function(self: Hitbox, target: Player): boolean
+		Hit = function(self: Hitbox, target: any): boolean
 			if not self:IsValidTarget(target) then
 				return false
 			end
@@ -74,7 +74,8 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				task.spawn(self.Config.OnHit, target, hitData)
 			end
 
-			print(`[HitboxService] Hit confirmed: {self.Id} -> {target.Name} ({self.Config.Damage} damage)`)
+			local targetName = typeof(target) == "Instance" and target.Name or tostring(target)
+			print(`[HitboxService] Hit confirmed: {self.Id} -> {targetName} ({self.Config.Damage} damage)`)
 			return true
 		end,
 
@@ -163,15 +164,15 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				local toTarget = targetPosition - self.Config.Origin
 				local fwdDist = toTarget:Dot(self.Config.Direction.Unit)
 				if fwdDist < 0 or fwdDist > self.Config.Length then return false end
-				
+
 				local baseWidth = self.Config.Width or (self.Config.Radius and self.Config.Radius * 2) or (math.tan(math.rad(self.Config.Angle or 45)) * self.Config.Length * 2)
 				local baseHeight = self.Config.Height or (self.Config.Radius and self.Config.Radius * 2) or baseWidth
-				
+
 				local cf = CFrame.lookAt(self.Config.Origin, self.Config.Origin + self.Config.Direction.Unit)
 				local projLocal = cf:VectorToObjectSpace(toTarget - self.Config.Direction.Unit * fwdDist)
 				local maxW = (fwdDist / self.Config.Length) * (baseWidth / 2)
 				local maxH = (fwdDist / self.Config.Length) * (baseHeight / 2)
-				
+
 				if maxW > 0 and maxH > 0 then
 					return (projLocal.X^2 / maxW^2) + (projLocal.Y^2 / maxH^2) <= 1
 				end
@@ -189,13 +190,13 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 
 	-- Create debug visual (always create, will be shown/hidden based on setting)
 	HitboxService._CreateVisual(hitbox)
-	if config.LifeTime then
-		task.delay(config.LifeTime, function()
-			if hitbox.Active then
-				hitbox:Expire()
-			end
-		end)
-	end
+	-- Ensure hitboxes expire: prefer explicit LifeTime, fall back to Duration, otherwise use a safe default
+	local life = config.LifeTime or config.Duration or 0.5
+	task.delay(life, function()
+		if hitbox.Active then
+			hitbox:Expire()
+		end
+	end)
 
 	local ownerName = type(config.Owner) == "string" and config.Owner or (typeof(config.Owner) == "Instance" and config.Owner.Name or "Unknown")
 	print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {ownerName})`)
@@ -242,7 +243,7 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 	if ownerChar then
 		params.FilterDescendantsInstances = {ownerChar}
 	end
-	
+
 	-- We only care about characters or dummies, usually stored in workspace, but let's query everything
 	local results: {BasePart} = {}
 
@@ -265,7 +266,7 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 		local cf = config.CFrame or CFrame.new(config.Position)
 		local boxSize = Vector3.new(radius * 2, height, radius * 2)
 		local potentialResults = workspace:GetPartBoundsInBox(cf, boxSize, params)
-		
+
 		for _, part in ipairs(potentialResults) do
 			-- Basic filtering for cylinder shape
 			local localPos = cf:PointToObjectSpace(part.Position)
@@ -282,26 +283,26 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 		local baseWidth = config.Width or (config.Radius and config.Radius * 2) or (math.tan(math.rad(config.Angle or 45)) * length * 2)
 		local baseHeight = config.Height or (config.Radius and config.Radius * 2) or baseWidth
 		local fwd = config.Direction.Unit
-		
+
 		local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
 		local centerCf = cf * CFrame.new(0, 0, -length/2)
 		local boxSize = Vector3.new(baseWidth, baseHeight, length)
 		local potentialResults = workspace:GetPartBoundsInBox(centerCf, boxSize, params)
-		
+
 		for _, part in ipairs(potentialResults) do
 			local toPart = part.Position - config.Origin
 			local fwdDist = toPart:Dot(fwd)
 			if fwdDist > 0 and fwdDist <= length then
 				local proj = toPart - fwd * fwdDist
 				local projLocal = cf:VectorToObjectSpace(proj)
-				
+
 				local maxW = (fwdDist / length) * (baseWidth / 2)
 				local maxH = (fwdDist / length) * (baseHeight / 2)
-				
+
 				-- Ellipsoid logic
 				local rX = maxW + (part.Size.Magnitude / 2)
 				local rY = maxH + (part.Size.Magnitude / 2)
-				
+
 				if rX > 0 and rY > 0 then
 					local val = (projLocal.X^2 / rX^2) + (projLocal.Y^2 / rY^2)
 					if val <= 1 then
@@ -318,14 +319,14 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 		if ownerChar then
 			rayParams.FilterDescendantsInstances = {ownerChar}
 		end
-		
+
 		-- Use Blockcast for a 'thick' ray (3x3 default, could parameterise later)
 		local castSize = Vector3.new(3, 3, 0.1)
 		local castDir = config.Direction.Unit * config.Length
-		
+
 		-- LookAt CFrame so the Z axis aligns with direction
 		local startCF = CFrame.lookAt(config.Origin, config.Origin + config.Direction)
-		
+
 		local blockCastResult = workspace:Blockcast(startCF, castSize, castDir, rayParams)
 		if blockCastResult and blockCastResult.Instance then
 			table.insert(results, blockCastResult.Instance)
@@ -338,24 +339,26 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 		local model = part:FindFirstAncestorOfClass("Model")
 		if not model or processedModels[model] then continue end
 
-		-- Ensure it's a character or dummy
+		-- Ensure it's a character, dummy, or hollowed
 		local humanoid = model:FindFirstChildOfClass("Humanoid")
 		if not humanoid then continue end
 
 		-- Extract target identifier
 		local target: any = nil
 		local player = Players:GetPlayerFromCharacter(model)
-		
+
 		if player then
 			target = player
 		elseif model.Name:match("^Dummy_") then
 			target = model.Name:match("^Dummy_(.*)")
+		elseif model.Name:match("^Hollowed_") then
+			target = model.Name
 		end
 
 		if target then
 			-- Mark model as processed to avoid multiple hits per cast
 			processedModels[model] = true
-			
+
 			if hitbox:IsValidTarget(target) then
 				if hitbox:Hit(target) then
 					hitCount += 1
@@ -457,11 +460,11 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Anchored = true
 		part.CanQuery = false
 		part.Massless = true
-		
+
 		local baseCf = config.CFrame or CFrame.new(config.Position or Vector3.new(0, 0, 0))
 		-- Orient so it stands up like a typical cylinder/circle instead of on its side
 		part.CFrame = baseCf * CFrame.Angles(0, 0, math.pi/2)
-		
+
 		part.Material = Enum.Material.Neon
 		part.Color = Color3.fromRGB(255, 165, 0) -- Orange
 		part.Transparency = 0.7
@@ -476,25 +479,25 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		local mesh = Instance.new("SpecialMesh")
 		mesh.MeshType = Enum.MeshType.Wedge
 		mesh.Parent = part
-		
+
 		-- Just making it a Wedge part to roughly show the area or we can just use a generic part
 		local length = config.Length or 10
 		local baseWidth = config.Width or (config.Radius and config.Radius * 2) or (math.tan(math.rad(config.Angle or 45)) * length * 2)
 		local baseHeight = config.Height or (config.Radius and config.Radius * 2) or baseWidth
-		
+
 		part.Size = Vector3.new(baseWidth, baseHeight, length)
 		part.CanCollide = false
 		part.Anchored = true
 		part.CanQuery = false
 		part.Massless = true
-		
+
 		if config.Origin and config.Direction then
 			local fwd = config.Direction.Unit
 			local cf = CFrame.lookAt(config.Origin, config.Origin + fwd)
 			-- center of visual
 			part.CFrame = cf * CFrame.new(0, 0, -length/2)
 		end
-		
+
 		part.Material = Enum.Material.Neon
 		part.Color = Color3.fromRGB(255, 0, 255) -- Magenta
 		part.Transparency = 0.7
@@ -584,12 +587,12 @@ function HitboxService._UpdateVisualVisibility()
 	if not HitboxService._VisualFolder then
 		HitboxService._VisualFolder = workspace:FindFirstChild("HitboxVisuals") or ReplicatedStorage:FindFirstChild("HitboxVisuals")
 	end
-	
+
 	if not HitboxService._VisualFolder then return end
 
 	local showHitboxes = DebugSettings.Get("ShowHitboxes")
 
-	-- If on client, reparenting the folder to ReplicatedStorage or Camera instead of nil 
+	-- If on client, reparenting the folder to ReplicatedStorage or Camera instead of nil
 	-- prevents constant server replication from bringing pieces back when the folder syncs
 	if showHitboxes then
 		HitboxService._VisualFolder.Parent = workspace

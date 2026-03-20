@@ -1,14 +1,14 @@
 --!strict
 --[[
 	CombatService.lua
-	
+
 	Issue #28: Modular Hitbox System - Server Validation
 	Epic: Phase 2 - Combat & Fluidity
-	
+
 	Server-authoritative hit validation and damage application.
 	Receives hit events from client, validates against DefenseService,
 	applies damage, and broadcasts feedback to all clients.
-	
+
 	Dependencies: StateService, DefenseService, NetworkProvider, Utils
 ]]
 
@@ -26,6 +26,7 @@ local WeaponService: any = nil
 local PostureService: any = nil
 local ProgressionService: any = nil
 local HollowedService: any = nil
+local StateSyncService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
@@ -88,12 +89,12 @@ local PARRY_FEEDBACK_EVENT_NAME = "ParryFeedback"
 ]]
 function CombatService:Init()
 	print("[CombatService] Initializing...")
-	
+
 	-- Clean up when players leave
 	Players.PlayerRemoving:Connect(function(player)
 		HitCooldowns[player] = nil
 	end)
-	
+
 	print("[CombatService] Initialized successfully")
 end
 
@@ -102,14 +103,42 @@ end
 ]]
 function CombatService:Start()
 	print("[CombatService] Starting...")
-	
+
 	-- Resolve lazy dependencies (avoids circular-require at module load time)
 	AbilitySystem     = require(script.Parent.AbilitySystem)
 	WeaponService     = require(script.Parent.WeaponService)
 	PostureService    = require(script.Parent.PostureService)
 	ProgressionService = require(script.Parent.ProgressionService)
 	HollowedService   = require(script.Parent.HollowedService)
-	
+	StateSyncService  = require(script.Parent.StateSyncService)
+
+	Players.PlayerAdded:Connect(function(player)
+		player.Chatted:Connect(function(msg)
+			if msg:sub(1, 10) == "/debug hp " then
+				local val = tonumber(msg:sub(11))
+				if val then
+					local pd = StateService:GetPlayerData(player)
+					if pd then
+						pd.Health.Current = math.max(0, pd.Health.Current - val)
+						if StateSyncService then StateSyncService.SendCombatUpdate(player) end
+						print(`[CombatService Debug] Took {val} damage`)
+					end
+				end
+			elseif msg:sub(1, 15) == "/debug posture " then
+				local val = tonumber(msg:sub(16))
+				if val and PostureService then
+					PostureService.GainPosture(player, val)
+					print(`[CombatService Debug] Gained {val} posture`)
+				end
+			elseif msg == "/debug sync" then
+				if StateSyncService then
+					StateSyncService.SyncPlayer(player)
+					print(`[CombatService Debug] Forced state sync`)
+				end
+			end
+		end)
+	end)
+
 	local RunService = game:GetService("RunService")
 	RunService.Heartbeat:Connect(function()
 		for _, player in Players:GetPlayers() do
@@ -125,11 +154,19 @@ function CombatService:Start()
 				end
 			end
 		end
+		if HollowedService and HollowedService.GetAllInstances then
+			for id, _ in HollowedService.GetAllInstances() do
+				local model = workspace:FindFirstChild(id)
+				if model then
+					CombatService._ProcessDamageAttributes(model, id)
+				end
+			end
+		end
 	end)
 
 	-- This service is event-driven. Events are received via NetworkProvider
 	-- in the server runtime. This Start is here for consistency with other services.
-	
+
 	print("[CombatService] Started successfully")
 end
 
@@ -137,11 +174,11 @@ end
 	Reads attribute damage placed by abilities ("IncomingHPDamage") and executes correctly
 ]]
 function CombatService._ProcessDamageAttributes(character: Model, targetName: string)
-	local hpVal = character:GetAttribute("IncomingHPDamage") :: number?
-	local postVal = character:GetAttribute("IncomingPostureDamage") :: number?
-	
-	if (not hpVal or hpVal <= 0) and (not postVal or postVal <= 0) then return end
-	
+	local hpVal = (character:GetAttribute("IncomingHPDamage") or 0) :: number
+	local postVal = (character:GetAttribute("IncomingPostureDamage") or 0) :: number
+
+	if hpVal <= 0 and postVal <= 0 then return end
+
 	local hpSource = (character:GetAttribute("IncomingHPDamageSource") or "Unknown") :: string
 	local postSource = (character:GetAttribute("IncomingPostureDamageSource") or "Unknown") :: string
 
@@ -149,40 +186,84 @@ function CombatService._ProcessDamageAttributes(character: Model, targetName: st
 	character:SetAttribute("IncomingHPDamage", 0)
 	character:SetAttribute("IncomingPostureDamage", 0)
 
-	local sourceStr = (hpVal and hpVal > 0) and hpSource or postSource
+	local sourceStr = (hpVal > 0) and hpSource or postSource
 	local attackerName = string.split(sourceStr, "_")[1] or "Unknown"
 	local attacker = Players:FindFirstChild(attackerName)
-	
-	if hpVal and hpVal > 0 then
+
+	if attacker then
+		-- Process via ValidateHit (which handles block/dodge states)
 		local hitData = {
 			TargetName = targetName,
 			Damage = hpVal,
+			PostureDamage = postVal,
 			HitType = "Ability",
 			BypassRateLimit = true,
 			BypassWeaponValidation = true,
-			BypassPosture = true
+			BypassPosture = false -- Let ValidateHit handle the posture logic properly
 		}
-		if attacker then
-			CombatService.ValidateHit(attacker, hitData)
-		else
-			-- Fallback to applying damage directly if attacker left
-			if Players:FindFirstChild(targetName) then
-				local targetPlayer = Players:FindFirstChild(targetName)
-				if targetPlayer then
-					local pd = StateService:GetPlayerData(targetPlayer)
-					if pd then pd.Health.Current = math.max(0, pd.Health.Current - hpVal) end
-				end
-			elseif DummyService.GetDummyData(targetName) then
-				DummyService.ApplyDamage(targetName, hpVal)
-			end
-		end
-	end
-	
-	if postVal and postVal > 0 then
+		CombatService.ValidateHit(attacker, hitData)
+	else
+		-- Fallback to applying damage directly if attacker left (or is an NPC)
 		local targetPlayer = Players:FindFirstChild(targetName)
-		if targetPlayer and PostureService then
-			-- ability hits now INCREASE posture (pressure gauge)
-			PostureService.GainPosture(targetPlayer, postVal)
+		if targetPlayer then
+			if postVal > 0 and PostureService then
+				PostureService.GainPosture(targetPlayer, postVal)
+
+				local targetData = StateService:GetPlayerData(targetPlayer)
+				if targetData and targetData.State == "Blocking" then
+					local blockEvent = NetworkProvider:GetRemoteEvent(BLOCK_FEEDBACK_EVENT_NAME)
+					if blockEvent then
+						blockEvent:FireClient(targetPlayer, attacker, hpVal)
+					end
+
+					local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
+					if hitEvent then
+						hitEvent:FireAllClients(attacker, targetPlayer, 0, false, false, "Crouching", nil, 0.25)
+					end
+				end
+			end
+
+			if hpVal > 0 then
+				local pd = StateService:GetPlayerData(targetPlayer)
+				if pd then
+					pd.Health.Current = math.max(0, pd.Health.Current - hpVal)
+					if StateSyncService then StateSyncService.SendCombatUpdate(targetPlayer) end
+
+					if pd.Health.Current <= 0 then
+						StateService:SetPlayerState(targetPlayer, "Dead")
+						print(`[CombatService] ☠️  {targetPlayer.Name} defeated! ({hpVal} damage)`)
+					end
+
+					local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
+					if hitEvent then
+						hitEvent:FireAllClients(nil, targetPlayer, hpVal, false, false)
+					end
+				end
+			end
+		elseif DummyService.GetDummyData(targetName) then
+			if hpVal > 0 then
+				local attackerPos: Vector3? = nil
+				if sourceStr then
+					local sourceId = string.gsub(sourceStr, "_Attack$", "")
+					local npcModel = workspace:FindFirstChild(sourceId)
+					if npcModel and npcModel.PrimaryPart then
+						attackerPos = npcModel.PrimaryPart.Position
+					end
+				end
+				DummyService.ApplyDamage(targetName, hpVal, attackerPos)
+				local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
+				if hitEvent then
+					hitEvent:FireAllClients(nil, targetName, hpVal, false, true)
+				end
+			end
+		elseif HollowedService and HollowedService.GetInstanceData(targetName) then
+			HollowedService.ApplyDamage(targetName, hpVal, attacker, postVal)
+			if hpVal > 0 then
+				local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
+				if hitEvent then
+					hitEvent:FireAllClients(nil, targetName, hpVal, false, true)
+				end
+			end
 		end
 	end
 end
@@ -190,7 +271,7 @@ end
 --[[
 	Handle a hit request from client (ActionController)
 	Called by server runtime when receiving hit events
-	
+
 	@param attacker The attacking player
 	@param hitData Data about the hit (target position, damage type, etc)
 	@return HitResult with confirmed damage and whether hit succeeded
@@ -200,12 +281,12 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		print("[CombatService] ✗ Invalid attacker")
 		return false, 0
 	end
-	
+
 	if not hitData then
 		print("[CombatService] ✗ No hit data")
 		return false, 0
 	end
-	
+
 	-- Rate limiting (skipped for server-initiated ability hits)
 	if hitData.BypassRateLimit ~= true then
 		local now = tick()
@@ -228,24 +309,24 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		hitData = table.clone(hitData)
 		hitData.Damage = clampedDamage
 	end
-	
+
 	-- Get attacker data
 	local attackerData = StateService:GetPlayerData(attacker)
 	if not attackerData or attackerData.State == "Stunned" then
 		print(`[CombatService] ✗ Attacker invalid state: {attackerData and attackerData.State or "nil"}`)
 		return false, 0
 	end
-	
+
 	-- Extract hit info from data
 	local targetName: string? = hitData.TargetName
 	local baseDamage: number = hitData.Damage or 10
 	local hitType: string = hitData.HitType or "Attack"
-	
+
 	if not targetName then
 		print("[CombatService] ✗ No target name in hit data")
 		return false, 0
 	end
-	
+
 	-- Find target (player or dummy or hollowed enemy)
 	local targetPlayer = Players:FindFirstChild(targetName)
 	local targetDummy  = nil
@@ -266,7 +347,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		print(`[CombatService] ✗ Target not found: {targetName}`)
 		return false, 0
 	end
-	
+
 	-- Can't hit self (only for players)
 	if not isDummy and not isHollowed and attacker == targetPlayer then
 		print("[CombatService] ✗ Self-hit attempted")
@@ -303,7 +384,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 
 		-- WallRunning targets: TODO — increased hitstun when wall-run is implemented (#171)
 	end
-	
+
 	-- Apply damage with variance
 	local finalDamage = CombatService._ApplyDamageVariance(baseDamage)
 	local isCritical = CombatService._RollCritical()
@@ -342,7 +423,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			end
 		end
 	end
-	
+
 	if isCritical then
 		finalDamage = math.floor(finalDamage * CRITICAL_MULTIPLIER)
 		print(`[CombatService] ⚡ CRITICAL HIT: {baseDamage} → {finalDamage}`)
@@ -358,22 +439,24 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			print(`[CombatService] ⚠ Cross-train penalty applied, damage -> {finalDamage}`)
 		end
 	end
-	
+
 	-- Check defense (block/parry) - only for players
 	local wasBlocked = false
 	local wasParried = false
 
 	if not isDummy and not isHollowed then
+		local isBlockBreaker = hitData.HitType == "Heavy" or hitData.AttackType == "Heavy" or (hitData.PostureDamage and hitData.PostureDamage >= 40)
+
 		-- Server-side block check
-		if targetData.State == "Blocking" then
+		if targetData.State == "Blocking" and not isBlockBreaker then
 			-- Blocked hits drain Posture but deal NO HP damage (dual-health model #75)
 			wasBlocked = true
 			finalDamage = 0
-			print(`[CombatService] 🛡️  Blocked — draining posture instead of HP`)
+			print(`[CombatService] 🛡️  Blocked — filling posture instead of HP`)
 
-			-- #157: blocking FILLS posture pressure (GainPosture, not DrainPosture)
+			-- #157: blocking FILLS posture pressure (GainPosture)
 			if PostureService and not hitData.BypassPosture then
-				local suppressed = PostureService.GainPosture(targetPlayer, nil)
+				local suppressed = PostureService.GainPosture(targetPlayer, hitData.PostureDamage)
 				if suppressed then
 					print(`[CombatService] 🔒 {targetPlayer.Name} Suppressed — posture maxed!`)
 				end
@@ -384,9 +467,15 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			if blockEvent then
 				blockEvent:FireClient(targetPlayer, attacker, baseDamage)
 			end
+		elseif isBlockBreaker then
+			-- Block breaking attacks force Suppressed state regardless of block
+			print(`[CombatService] 💥 Block-breaking attack landed on {targetPlayer.Name}!`)
+			if PostureService then
+				PostureService.TriggerSuppressed(targetPlayer)
+			end
 		end
 	end
-	
+
 	-- Apply damage to target
 	if finalDamage > 0 then
 		if isDummy then
@@ -405,36 +494,18 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 			end
 		elseif isHollowed then
 			-- Dispatch to HollowedService; it handles health, death, and Resonance grant.
-			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, hitData.PostureDamage, attacker)
+			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, attacker, hitData.PostureDamage)
 			if not stillAlive then
 				print(`[CombatService] ☠️ Hollowed defeated! ({finalDamage} damage)`)
 			else
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → {targetName} ({finalDamage} damage)`)
 			end
 		else
-			-- Dual-health model (#75): unguarded hits drain both HP and Posture.
-			-- (Blocked hits already returned 0 finalDamage above so this block is
-			-- only reached for unblocked / unguarded hits.)
 
--- Before applying HP, handle posture drain and potential Breaks
-		local preStagger = PostureService and PostureService.IsStaggered(targetPlayer)
-		local broke, overflow = false, 0
-		if PostureService and not hitData.BypassPosture then
-			broke, overflow = PostureService.DrainPosture(targetPlayer, hitData.PostureDamage, "Unguarded")
-		end
-		if preStagger or broke then
-			local breakDmg = CombatService.CalculateBreakDamage(attacker, overflow)
-			print(`[CombatService] 💥 Break executed on {targetPlayer.Name} (overflow {overflow})`)
-			if PostureService then
-				PostureService.ExecuteBreak(attacker, targetPlayer, breakDmg)
-			else
-				CombatService.ApplyBreakDamage(targetPlayer, breakDmg)
-			end
-			return true, breakDmg
-		end
 
 			-- Normal HP hit
 			targetData.Health.Current = math.max(0, targetData.Health.Current - finalDamage)
+			if StateSyncService and targetPlayer then StateSyncService.SendCombatUpdate(targetPlayer) end
 
 			-- Check if target died
 			if targetData.Health.Current <= 0 then
@@ -449,7 +520,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → {targetPlayer.Name} ({finalDamage} damage)`)
 			end
 		end
-		
+
 		-- Broadcast hit confirmation to all clients
 		local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
 		if hitEvent then
@@ -486,7 +557,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 
 		return true, finalDamage
 	end
-	
+
 	return false, 0
 end
 
@@ -499,7 +570,7 @@ function CombatService._ApplyDamageVariance(baseDamage: number): number
 	local variance = baseDamage * BASE_DAMAGE_VARIANCE
 	local minDamage = baseDamage - variance
 	local maxDamage = baseDamage + variance
-	
+
 	return math.random(math.floor(minDamage), math.ceil(maxDamage))
 end
 
@@ -540,17 +611,17 @@ function CombatService.HealPlayer(player: Player?, amount: number): number
 	if not player or not Utils.IsValidPlayer(player) then
 		return 0
 	end
-	
+
 	local playerData = StateService:GetPlayerData(player)
 	if not playerData then
 		return 0
 	end
-	
+
 	local maxHealth = playerData.Health.Max
 	playerData.Health.Current = math.min(maxHealth, playerData.Health.Current + amount)
-	
+
 	print(`[CombatService] ✓ {player.Name} healed: +{amount} HP (now {playerData.Health.Current}/{maxHealth})`)
-	
+
 	return playerData.Health.Current
 end
 
@@ -564,17 +635,17 @@ function CombatService.RestorePosture(player: Player?, amount: number): number
 	if not player or not Utils.IsValidPlayer(player) then
 		return 0
 	end
-	
+
 	local playerData = StateService:GetPlayerData(player)
 	if not playerData then
 		return 0
 	end
-	
+
 	local maxPosture = playerData.Posture.Max
 	playerData.Posture.Current = math.min(maxPosture, playerData.Posture.Current + amount)
-	
+
 	print(`[CombatService] ✓ {player.Name} posture restored: +{amount} (now {playerData.Posture.Current}/{maxPosture})`)
-	
+
 	return playerData.Posture.Current
 end
 
@@ -586,7 +657,7 @@ function CombatService.ResetCooldowns(player: Player?)
 	if not player then
 		return
 	end
-	
+
 	HitCooldowns[player] = nil
 	print(`[CombatService] Cooldowns reset for {player.Name}`)
 end

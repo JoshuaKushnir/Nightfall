@@ -131,4 +131,19 @@ export type PlayerData = {
 	Experience: number,
 }
 
+-- Network Profile (sent to clients, nested component structure)
+export type PlayerProfile = {
+	UserId: number,
+	DisplayName: string,
+	Level: number,
+	Experience: number,
+	Health: HealthComponent,
+	Mana: ManaComponent,
+	Posture: PostureComponent,
+	Luminance: LuminanceComponent?,
+	EquippedMantras: {Mantra}?,
+	Class: string?,
+	Coins: number?,
+}
+
 return {}

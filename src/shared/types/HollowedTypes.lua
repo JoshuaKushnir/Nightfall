@@ -63,6 +63,10 @@ export type HollowedData = {
 	LastAITick       : number,       -- tick() of last AI evaluation (throttle)
 	KillerId         : number?,      -- UserId of killing player (set on death)
 	IsActive         : boolean,
+	Difficulty       : number?,      -- optional base difficulty modifier
+	FocusAggression  : number?,      -- AI behaviour modifier for aggression
+	FocusDefense     : number?,      -- AI behaviour modifier for defense
+	FocusTargeting   : number?,      -- AI behaviour modifier for targeting
 }
 
 return HollowedTypes

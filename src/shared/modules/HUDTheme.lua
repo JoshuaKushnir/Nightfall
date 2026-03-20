@@ -54,7 +54,7 @@ local HUDTheme: HUDTheme = {
     },
 
     PostureWarnThreshold = 0.70,
-    PostureWarnColor     = Color3.fromRGB(180, 80, 60),
+    PostureWarnColor     = Color3.fromRGB(224, 227, 28),
 
     ManaBarWidthScale      = 0.67,
     LuminanceBarWidthScale = 0.50,

@@ -1,13 +1,13 @@
 --!strict
 --[[
 	NetworkTypes - Type definitions for all network packets and events
-	
+
 	Issue #4: Centralized Network Communication Provider
 	Epic: Phase 1 - Core Framework
-	
+
 	This module defines all network event types and packet structures
 	for type-safe client-server communication.
-	
+
 	All network packets should be defined here to ensure consistency
 	across server and client implementations.
 ]]
@@ -24,7 +24,7 @@ export type NetworkEvent =
 	| "ProfileData"
 	| "ProfileUpdate"
 	| "CombatData"
-	
+
 	-- Combat
 	| "DamageDealt"
 	| "HealReceived"
@@ -41,12 +41,12 @@ export type NetworkEvent =
 	| "ClashStart"            -- server→client: individual player enters clash state
 	| "ClashFollowup"         -- client→server: follow-up input during clash window
 	| "ClashOutcome"          -- server→clients near event: result of clash
-	
+
 	-- Abilities/Mantras
 	| "MantraCast"
 	| "MantraHit"
 	| "CooldownUpdate"
-	
+
 	-- Equipment
 	| "EquipItem"
 	| "UnequipItem"
@@ -63,7 +63,7 @@ export type NetworkEvent =
 	| "DialogueChoice"
 	| "QuestAccept"
 	| "QuestComplete"
-	
+
 	-- UI
 	| "OpenUI"
 	| "CloseUI"
@@ -148,8 +148,11 @@ export type ProfileUpdatePacket = {
 
 export type CombatDataPacket = {
 	Health: number,
+	MaxHealth: number,
 	Mana: number,
+	MaxMana: number,
 	Posture: number,
+	MaxPosture: number,
 	Level: number,
 }
 
@@ -350,8 +353,8 @@ export type BreakExecutedPacket = {
 }
 
 export type HitConfirmedPacket = {
-	Attacker: Player,
-	Target: Player,
+	Attacker: Player?,
+	Target: any,
 	Damage: number,
 	IsCritical: boolean?,
 	HitType: "Normal" | "Block" | "Parry" | "Block"?,
@@ -555,6 +558,8 @@ export type ProgressionGateBlockedPacket = {
 export type WitnessProgressPacket = {
 	TargetInstanceId: string,
 	Progress: number,
+	TargetName: string,
+	Broken: boolean?,
 }
 
 export type WitnessStartedPacket = {
@@ -569,7 +574,7 @@ export type WitnessFailedPacket = {
 }
 
 -- Unified packet type for type safety
-export type NetworkPacket = 
+export type NetworkPacket =
 	StateChangedPacket
 	| StateRequestPacket
 	| RequestStateSyncPacket
@@ -676,7 +681,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Send combat stat updates to client",
 	},
-	
+
 	-- Combat
 	DamageDealt = {
 		Direction = "ServerToClient",
@@ -772,7 +777,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Broadcast dummy state change (Normal/Blocking/Staggered) to all clients",
 	},
-	
+
 	-- Abilities/Mantras
 	AbilityCastRequest = {
 		Direction = "ClientToServer",
@@ -834,7 +839,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Update client on cooldown status",
 	},
-	
+
 	-- Equipment
 	EquipItem = {
 		Direction = "ClientToServer",
@@ -902,7 +907,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Confirmed swing result sent back to attacking client (issue #171)",
 	},
-	
+
 	-- Dialogue/Quests
 	DialogueStart = {
 		Direction = "ServerToClient",
@@ -928,7 +933,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Notify client quest completed",
 	},
-	
+
 	-- UI
 	OpenUI = {
 		Direction = "ServerToClient",
@@ -948,7 +953,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = true,
 		Description = "Client interacts with UI",
 	},
-	
+
 	-- Progression (Issue #138, #140)
 	ResonanceUpdate = {
 		Direction = "ServerToClient",
@@ -1071,6 +1076,80 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Notify client why they cannot transition ring",
+	},
+
+	-- Witnessing Mechanic (#179)
+	WitnessStarted = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify client that player started observing an entity",
+	},
+	WitnessProgress = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Update client on witnessing progress percentage",
+	},
+	WitnessFailed = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Notify client that observation was interrupted",
+	},
+
+	-- Aspect System
+	AspectAssigned = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Tell client their Aspect was assigned",
+	},
+	AspectInvestRequest = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 5,
+		RequiresValidation = true,
+		Description = "Client requests to invest Shards in an aspect branch",
+	},
+	AspectInvestResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Result of aspect investment request",
+	},
+
+	-- Weapon Combat Events
+	WeaponEquipResult = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Result of weapon equip with proficiency info",
+	},
+	AttackInitiated = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 10,
+		RequiresValidation = true,
+		Description = "Player attempted an attack",
+	},
+
+	-- Clash System Events
+	ClashStart = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Individual player enters clash state",
+	},
+	ClashFollowup = {
+		Direction = "ClientToServer",
+		RateLimitPerSecond = 10,
+		RequiresValidation = true,
+		Description = "Follow-up input during clash window",
+	},
+	ClashOutcome = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Result of clash between players",
 	},
 }
 

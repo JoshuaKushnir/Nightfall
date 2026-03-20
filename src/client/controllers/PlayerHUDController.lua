@@ -50,9 +50,13 @@ local clusterGui: ScreenGui
 local healthFill:       Frame
 local healthFlashFrame: Frame
 local healthBarStroke:  UIStroke
+local healthLabel:      TextLabel
 local postureFill:      Frame
+local postureLabel:     TextLabel
 local manaFill:         Frame
+local manaLabel:        TextLabel
 local luminanceFill:    Frame
+local luminanceLabel:   TextLabel
 
 -- Zone notification
 local zoneFrame:     Frame
@@ -120,8 +124,18 @@ end
 -- Bar updaters
 --------------------------------------------------------------------------------
 local function updateHealth(current: number, max: number)
-	if not healthFill then return end
-	local pct = if max > 0 then math.clamp(current / max, 0, 1) else 0
+	if not healthFill then
+		warn("[PlayerHUDController] updateHealth called but healthFill is nil")
+		return
+	end
+	current = math.max(0, current or 0)
+	max = math.max(1, max or 100)
+	local pct = math.clamp(current / max, 0, 1)
+	print(`[PlayerHUDController] updateHealth: {current}/{max} = {math.floor(pct * 100)}%`)
+
+	if healthLabel then
+		healthLabel.Text = string.format("HP: %d / %d", math.floor(current), math.floor(max))
+	end
 
 	-- White flash on damage
 	if current < lastHealth and healthFlashFrame then
@@ -141,21 +155,50 @@ local function updateHealth(current: number, max: number)
 end
 
 local function updatePosture(current: number, max: number)
-	if not postureFill then return end
-	local pct = if max > 0 then math.clamp(current / max, 0, 1) else 0
+	if not postureFill then
+		warn("[PlayerHUDController] updatePosture called but postureFill is nil")
+		return
+	end
+	current = math.max(0, current or 0)
+	max = math.max(1, max or 100)
+	local pct = math.clamp(current / max, 0, 1)
+	print(`[PlayerHUDController] updatePosture: {current}/{max} = {math.floor(pct * 100)}%`)
+
+	if postureLabel then
+		postureLabel.Text = string.format("PO: %d / %d", math.floor(current), math.floor(max))
+	end
+
 	tw(postureFill, FAST, { Size = UDim2.new(pct, 0, 1, 0) })
 	postureFill.BackgroundColor3 = postureColor(pct)
 end
 
 local function updateMana(current: number, max: number)
-	if not manaFill then return end
-	local pct = if max > 0 then math.clamp(current / max, 0, 1) else 0
+	if not manaFill then
+		warn("[PlayerHUDController] updateMana called but manaFill is nil")
+		return
+	end
+	current = math.max(0, current or 0)
+	max = math.max(1, max or 100)
+	local pct = math.clamp(current / max, 0, 1)
+	print(`[PlayerHUDController] updateMana: {current}/{max} = {math.floor(pct * 100)}%`)
+
+	if manaLabel then
+		manaLabel.Text = string.format("MP: %d / %d", math.floor(current), math.floor(max))
+	end
+
 	tw(manaFill, FAST, { Size = UDim2.new(pct, 0, 1, 0) })
 end
 
 local function updateLuminance(current: number, max: number)
 	if not luminanceFill then return end
-	local pct = if max > 0 then math.clamp(current / max, 0, 1) else 0
+	current = math.max(0, current or 0)
+	max = math.max(1, max or 100)
+	local pct = math.clamp(current / max, 0, 1)
+
+	if luminanceLabel then
+		luminanceLabel.Text = string.format("LU: %d / %d", math.floor(current), math.floor(max))
+	end
+
 	tw(luminanceFill, FAST, { Size = UDim2.new(pct, 0, 1, 0) })
 end
 
@@ -181,7 +224,7 @@ local function makeBar(
 	w:         number,
 	h:         number,
 	fillColor: Color3
-): (Frame, Frame)
+): (Frame, Frame, TextLabel)
 	local bg = Instance.new("Frame")
 	bg.Name                   = name
 	bg.Size                   = UDim2.new(0, w, 0, h)
@@ -208,7 +251,20 @@ local function makeBar(
 
 	fill.Parent = bg
 
-	return bg, fill
+	local label = Instance.new("TextLabel")
+	label.Name = "ValueLabel"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0.4
+	label.TextStrokeColor3 = Color3.new(0, 0, 0)
+	label.TextSize = math.max(10, h * 0.85)
+	label.Font = Enum.Font.SourceSansBold
+	label.Text = ""
+	label.ZIndex = 5
+	label.Parent = bg
+
+	return bg, fill, label
 end
 
 --------------------------------------------------------------------------------
@@ -325,6 +381,16 @@ end
 --------------------------------------------------------------------------------
 local function buildHUD()
 	playerGui = Players.LocalPlayer:WaitForChild("PlayerGui", 10)
+	if not playerGui then
+		error("[PlayerHUDController] Failed to find PlayerGui")
+		return
+	end
+
+	-- Clean up any existing HUD
+	local existing = playerGui:FindFirstChild("PlayerHUD")
+	if existing then
+		existing:Destroy()
+	end
 
 	clusterGui = Instance.new("ScreenGui")
 	clusterGui.Name           = "PlayerHUD"
@@ -383,8 +449,9 @@ local function buildHUD()
 	layout.Parent              = cluster
 
 	-- ── HP bar ───────────────────────────────────────────────────────────────
-	local hpBg, hpFill = makeBar(cluster, "HealthBar", BW, HPH, HUDTheme.HealthFullColor)
+	local hpBg, hpFill, hpLbl = makeBar(cluster, "HealthBar", BW, HPH, HUDTheme.HealthFullColor)
 	healthFill = hpFill
+	healthLabel = hpLbl
 
 	-- Aspect-coloured stroke on HP bar
 	healthBarStroke = Instance.new("UIStroke")
@@ -404,18 +471,21 @@ local function buildHUD()
 	healthFlashFrame.Parent             = hpBg
 
 	-- ── Posture bar ──────────────────────────────────────────────────────────
-	local _, postureFill_ = makeBar(cluster, "PostureBar", BW, ABH, UITheme.Palette.PostureGrey)
+	local _, postureFill_, posLbl = makeBar(cluster, "PostureBar", BW, ABH, UITheme.Palette.PostureGrey)
 	postureFill = postureFill_
+	postureLabel = posLbl
 
 	-- ── Mana bar (67 % width) ────────────────────────────────────────────────
 	local manaW = math.floor(BW * HUDTheme.ManaBarWidthScale)
-	local _, manaFill_ = makeBar(cluster, "ManaBar", manaW, ABH, UITheme.Palette.ManaBlue)
+	local _, manaFill_, manaLbl = makeBar(cluster, "ManaBar", manaW, ABH, UITheme.Palette.ManaBlue)
 	manaFill = manaFill_
+	manaLabel = manaLbl
 
 	-- ── Luminance bar (50 % width) ───────────────────────────────────────────
 	local lumW = math.floor(BW * HUDTheme.LuminanceBarWidthScale)
-	local _, lumFill = makeBar(cluster, "LuminanceBar", lumW, ABH, HUDTheme.LuminanceColor)
+	local _, lumFill, lumLbl = makeBar(cluster, "LuminanceBar", lumW, ABH, HUDTheme.LuminanceColor)
 	luminanceFill = lumFill
+	luminanceLabel = lumLbl
 end
 
 --------------------------------------------------------------------------------
@@ -441,6 +511,48 @@ local function onProfileUpdated(p: PlayerProfile)
 	end
 end
 
+local function onCombatDataUpdated(packet: any)
+	print("[PlayerHUDController] ===== onCombatDataUpdated CALLED =====")
+	print(`[PlayerHUDController] Packet: HP={packet.Health}/{packet.MaxHealth}, MP={packet.Mana}/{packet.MaxMana}, PO={packet.Posture}/{packet.MaxPosture}`)
+
+	-- Update cached profile if it exists
+	if profile then
+		if packet.Health then
+			profile.Health.Current = packet.Health
+			if packet.MaxHealth then profile.Health.Max = packet.MaxHealth end
+		end
+		if packet.Mana then
+			profile.Mana.Current = packet.Mana
+			if packet.MaxMana then profile.Mana.Max = packet.MaxMana end
+		end
+		if packet.Posture then
+			profile.Posture.Current = packet.Posture
+			if packet.MaxPosture then profile.Posture.Max = packet.MaxPosture end
+		end
+	end
+
+	-- Always update UI from packet data (don't wait for profile to load)
+	if packet.Health then
+		local maxHealth = packet.MaxHealth or (profile and profile.Health.Max) or 100
+		print(`[PlayerHUDController] Calling updateHealth({packet.Health}, {maxHealth})`)
+		updateHealth(packet.Health, maxHealth)
+	end
+
+	if packet.Mana then
+		local maxMana = packet.MaxMana or (profile and profile.Mana.Max) or 100
+		print(`[PlayerHUDController] Calling updateMana({packet.Mana}, {maxMana})`)
+		updateMana(packet.Mana, maxMana)
+	end
+
+	if packet.Posture then
+		local maxPosture = packet.MaxPosture or (profile and profile.Posture.Max) or 100
+		print(`[PlayerHUDController] Calling updatePosture({packet.Posture}, {maxPosture})`)
+		updatePosture(packet.Posture, maxPosture)
+	end
+
+	print("[PlayerHUDController] ===== onCombatDataUpdated COMPLETE =====")
+end
+
 --------------------------------------------------------------------------------
 -- Controller API
 --------------------------------------------------------------------------------
@@ -462,14 +574,50 @@ function PlayerHUDController:Init(dependencies: any)
 end
 
 function PlayerHUDController:Start()
-	buildHUD()
+	local buildSuccess, buildErr = pcall(buildHUD)
+	if not buildSuccess then
+		warn("[PlayerHUDController] Failed to build HUD: " .. tostring(buildErr))
+		return
+	end
 
-	-- Data signals
-	StateSyncController.GetProfileLoadedSignal():Connect(onProfileLoaded)
-	StateSyncController.GetProfileUpdatedSignal():Connect(onProfileUpdated)
+	-- Data signals - safe nil checks
+	if StateSyncController then
+		print("[PlayerHUDController] StateSyncController exists, setting up signals...")
 
-	local p = StateSyncController.GetCurrentProfile()
-	if p then onProfileLoaded(p) end
+		local profileLoadedSig = StateSyncController.GetProfileLoadedSignal and StateSyncController.GetProfileLoadedSignal()
+		if profileLoadedSig then
+			print("[PlayerHUDController] ✓ Connected to ProfileLoadedSignal")
+			profileLoadedSig:Connect(onProfileLoaded)
+		else
+			warn("[PlayerHUDController] ProfileLoadedSignal not available")
+		end
+
+		local profileUpdatedSig = StateSyncController.GetProfileUpdatedSignal and StateSyncController.GetProfileUpdatedSignal()
+		if profileUpdatedSig then
+			print("[PlayerHUDController] ✓ Connected to ProfileUpdatedSignal")
+			profileUpdatedSig:Connect(onProfileUpdated)
+		else
+			warn("[PlayerHUDController] ProfileUpdatedSignal not available")
+		end
+
+		local combatDataSig = StateSyncController.GetCombatDataUpdatedSignal and StateSyncController.GetCombatDataUpdatedSignal()
+		if combatDataSig then
+			print("[PlayerHUDController] ✓ Connected to CombatDataUpdatedSignal")
+			combatDataSig:Connect(onCombatDataUpdated)
+		else
+			warn("[PlayerHUDController] CombatDataUpdatedSignal not available")
+		end
+
+		local currentProf = StateSyncController.GetCurrentProfile and StateSyncController.GetCurrentProfile()
+		if currentProf then
+			print("[PlayerHUDController] Initial profile loaded, calling onProfileLoaded...")
+			onProfileLoaded(currentProf)
+		else
+			warn("[PlayerHUDController] No current profile available at Start time")
+		end
+	else
+		warn("[PlayerHUDController] StateSyncController not available in Start()")
+	end
 
 	-- Posture (driven by server RemoteEvent, not profile poll)
 	local postureEvent = NetworkProvider:GetRemoteEvent("PostureChanged")
@@ -482,6 +630,8 @@ function PlayerHUDController:Start()
 			if playerId ~= Players.LocalPlayer.UserId then return end
 			updatePosture(current, max)
 		end)
+	else
+		warn("[PlayerHUDController] PostureChanged RemoteEvent not found")
 	end
 
 	-- Zone / ring notification + aspect border
@@ -494,6 +644,8 @@ function PlayerHUDController:Start()
 		NetworkController:RegisterHandler("SelectAspectResult", function(packet: any)
 			updateAspectBorder(packet and packet.AspectId)
 		end)
+	else
+		warn("[PlayerHUDController] NetworkController not available")
 	end
 
 	print("[PlayerHUDController] HUD active")

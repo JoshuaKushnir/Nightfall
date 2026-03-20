@@ -2,13 +2,13 @@
 --[[
 	StateSyncService.lua
 	Handles server-side state synchronization with clients.
-	
+
 	Responsibilities:
 	- Responds to client state sync requests
 	- Sends state updates to clients when state changes
 	- Sends profile updates to clients when data changes
 	- Manages sync timing and throttling
-	
+
 	Architecture:
 	- Listens for RequestStateSync events
 	- Connects to StateService signals for state changes
@@ -55,19 +55,19 @@ local function sendStatToClient(player: Player)
 	if not canSync(player) then
 		return
 	end
-	
+
 	local state = StateService.GetState(player)
 	if not state then
 		warn("[StateSyncService] No state found for player:", player.Name)
 		return
 	end
-	
+
 	-- Create state change packet
 	local packet: NetworkTypes.StateChangePacket = {
 		NewState = state,
 		Timestamp = os.time()
 	}
-	
+
 	NetworkService:SendToClient(player, "StateChanged", packet)
 	lastSyncTimestamp[player] = os.time()
 end
@@ -81,30 +81,39 @@ local function sendProfileToClient(player: Player, isInitialLoad: boolean)
 		warn("[StateSyncService] No profile found for player:", player.Name)
 		return
 	end
-	
-	-- Convert PlayerData to PlayerProfile
+
+	-- Convert PlayerData to PlayerProfile (nested structure for nested component tables)
 	local profile: PlayerProfile = {
 		UserId = profileData.UserId,
-		Username = profileData.Username,
 		DisplayName = profileData.DisplayName,
 		Level = profileData.Level,
 		Experience = profileData.Experience,
-		CurrentHealth = profileData.Health.Current,
-		MaxHealth = profileData.Health.Max,
-		CurrentMana = profileData.Mana.Current,
-		MaxMana = profileData.Mana.Max,
-		CurrentPosture = profileData.Posture.Current,
-		MaxPosture = profileData.Posture.Max,
+		Health = {
+			Current = profileData.Health.Current,
+			Max = profileData.Health.Max,
+		},
+		Mana = {
+			Current = profileData.Mana.Current,
+			Max = profileData.Mana.Max,
+		},
+		Posture = {
+			Current = profileData.Posture.Current,
+			Max = profileData.Posture.Max,
+		},
+		Luminance = profileData.Luminance and {
+			Current = profileData.Luminance.Current,
+			Max = profileData.Luminance.Max,
+		} or nil,
 		EquippedMantras = profileData.EquippedMantras,
 		Class = profileData.Class,
 		Coins = 0, -- TODO: Add coins to PlayerData
 	}
-	
+
 	-- Create profile data packet
 	local packet: NetworkTypes.ProfileDataPacket = {
 		ProfileData = profile
 	}
-	
+
 	if isInitialLoad then
 		NetworkService:SendToClient(player, "ProfileData", packet)
 	else
@@ -119,7 +128,7 @@ local function onRequestStateSync(player: Player, packet: any)
 	-- Send current state and profile
 	sendStatToClient(player)
 	sendProfileToClient(player, true)
-	
+
 	print("[StateSyncService] Sent initial sync to:", player.Name)
 end
 
@@ -132,7 +141,7 @@ local function onStateChanged(player: Player, oldState: PlayerState, newState: P
 		NewState = newState,
 		Timestamp = os.time()
 	}
-	
+
 	NetworkService:SendToClient(player, "StateChanged", packet)
 end
 
@@ -148,15 +157,22 @@ end
 ]]
 local function sendCombatUpdate(player: Player)
 	local profileData = DataService:GetProfile(player)
-	if not profileData then return end
-	
+	if not profileData then
+		warn(`[StateSyncService] sendCombatUpdate failed: no profile found for {player.Name}`)
+		return
+	end
+
 	local packet: NetworkTypes.CombatDataPacket = {
 		Health = profileData.Health.Current,
+		MaxHealth = profileData.Health.Max,
 		Mana = profileData.Mana.Current,
+		MaxMana = profileData.Mana.Max,
 		Posture = profileData.Posture.Current,
+		MaxPosture = profileData.Posture.Max,
 		Level = profileData.Level,
 	}
-	
+
+	print(`[StateSyncService] Sending CombatData to {player.Name}: HP={packet.Health}, Mana={packet.Mana}, Posture={packet.Posture}`)
 	NetworkService:SendToClient(player, "CombatData", packet)
 end
 
@@ -179,15 +195,15 @@ local StateSyncService = {}
 function StateSyncService:Init(dependencies)
 	NetworkService = dependencies.NetworkService
 	DataService = dependencies.DataService
-	
+
 	if not NetworkService then
 		error("[StateSyncService] NetworkService dependency not provided")
 	end
-	
+
 	if not DataService then
 		error("[StateSyncService] DataService dependency not provided")
 	end
-	
+
 	print("[StateSyncService] Initialized")
 end
 
@@ -197,14 +213,14 @@ end
 function StateSyncService:Start()
 	-- Register network event handlers
 	NetworkService:RegisterHandler("RequestStateSync", onRequestStateSync)
-	
+
 	-- Connect to StateService signals
 	local stateChangedSignal = StateService.GetStateChangedSignal()
 	stateChangedSignal:Connect(onStateChanged)
-	
+
 	-- Connect to player events
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
-	
+
 	print("[StateSyncService] Started - Ready to sync state with clients")
 end
 

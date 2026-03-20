@@ -94,9 +94,16 @@ function CombatFeedbackUI:Start()
 	end
 
 	-- ── Posture bar (local player only) ────────────────────────────────────
-	-- PostureChanged is now handled by PlayerHUDController's cluster bar.
-	-- CombatFeedbackUI no longer owns a standalone posture bar.
+	local postureBar = CombatFeedbackUI._BuildPostureBar()
 
+	local postureEvent = NetworkProvider:GetRemoteEvent("PostureChanged")
+	if postureEvent then
+		postureEvent.OnClientEvent:Connect(function(playerId: number, current: number, max: number)
+			-- Only update bar for the local player
+			if playerId ~= Players.LocalPlayer.UserId then return end
+			CombatFeedbackUI._UpdatePostureBar(postureBar, current, max)
+		end)
+	end
 
 	-- ── Stagger flash (all visible players) ────────────────────────────────
 	local staggerEvent = NetworkProvider:GetRemoteEvent("Staggered")
@@ -125,10 +132,10 @@ function CombatFeedbackUI:Start()
 		end)
 	end
 
-	-- ── Suppressed vignette (posture break) ────────────────────────────────
-	local suppressedEvent = NetworkProvider:GetRemoteEvent("Suppressed")
-	if suppressedEvent then
-		suppressedEvent.OnClientEvent:Connect(function(playerId: number)
+	-- ── Staggered vignette (posture break) ────────────────────────────────
+	local staggeredEvent = NetworkProvider:GetRemoteEvent("Staggered")
+	if staggeredEvent then
+		staggeredEvent.OnClientEvent:Connect(function(playerId: number)
 			if playerId == Players.LocalPlayer.UserId then
 				CombatFeedbackUI._PlaySuppressedVignette()
 			end
@@ -155,6 +162,21 @@ function CombatFeedbackUI._BuildPostureBar(): {bar: Frame, fill: Frame}
 	return { bar = dummy, fill = dummy }
 end
 
+--[[
+	Update the fill width and colour of the posture bar.
+	NEW (#157)
+]]
+function CombatFeedbackUI._UpdatePostureBar(postureBar: {bar: Frame, fill: Frame}, current: number, max: number)
+	if not postureBar then return end
+	local ratio = if max > 0 then math.clamp(current / max, 0, 1) else 0
+	postureBar.fill.Size = UDim2.new(ratio, 0, 1, 0)
+	-- #157: high posture = danger (pressure gauge, not resource bar)
+	postureBar.fill.BackgroundColor3 = if ratio >= 0.75
+		then UITheme.Palette.PostureRed
+		elseif ratio >= 0.40
+		then UITheme.Palette.PostureOrange
+		else UITheme.Palette.PostureGrey
+end
 --[[
 	Play a brief red flash on the character who was just staggered.
 	We find the player by UserId and flash their parts.
@@ -252,6 +274,11 @@ function CombatFeedbackUI.ShowDamageNumber(target: any, damage: number, isCritic
 		local dummyModel = workspace:FindFirstChild(`Dummy_{dummyId}`)
 		if dummyModel then
 			rootPart = dummyModel:FindFirstChild("Body")
+		elseif type(target) == "string" and target:match("^Hollowed_") then
+			local hollowedModel = workspace:FindFirstChild(target)
+			if hollowedModel then
+				rootPart = hollowedModel:FindFirstChild("HumanoidRootPart")
+			end
 		end
 	else
 		-- Target is a player

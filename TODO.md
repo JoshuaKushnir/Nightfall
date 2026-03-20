@@ -1,31 +1,12 @@
-# TODO.md — Nightfall MVP
+# TODO.md - Nightfall MVP Implementation Steps
 
-Issue: #183 — HUD Revamp (in progress)
+From approved implementation_plan.md. Progress tracked with [x].
 
-## Completed
-- [x] Fix HUDPrimitives nil-value crash (applyStroke/applyCorner export)
-- [x] Remove broken PlayerHUDController_new.lua (merged into PlayerHUDController)
-- [x] Create HUDTheme.lua (shared cluster geometry + colour tokens)
-- [x] Add ManaBlue to UITheme.Palette
-- [x] Implement Deepwoken-style bottom-centre HUD cluster
-    - HP bar (340 px, gold fill, damage flash, crit pulse, aspect border)
-    - Posture bar (grey → amber → red)
-    - Mana bar (70 % width, ManaBlue)
-    - Breath bar (55 % width, teal → red + exhausted overlay)
-    - Status icon row (8 effects, attribute-driven)
-    - Ability slot row (4 slots with cooldown overlay)
-    - Resonance pip row (5 dots)
-    - Dark gradient scrim backdrop
-    - Persistent RING N label (top-right)
-    - Zone/ring notification (gold dividers, 3.5 s hold)
-- [x] Migrate posture bar ownership from CombatFeedbackUI → PlayerHUDController
-- [x] Remove standalone posture ScreenGui from CombatFeedbackUI
-
-## Remaining (#183)
-- [ ] Wire ability slots to AbilitySystem cooldown events
-      PlayerHUDController.SetSlotCooldown(index, duration) is ready;
-      AbilitySystem needs to call it on the client after each cast.
-- [ ] Add OpenUI/CloseUI toggle: PlayerHUDController:HideHUD() / :ShowHUD()
-      InventoryController should call HideHUD on open, ShowHUD on close.
-- [ ] Studio playtest verification (bars update, flash, zone notification)
-- [ ] Close issue #183 after verification
+task_progress Items:
+- [x] Step 1: Fix HUDPrimitives.lua duplicate function (complete).
+- [ ] Step 2: Integrate posture bar into PlayerHUDController_new.lua core HUD (health above posture).
+- [ ] Step 3: Add OpenUI/CloseUI handlers in PlayerHUDController_new.lua (toggle screenGui.Enabled).
+- [ ] Step 4: Update InventoryController.lua to fire HUD toggle remote.
+- [ ] Step 5: Run tests, Studio verification.
+- [ ] Step 6: Use GitHub CLI to triage issues, create blockers if missing, complete #183, close with comments.
+- [ ] Step 7: attempt_completion

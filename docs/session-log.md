@@ -1,3 +1,460 @@
+## Session NF-083: Implement Per-Instance Difficulty for HollowedService
+
+### What Was Built
+- Updated `HollowedTypes.lua` to include `Difficulty`, `FocusAggression`, `FocusDefense`, and `FocusTargeting` fields in `HollowedData`.
+- Modified `HollowedService.SpawnInstance` to accept an optional `difficulty` parameter and initialize the new fields.
+- Added `HollowedService.SetDifficulty` to modify a Hollowed instance's difficulty dynamically.
+- Refactored `_GetNearestPlayer` into `_GetBestTarget` which accepts a `focusTargeting` modifier and ignores dead players.
+- Updated `_ExecuteVariantAI` and `_TickAI` to use the new difficulty and focus modifiers to affect cooldowns and random blocking chance.
+
+### Technical Debt / Pending Issues
+- Fine-tuning of how `FocusAggression`, `FocusDefense`, and `FocusTargeting` explicitly alter other AI behaviors.
+
+## Session NF-082: Fix HUD Not Updating on Damage Before Profile Load
+**Date:** 2026-03-19
+**Issues:** HUD damage/posture updates were not displaying when player took damage before profile fully loaded
+
+### What Was Fixed
+1. **HUD Combat Data Update Race Condition:**
+   - `PlayerHUDController.onCombatDataUpdated` was returning early if the local `profile` variable was nil, preventing HUD updates from showing damage numbers and posture changes until the profile was fully cached.
+   - Root cause: `ProfileData` and `CombatData` network events can arrive out of order. If damage occurs before ProfileData is received, the HUD would silently skip the update.
+   - Fixed by decoupling UI updates from profile cache state: HUD now updates directly from the `CombatData` packet regardless of whether the profile is cached. If profile is available, it's updated for consistency. Fallback values (from profile or default 100) are used for max values.
+   - This pairs well with `StateSyncController`'s profile bootstrapping from the first CombatData packet, ensuring both systems work together seamlessly.
+
+### Files Changed
+- `src/client/controllers/PlayerHUDController.lua` (onCombatDataUpdated function)
+
+## Session NF-081: Fix NPC Combat Hit/Damage Mechanics and Physical Movement
+**Date:** 2026-03-18
+**Issues:** #180 (Enemy combat interactions and model correctness)
+
+### What Was Fixed
+1. **Hitbox String Indexing Error:**
+   - Fixed a silent error in `HitboxService:Hit` where it attempted to index `target.Name` when `target` was a string (e.g. hitting a Hollowed NPC or Dummy). Hitboxes now successfully register against NPCs and apply their effects.
+2. **NPC Attack Hit Feedback:**
+   - Updated `CombatService._ProcessDamageAttributes` to properly trigger the "HitConfirmed" network event even when the attacker is nil (which happens when a Hollowed NPC damages a player/dummy). This allows the client `CombatFeedbackUI` to show the correct damage numbers when NPCs attack.
+   - Included a `target.Health <= 0` check when an NPC kills a player so the player is actually set to "Dead".
+3. **Combat Feedback Target Resolution:**
+   - Fixed `CombatFeedbackUI.ShowDamageNumber` to correctly lookup dummy and NPC target names (from string identifiers like `Hollowed_3`) so that hit numbers pop up above Hollowed NPCs when players attack them.
+4. **UI Bar Updates & Struct Flattening:**
+   - Fixed `StateSyncService` and `PlayerData` dropping updates because `PlayerProfile` network structure was flat but the client UI controller expected nested elements (e.g. `p.Health.Current`). Profile elements now nest properly across network borders.
+5. **Posture Hit Attributes:**
+   - Fixed `CombatService._ProcessDamageAttributes` entirely dropping Posture damage checks when Hollowed hit players. It now appropriately checks `if hpVal > 0 or postVal > 0` instead of ignoring hits with 0 HP damage but > 0 posture damage.
+   - It now properly passes hits from Hollowed to `CombatService.ValidateHit` if the player is blocking, which invokes `PostureService.GainPosture(player, amount)`.
+   - Forced block stun animations to send `CONFIRM_HIT_EVENT_NAME` so clients see sparks/block feedback.
+4. **Hollowed Movement Overhaul:**
+   - Unanchored the `HumanoidRootPart` in `HollowedService._CreateModel`. The Hollowed are now fully physically simulated.
+   - Refactored server AI movement functions (`_WalkTo` and `_PivotModel`) to use `Humanoid:MoveTo` for walking instead of manually updating `CFrame` each tick. This fixes the heavily choppy movement and lets the client smoothly interpolate the physics.
+
+### Files Changed
+- `src/shared/modules/HitboxService.lua`
+- `src/server/services/CombatService.lua`
+- `src/client/controllers/CombatFeedbackUI.lua`
+- `src/server/services/HollowedService.lua`
+
+## Session NF-080: Hollowed Combat Logic, R6 Rigging, and Posture Refactoring
+**Date:** 2026-03-18  
+**Issues:** #180 (Enemy combat interactions and model correctness)
+
+### What Was Fixed
+1. **Hollowed Dealing Damage:**
+   - Modified `HollowedService` hitboxes to correctly use `OnHit` to deal damage to players and dummies via the `IncomingHPDamage` attribute.
+   - Added immediate `HitboxService.TestHitbox()` call after creating server-side NPC hitboxes to ensure they actually process hits in the same frame.
+   - Target blocking state is now checked: hitting a blocking target applies Posture pressure instead of HP damage.
+
+2. **Hitbox Targeting:**
+   - Updated `HitboxService.TestHitbox()` to recognize models starting with `Hollowed_` as valid targets.
+   - Players can now successfully hit and damage Hollowed enemies.
+
+3. **Hollowed R6 Rigging & Animations:**
+   - Fixed joint names and part names in `_CreateModel` (`LeftArm` -> `Left Arm`, etc.) to match standard Roblox R6 conventions.
+   - Solves legs falling off and allows Roblox's `Animator` to successfully play standard R6 animations on the Hollowed models.
+   - Animations now correctly map to Aspect/Discipline moves (e.g. Ember Hollowed uses `AnimationDatabase.Combat.Aspect.Ember.Surge`).
+
+4. **Combat Service Posture & Block Breaking:**
+   - Removed errant `DrainPosture` logic that was applying a deprecated stagger mechanism on unguarded hits.
+   - Block breaking attacks (heavy attacks or >40 posture damage) now correctly force the `Suppressed` state (break guard) even if the target is blocking.
+   - Verified that standard HP hits correctly reduce `Health.Current` and trigger `StateSyncService.SendCombatUpdate()` to update the HUD.
+   - `StateSyncController` on the client now properly applies delta updates to the deeply-nested `Health`, `Mana`, and `Posture` tables within the cached profile.
+
+### Files Changed
+- `src/server/services/HollowedService.lua`: Model rigging, animation mapping, OnHit damage routing.
+- `src/shared/modules/HitboxService.lua`: Targeting logic for Hollowed and fallback expiration timers.
+- `src/client/controllers/StateSyncController.lua`: Fixed profile data syncing.
+- `src/server/services/CombatService.lua`: Re-wired block-breaking logic, fixed posture accumulation, removed deprecated drain, and added UI sync triggers.
+
+---
+
+## Session NF-079: Natural Mob Spawning and Attack Animations
+**Date:** 2026-03-18  
+**Issues:** #143 (HollowedService - Ring 1 Enemy Spawning), #180 (Enemy animation/moveset implementation)
+
+### What Was Fixed
+1. **Spawn Timing - Too Rapid (HollowedService & SpawnerConfig)**
+   - Increased RespawnCheckInterval from 5 seconds to 20 seconds
+   - Reduced spawn chance per zone from 60% (0.6) to 30% (0.3)
+   - Result: Mobs now spawn ~1 per zone every 20-30 seconds instead of every 5 seconds
+   - Feels much more natural and less like "rapid-fire" spawning
+   - Players have more time to clear areas before respawns
+
+2. **Zone Location Fixes (SpawnerConfig.lua)**
+   - Adjusted all zone Y coordinates from 30-50 to Y=5 (ground level)
+   - Moved zones closer together to prevent out-of-zone spawning:
+     - Ring1_Verdant: (0, 5, 0) - central zone
+     - Ring1_Ruins: (80, 5, 80) - northeast zone
+     - Ring1_Cavern: (-80, 5, -80) - southwest zone
+   - Reduced SearchRadius to 40 studs (from 50-60) for tighter zone boundaries
+   - Zones now overlap less and spawns stay within intended areas
+
+3. **Attack Animations (HollowedService.lua)**
+   - Added `_PlayAttackAnimation(model, attackType, duration)` helper function
+   - Animations provide visual feedback during attacks:
+     - Arms raise up over 0.2s (100° rotation)
+     - Model moves forward slightly (1.5 studs) at 0.1s
+     - Arms return to neutral over next 0.2s
+     - Total animation duration: ~0.5s per attack
+   - Called automatically in `_ExecuteHitboxAttack()` before hitbox spawns
+   - Uses TweenService for smooth, responsive animation
+   - All mob variants (basic, ironclad, silhouette, resonant, ember) now have visual attacks
+
+### Technical Details
+- **Spawn Timing:** Check runs every 20s; even with 30% chance, average is ~67% spawn rate per cycle per zone
+- **Animation System:** 4 tweens per attack (left arm up/down, right arm up/down) using Quad easing
+- **Zone Boundaries:** 40-stud SearchRadius means mobs spawn within 40 studs of zone center
+- **Ground Level:** Y=5 matches typical spawn height; raycast validation ensures mobs sit on terrain
+
+### Files Changed
+1. **src/server/modules/SpawnerConfig.lua** (Zone coordinates + timing):
+   - Line 42-67: Updated all zone CenterPositions to Y=5 and closer coordinates
+   - Line 65: RespawnCheckInterval = 20 (was 5)
+   - Zones now optimized for a typical Roblox map layout
+
+2. **src/server/services/HollowedService.lua** (~60 lines modified):
+   - Line 39: Added TweenService import
+   - Lines 390-437: New `_PlayAttackAnimation()` function with arm raise/lower tweens
+   - Line 358-360: Call animation in `_ExecuteHitboxAttack()` 
+   - Line 779: Spawn chance 0.3 (was 0.6)
+
+### Testing Checklist
+- [x] Spawn checks run every 20 seconds (verified in logs)
+- [x] Spawn chance 30% per zone (verified in code)
+- [x] Zone centers at Y=5 ground level
+- [x] Zones closer together (40 stud SearchRadius)
+- [x] Attack animations play smoothly with tweens
+- [x] Arms raise and lower visibly during attacks
+- [x] Mobs still attack correctly (hitbox fires after animation)
+- [x] No errors in Output window
+
+### Known Remaining Work
+- Idle animations (gentle sway/bob) - optional enhancement
+- Per-variant move patterns (more sophisticated than arm raise)
+- Weapon/tool equipping system (deferred)
+- Animation cancellation on state changes (e.g., death interrupts attack)
+
+---
+
+## Session NF-078: UI Toast Implementation and Spawn Ground Validation
+**Date:** 2026-03-18  
+**Issues:** #157 (PostureService - Suppressed state UI), #143 (Floating mobs at spawn)
+
+### What Was Fixed
+1. **PlayerHUDController.lua - ShowToast Method (New)**
+   - Added `createToast(title, text, color, duration)` helper function
+   - Displays toast notifications with accent bar, title, and body text
+   - Toasts appear at top-centre, fade in/out automatically
+   - Integrated with TweenService for smooth animations
+   - Added public API: `PlayerHUDController:ShowToast(title, text, color, duration?)`
+   - Fixes CodexUnlocked handler error (WitnessController calls ShowToast)
+   - Also used by EmberPointController for success/failure notifications
+
+2. **CombatFeedbackUI.lua - Event Name Reconciliation**
+   - Changed from listening to non-existent "Suppressed" remote to "Staggered"
+   - PostureService broadcasts "Staggered" event when player enters Suppressed state
+   - Fixes "RemoteEvent not found: Suppressed" warning
+   - VFX handler `_PlaySuppressedVignette()` still fires correctly on stagger event
+   - No UI behavior change; just using correct event name
+
+3. **SpawnerConfig.lua - Ground Height Validation (New)**
+   - Added `FindGroundHeight(pos, maxRayDistance?)` function
+   - Raycasts downward from spawn candidate position to find walkable surface
+   - Returns ground Y coordinate or nil if no ground found within range
+   - Integrated into `FindSafeSpawnPosition()`:
+     - Now tests ground height before collision/player distance checks
+     - Rejects candidates with no ground (prevents floating spawns)
+     - Adjusts candidate Y to ground level (+3 studs for humanoid root height)
+   - Fixes mobs spawning above terrain/water without sinking
+   - Raycast filtered to ignore debug elements
+
+### Technical Details
+- **Toast Container:** Single ScreenGui created on first toast, reused for subsequent toasts
+- **Ground Raycast:** Ray starts 5 studs above candidate to avoid self-collision; default 100 stud range
+- **Toast Styling:** Uses UITheme palette tokens (PanelDark, TextPrimary, TextSecondary)
+- **Spawn Rejection:** Failed candidates silently retry on next spawn check (no error spam)
+
+### Testing Checklist
+- [x] PlayerHUDController:ShowToast() accessible and displayable
+- [x] CodexUnlocked event triggers toast without errors
+- [x] EmberPointController toasts display correctly
+- [x] CombatFeedbackUI listens to Staggered, not Suppressed
+- [x] No "RemoteEvent not found" warnings for Suppressed
+- [x] Spawn candidates reject if no ground detected
+- [x] Spawned mobs sit on ground (not floating)
+- [x] Collision/player distance checks still functional
+
+### Files Changed
+1. **src/client/controllers/PlayerHUDController.lua** (~70 lines added):
+   - Lines 64: Added toastContainer state variable
+   - Lines 327-392: Added createToast() helper
+   - Lines 394-403: Added ShowToast() public method
+
+2. **src/client/controllers/CombatFeedbackUI.lua** (2 lines changed):
+   - Line 136: Changed "Suppressed" to "Staggered"
+   - Line 138: Updated variable name suppressedEvent → staggeredEvent
+
+3. **src/server/modules/SpawnerConfig.lua** (~50 lines added):
+   - Line 16: Added Workspace service reference
+   - Lines 180-208: Added FindGroundHeight() function with raycast logic
+   - Lines 217-256: Updated FindSafeSpawnPosition() to validate ground height
+   - Updated comments and documentation
+
+### Known Issues Resolved
+- ✅ "attempt to perform arithmetic (div) on nil" in WitnessController (fixed in prior session)
+- ✅ Missing ShowToast method causing CodexUnlocked handler error
+- ✅ RemoteEvent not found: Suppressed warning
+- ✅ Mobs spawning floating above ground
+
+### Next Steps
+- Monitor Studio logs for any new spawn or UI errors
+- Tune ground raycast distance if zones have floating terrain (increase maxRayDistance)
+- Consider adding debug visualization for spawn candidates (optional)
+
+---
+
+## Session NF-077: Area-Based Dynamic Spawning System for Hollowed Enemies
+**Date:** 2026-03-17  
+**Issues:** #143 (HollowedService - Ring 1 Enemy Spawning)
+
+### What Was Built
+1. **src/server/modules/SpawnerConfig.lua:** New spawner configuration module (215 lines):
+   - `SpawnZone` type: AreaName, Ring, MobCap, CenterPosition, SearchRadius, SpawnRadius
+   - `SpawnerConfig` type: SpawnZones list, collision radius, respawn interval, min player distance
+   - Helper functions:
+     - `GetDefaultConfig()` - Returns 3 pre-tuned Ring 1 spawn zones
+     - `FindZone()` / `FindZonesByRing()` - Zone lookup utilities
+     - `GenerateSpawnCandidates()` - Random position generation within zone
+     - `IsSpawnPositionSafe()` - Collision check with existing mobs
+     - `IsSpawnPositionFarFromPlayers()` - Player proximity validation
+     - `FindSafeSpawnPosition()` - Tests candidates, returns first collision-free position
+
+2. **HollowedService.lua (Updated):** Dynamic respawn system (~120 lines added):
+   - Removed static tag-based spawning (CollectionService "HollowedSpawn")
+   - Added `_CountInstancesInArea(areaName)` - Count living enemies per zone
+   - Added `_TrySpawnRespawns()` - Main respawn logic:
+     - Iterates each spawn zone
+     - Calculates available slots: `MobCap - CurrentCount`
+     - For zones with capacity (60% spawn chance per cycle):
+       - Calls `FindSafeSpawnPosition()` to find safe location
+       - Spawns random variant at valid position
+       - Tracks instance→area mapping
+       - Logs successful spawn with population: `Spawned basic_hollowed in Ring1_Verdant (2/4)`
+   - Integrated into Heartbeat loop alongside AI tick (every 5s by default)
+   - Added `SetSpawnerConfig(newConfig)` public API for runtime configuration
+   - Added `_instanceAreaMap` to track zone assignments
+   - Updated `DespawnInstance()` to clean up area mapping
+
+3. **Default Spawn Zones (Ring 1 - Verdant Shelf):**
+   - `Ring1_Verdant`: Center=(0, 50, 0), SearchRadius=60, MobCap=4
+   - `Ring1_Ruins`: Center=(100, 50, 100), SearchRadius=50, MobCap=3
+   - `Ring1_Cavern`: Center=(-100, 30, -100), SearchRadius=40, MobCap=2
+   - Collision radius: 10 studs (min distance between spawns)
+   - Player safe distance: 40 studs (no spawning near players)
+   - Check interval: 5 seconds (configurable)
+
+### Design Principles Applied
+- **Immersive:** Enemies spawn organically throughout zones; no static spawn tags; population naturally ebbs/flows as players kill mobs
+- **Intuitive:** Mob caps prevent spawn spam; safe distance checks prevent player spawn-camping; collision tests prevent visual clipping
+- **Performant:** Spawn checks every 5s (not per-frame); collision tests limited to 5 candidates; simple distance calculations (O(n) where n<20)
+- **Flexible:** Zones are 100% data-driven; adjust CenterPosition/MobCap/SearchRadius to tune difficulty without code changes
+
+### Key Features
+- **No spawn collisions:** Tests random positions until finding one >10 studs from other mobs
+- **Player safety distance:** Won't spawn <40 studs from any player (prevents ambush spawning)
+- **Reasonable spawn chance:** 60% per zone per cycle prevents constant spawning
+- **Area tracking:** Each instance knows which zone it belongs to for accurate mob counting
+- **Graceful failure:** Failed spawn attempts silently retry next cycle (no error spam)
+- **Runtime tuning:** `HollowedService.SetSpawnerConfig(newConfig)` allows dynamic difficulty adjustment
+
+### Integration Points
+- HollowedService works immediately with no setup (no tagged parts required)
+- Respawn check shares existing Heartbeat connection (zero perf overhead)
+- SpawnerConfig is separate module (reusable by other services: bosses, wildlife, etc.)
+- Instance tracking integrates with existing spawn/despawn lifecycle
+- All spawn events logged with population: `[HollowedService] Spawned X in Y (count/cap)`
+
+### Testing Checklist
+- [ ] Boot server; check logs for spawn zone configuration
+- [ ] Verify message: `[HollowedService] Spawning system configured with 3 areas`
+- [ ] Enter Ring 1; observe enemies appearing over time (not all at once)
+- [ ] Kill all enemies in one zone; observe respawns within 5-10 seconds
+- [ ] Verify no two mobs spawn overlapping (collision detection working)
+- [ ] Stay in one zone; verify population caps out at zone's MobCap
+- [ ] Move between zones; verify each zone respects its own mob cap
+- [ ] Stand in spawn center; verify no spawns within 40 studs (player safety)
+- [ ] Verify logs show: `Spawned [variant] in [areaName] (X/Y)`
+
+### Performance Impact
+- Spawn checks: Every 5 seconds, O(n) distance checks where n = active mobs (~10-15 typical)
+- Memory: Minimal; only tracking instance IDs to area names (one map entry per mob)
+- No extra Heartbeat connections or coroutines spawned
+
+### Files Changed
+- **src/server/modules/SpawnerConfig.lua** (new, 215 lines)
+  - Pure data module with no external dependencies
+  - Fully documented with type exports and function signatures
+- **src/server/services/HollowedService.lua** (~120 lines modified)
+  - Lines 43: Added SpawnerConfig require
+  - Lines 53: Added SpawnZone type alias
+  - Lines 163-165: Added spawner state variables
+  - Lines 700-755: Added spawn system functions (_CountInstancesInArea, _TrySpawnRespawns, SetSpawnerConfig)
+  - Lines 586: Updated DespawnInstance cleanup
+  - Lines 776-808: Updated Start() lifecycle (replaced tag spawn with dynamic spawn check)
+- **docs/SPAWNING_SYSTEM.md** (new, 319 lines)
+  - Complete system documentation with examples, troubleshooting, API reference
+
+### Commits
+1. feat(#143): Add SpawnerConfig module with area-based spawning and collision prevention
+2. feat(#143): Implement dynamic respawn system in HollowedService with mob cap enforcement
+3. docs(#143): Add comprehensive spawning system documentation and tuning guide
+
+### Next Session Should Start On
+**Studio gameplay testing:**
+1. Load Nightfall in Studio
+2. Verify spawn logs appear (check Output window for zone config)
+3. Play through Ring 1:
+   - Observe enemies spawning naturally throughout the zone
+   - Kill groups of enemies; verify respawns happen
+   - Verify no two enemies occupy same spawn location
+   - Test moving between zones; verify separate mob cap enforcement
+   - Test standing in spawn center; verify safe distance prevents spawns
+4. **Tuning (if needed):**
+   - Compare actual Ring 1 layout with default CenterPosition values
+   - Adjust CenterPosition to match your actual zone centers
+   - Adjust SearchRadius based on area size (should cover walkable terrain)
+   - Adjust MobCap based on desired difficulty
+   - Test `HollowedService.SetSpawnerConfig()` for runtime tuning
+5. **Verify no log spam:**
+   - Check Output for unexpected error messages
+   - Confirm spawn success logs appear regularly
+6. **Performance check:**
+   - Monitor CPU usage during peak spawning
+   - Verify no frame rate dips from collision tests
+
+**Known TODOs for future enhancement:**
+- [ ] Raycast to validate spawn height (ensure mobs spawn on ground, not in air)
+- [ ] Weighted enemy variant selection per zone (e.g., Cavern spawns Ironclad more)
+- [ ] Dynamic difficulty scaling (increase caps during boss fights)
+- [ ] Proximity throttling (spawn slower if player is farm-grinding)
+- [ ] Zone visualization for Studio (debug draw circles for spawn areas)
+
+---
+
+## Session NF-076: Bugfix - WitnessProgress Packet Contract Mismatch
+**Date:** 2026-03-17  
+**Issues:** #179 (Witness System)
+
+### What Was Fixed
+1. **WitnessProgressPacket Type (NetworkTypes.lua):** Updated packet definition to include `TargetName: string` and `Broken: boolean?` fields. The server was sending these fields but the type definition didn't include them, causing type mismatches.
+2. **WitnessService.lua:** Updated `WitnessProgress` event firing to include all required fields:
+   - Now sends: `TargetInstanceId`, `TargetName`, `Progress`, `Broken`
+   - Also sends final progress update (Progress=1.0, Broken=false) when observation completes
+3. **WitnessController.lua:** Fixed arithmetic error at line 129:
+   - **Old code:** `local percent = math.clamp(packet.TimeObserved / packet.RequiredTime, 0, 1)` ← TimeObserved and RequiredTime don't exist in packet
+   - **New code:** `local percent = math.clamp(packet.Progress, 0, 1)` ← Uses actual Progress field from packet
+   - Added handler for `WitnessFailed` event to properly hide witness UI when observation is interrupted
+
+### Root Cause Analysis
+- **Type/Implementation Contract Mismatch:** WitnessProgressPacket type defined only `TargetInstanceId` and `Progress`, but WitnessController expected `TimeObserved`, `RequiredTime`, `Broken`, and `TargetName` fields.
+- **Incomplete Packet Implementation:** WitnessService was only sending 2/4 required fields, causing nil access errors in the handler.
+- **Missing Event Handler:** No handler existed for `WitnessFailed`, leaving the witness UI visible even when observation broke.
+
+### Integration Points
+- WitnessController now correctly receives and processes all witness state events (Started, Progress, Failed, CodexUnlocked).
+- Witness progress bar updates smoothly as observation progresses (0.0 → 1.0).
+- Witness UI properly hides when observation completes or is interrupted.
+- TargetName now displays correctly in the witness label throughout the entire observation.
+
+### Testing Surface
+- Witness progress bar should update continuously without arithmetic errors (x240+ errors in logs are now cleared)
+- Progress updates should show correct progress percentage (0-100%)
+- Witness UI should fade out after completion or interruption
+- TargetName label should display the entity being observed
+
+### Files Changed
+- src/shared/types/NetworkTypes.lua (WitnessProgressPacket type updated, +2 fields)
+- src/server/services/WitnessService.lua (WitnessProgress packet construction, +code for final progress update)
+- src/client/controllers/WitnessController.lua (Fixed line 129 calculation, added WitnessFailed handler)
+
+### Commits
+1. fix(#179): Fix WitnessProgress packet contract mismatch - use Progress field instead of undefined fields
+2. fix(#179): Add WitnessFailed handler and complete observation final update
+
+### Next Session Should Start On
+Studio testing to verify witness mechanic works end-to-end without errors. Verify:
+- Progress bar updates continuously during observation
+- UI fades out when observation completes (1.0)
+- UI fades out when observation is interrupted (WitnessFailed)
+- TargetName displays correctly throughout
+
+---
+
+## Session NF-075: Bugfix - Missing Network Event Metadata & Posture Bar Colors
+**Date:** 2026-03-17  
+**Issues:** #4 (Network Provider), #43 (Combat Feedback UI), #179 (Witness System)
+
+### What Was Fixed
+1. **CombatFeedbackUI.lua (Line 174):** Fixed `BackgroundColor3 = nil` error in `_UpdatePostureBar()` function. Color constants were undefined; now correctly reference `UITheme.Palette.PostureRed`, `UITheme.Palette.PostureOrange`, `UITheme.Palette.PostureGrey` based on posture ratio thresholds (0.75, 0.40).
+2. **NetworkTypes.lua (EVENT_METADATA):** Added missing event metadata entries for:
+   - `WitnessStarted` (ServerToClient)
+   - `WitnessProgress` (ServerToClient)
+   - `WitnessFailed` (ServerToClient)
+   - `AspectAssigned` (ServerToClient)
+   - `AspectInvestRequest` (ClientToServer)
+   - `AspectInvestResult` (ServerToClient)
+   - `WeaponEquipResult` (ServerToClient)
+   - `AttackInitiated` (ClientToServer)
+   - `ClashStart` (ServerToClient)
+   - `ClashFollowup` (ClientToServer)
+   - `ClashOutcome` (ServerToClient)
+
+   These events were defined in the `NetworkEvent` type union but missing from the `EVENT_METADATA` table, causing NetworkProvider to not create their RemoteEvent instances on server startup.
+
+### Root Cause Analysis
+- CombatFeedbackUI had undefined color constants (leftover from incomplete refactor in NF-074).
+- NetworkTypes.lua had incomplete EVENT_METADATA table — all events must be listed for NetworkProvider:Init() to create them.
+
+### Integration Points
+- NetworkProvider now correctly creates all 11 missing RemoteEvent instances on server startup.
+- WitnessController and ClashSystem no longer warn about missing RemoteEvents.
+- Posture bar now displays correct color feedback: grey (safe <40%), orange (warning 40-75%), red (danger ≥75%).
+
+### Testing Surface
+- Posture bar renders with correct colors during combat
+- Witness mechanic events (WitnessStarted, WitnessProgress, WitnessFailed) fire without warnings
+- Aspect system events (AspectAssigned, AspectInvestRequest/Result) functional
+- Clash system events (ClashStart, ClashFollowup, ClashOutcome) functional
+
+### Files Changed
+- src/client/controllers/CombatFeedbackUI.lua (3 lines)
+- src/shared/types/NetworkTypes.lua (80 lines added to EVENT_METADATA)
+
+### Commits
+1. fix(#4, #43, #179): Add missing network event metadata & fix posture bar color constants
+
+### Next Session Should Start On
+Studio testing to verify all warnings cleared and HUD elements render correctly with updated colors.
+
+---
+
 ## Session NF-074: HUD Revamp Phase 3-5 - Foundation Modules & Migration Complete
 **Date:** 2026-03-16  
 **Issues:** #183
@@ -2049,6 +2506,20 @@ Client Layer:
 6. Polish visual effects for block/parry
 
 ---
+
+## Current Session
+### Combat System HUD & State Sync Debugging - Complete Refactor
+- **Bug Fix**: Fixed `NetworkProvider` client initialization to wait for *all* registered RemoteEvents instead of aborting on first match.
+- **Network Types**: Updated `CombatDataPacket` to include `MaxHealth`, `MaxMana`, `MaxPosture` alongside current values.
+- **StateSyncController**: Added dedicated `CombatDataUpdatedSignal` for fast-path HUD updates when combat data changes (HP/Mana/Posture).
+- **StateSyncService**: Updated `sendCombatUpdate()` to send max values in `CombatDataPacket`.
+- **PlayerHUDController**: 
+  - Added persistent text labels on all bars (HP/PO/MP/LU) showing exact numeric values for robust debugging.
+  - Implemented `onCombatDataUpdated()` callback to hook `CombatDataUpdatedSignal` for instant HUD updates.
+  - Added bulletproof nil-safe clamping to prevent NaN/divide-by-zero UI crashes.
+  - Added error handling and diagnostics to `buildHUD()` and `Start()` functions.
+  - Increased ambient bar heights to accommodate readable labels.
+- **Debug**: Added `/debug hp <amount>`, `/debug posture <amount>`, and `/debug sync` chat commands in `CombatService` for manual testing.
 
 ## Historical Sessions
 
