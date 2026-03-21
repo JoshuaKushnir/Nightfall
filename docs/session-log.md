@@ -1,3 +1,59 @@
+## Session NF-085: HollowedService Attack & Movement Precision Fixes (6 Targeted Refinements)
+
+### What Was Built
+- **Fix 1: Cooldown & Difficulty Scaling (Better Anchor)**
+  - Replaced ad-hoc cooldown formula with anchored calculation: difficulty 5 is neutral (1.0x multiplier).
+  - New formula: `diffNorm = (diff - 5) / 5`; `cdScale = 1.0 - 0.3 * diffNorm`
+  - Ranges from 1.3x cooldown at diff=1 (easier, longer waits) to 0.7x at diff=10 (harder, faster attacks).
+  - Replaces previous formula `1.1 - 0.3 * diffNorm` which had no clear neutral point.
+
+- **Fix 2: LastAttackTick Assignment (Commit to Attack at Windup Start)**
+  - Moved `data.LastAttackTick = now` to BEFORE `task.delay` in `_TryAttack`.
+  - Previously was never assigned, allowing infinite attack spam.
+  - Now commits to the attack at windup start (0.18s before hitbox), preventing rapid-fire exploits.
+
+- **Fix 3: Root Part Safety Guards**
+  - Added nil checks in both `_TryAttack` and `_ExecuteVariantAI` before accessing root position.
+  - Guard: `local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")`
+  - Return early if root is nil, preventing nil reference crashes.
+
+- **Fix 4: FocusAggression Clamping**
+  - Clamped aggression to valid range [0, 1] to prevent invalid probabilities in attack/movement logic.
+  - Formula `0.25 + aggro * 0.5` now always yields a valid probability (0.25–0.75) instead of unbounded values.
+  - Updated default from 1.0 to 0.5 for better balance.
+
+- **Fix 5: Animation State Gating (Only Set "Idle" on Successful Attack)**
+  - Wrapped all `_TryAttack` calls with `if _TryAttack(...) then _SetAnimState(..., "Idle") end`.
+  - Applied to all 5 variants: basic_hollowed, ironclad_hollowed, silhouette_hollowed, resonant_hollowed, ember_hollowed.
+  - Prevents animation desync when attack fails due to cooldown.
+
+- **Fix 6: Movement Direction Handling (Unit Vector for Strafe)**
+  - In basic_hollowed strafing: compute `side` cross product, check magnitude > 0, then pass `side.Unit` directly to `humanoid:Move()`.
+  - Removed dt scaling (was `side * math.clamp(strafeMag * dt, -4, 4)`) in favor of unit direction.
+  - Humanoid:Move handles frame scaling internally; passing unit direction is cleaner and more predictable.
+
+### Design Principles Applied
+- Surgical fixes: changed only `_TryAttack` and `_ExecuteVariantAI` logic; no structural refactoring.
+- Difficulty 5 anchor provides clear mental model (neutral = no penalty/bonus).
+- LastAttackTick commit at windup start prevents exploits while respecting animation timing.
+- Clamping and nil checks ensure robustness without changing AI behavior.
+
+### Integration Points
+- `HollowedService.lua`: All changes within `_TryAttack` and `_ExecuteVariantAI` functions.
+- No changes to type definitions, config, or public API.
+- Compatible with existing difficulty scaling and variant AI from NF-084.
+
+### Files Changed
+- `src/server/services/HollowedService.lua`: Lines 609–785 (both functions and their call sites).
+
+### Commits
+- Will reference this session in commit message.
+
+### Next Session Should Start On
+- Playtesting verification: confirm all 6 fixes eliminate softlocks, animation desyncs, and exploits.
+- Difficulty scaling feel-test: verify neutral point at diff=5 feels correct.
+- Cross-variant consistency: confirm all 5 variants behave consistently with gated animations.
+
 ## Session NF-084: HollowedService AI Optimization — 5 Tick/Movement/Attack Refinements
 
 ### What Was Built

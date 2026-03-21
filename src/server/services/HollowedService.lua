@@ -608,7 +608,9 @@ end
 	Returns true if attack was executed, false otherwise.
 ]]
 local function _TryAttack(data: HollowedData, model: Model, config: HollowedConfig, targetRoot: BasePart, now: number): boolean
-	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
+	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+	if not root then return false end
+	local rootPos = root.Position
 	local dist = (targetRoot.Position - rootPos).Magnitude
 
 	-- Check if in attack range
@@ -616,16 +618,19 @@ local function _TryAttack(data: HollowedData, model: Model, config: HollowedConf
 		return false
 	end
 
-	-- Difficulty-scaled cooldown: 1.1 - 0.3 * diffNorm
-	local diff = data.Difficulty or 1
-	local diffNorm = math.clamp(diff / 10, 0, 1)
-	local cdScale = 1.1 - 0.3 * diffNorm
+	-- Difficulty-scaled cooldown: anchored at difficulty 5
+	local diff = math.clamp(data.Difficulty or 5, 1, 10)
+	local diffNorm = (diff - 5) / 5  -- -1 at diff=1, 0 at diff=5, 1 at diff=10
+	local cdScale = 1.0 - 0.3 * diffNorm  -- 1.3x at diff=1, 1.0x at diff=5, 0.7x at diff=10
 	local effectiveCooldown = config.AttackCooldown * cdScale
 
 	-- Check if cooldown is ready
 	if now - data.LastAttackTick < effectiveCooldown then
 		return false
 	end
+
+	-- Commit to attack now (windup start)
+	data.LastAttackTick = now
 
 	-- Execute the attack with brief windup
 	task.delay(0.18, function()
@@ -642,7 +647,9 @@ end
 	Includes prediction for moving targets and Humanoid:Move micro-adjustments.
 ]]
 local function _ExecuteVariantAI(data: HollowedData, model: Model, config: HollowedConfig, dt: number, targetRoot: BasePart, now: number)
-	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
+	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	local rootPos = root.Position
 
 	-- ── Target prediction ────────────────────────────────────────────────────
 	local targetVel = targetRoot.AssemblyLinearVelocity
@@ -660,7 +667,7 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 		_PivotModel(model, Vector3.zero, targetRoot.Position)
 	end
 
-	local aggro = data.FocusAggression or 1
+	local aggro = math.clamp(data.FocusAggression or 0.5, 0, 1)
 	local def = data.FocusDefense or 1
 
 	if data.ConfigId == "basic_hollowed" then
@@ -669,8 +676,9 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 
 		-- Try to attack if conditions met
 		if dist <= config.AttackRange and math.random() < 0.25 + aggro * 0.5 then
-			_TryAttack(data, model, config, targetRoot, now)
-			_SetAnimState(data.InstanceId, model, "Idle")
+			if _TryAttack(data, model, config, targetRoot, now) then
+				_SetAnimState(data.InstanceId, model, "Idle")
+			end
 		else
 			-- Movement with Humanoid:Move micro-adjustments
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
@@ -688,10 +696,10 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 				else
 					-- Strafe around target
 					local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
-					side = side.Unit
-					local strafeMag = 5 + 5 * aggro
-					humanoid:Move(side * math.clamp(strafeMag * dt, -4, 4), true)
-					_SetAnimState(data.InstanceId, model, "Run")
+					if side.Magnitude > 0 then
+						humanoid:Move(side.Unit, true)
+						_SetAnimState(data.InstanceId, model, "Run")
+					end
 				end
 			end
 		end
@@ -699,8 +707,9 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	elseif data.ConfigId == "ironclad_hollowed" then
 		-- Ironclad: occasionally blocks while moving, heavy slam
 		if dist <= config.AttackRange then
-			_TryAttack(data, model, config, targetRoot, now)
-			_SetAnimState(data.InstanceId, model, "Idle")
+			if _TryAttack(data, model, config, targetRoot, now) then
+				_SetAnimState(data.InstanceId, model, "Idle")
+			end
 		else
 			-- Move forward with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
@@ -743,8 +752,9 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	elseif data.ConfigId == "resonant_hollowed" then
 		-- Resonant: Casts spheres from afar
 		if dist <= config.AttackRange then
-			_TryAttack(data, model, config, targetRoot, now)
-			_SetAnimState(data.InstanceId, model, "Idle")
+			if _TryAttack(data, model, config, targetRoot, now) then
+				_SetAnimState(data.InstanceId, model, "Idle")
+			end
 		else
 			-- Keep distance / chase with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
@@ -758,8 +768,9 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	elseif data.ConfigId == "ember_hollowed" then
 		-- Ember: Wide cleave sweeps
 		if dist <= config.AttackRange then
-			_TryAttack(data, model, config, targetRoot, now)
-			_SetAnimState(data.InstanceId, model, "Idle")
+			if _TryAttack(data, model, config, targetRoot, now) then
+				_SetAnimState(data.InstanceId, model, "Idle")
+			end
 		else
 			-- Aggressive chase with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
