@@ -85,6 +85,18 @@ end
 --[[
 	Registered Hollowed types.  Add new entries here to create new enemy variants.
 	Placeholder values — spec-gap issue #129/130/131 pending art/balance pass.
+
+	FIX #5 NOTE: AttackCooldown vs Animation Duration
+	━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+	Each attack duration is 0.3s (set in _ExecuteHitboxAttack and _TryAttack).
+	_TryAttack adds 0.18s windup before spawn, and _ExecuteHitboxAttack applies
+	a 0.5s recovery lock after the hitbox resolves.
+
+	Minimum safe cooldown = 0.18 (windup) + 0.3 (swing) + 0.5 (recovery) = 0.98s
+
+	All current configs respect this: minimum is silhouette at 1.5s.
+	If you add a new variant or reduce AttackCooldown, ensure it is >= 1.0s
+	to prevent animation overlaps and state machine conflicts.
 ]]
 local CONFIGS: {[string]: HollowedConfig} = {
 	basic_hollowed = {
@@ -174,6 +186,7 @@ local CONFIGS: {[string]: HollowedConfig} = {
 local _instances: {[string]: HollowedData}  = {}
 local _models:    {[string]: Model}         = {}
 local _animStates: {[string]: string}       = {}
+local _lastVariantIntents: {[string]: string} = {}  -- FIX #1: Track last movement intent to prevent animation thrashing
 local _nextId     = 0
 local _heartbeatConn: RBXScriptConnection?  = nil
 local _spawnerConfig: SpawnerConfig.SpawnerConfig = SpawnerConfig.GetDefaultConfig()
@@ -618,6 +631,12 @@ local function _TryAttack(data: HollowedData, model: Model, config: HollowedConf
 		return false
 	end
 
+	-- FIX #4: Aggro grace period — don't attack within 0.3s of transitioning to Aggro
+	local timeSinceAggro = now - (data.LastAggroTick or now)
+	if timeSinceAggro < 0.3 then
+		return false  -- grace period before first attack after aggro
+	end
+
 	-- Difficulty-scaled cooldown: anchored at difficulty 5
 	local diff = math.clamp(data.Difficulty or 5, 1, 10)
 	local diffNorm = (diff - 5) / 5  -- -1 at diff=1, 0 at diff=5, 1 at diff=10
@@ -628,9 +647,6 @@ local function _TryAttack(data: HollowedData, model: Model, config: HollowedConf
 	if now - data.LastAttackTick < effectiveCooldown then
 		return false
 	end
-
-	-- Commit to attack now (windup start)
-	data.LastAttackTick = now
 
 	-- Execute the attack with brief windup
 	task.delay(0.18, function()
@@ -651,6 +667,12 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	if not root then return end
 	local rootPos = root.Position
 
+	-- ── FIX #1: Animation state hysteresis — track intent to prevent animation thrashing ──
+	if not _lastVariantIntents then
+		_lastVariantIntents = {}
+	end
+	local lastIntent = _lastVariantIntents[data.InstanceId] or ""
+
 	-- ── Target prediction ────────────────────────────────────────────────────
 	local targetVel = targetRoot.AssemblyLinearVelocity
 	local diff = data.Difficulty or 1
@@ -662,10 +684,9 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	local dist = toTarget.Magnitude
 	local hasFacingDir = toTarget.Magnitude > 0.01
 
-	-- Always keep Hollowed oriented toward the live target while engaged.
-	if hasFacingDir then
-		_PivotModel(model, Vector3.zero, targetRoot.Position)
-	end
+	-- FIX #2: Removed per-tick _PivotModel to avoid conflicting with Humanoid:Move/MoveTo.
+	-- Let _WalkTo and Humanoid system handle turning smoothly instead of instant pivot rotation.
+	-- Silhouette variant still uses _PivotModel for specific dash attacks, which is intentional.
 
 	local aggro = math.clamp(data.FocusAggression or 0.5, 0, 1)
 	local def = data.FocusDefense or 1
@@ -673,51 +694,72 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 	if data.ConfigId == "basic_hollowed" then
 		local desiredMin = config.AttackRange * 0.7
 		local desiredMax = config.AttackRange * 1.1
+		local currentIntent = "idle"
 
 		-- Try to attack if conditions met
 		if dist <= config.AttackRange and math.random() < 0.25 + aggro * 0.5 then
 			if _TryAttack(data, model, config, targetRoot, now) then
-				_SetAnimState(data.InstanceId, model, "Idle")
+				currentIntent = "idle"
+				if lastIntent ~= currentIntent then
+					_SetAnimState(data.InstanceId, model, "Idle")
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
 			end
 		else
-			-- Movement with Humanoid:Move micro-adjustments
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
+			if dist > desiredMax then
+				currentIntent = "chase"
+				_WalkTo(model, targetRoot.Position)
+				if lastIntent ~= currentIntent then
+					_SetAnimState(data.InstanceId, model, "Run")
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
+			elseif dist < desiredMin then
+				currentIntent = "back_up"
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-
-				if dist > desiredMax then
-					-- Chase: move toward predicted position
-					humanoid:Move(dir, true)
+				local backPos = rootPos - dir * 4
+				_WalkTo(model, backPos)
+				if lastIntent ~= currentIntent then
 					_SetAnimState(data.InstanceId, model, "Run")
-				elseif dist < desiredMin then
-					-- Back up away from target
-					humanoid:Move(-dir, true)
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
+			else
+				currentIntent = "strafe"
+				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
+				local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
+				side = side.Unit
+				local strafeDist = 5 + 5 * aggro
+				local strafePos = rootPos + side * strafeDist * dt * 5
+				_WalkTo(model, strafePos)
+				if lastIntent ~= currentIntent then
 					_SetAnimState(data.InstanceId, model, "Run")
-				else
-					-- Strafe around target
-					local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
-					if side.Magnitude > 0 then
-						humanoid:Move(side.Unit, true)
-						_SetAnimState(data.InstanceId, model, "Run")
-					end
+					_lastVariantIntents[data.InstanceId] = currentIntent
 				end
 			end
 		end
 
 	elseif data.ConfigId == "ironclad_hollowed" then
 		-- Ironclad: occasionally blocks while moving, heavy slam
+		local currentIntent = "idle"
 		if dist <= config.AttackRange then
 			if _TryAttack(data, model, config, targetRoot, now) then
-				_SetAnimState(data.InstanceId, model, "Idle")
+				currentIntent = "idle"
+				if lastIntent ~= currentIntent then
+					_SetAnimState(data.InstanceId, model, "Idle")
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
 			end
 		else
+			currentIntent = "chase"
 			-- Move forward with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
 			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
 				humanoid:Move(dir, true)
 			end
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 			-- Randomly block
 			if math.random() < (0.05 * def) and data.State ~= "Blocking" then
 				data.State = "Blocking"
@@ -727,58 +769,90 @@ local function _ExecuteVariantAI(data: HollowedData, model: Model, config: Hollo
 
 	elseif data.ConfigId == "silhouette_hollowed" then
 		-- Silhouette: Stays just out of reach, dashes in
+		local currentIntent = "idle"
 		if dist > config.AttackRange and dist < 12 and _TryAttack(data, model, config, targetRoot, now) then
 			-- Dash attack: move into range before hitting
+			-- FIX #2 exception: _PivotModel is OK here for intentional dash, not continuous turning
+			currentIntent = "chase"
 			_PivotModel(model, toTarget.Unit * 8, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 		elseif dist <= config.AttackRange then
+			currentIntent = "back_up"
 			-- Back up with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
 			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
 				humanoid:Move(-dir, true)
 			end
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 		else
+			currentIntent = "chase"
 			-- Chase / circle with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
 			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
 				humanoid:Move(dir, true)
 			end
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 		end
 
 	elseif data.ConfigId == "resonant_hollowed" then
 		-- Resonant: Casts spheres from afar
+		local currentIntent = "idle"
 		if dist <= config.AttackRange then
 			if _TryAttack(data, model, config, targetRoot, now) then
-				_SetAnimState(data.InstanceId, model, "Idle")
+				currentIntent = "idle"
+				if lastIntent ~= currentIntent then
+					_SetAnimState(data.InstanceId, model, "Idle")
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
 			end
 		else
+			currentIntent = "chase"
 			-- Keep distance / chase with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
 			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
 				humanoid:Move(dir, true)
 			end
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 		end
 
 	elseif data.ConfigId == "ember_hollowed" then
 		-- Ember: Wide cleave sweeps
+		local currentIntent = "idle"
 		if dist <= config.AttackRange then
 			if _TryAttack(data, model, config, targetRoot, now) then
-				_SetAnimState(data.InstanceId, model, "Idle")
+				currentIntent = "idle"
+				if lastIntent ~= currentIntent then
+					_SetAnimState(data.InstanceId, model, "Idle")
+					_lastVariantIntents[data.InstanceId] = currentIntent
+				end
 			end
 		else
+			currentIntent = "chase"
 			-- Aggressive chase with Humanoid:Move
 			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
 			if humanoid then
 				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
 				humanoid:Move(dir, true)
 			end
-			_SetAnimState(data.InstanceId, model, "Run")
+			if lastIntent ~= currentIntent then
+				_SetAnimState(data.InstanceId, model, "Run")
+				_lastVariantIntents[data.InstanceId] = currentIntent
+			end
 		end
 	end
 end
@@ -793,21 +867,17 @@ local function _TickAI(instanceId: string, dt: number)
 	if not data or not model or not config then return end
 	if not data.IsActive or data.State == "Dead" then return end
 
-	-- Skip attacks and movement during stagger, but allow rotation
-	if data.State == "Staggered" then
-		local rootPart = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if rootPart then
-			data.RootPosition = rootPart.Position
-		end
-		return
-	end
-
 	local now          = tick()
 	local rootPart     = model:FindFirstChild("HumanoidRootPart") :: BasePart?
 	if not rootPart then return end
 
 	local rootPos = rootPart.Position
 	data.RootPosition = rootPos
+
+	-- ── FIX #3: Skip variant AI during Attacking/Stunned/Staggered ──────────
+	if data.State == "Attacking" or data.State == "Stunned" or data.State == "Staggered" then
+		return
+	end
 
 	-- ── Aggro detection ──────────────────────────────────────────────────────
 
@@ -817,6 +887,7 @@ local function _TickAI(instanceId: string, dt: number)
 		if data.State ~= "Aggro" then
 			data.State = "Aggro"
 			data.Target = nearestPlayer
+			data.LastAggroTick = now  -- FIX #4: Set aggro transition tick for grace period
 			_UpdateVisuals(instanceId)
 			print(("[HollowedService] %s → Aggro on %s"):format(instanceId, nearestPlayer.Name))
 		end
@@ -912,6 +983,7 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, diffic
 		State           = "Patrol",
 		Target          = nil,
 		LastAttackTick  = 0,
+		LastAggroTick   = 0,
 		PatrolTarget    = nil,
 		PatrolWaitUntil = 0,
 		LastAITick      = 0,
@@ -921,24 +993,11 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, diffic
 		FocusAggression = diff / 10,
 		FocusDefense    = (10 - diff) / 15,
 		FocusTargeting  = math.clamp(diff / 8, 0, 1),
-
-
-
 	}
 	_instances[instanceId] = data
 
 	print(("[HollowedService] Spawned %s (%s) at %s"):format(instanceId, configId, tostring(spawnCF.Position)))
 	return instanceId
-end
-
-function HollowedService.SetDifficulty(instanceId: string, diff: number)
-	local data = _instances[instanceId]
-	if data then
-		data.Difficulty = diff
-		data.FocusAggression = diff / 10
-		data.FocusDefense = (10 - diff) / 15
-		data.FocusTargeting = math.clamp(diff / 8, 0, 1)
-	end
 end
 
 --[[

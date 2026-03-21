@@ -58,6 +58,7 @@ export type HollowedData = {
 	State            : HollowedState,
 	Target           : Player?,      -- current aggro target (nil when patrolling)
 	LastAttackTick   : number,       -- tick() of last swing
+	LastAggroTick    : number,       -- tick() when transitioned to Aggro state
 	PatrolTarget     : Vector3?,     -- current waypoint (nil = pick a new one)
 	PatrolWaitUntil  : number,       -- tick() timestamp — idle at waypoint until then
 	LastAITick       : number,       -- tick() of last AI evaluation (throttle)

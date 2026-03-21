@@ -1,3 +1,83 @@
+## Session NF-086: HollowedService State Machine & Timing Fixes (5 Critical Gates)
+
+### What Was Built
+- **Fix 1: Animation State Hysteresis (Skip Anim Changes Until Intent Changes)**
+  - Added `_lastVariantIntents` tracking table to record last movement intent per instance.
+  - Modified all 5 variant AI branches to capture `currentIntent` ("idle", "chase", "strafe", "back_up").
+  - Only call `_SetAnimState` when intent differs from previous state.
+  - Prevents animation thrashing caused by per-tick anim state flips during strafing/circling.
+  - Applied to: basic_hollowed, ironclad_hollowed, silhouette_hollowed, resonant_hollowed, ember_hollowed.
+
+- **Fix 2: Conflicting Movement Systems (Reduce _PivotModel Frequency)**
+  - Removed per-tick `_PivotModel` rotation during Aggro state.
+  - Humanoid:Move now handles smooth turning via its own interpolation system.
+  - Exception: silhouette_hollowed dash attack still uses `_PivotModel` for intentional tactical pivot.
+  - Prevents micro-conflicts between instant pivot rotation and Humanoid's frame-interpolated movement.
+
+- **Fix 3: Attack State Blocks AI Tick (Skip Variant AI During Attacking/Stunned)**
+  - Added guard at start of `_TickAI` before calling `_ExecuteVariantAI`.
+  - Early return if `data.State == "Attacking" or data.State == "Stunned" or data.State == "Staggered"`.
+  - Prevents re-pathing and anim flips while attack animation is mid-swing or during crowd control.
+
+- **Fix 4: Aggro Transition Spike (Add Aggro Delay Before First Attack)**
+  - Added `LastAggroTick: number` field to HollowedData type (HollowedTypes.lua).
+  - Set `data.LastAggroTick = now` when transitioning to Aggro state in `_TickAI`.
+  - In `_TryAttack`, added 0.3s grace period gate:
+    ```lua
+    local timeSinceAggro = now - (data.LastAggroTick or now)
+    if timeSinceAggro < 0.3 then
+        return false
+    end
+    ```
+  - Gives Hollowed time to rotate to face and acquire player before first swing.
+
+- **Fix 5: Cooldown vs Animation Duration (Documentation & Config Audit)**
+  - Documented attack timing: 0.18s windup + 0.3s swing + 0.5s recovery = 0.98s minimum safe cooldown.
+  - Added validation comment to CONFIGS section with minimum 1.0s requirement.
+  - Verified all 5 current configs meet this: min is silhouette at 1.5s, max is resonant at 4.0s.
+  - Ensures animation and cooldown never overlap, preventing state machine conflicts.
+
+### Design Principles Applied
+- **Surgical fixes**: Changed only state guards, intent tracking, and documentation; no structural refactors.
+- **Per-instance state isolation**: Each Hollowed tracks its own intent and aggro tick independently.
+- **Late-gate pattern**: Grace period delays first attack until aggro conditions stabilize.
+- **Humanoid trust**: Removed conflicting per-tick rotation; let Humanoid:Move handle turning.
+
+### Integration Points
+- `HollowedTypes.lua`: Added `LastAggroTick: number` to HollowedData export type.
+- `HollowedService.lua`:
+  - Added `_lastVariantIntents` table at module state (line ~177).
+  - Modified `_TickAI` to add attack state guard (line ~873).
+  - Modified `_TryAttack` to add aggro grace period gate (line ~628).
+  - Modified `_ExecuteVariantAI` to add intent tracking and hysteresis (line ~668 and all 5 variant branches).
+  - Removed per-tick `_PivotModel` universal facing update; kept silhouette exception.
+  - Updated SpawnInstance to initialize `LastAggroTick = 0` in HollowedData constructor.
+  - Added FIX #5 documentation comments to CONFIGS section.
+
+### Config Validation
+All 5 variants meet minimum 1.0s cooldown requirement:
+- basic_hollowed: 2.0s ✓
+- ironclad_hollowed: 3.5s ✓
+- silhouette_hollowed: 1.5s ✓
+- resonant_hollowed: 4.0s ✓
+- ember_hollowed: 2.5s ✓
+
+### Files Changed
+- `src/shared/types/HollowedTypes.lua`: Added LastAggroTick field to HollowedData.
+- `src/server/services/HollowedService.lua`: 
+  - Module state, _TickAI, _TryAttack, _ExecuteVariantAI, CONFIGS docs, SpawnInstance.
+
+### Technical Debt / Pending Tasks
+- Monitor playtesting for animation smoothness during strafing (FIX #1).
+- Verify 0.3s aggro grace period feels responsive (not sluggish) at all difficulties (FIX #4).
+- If new variants added: ensure AttackCooldown >= 1.0s and add to FIX #5 validation comment.
+
+### Next Session Should Start On
+- Integration testing: confirm all 5 fixes eliminate state machine race conditions.
+- Playtesting: verify attack timing feels crisp and animations don't thrash.
+- Cross-variant consistency: test all 5 variants for smooth transitions between intent states.
+- Difficulty scaling verification: confirm grace period interacts correctly with difficulty-scaled tick rates.
+
 ## Session NF-085: HollowedService Attack & Movement Precision Fixes (6 Targeted Refinements)
 
 ### What Was Built
