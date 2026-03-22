@@ -108,7 +108,9 @@ export type NetworkEvent =
 	| "RingChanged"            -- Server → Client: player entered a new ring boundary
 	| "WitnessProgress"        -- Server → Client: progress percentage towards witnessing a target
 	| "WitnessStarted"         -- Server → Client: player started observing an entity
-	| "WitnessFailed"          -- Server → Client: observation interrupted
+	| "WitnessFailed"
+	-- Ethereal Zone
+	| "ShowPlaque"          -- Server → Client: observation interrupted
 
 	| "PlayerRespawned"  -- Server → Client: player respawned at Ember Point or default spawn
 
@@ -573,6 +575,10 @@ export type WitnessFailedPacket = {
 	Reason: string,
 }
 
+export type ShowPlaquePacket = {
+	Title: string?,
+}
+
 -- Unified packet type for type safety
 export type NetworkPacket =
 	StateChangedPacket
@@ -622,6 +628,7 @@ export type NetworkPacket =
 	| WitnessProgressPacket
 	| WitnessStartedPacket
 	| WitnessFailedPacket
+	| ShowPlaquePacket
 
 -- Network Event Direction
 export type EventDirection = "ServerToClient" | "ClientToServer" | "Bidirectional"
@@ -1096,6 +1103,14 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RateLimitPerSecond = nil,
 		RequiresValidation = false,
 		Description = "Notify client that observation was interrupted",
+	},
+
+	-- Ethereal Zone
+	ShowPlaque = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Display the Ethereal Plane plaque to the client",
 	},
 
 	-- Aspect System

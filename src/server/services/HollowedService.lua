@@ -1,51 +1,67 @@
 --!strict
 --[[
-	HollowedService.lua
+	HollowedService.lua  —  Issue #143  (Phase 4 — World & Narrative)
 
-	Issue #143: HollowedService — Ring 1 enemy with patrol, aggro, basic attack,
-	            death, and Resonance grant.
-	Epic: Phase 4 — World & Narrative
+	Server-authoritative AI for Hollowed enemies in Ring 1 (Verdant Shelf).
 
-	Server-authoritative AI service for Hollowed enemies in Ring 1 (Verdant Shelf).
+	─── HITBOX AXIS FIX ────────────────────────────────────────────────────────
+	CFrame.LookVector = -Z in local space (Roblox convention).
+	CFrame.lookAt() makes LookVector face the target.
+	Therefore "in front of the mob" = root.CFrame * CFrame.new(0, 0, -N).
+	All hitbox offsets use NEGATIVE Z.  Positive Z = behind.
 
-	Behaviour:
-		• Patrol  — random wander within PatrolRadius of spawn, pause at waypoints
-		• Aggro   — chase nearest player found within AggroRange
-		• Attack  — melee swing when within AttackRange; applies HP + Posture damage
-		• Dead    — visual death state, respawk after RespawnDelay
+	─── LEVEL-10 COMBAT AI ─────────────────────────────────────────────────────
+	The elite AI runs a full combat micro-loop on every tick with these layers:
 
-	Model:
-		All body parts are anchored.  Movement is applied by shifting every part's
-		CFrame each AI tick.  This avoids Roblox physics rig complexity for MVP.
+	  1. SPACING  — Maintains an ideal engagement distance per variant.
+	               Circles / strafes to avoid standing still.
 
-	Registry integration:
-		HollowedService.GetInstanceData(name) is called by CombatService so that
-		player hitboxes can register damage against Hollowed models.
+	  2. FEINT    — Before committing to an attack the mob plays a fake windup
+	               (animation + brief hesitation) to bait the player's block/dodge.
+	               Only the real commit spawns a hitbox.
 
-	Spawn:
-		On Start(), one instance is spawned per Part tagged "HollowedSpawn" in
-		CollectionService.  Placing tagged Parts in Ring 1 respects the zone boundary
-		requirement; the service does not enforce it in code.
+	  3. PARRY    — While the mob is NOT in its own attack cooldown, there is a
+	               small per-tick chance it enters a PARRY window.  If a player
+	               hit lands during that window, damage is reflected and the
+	               player is staggered instead.
 
-	Dependencies: ProgressionService, PostureService, StateService, NetworkProvider,
-	              RunService, CollectionService, Players
+	  4. BLOCK    — Separate from parry: a sustained blocking state that absorbs
+	               incoming hits (posture damage only) for a short window.
+	               The mob raises its block reactively when the player is close
+	               and recently swung, simulating read-reaction.
+
+	  5. DODGE    — When the mob detects an incoming player attack (via the
+	               IncomingHPDamage attribute on its own dummy target, or via a
+	               short reaction window after aggro), it may roll sideways out
+	               of range, becoming briefly invincible.
+
+	  6. COMBO    — After a successful hit the mob immediately checks for a
+	               follow-up second strike (shorter cooldown window), chaining
+	               up to 2 hits per engagement burst.
+
+	  7. THREAT   — Reads the player's recent attack cadence (stored in
+	               data.PlayerAttackCadence) to decide when to be aggressive vs
+	               defensive.  If the player is spamming, the mob turtles and
+	               waits for an opening.
+
+	Dependencies: ProgressionService, PostureService, StateService,
+	              NetworkProvider, RunService, CollectionService, Players
 ]]
 
-local Players            = game:GetService("Players")
-local RunService         = game:GetService("RunService")
-local CollectionService  = game:GetService("CollectionService")
-local Workspace          = game:GetService("Workspace")
-local ReplicatedStorage  = game:GetService("ReplicatedStorage")
-local TweenService       = game:GetService("TweenService")
-local AnimationDatabase  = require(ReplicatedStorage.Shared.AnimationDatabase)
-local HitboxService    = require(ReplicatedStorage.Shared.modules.HitboxService)
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local Workspace         = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService      = game:GetService("TweenService")
+
+local AnimationDatabase = require(ReplicatedStorage.Shared.AnimationDatabase)
+local HitboxService     = require(ReplicatedStorage.Shared.modules.HitboxService)
 local DummyService      = require(script.Parent.DummyService)
+local StateService      = require(ReplicatedStorage.Shared.modules.StateService)
+local NetworkProvider   = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local SpawnerConfig     = require(game:GetService("ServerScriptService").Server.modules.SpawnerConfig)
 
-local StateService     = require(ReplicatedStorage.Shared.modules.StateService)
-local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local SpawnerConfig    = require(game:GetService("ServerScriptService").Server.modules.SpawnerConfig)
-
--- Lazy-required to avoid load-order cycles
 local ProgressionService: any = nil
 local PostureService: any     = nil
 
@@ -53,51 +69,54 @@ local HollowedTypesModule = require(ReplicatedStorage.Shared.types.HollowedTypes
 type HollowedConfig = HollowedTypesModule.HollowedConfig
 type HollowedData   = HollowedTypesModule.HollowedData
 type HollowedState  = HollowedTypesModule.HollowedState
-type SpawnZone = SpawnerConfig.SpawnZone
+type SpawnZone      = SpawnerConfig.SpawnZone
 
 -- ─── Service ─────────────────────────────────────────────────────────────────
 
 local HollowedService = {}
 HollowedService._initialized = false
 
--- ─── Constants ───────────────────────────────────────────────────────────────
+-- ─── Timing Constants ────────────────────────────────────────────────────────
 
-local BASE_AI_TICK       = 0.18  -- base AI tick rate; scaled by difficulty
-local AI_TICK_RATE       = 0.2   -- seconds between AI evaluations per NPC
-local PATROL_ARRIVE_DIST = 2.0   -- studs — close enough to waypoint to stop
-local PATROL_WAIT_TIME   = 2.0   -- seconds to idle at each waypoint
-local CONFIRM_HIT_EVENT  = "HitConfirmed"
-local NPC_HIT_DAMAGE_VAR = 0.10  -- ±10% attack damage variance (mirrors CombatService)
+local BASE_AI_TICK        = 0.18
+local PATROL_ARRIVE_DIST  = 2.0
+local PATROL_WAIT_TIME    = 2.0
 
--- ─── Difficulty Scaling Helpers ──────────────────────────────────────────────
+-- Attack phase durations (seconds)
+local WINDUP              = 0.18   -- commit → hitbox
+local SWING               = 0.30   -- hitbox active
+local RECOVERY            = 0.50   -- post-swing lock
+-- Total lock per swing   = 0.98 s  → all AttackCooldowns must be ≥ 1.0 s
 
---[[
-	Get AI tick rate scaled by difficulty.
-	Higher difficulty = faster ticks (lower tick interval).
-	Difficulty range: 1–10 typically.
-]]
-local function GetAITickForDiff(diff: number): number
-	return BASE_AI_TICK - 0.06 * (diff / 10)
-end
+-- Feint: fake windup played before the real commit to bait the player
+local FEINT_DURATION      = 0.28   -- how long the fake windup looks convincing
+local FEINT_COOLDOWN      = 4.0    -- minimum seconds between feints per mob
+
+-- Parry window: mob can parry incoming hits during this window
+local PARRY_WINDOW        = 0.35   -- how long the parry window stays open
+local PARRY_COOLDOWN      = 5.0    -- minimum seconds between parry attempts
+local PARRY_REFLECT_MULT  = 1.5    -- damage multiplier reflected back to player
+
+-- Dodge
+local DODGE_DURATION      = 0.45   -- invincibility + lateral movement time
+local DODGE_DISTANCE      = 7.0    -- studs per dodge
+local DODGE_COOLDOWN      = 3.0    -- minimum seconds between dodges
+
+-- Block
+local BLOCK_DURATION      = 0.8    -- max sustained block window
+local BLOCK_COOLDOWN      = 2.5    -- minimum seconds between blocks
+
+-- Combo: after a hit lands, shortened cooldown window for a follow-up
+local COMBO_WINDOW        = 0.9    -- seconds after a hit during which combo applies
+local COMBO_CD_MULT       = 0.45   -- multiply AttackCooldown for the follow-up swing
+
+-- Threat: how quickly the mob reads player attack spam
+local THREAT_DECAY        = 0.15   -- threat decays this much per second
+local THREAT_HIT_ADD      = 1.0    -- threat added each time a player hit registers
+local THREAT_TURTLE_THRESH = 2.5   -- above this → mob goes defensive
 
 -- ─── Enemy Configs ───────────────────────────────────────────────────────────
 
---[[
-	Registered Hollowed types.  Add new entries here to create new enemy variants.
-	Placeholder values — spec-gap issue #129/130/131 pending art/balance pass.
-
-	FIX #5 NOTE: AttackCooldown vs Animation Duration
-	━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-	Each attack duration is 0.3s (set in _ExecuteHitboxAttack and _TryAttack).
-	_TryAttack adds 0.18s windup before spawn, and _ExecuteHitboxAttack applies
-	a 0.5s recovery lock after the hitbox resolves.
-
-	Minimum safe cooldown = 0.18 (windup) + 0.3 (swing) + 0.5 (recovery) = 0.98s
-
-	All current configs respect this: minimum is silhouette at 1.5s.
-	If you add a new variant or reduce AttackCooldown, ensure it is >= 1.0s
-	to prevent animation overlaps and state machine conflicts.
-]]
 local CONFIGS: {[string]: HollowedConfig} = {
 	basic_hollowed = {
 		Id             = "basic_hollowed",
@@ -108,6 +127,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 18,
 		AggroRange     = 30,
 		AttackRange    = 5,
+		MeleeReach     = 3,    -- hitbox placed this far in front of mob
+		IsRanged       = false,
 		PatrolRadius   = 20,
 		MoveSpeed      = 8,
 		AttackCooldown = 2.0,
@@ -124,6 +145,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 40,
 		AggroRange     = 25,
 		AttackRange    = 6,
+		MeleeReach     = 4,
+		IsRanged       = false,
 		PatrolRadius   = 15,
 		MoveSpeed      = 6,
 		AttackCooldown = 3.5,
@@ -140,6 +163,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 10,
 		AggroRange     = 35,
 		AttackRange    = 4,
+		MeleeReach     = 3,
+		IsRanged       = false,
 		PatrolRadius   = 25,
 		MoveSpeed      = 14,
 		AttackCooldown = 1.5,
@@ -155,7 +180,9 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		AttackDamage   = 25,
 		PostureDamage  = 15,
 		AggroRange     = 40,
-		AttackRange    = 20,
+		AttackRange    = 18,   -- preferred combat distance (stays at range)
+		MeleeReach     = 18,   -- hitbox placed AT the player's position
+		IsRanged       = true, -- holds distance, ranged hitbox
 		PatrolRadius   = 20,
 		MoveSpeed      = 7,
 		AttackCooldown = 4.0,
@@ -172,6 +199,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 50,
 		AggroRange     = 35,
 		AttackRange    = 8,
+		MeleeReach     = 5,
+		IsRanged       = false,
 		PatrolRadius   = 25,
 		MoveSpeed      = 10,
 		AttackCooldown = 2.5,
@@ -181,477 +210,571 @@ local CONFIGS: {[string]: HollowedConfig} = {
 	},
 }
 
+-- ─── Extended HollowedData fields (combat AI) ─────────────────────────────────
+--[[
+	These fields are appended to each instance table at spawn time.
+	They are not in HollowedTypes to avoid type file churn during iteration.
+
+	.LastFeintTick      : number   — tick() of last feint attempt
+	.LastParryTick      : number   — tick() of last parry window open
+	.LastDodgeTick      : number   — tick() of last dodge
+	.LastBlockTick      : number   — tick() of last block attempt
+	.LastHitLandedTick  : number   — tick() when this mob last landed a hit on player
+	.ComboAvailable     : boolean  — true during COMBO_WINDOW after a hit
+	.InParryWindow      : boolean  — true while parry is active
+	.PlayerThreat       : number   — accumulated aggression score from player attacks
+	.StrafeDir          : number   — +1 or -1, flipped periodically for circle-strafe
+	.StrafeFlipTick     : number   — tick() of last strafe direction flip
+	.IdealRange         : number   — per-variant preferred engagement distance
+]]
+
 -- ─── State ───────────────────────────────────────────────────────────────────
 
-local _instances: {[string]: HollowedData}  = {}
-local _models:    {[string]: Model}         = {}
-local _animStates: {[string]: string}       = {}
-local _lastVariantIntents: {[string]: string} = {}  -- FIX #1: Track last movement intent to prevent animation thrashing
-local _nextId     = 0
-local _heartbeatConn: RBXScriptConnection?  = nil
+local _instances: {[string]: HollowedData}    = {}
+local _models:    {[string]: Model}           = {}
+local _animStates:{[string]: string}          = {}
+local _intentMap: {[string]: string}          = {}
+local _nextId = 0
+local _heartbeatConn: RBXScriptConnection?    = nil
 local _spawnerConfig: SpawnerConfig.SpawnerConfig = SpawnerConfig.GetDefaultConfig()
 local _lastSpawnCheckTime: number = 0
-local _instanceAreaMap: {[string]: string} = {}  -- Maps instanceId -> areaName for mob cap tracking
+local _instanceAreaMap: {[string]: string}    = {}
 
--- ─── Private — Model ─────────────────────────────────────────────────────────
+-- Extended per-instance combat state (avoids casting HollowedData everywhere)
+type ExtData = {
+	LastFeintTick     : number,
+	LastParryTick     : number,
+	LastDodgeTick     : number,
+	LastBlockTick     : number,
+	LastHitLandedTick : number,
+	LastAggroTick     : number,
+	ComboAvailable    : boolean,
+	InParryWindow     : boolean,
+	PlayerThreat      : number,
+	StrafeDir         : number,
+	StrafeFlipTick    : number,
+	IdealRange        : number,
+	FocusTargeting    : number,
+}
+local _ext: {[string]: ExtData} = {}
 
---[[
-	Build a simple anchored R6-like humanoid rig for a Hollowed enemy.
-	All parts are anchored; movement is done by shifting CFrames in the AI loop.
-	Returns the created Model and the HumanoidRootPart.
-]]
+-- ─── Private — Rig & Model ────────────────────────────────────────────────────
+
 local function _RigModel(model: Model)
-	local root = model:FindFirstChild("HumanoidRootPart")
+	local root  = model:FindFirstChild("HumanoidRootPart")
 	local torso = model:FindFirstChild("Torso")
 	if not root or not torso then return end
 
-	local function makeJoint(name, part0, part1, c0, c1)
+	local function joint(name, p0, p1, c0, c1)
 		local m = Instance.new("Motor6D")
-		m.Name = name
-		m.Part0 = part0
-		m.Part1 = part1
-		m.C0 = c0
-		m.C1 = c1
-		m.Parent = part0
+		m.Name = name; m.Part0 = p0; m.Part1 = p1; m.C0 = c0; m.C1 = c1
+		m.Parent = p0
 	end
 
-	-- Standard R6 joints
-	makeJoint("RootJoint", root, torso, CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0), CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0))
+	joint("RootJoint", root, torso,
+		CFrame.new(0,0,0,-1,0,0,0,0,1,0,1,-0), CFrame.new(0,0,0,-1,0,0,0,0,1,0,1,-0))
 
 	local head = model:FindFirstChild("Head")
 	if head then
-		makeJoint("Neck", torso, head, CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0), CFrame.new(0, -0.5, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0))
+		joint("Neck", torso, head,
+			CFrame.new(0,1,0,-1,0,0,0,0,1,0,1,-0), CFrame.new(0,-0.5,0,-1,0,0,0,0,1,0,1,-0))
 	end
-
-	local lArm = model:FindFirstChild("Left Arm")
-	if lArm then
-		makeJoint("Left Shoulder", torso, lArm, CFrame.new(-1, 0.5, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(0.5, 0.5, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0))
+	local lA = model:FindFirstChild("Left Arm")
+	if lA then
+		joint("Left Shoulder", torso, lA,
+			CFrame.new(-1,0.5,0,-0,-0,-1,0,1,0,1,0,0), CFrame.new(0.5,0.5,0,-0,-0,-1,0,1,0,1,0,0))
 	end
-
-	local rArm = model:FindFirstChild("Right Arm")
-	if rArm then
-		makeJoint("Right Shoulder", torso, rArm, CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0), CFrame.new(-0.5, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0))
+	local rA = model:FindFirstChild("Right Arm")
+	if rA then
+		joint("Right Shoulder", torso, rA,
+			CFrame.new(1,0.5,0,0,0,1,0,1,-0,-1,0,0), CFrame.new(-0.5,0.5,0,0,0,1,0,1,-0,-1,0,0))
 	end
-
-	local lLeg = model:FindFirstChild("Left Leg")
-	if lLeg then
-		makeJoint("Left Hip", torso, lLeg, CFrame.new(-1, -1, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(0.5, 1, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0))
+	local lL = model:FindFirstChild("Left Leg")
+	if lL then
+		joint("Left Hip", torso, lL,
+			CFrame.new(-1,-1,0,-0,-0,-1,0,1,0,1,0,0), CFrame.new(0.5,1,0,-0,-0,-1,0,1,0,1,0,0))
 	end
-
-	local rLeg = model:FindFirstChild("Right Leg")
-	if rLeg then
-		makeJoint("Right Hip", torso, rLeg, CFrame.new(1, -1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0), CFrame.new(-0.5, 1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0))
+	local rL = model:FindFirstChild("Right Leg")
+	if rL then
+		joint("Right Hip", torso, rL,
+			CFrame.new(1,-1,0,0,0,1,0,1,-0,-1,0,0), CFrame.new(-0.5,1,0,0,0,1,0,1,-0,-1,0,0))
 	end
 end
 
 local function _CreateModel(instanceId: string, config: HollowedConfig, spawnCF: CFrame): (Model, BasePart)
-	local model   = Instance.new("Model")
-	model.Name    = instanceId
-
-	local origin = spawnCF.Position
+	local model  = Instance.new("Model")
+	model.Name   = instanceId
+	local origin = spawnCF.Position + Vector3.new(0, 3, 0)
 	local color  = config.BodyColor
 
-	-- Helper: create a colour-matched body part
 	local function makePart(name: string, size: Vector3, offset: Vector3): Part
 		local p = Instance.new("Part")
-		p.Name       = name
-		p.Size       = size
-		p.CFrame     = CFrame.new(origin + offset)
-		p.Anchored   = false
-		p.CanCollide = (name ~= "HumanoidRootPart")
+		p.Name = name; p.Size = size
+		p.CFrame = CFrame.new(origin + offset)
+		p.Anchored   = false  -- physics-driven; Humanoid:MoveTo handles movement
+		p.CanCollide = false  -- no collision so parts don't push player or each other
 		p.BrickColor = color
-		p.Material   = Enum.Material.SmoothPlastic
-		if name == "HumanoidRootPart" then
-			p.Transparency = 1
-			p.CanCollide   = false
-		end
+		p.Material = Enum.Material.SmoothPlastic
+		if name == "HumanoidRootPart" then p.Transparency = 1 end
 		p.Parent = model
 		return p
 	end
 
-	-- Body parts (root at pelvis height ~= 0)
-	local root = makePart("HumanoidRootPart", Vector3.new(2, 2, 1),      Vector3.new(0,    0,    0))
-	makePart("Torso",     Vector3.new(2, 2, 1),      Vector3.new(0,    1.5,  0))
-	makePart("Head",      Vector3.new(1, 1, 1),       Vector3.new(0,    3,    0))
-	makePart("Left Arm",  Vector3.new(1, 2, 1),       Vector3.new(-1.5, 1.5,  0))
-	makePart("Right Arm", Vector3.new(1, 2, 1),       Vector3.new( 1.5, 1.5,  0))
-	makePart("Left Leg",  Vector3.new(1, 2, 1),       Vector3.new(-0.5, -0.5, 0))
-	makePart("Right Leg", Vector3.new(1, 2, 1),       Vector3.new( 0.5, -0.5, 0))
+	local root = makePart("HumanoidRootPart", Vector3.new(2,2,1), Vector3.new(0,0,0))
+	makePart("Torso",     Vector3.new(2,2,1), Vector3.new(0,   1.5,  0))
+	makePart("Head",      Vector3.new(1,1,1), Vector3.new(0,   3,    0))
+	makePart("Left Arm",  Vector3.new(1,2,1), Vector3.new(-1.5,1.5,  0))
+	makePart("Right Arm", Vector3.new(1,2,1), Vector3.new( 1.5,1.5,  0))
+	makePart("Left Leg",  Vector3.new(1,2,1), Vector3.new(-0.5,-0.5, 0))
+	makePart("Right Leg", Vector3.new(1,2,1), Vector3.new( 0.5,-0.5, 0))
 
-	-- Humanoid for animations
 	local humanoid = Instance.new("Humanoid")
-	humanoid.MaxHealth = config.MaxHealth
-	humanoid.Health = config.MaxHealth
+	humanoid.MaxHealth = config.MaxHealth; humanoid.Health = config.MaxHealth
 	humanoid.WalkSpeed = config.MoveSpeed
+	humanoid.AutoRotate     = true
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	humanoid.Parent = model
 
 	_RigModel(model)
 
-	-- Play Idle animation
-	local animator = humanoid:FindFirstChild("Animator") or Instance.new("Animator", humanoid)
+	local animator = Instance.new("Animator", humanoid)
 	local idleAnim = Instance.new("Animation")
 	idleAnim.AnimationId = AnimationDatabase.Movement.Idle
-	local track = animator:LoadAnimation(idleAnim)
-	track.Looped = true
-	track:Play()
+	local idleTrack = animator:LoadAnimation(idleAnim)
+	idleTrack.Looped = true; idleTrack:Play()
 
-	-- Health billboard above head
-	local head: BasePart? = model:FindFirstChild("Head") :: BasePart?
-	if head then
-		local billboard         = Instance.new("BillboardGui")
-		billboard.Name          = "HollowedHUD"
-		billboard.Adornee       = head
-		billboard.Size          = UDim2.new(0, 120, 0, 40)
-		billboard.StudsOffset   = Vector3.new(0, 2.5, 0)
-		billboard.AlwaysOnTop   = false
-		billboard.Parent        = model
+	local head2: BasePart? = model:FindFirstChild("Head") :: BasePart?
+	if head2 then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "HollowedHUD"; bb.Adornee = head2
+		bb.Size = UDim2.new(0,120,0,40); bb.StudsOffset = Vector3.new(0,2.5,0)
+		bb.AlwaysOnTop = false; bb.Parent = model
 
-		local nameLabel            = Instance.new("TextLabel")
-		nameLabel.Name             = "NameLabel"
-		nameLabel.Size             = UDim2.new(1, 0, 0.5, 0)
-		nameLabel.Position         = UDim2.new(0, 0, 0, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.TextColor3       = Color3.fromRGB(220, 80, 80)
-		nameLabel.TextScaled       = true
-		nameLabel.Font             = Enum.Font.GothamBold
-		nameLabel.Text             = config.DisplayName
-		nameLabel.Parent           = billboard
+		local nl = Instance.new("TextLabel")
+		nl.Name = "NameLabel"; nl.Size = UDim2.new(1,0,0.5,0)
+		nl.BackgroundTransparency = 1; nl.TextColor3 = Color3.fromRGB(220,80,80)
+		nl.TextScaled = true; nl.Font = Enum.Font.GothamBold
+		nl.Text = config.DisplayName; nl.Parent = bb
 
-		local hpBar               = Instance.new("Frame")
-		hpBar.Name                = "HealthBar"
-		hpBar.BackgroundColor3    = Color3.fromRGB(210, 45, 45)
-		hpBar.BorderSizePixel     = 0
-		hpBar.Size                = UDim2.new(1, 0, 0.3, 0)
-		hpBar.Position            = UDim2.new(0, 0, 0.65, 0)
-		hpBar.Parent              = billboard
+		local hb2 = Instance.new("Frame")
+		hb2.Name = "HealthBar"; hb2.BackgroundColor3 = Color3.fromRGB(210,45,45)
+		hb2.BorderSizePixel = 0; hb2.Size = UDim2.new(1,0,0.3,0)
+		hb2.Position = UDim2.new(0,0,0.65,0); hb2.Parent = bb
 	end
 
-	model.Parent   = Workspace
 	model.PrimaryPart = root :: PVInstance
-
+	model.Parent = Workspace
 	return model, root :: BasePart
 end
 
---[[
-	Recolour all visible body parts and update the health bar fraction.
-]]
 local function _UpdateVisuals(instanceId: string)
 	local data  = _instances[instanceId]
 	local model = _models[instanceId]
 	if not data or not model then return end
-
+	local ex    = _ext[instanceId]
 	local hpFrac = math.clamp(data.CurrentHealth / data.MaxHealth, 0, 1)
-	local col    = if data.State == "Dead" then BrickColor.new("Medium stone grey") else
-	               if data.State == "Aggro" or data.State == "Attacking" then BrickColor.new("Bright red") else
-	               BrickColor.new("Dark stone grey")
+	local col =
+		if data.State == "Dead"     then BrickColor.new("Medium stone grey")
+		elseif data.State == "Attacking" or data.State == "Aggro"
+		                            then BrickColor.new("Bright red")
+		elseif data.State == "Blocking" or ex.InParryWindow
+		                            then BrickColor.new("Bright blue")
+		elseif data.State == "Dodging"  then BrickColor.new("Bright yellow")
+		else                             BrickColor.new("Dark stone grey")
 
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			(part :: BasePart).BrickColor = col
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			(p :: BasePart).BrickColor = col
 		end
 	end
-
-	-- Update health bar width
-	local billboard = model:FindFirstChild("HollowedHUD", true)
-	local hpBar     = billboard and billboard:FindFirstChild("HealthBar")
-	if hpBar and hpBar:IsA("Frame") then
-		(hpBar :: Frame).Size = UDim2.new(hpFrac, 0, 0.3, 0)
+	local bb  = model:FindFirstChild("HollowedHUD", true)
+	local bar = bb and bb:FindFirstChild("HealthBar")
+	if bar and bar:IsA("Frame") then
+		(bar :: Frame).Size = UDim2.new(hpFrac, 0, 0.3, 0)
 	end
 end
 
--- ─── Private — Movement ──────────────────────────────────────────────────────
-
+-- ─── Movement helpers ────────────────────────────────────────────────────────
 --[[
-	Walk the model towards a target using Humanoid:MoveTo.
+	All parts are Anchored = true.  Humanoid:MoveTo has zero effect on anchored
+	parts — it only works on physics-simulated rigs.  Movement is driven manually
+	by calling _MoveModel / _StrafeModel every AI tick, which shift the entire
+	model via PivotTo.
+
+	_StopMovement and _RestoreSpeed are kept as no-ops so call sites in the
+	attack/dodge/block code compile without changes.
 ]]
-local function _WalkTo(model: Model, targetPos: Vector3)
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if humanoid then
-		humanoid:MoveTo(targetPos)
-	end
+
+local function _GetHumanoid(model: Model): Humanoid?
+	return model:FindFirstChild("Humanoid") :: Humanoid?
+end
+
+local function _GetRoot(model: Model): BasePart?
+	return (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")) :: BasePart?
 end
 
 --[[
-	Instantly move the model by `delta` studs.
-	Also rotates the model to face the XZ direction of `facePos` if provided.
+	Step the model toward targetPos by (speed × dt) studs, staying on the XZ
+	plane of the root.  Automatically faces the direction of travel.
+	Returns the distance remaining after the step.
 ]]
-local function _PivotModel(model: Model, delta: Vector3, facePos: Vector3?)
-	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
+local function _MoveModel(model: Model, targetPos: Vector3, speed: number, _dt: number): number
+	local h = _GetHumanoid(model)
+	local root = _GetRoot(model)
+	if not h or not root then return 0 end
+	h.WalkSpeed = speed
+	local flat = Vector3.new(targetPos.X, root.Position.Y, targetPos.Z)
+	local dist = (flat - root.Position).Magnitude
+	if dist < 0.5 then
+		h.WalkSpeed = 0
+		return 0
+	end
+	h:MoveTo(targetPos)
+	return dist
+end
+
+--[[
+	Step the model sideways relative to the direction toward facePos.
+	sign: +1 = right, -1 = left.  Model keeps facing facePos while moving.
+]]
+local function _StrafeModel(model: Model, facePos: Vector3, sign: number, speed: number, _dt: number)
+	local h = _GetHumanoid(model)
+	local root = _GetRoot(model)
+	if not h or not root then return end
+	h.WalkSpeed = speed
+	local toTarget = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
+	if toTarget.Magnitude < 0.01 then return end
+	local sideDir = if sign >= 0
+		then toTarget.Unit:Cross(Vector3.yAxis)
+		else Vector3.yAxis:Cross(toTarget.Unit)
+	local sideTarget = root.Position + sideDir.Unit * 4
+	h:MoveTo(sideTarget)
+end
+
+--[[
+	Face the model toward facePos (used when attacking while stationary).
+]]
+local function _FaceTarget(model: Model, facePos: Vector3)
+	local root = _GetRoot(model)
 	if not root then return end
-	local newCF = root.CFrame + delta
-	if facePos then
-		local flatDir = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
-		if flatDir.Magnitude > 0.01 then
-			newCF = CFrame.lookAt(newCF.Position, newCF.Position + flatDir)
-		end
-	end
-	model:PivotTo(newCF)
+	local dir = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
+	if dir.Magnitude < 0.01 then return end
+	local targetCF = CFrame.lookAt(root.Position, root.Position + dir)
+	root.CFrame = root.CFrame:Lerp(targetCF, 0.3)
 end
 
--- ─── Private — AI ────────────────────────────────────────────────────────────
+local function _StopMovement(model: Model)
+	local h = _GetHumanoid(model)
+	if h then h.WalkSpeed = 0 end
+end
+local function _RestoreSpeed(model: Model, speed: number)
+	local h = _GetHumanoid(model)
+	if h then h.WalkSpeed = speed end
+end
 
---[[
-	Returns the best Player target whose character is within `maxRange` studs of
-	`origin`, ignoring dead characters.  Returns nil if none found.
-]]
-local function _GetBestTarget(origin: Vector3, maxRange: number, focusTargeting: number): Player?
-	local bestPlayer: Player? = nil
+-- ─── Animation helpers ────────────────────────────────────────────────────────
+
+local function _GetAnimator(model: Model): Animator?
+	local h = _GetHumanoid(model)
+	if not h then return nil end
+	return h:FindFirstChild("Animator") :: Animator?
+		or Instance.new("Animator", h)
+end
+
+local function _SetLoopAnim(instanceId: string, model: Model, state: "Idle" | "Run")
+	if _animStates[instanceId] == state then return end
+	_animStates[instanceId] = state
+	local anim = _GetAnimator(model)
+	if not anim then return end
+	for _, t in anim:GetPlayingAnimationTracks() do
+		if t.Animation.AnimationId == AnimationDatabase.Movement.Idle
+		or t.Animation.AnimationId == AnimationDatabase.Movement.Run then
+			t:Stop(0.2)
+		end
+	end
+	local a = Instance.new("Animation")
+	a.AnimationId = (state == "Run") and AnimationDatabase.Movement.Run or AnimationDatabase.Movement.Idle
+	local tr = anim:LoadAnimation(a); tr.Looped = true; tr:Play(0.2)
+end
+
+local function _PlayOneshot(model: Model, animId: string)
+	if animId == "" or animId == "rbxassetid://0" then return end
+	local anim = _GetAnimator(model)
+	if not anim then return end
+	local a = Instance.new("Animation"); a.AnimationId = animId
+	local tr = anim:LoadAnimation(a); tr:Play()
+end
+
+local function _PickAttackAnim(configId: string): string
+	if configId == "silhouette_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Ash.AshenStep
+	elseif configId == "resonant_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Gale.WindStrike
+	elseif configId == "ember_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Ember.Surge
+	end
+	local pool = {
+		AnimationDatabase.Combat.General.Punch1,
+		AnimationDatabase.Combat.General.Punch2,
+		AnimationDatabase.Combat.General.Punch3,
+		AnimationDatabase.Combat.General.LeftHit,
+		AnimationDatabase.Combat.General.RightHit,
+	}
+	return pool[math.random(1, #pool)]
+end
+
+-- ─── Target utils ─────────────────────────────────────────────────────────────
+
+local function _GetBestTarget(origin: Vector3, maxRange: number, focusTgt: number): Player?
+	local best: Player? = nil
 	local bestScore = -math.huge
-
 	for _, player in Players:GetPlayers() do
 		local char = player.Character
 		if not char then continue end
-		local data = StateService:GetPlayerData(player)
-		if data and data.State == "Dead" then continue end
-		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not root then continue end
-
-		local dist = (root.Position - origin).Magnitude
+		local pd = StateService:GetPlayerData(player)
+		if pd and pd.State == "Dead" then continue end
+		local r = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not r then continue end
+		local dist = (r.Position - origin).Magnitude
 		if dist <= maxRange then
-			local distScore = -dist
-			local hpScore = 0
-			if data then
-				local hpFrac = (data.CurrentHealth or 100) / (data.MaxHealth or 100)
-				hpScore = (1 - hpFrac) * 30 * focusTargeting
-			end
-
-			local total = distScore + hpScore
-			if total > bestScore then
-				bestScore = total
-				bestPlayer = player
-			end
+			local score = -dist
+			if pd then score += (1 - math.clamp((pd.CurrentHealth or 100)/(pd.MaxHealth or 100), 0, 1)) * 30 * focusTgt end
+			if score > bestScore then bestScore = score; best = player end
 		end
 	end
-
-	return bestPlayer
+	return best
 end
 
---[[
-	Pick a random patrol waypoint within `radius` studs of `spawnPos` at the
-	same Y height (NPCs don't climb).
-]]
-local function _RandomPatrolPoint(spawnPos: Vector3, radius: number): Vector3
-	local angle  = math.random() * math.pi * 2
-	local dist   = math.random() * radius
-	return Vector3.new(
-		spawnPos.X + math.cos(angle) * dist,
-		spawnPos.Y,
-		spawnPos.Z + math.sin(angle) * dist
-	)
+local function _GetPlayerRoot(player: Player): BasePart?
+	local char = player.Character
+	return char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?) or nil
 end
 
---[[
-	Set the loop animation state (Idle vs Run) for a mob.
-	Only changes if the new state is different from current.
-]]
-local function _SetAnimState(instanceId: string, model: Model, state: "Idle" | "Run")
-	if _animStates[instanceId] == state then return end
-	_animStates[instanceId] = state
-
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
-
-	local animator = humanoid:FindFirstChild("Animator") :: Animator?
-	if not animator then return end
-
-	-- Stop running tracks that match movement
-	for _, track in animator:GetPlayingAnimationTracks() do
-		if track.Animation.AnimationId == AnimationDatabase.Movement.Idle or
-		   track.Animation.AnimationId == AnimationDatabase.Movement.Run then
-			track:Stop(0.2)
-		end
-	end
-
-	local animId = (state == "Run") and AnimationDatabase.Movement.Run or AnimationDatabase.Movement.Idle
-	local anim = Instance.new("Animation")
-	anim.AnimationId = animId
-	local track = animator:LoadAnimation(anim)
-	track.Looped = true
-	track:Play(0.2)
-end
+-- ─── Core attack executor ────────────────────────────────────────────────────
 
 --[[
-	Play a standard R6 animation on the humanoid.
-	@param model - The Hollowed model
-	@param attackType - Type of attack (e.g. "melee")
-	@param duration - Total animation duration in seconds
+	Spawn a hitbox in front of the mob.
+
+	AXIS NOTE:  CFrame.LookVector = -Z in Roblox.
+	            root.CFrame * CFrame.new(0, 0, -3)  →  3 studs FORWARD.
+	            Negative Z offset = in front.  Do NOT use positive Z.
+
+	@param targetRootSnap  The player's root at the moment of commit.  Used for:
+	                       - face-lock before windup fires
+	                       - range re-check inside the delay (FIX D)
+	@param isCombo         If true, skip the feint check and use a shorter recovery
 ]]
-local function _PlayAttackAnimation(model: Model, configId: string, duration: number)
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
-
-	local animator = humanoid:FindFirstChild("Animator") :: Animator?
-	if not animator then
-		animator = Instance.new("Animator")
-		animator.Parent = humanoid
-	end
-
-	-- Pick animation ID from database based on variant
-	local animId = AnimationDatabase.Combat.General.Punch1 -- Default
-
-	if configId == "silhouette_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Ash.AshenStep
-	elseif configId == "resonant_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Gale.WindStrike
-	elseif configId == "ember_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Ember.Surge
-	else
-		-- basic_hollowed, ironclad_hollowed (or default)
-		local punches = {
-			AnimationDatabase.Combat.General.Punch1,
-			AnimationDatabase.Combat.General.Punch2,
-			AnimationDatabase.Combat.General.Punch3,
-			AnimationDatabase.Combat.General.LeftHit,
-			AnimationDatabase.Combat.General.RightHit
-		}
-		animId = punches[math.random(1, #punches)]
-	end
-
-	-- Fallback if the aspect animation is a stub
-	if animId == "" or animId == "rbxassetid://0" then
-		animId = AnimationDatabase.Combat.General.Punch1
-	end
-
-	local animation = Instance.new("Animation")
-	animation.AnimationId = animId
-
-	local track = animator:LoadAnimation(animation)
-	track:Play()
-end
-
---[[
-	Apply melee damage from this Hollowed instance to `targetPlayer`.
-	Handles HP subtraction and posture gain.  Sets player Dead if HP reaches 0.
-	Broadcasts HitConfirmed event to all clients.
-]]
-local function _ExecuteHitboxAttack(data: HollowedData, model: Model, config: HollowedConfig, shape: "Box" | "Sphere", size: Vector3, offset: Vector3, duration: number)
-	data.State = "Attacking"
+local function _FireHitbox(
+	data          : HollowedData,
+	model         : Model,
+	config        : HollowedConfig,
+	targetSnap    : BasePart,
+	isCombo       : boolean?
+)
+	data.State          = "Attacking"
 	data.LastAttackTick = tick()
+	_intentMap[data.InstanceId] = ""
 	_UpdateVisuals(data.InstanceId)
+	_SetLoopAnim(data.InstanceId, model, "Idle")
+	_StopMovement(model)
+	_FaceTarget(model, targetSnap.Position)
+	_PlayOneshot(model, _PickAttackAnim(data.ConfigId))
 
-	-- Play attack animation before executing hitbox
-	_PlayAttackAnimation(model, data.ConfigId, duration)
+	local root = _GetRoot(model)
+	if not root then
+		_RestoreSpeed(model, config.MoveSpeed)
+		if _instances[data.InstanceId] then _instances[data.InstanceId].State = "Aggro" end
+		return
+	end
 
-	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then return end
+	task.delay(WINDUP, function()
+		local live = _instances[data.InstanceId]
+		if not live or live.State ~= "Attacking" then
+			_RestoreSpeed(model, config.MoveSpeed)
+			return
+		end
 
-	local hitboxConfig = {
-		Shape = shape,
-		Owner = data.InstanceId,
-		Damage = config.AttackDamage,
-		PostureDamage = config.PostureDamage,
-		Position = (root.CFrame * CFrame.new(offset)).Position,
-		CFrame = root.CFrame * CFrame.new(offset),
-		Size = size,
-		Radius = size.X, -- Assuming uniform if sphere
-		Duration = duration,
-	}
+		-- Range re-check: cancel if player escaped during windup
+		local rootNow    = _GetRoot(model)
+		local liveRoot   = _GetPlayerRoot(live.Target)
+		local checkPos   = liveRoot and liveRoot.Position or targetSnap.Position
+		if rootNow then
+			local distNow = (checkPos - rootNow.Position).Magnitude
+			if distNow > config.AttackRange * 1.6 then
+				task.delay(RECOVERY, function()
+					local l2 = _instances[data.InstanceId]
+					if l2 and l2.State == "Attacking" then
+						l2.State = "Aggro"
+						_RestoreSpeed(model, config.MoveSpeed)
+						_UpdateVisuals(data.InstanceId)
+					end
+				end)
+				return
+			end
+		end
 
-	-- Trigger hitbox logic. Create the hitbox, attach server-side OnHit to apply damage,
-	-- then immediately evaluate collisions via TestHitbox so server-controlled NPC attacks
-	-- apply damage to players/dummies reliably.
-	local hb = HitboxService.CreateHitbox(hitboxConfig)
+		-- Re-face at impact using live player position
+		local liveTarget = _GetPlayerRoot(live.Target)
+		local aimPos     = liveTarget and liveTarget.Position or targetSnap.Position
+		_FaceTarget(model, aimPos)
 
-	-- Attach OnHit to route damage into player/dummy damage pipelines
-	do
+		local root2 = _GetRoot(model)
+		if not root2 then return end
+
+		-- For ranged mobs: place hitbox AT the player.
+		-- For melee mobs: place hitbox MeleeReach studs in front of the mob.
+		local reach  = (config :: any).MeleeReach or 3
+		local isRanged = (config :: any).IsRanged or false
+		local hitPos: Vector3
+		if isRanged then
+			-- Ranged: place a sphere hitbox at the player's position
+			hitPos = aimPos
+		else
+			-- Melee: place hitbox forward of the mob root
+			hitPos = (root2.CFrame * CFrame.new(0, 0, -reach)).Position
+		end
+		local hitCF = CFrame.new(hitPos)
+
+		local hb = HitboxService.CreateHitbox({
+			Shape         = "Box",
+			Owner         = data.InstanceId,
+			Damage        = config.AttackDamage,
+			PostureDamage = config.PostureDamage,
+			Position      = hitCF.Position,
+			CFrame        = hitCF,
+			Size          = Vector3.new(4, 4, 4),
+			Radius        = 4,
+			Duration      = SWING,
+		})
+
 		local origOnHit = hb.Config.OnHit
 		hb.Config.OnHit = function(target: any, hitData: any)
-			-- Preserve original callback behavior if present
-			if origOnHit then
-				pcall(origOnHit, target, hitData)
-			end
+			if origOnHit then pcall(origOnHit, target, hitData) end
 
-			-- Resolve target and apply damage via the IncomingHPDamage attribute for players,
-			-- or DummyService.ApplyDamage for dummies (server-side canonical path).
-			local dmg = hb.Config.Damage or config.AttackDamage or 0
-			local post = hb.Config.PostureDamage or config.PostureDamage or 0
+			local dmg  = hb.Config.Damage        or config.AttackDamage  or 0
+			local post = hb.Config.PostureDamage  or config.PostureDamage or 0
 
-			-- Player target
 			if typeof(target) == "Instance" and target:IsA("Player") then
-				local ply = target :: Player
+				local ply  = target :: Player
 				local char = ply.Character
 				if char and char.Parent then
-					local targetState = StateService:GetPlayerData(ply)
-					local isBlocking = targetState and targetState.State == "Blocking"
-
-					if isBlocking then
-						-- Target is blocking, apply only posture damage
-						local existingP = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
-						char:SetAttribute("IncomingPostureDamage", existingP + post)
-						char:SetAttribute("IncomingPostureDamageSource", (data and data.InstanceId or "Hollowed") .. "_Attack")
+					local pd = StateService:GetPlayerData(ply)
+					-- Record threat: player just got hit, opening for combo
+					local extD = _ext[data.InstanceId]
+					if extD then
+						extD.LastHitLandedTick = tick()
+						extD.ComboAvailable    = true
+					end
+					if pd and pd.State == "Blocking" then
+						local ep = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
+						char:SetAttribute("IncomingPostureDamage", ep + post)
+						char:SetAttribute("IncomingPostureDamageSource", data.InstanceId .. "_Attack")
 					else
-						-- Target not blocking, apply only HP damage
-						local existing = (char:GetAttribute("IncomingHPDamage") or 0) :: number
-						char:SetAttribute("IncomingHPDamage", existing + dmg)
-						char:SetAttribute("IncomingHPDamageSource", (data and data.InstanceId or "Hollowed") .. "_Attack")
+						local eh = (char:GetAttribute("IncomingHPDamage") or 0) :: number
+						char:SetAttribute("IncomingHPDamage", eh + dmg)
+						char:SetAttribute("IncomingHPDamageSource", data.InstanceId .. "_Attack")
 					end
 				end
-
-			-- Dummy target (string identifier)
-			elseif type(target) == "string" then
-				local dummyId = target
-				-- Ensure DummyService exists and apply direct damage
-				if DummyService and DummyService.ApplyDamage then
-					pcall(function()
-						DummyService.ApplyDamage(dummyId, dmg)
-					end)
-				end
+			elseif type(target) == "string" and DummyService and DummyService.ApplyDamage then
+				pcall(DummyService.ApplyDamage, target, dmg)
 			end
 		end
-	end
 
-	-- Immediately test the hitbox to invoke OnHit for current frame
-	HitboxService.TestHitbox(hb)
+		HitboxService.TestHitbox(hb)
 
-	-- Lock in attack state for cooldown, then resume
-	task.delay(duration + 0.5, function()
-		if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Attacking" then
-			_instances[data.InstanceId].State = "Aggro"
-			_UpdateVisuals(data.InstanceId)
-		end
+		local recoverTime = isCombo and (RECOVERY * 0.6) or RECOVERY
+		task.delay(SWING + recoverTime, function()
+			local l2 = _instances[data.InstanceId]
+			if l2 and l2.State == "Attacking" then
+				l2.State = "Aggro"
+				_RestoreSpeed(model, config.MoveSpeed)
+				_UpdateVisuals(data.InstanceId)
+			end
+		end)
 	end)
 end
 
-
+-- ─── Combat behaviour primitives ─────────────────────────────────────────────
 
 --[[
-	Try to execute an attack if cooldown is ready and target is in range.
-	Scales attack cooldown by difficulty.
-	Returns true if attack was executed, false otherwise.
+	Try to commit a real attack.  Returns true if attack was fired.
+	Checks cooldown, range, aggro grace period.
+	If difficulty ≥ 8, considers threat level and may delay to turtle.
 ]]
-local function _TryAttack(data: HollowedData, model: Model, config: HollowedConfig, targetRoot: BasePart, now: number): boolean
-	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+local function _TryAttack(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number,
+	isCombo    : boolean?
+): boolean
+	local root = _GetRoot(model)
 	if not root then return false end
-	local rootPos = root.Position
-	local dist = (targetRoot.Position - rootPos).Magnitude
+	local ex   = _ext[data.InstanceId]
+	if not ex  then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	if dist > config.AttackRange then return false end
 
-	-- Check if in attack range
-	if dist > config.AttackRange then
+	-- Aggro grace period
+	if now - (ex.LastAggroTick or now) < 0.3 then return false end
+
+	-- Difficulty-scaled cooldown
+	local diff     = math.clamp(data.Difficulty or 5, 1, 10)
+	local diffNorm = (diff - 5) / 5                          -- -1..+1
+	local cdMult   = isCombo and COMBO_CD_MULT or (1.0 - 0.3 * diffNorm)
+	if now - data.LastAttackTick < config.AttackCooldown * cdMult then return false end
+
+	-- High-difficulty threat check: if player is hammering, wait for opening
+	local threat = ex.PlayerThreat or 0
+	if diff >= 8 and threat > THREAT_TURTLE_THRESH and not isCombo then
 		return false
 	end
 
-	-- FIX #4: Aggro grace period — don't attack within 0.3s of transitioning to Aggro
-	local timeSinceAggro = now - (data.LastAggroTick or now)
-	if timeSinceAggro < 0.3 then
-		return false  -- grace period before first attack after aggro
-	end
+	_FireHitbox(data, model, config, targetRoot, isCombo)
+	return true
+end
 
-	-- Difficulty-scaled cooldown: anchored at difficulty 5
-	local diff = math.clamp(data.Difficulty or 5, 1, 10)
-	local diffNorm = (diff - 5) / 5  -- -1 at diff=1, 0 at diff=5, 1 at diff=10
-	local cdScale = 1.0 - 0.3 * diffNorm  -- 1.3x at diff=1, 1.0x at diff=5, 0.7x at diff=10
-	local effectiveCooldown = config.AttackCooldown * cdScale
+--[[
+	Perform a feint: play the attack animation start WITHOUT spawning a hitbox.
+	Stalls movement briefly to sell the fake.
+	Returns true if feint was performed.
+]]
+local function _TryFeint(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff < 7 then return false end  -- feints only at difficulty 7+
 
-	-- Check if cooldown is ready
-	if now - data.LastAttackTick < effectiveCooldown then
-		return false
-	end
+	local lastFeint = ex.LastFeintTick or 0
+	if now - lastFeint < FEINT_COOLDOWN then return false end
 
-	-- Execute the attack with brief windup
-	task.delay(0.18, function()
-		if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Aggro" then
-			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(4, 4, 4), Vector3.new(0, 0, -3), 0.3)
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	-- Only feint when close enough to be convincing
+	if dist > config.AttackRange * 2 then return false end
+
+	-- Roll: 25% chance per tick when eligible
+	if math.random() > 0.25 then return false end
+
+	ex.LastFeintTick = now
+	_FaceTarget(model, targetRoot.Position)
+	_StopMovement(model)
+	-- Play the attack anim start (no hitbox)
+	_PlayOneshot(model, _PickAttackAnim(data.ConfigId))
+
+	-- After the feint duration, resume normal AI
+	task.delay(FEINT_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Aggro" then
+			_RestoreSpeed(model, config.MoveSpeed)
 		end
 	end)
 
@@ -659,319 +782,383 @@ local function _TryAttack(data: HollowedData, model: Model, config: HollowedConf
 end
 
 --[[
-	Execute the specific custom AI move set per variant instead of just swinging.
-	Includes prediction for moving targets and Humanoid:Move micro-adjustments.
+	Open a parry window.  While InParryWindow is true, incoming hits are
+	reflected in ApplyDamage.  Returns true if parry window was opened.
 ]]
-local function _ExecuteVariantAI(data: HollowedData, model: Model, config: HollowedConfig, dt: number, targetRoot: BasePart, now: number)
-	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
-	if not root then return end
-	local rootPos = root.Position
+local function _TryParry(
+	data  : HollowedData,
+	model : Model,
+	config: HollowedConfig,
+	now   : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff < 8 then return false end  -- parry only at difficulty 8+
 
-	-- ── FIX #1: Animation state hysteresis — track intent to prevent animation thrashing ──
-	if not _lastVariantIntents then
-		_lastVariantIntents = {}
-	end
-	local lastIntent = _lastVariantIntents[data.InstanceId] or ""
+	local lastParry = ex.LastParryTick or 0
+	if now - lastParry < PARRY_COOLDOWN then return false end
+	if ex.InParryWindow then return false end
+	if now - data.LastAttackTick < config.AttackCooldown * 0.5 then return false end
 
-	-- ── Target prediction ────────────────────────────────────────────────────
-	local targetVel = targetRoot.AssemblyLinearVelocity
-	local diff = data.Difficulty or 1
-	local diffNorm = math.clamp(diff / 10, 0, 1)
-	local leadTime = 0.2 + 0.2 * diffNorm
-	local predictedPos = targetRoot.Position + targetVel * leadTime
+	-- Roll: chance scales with difficulty above 8
+	local chance = 0.04 + 0.03 * (diff - 8)   -- 4% at diff 8, 10% at diff 10
+	if math.random() > chance then return false end
 
-	local toTarget = predictedPos - rootPos
-	local dist = toTarget.Magnitude
-	local hasFacingDir = toTarget.Magnitude > 0.01
+	ex.LastParryTick  = now
+	ex.InParryWindow  = true
+	_StopMovement(model)
+	_UpdateVisuals(data.InstanceId)
 
-	-- FIX #2: Removed per-tick _PivotModel to avoid conflicting with Humanoid:Move/MoveTo.
-	-- Let _WalkTo and Humanoid system handle turning smoothly instead of instant pivot rotation.
-	-- Silhouette variant still uses _PivotModel for specific dash attacks, which is intentional.
-
-	local aggro = math.clamp(data.FocusAggression or 0.5, 0, 1)
-	local def = data.FocusDefense or 1
-
-	if data.ConfigId == "basic_hollowed" then
-		local desiredMin = config.AttackRange * 0.7
-		local desiredMax = config.AttackRange * 1.1
-		local currentIntent = "idle"
-
-		-- Try to attack if conditions met
-		if dist <= config.AttackRange and math.random() < 0.25 + aggro * 0.5 then
-			if _TryAttack(data, model, config, targetRoot, now) then
-				currentIntent = "idle"
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Idle")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			end
-		else
-			if dist > desiredMax then
-				currentIntent = "chase"
-				_WalkTo(model, targetRoot.Position)
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Run")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			elseif dist < desiredMin then
-				currentIntent = "back_up"
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local backPos = rootPos - dir * 4
-				_WalkTo(model, backPos)
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Run")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			else
-				currentIntent = "strafe"
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
-				side = side.Unit
-				local strafeDist = 5 + 5 * aggro
-				local strafePos = rootPos + side * strafeDist * dt * 5
-				_WalkTo(model, strafePos)
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Run")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			end
+	task.delay(PARRY_WINDOW, function()
+		local live = _instances[data.InstanceId]
+		if live then
+			local ex = _ext[data.InstanceId]
+			if ex then ex.InParryWindow = false end
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
 		end
+	end)
 
-	elseif data.ConfigId == "ironclad_hollowed" then
-		-- Ironclad: occasionally blocks while moving, heavy slam
-		local currentIntent = "idle"
-		if dist <= config.AttackRange then
-			if _TryAttack(data, model, config, targetRoot, now) then
-				currentIntent = "idle"
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Idle")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			end
-		else
-			currentIntent = "chase"
-			-- Move forward with Humanoid:Move
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				humanoid:Move(dir, true)
-			end
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-			-- Randomly block
-			if math.random() < (0.05 * def) and data.State ~= "Blocking" then
-				data.State = "Blocking"
-				task.delay(1.5, function() if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Blocking" then _instances[data.InstanceId].State = "Aggro" end end)
-			end
-		end
-
-	elseif data.ConfigId == "silhouette_hollowed" then
-		-- Silhouette: Stays just out of reach, dashes in
-		local currentIntent = "idle"
-		if dist > config.AttackRange and dist < 12 and _TryAttack(data, model, config, targetRoot, now) then
-			-- Dash attack: move into range before hitting
-			-- FIX #2 exception: _PivotModel is OK here for intentional dash, not continuous turning
-			currentIntent = "chase"
-			_PivotModel(model, toTarget.Unit * 8, targetRoot.Position)
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-		elseif dist <= config.AttackRange then
-			currentIntent = "back_up"
-			-- Back up with Humanoid:Move
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				humanoid:Move(-dir, true)
-			end
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-		else
-			currentIntent = "chase"
-			-- Chase / circle with Humanoid:Move
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				humanoid:Move(dir, true)
-			end
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-		end
-
-	elseif data.ConfigId == "resonant_hollowed" then
-		-- Resonant: Casts spheres from afar
-		local currentIntent = "idle"
-		if dist <= config.AttackRange then
-			if _TryAttack(data, model, config, targetRoot, now) then
-				currentIntent = "idle"
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Idle")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			end
-		else
-			currentIntent = "chase"
-			-- Keep distance / chase with Humanoid:Move
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				humanoid:Move(dir, true)
-			end
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-		end
-
-	elseif data.ConfigId == "ember_hollowed" then
-		-- Ember: Wide cleave sweeps
-		local currentIntent = "idle"
-		if dist <= config.AttackRange then
-			if _TryAttack(data, model, config, targetRoot, now) then
-				currentIntent = "idle"
-				if lastIntent ~= currentIntent then
-					_SetAnimState(data.InstanceId, model, "Idle")
-					_lastVariantIntents[data.InstanceId] = currentIntent
-				end
-			end
-		else
-			currentIntent = "chase"
-			-- Aggressive chase with Humanoid:Move
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				humanoid:Move(dir, true)
-			end
-			if lastIntent ~= currentIntent then
-				_SetAnimState(data.InstanceId, model, "Run")
-				_lastVariantIntents[data.InstanceId] = currentIntent
-			end
-		end
-	end
+	return true
 end
 
 --[[
-	Evaluate AI for a single Hollowed instance.  Called every difficulty-scaled AI tick.
+	Enter a blocking state reactively (player recently attacked, mob is nearby).
+	Returns true if block was raised.
 ]]
+local function _TryBlock(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff < 6 then return false end  -- block at difficulty 6+
+
+	local lastBlock = ex.LastBlockTick or 0
+	if now - lastBlock < BLOCK_COOLDOWN then return false end
+	if data.State == "Blocking" then return false end
+
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	-- Only worth blocking when the player can actually reach us
+	if dist > config.AttackRange * 1.5 then return false end
+
+	-- Block chance scales with threat: mob blocks MORE when being hammered
+	local threat = ex.PlayerThreat or 0
+	local chance = 0.04 + 0.05 * math.clamp(threat / THREAT_TURTLE_THRESH, 0, 1) * (diff / 10)
+	if math.random() > chance then return false end
+
+	ex.LastBlockTick = now
+	data.State = "Blocking"
+	_StopMovement(model)
+	_FaceTarget(model, targetRoot.Position)
+	_UpdateVisuals(data.InstanceId)
+
+	task.delay(BLOCK_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Blocking" then
+			live.State = "Aggro"
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+
+	return true
+end
+
+--[[
+	Perform a lateral dodge away from the incoming threat.
+	Mob becomes invincible (Dodging state) for DODGE_DURATION.
+]]
+local function _TryDodge(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff < 7 then return false end  -- dodge at difficulty 7+
+
+	local lastDodge = ex.LastDodgeTick or 0
+	if now - lastDodge < DODGE_COOLDOWN then return false end
+	if data.State == "Dodging" then return false end
+
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+
+	-- Dodge chance spikes when the player is very close (about to swing)
+	local threat = ex.PlayerThreat or 0
+	local proximityFactor = math.clamp(1 - (dist / (config.AttackRange * 1.2)), 0, 1)
+	local chance = proximityFactor * 0.12 * (diff / 10) * math.clamp(threat / 1.5, 0, 2)
+	if math.random() > chance then return false end
+
+	ex.LastDodgeTick = now
+	data.State = "Dodging"
+	_StopMovement(model)
+	_UpdateVisuals(data.InstanceId)
+
+	-- Pick a lateral direction (perpendicular to player)
+	local toTarget = (targetRoot.Position - root.Position)
+	local flat     = Vector3.new(toTarget.X, 0, toTarget.Z)
+	local sideDir  = if ex.StrafeDir == 1
+		then flat.Unit:Cross(Vector3.yAxis)
+		else Vector3.yAxis:Cross(flat.Unit)
+
+	-- Slide the mob laterally — instant dash via PivotTo
+	local dodgeTarget = root.Position + sideDir.Unit * DODGE_DISTANCE
+	model:PivotTo(CFrame.lookAt(dodgeTarget, dodgeTarget + flat.Unit))
+
+	task.delay(DODGE_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Dodging" then
+			live.State = "Aggro"
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+
+	return true
+end
+
+-- ─── Patrol ───────────────────────────────────────────────────────────────────
+
+local function _RandomPatrolPoint(spawnPos: Vector3, radius: number): Vector3
+	local angle = math.random() * math.pi * 2
+	local d     = math.random() * radius
+	return Vector3.new(spawnPos.X + math.cos(angle)*d, spawnPos.Y, spawnPos.Z + math.sin(angle)*d)
+end
+
+-- ─── AI tick ─────────────────────────────────────────────────────────────────
+
+local function GetAITickForDiff(diff: number): number
+	return BASE_AI_TICK - 0.06 * (diff / 10)
+end
+
 local function _TickAI(instanceId: string, dt: number)
 	local data   = _instances[instanceId]
 	local model  = _models[instanceId]
+	if not data or not model then return end
 	local config = CONFIGS[data.ConfigId]
-	if not data or not model or not config then return end
+	if not config then return end
 	if not data.IsActive or data.State == "Dead" then return end
 
-	local now          = tick()
-	local rootPart     = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	local ex = _ext[instanceId]
+	if not ex then return end
+
+	local now      = tick()
+	local rootPart = _GetRoot(model)
 	if not rootPart then return end
+	data.RootPosition = rootPart.Position
+	local rootPos  = rootPart.Position
 
-	local rootPos = rootPart.Position
-	data.RootPosition = rootPos
+	-- Skip AI during hard-locked states
+	if data.State == "Attacking" or data.State == "Stunned" or data.State == "Staggered"
+	or data.State == "Dodging" then return end
 
-	-- ── FIX #3: Skip variant AI during Attacking/Stunned/Staggered ──────────
-	if data.State == "Attacking" or data.State == "Stunned" or data.State == "Staggered" then
-		return
+	-- ── Decay player threat score ────────────────────────────────────────────
+	local threat = ex.PlayerThreat or 0
+	threat = math.max(0, threat - THREAT_DECAY * dt)
+	ex.PlayerThreat = threat
+
+	-- ── Strafe direction: flip every 2–4 seconds ──────────────────────────────
+	local strafeFlip = ex.StrafeFlipTick or 0
+	if now - strafeFlip > 2 + math.random() * 2 then
+		ex.StrafeDir      = math.random() < 0.5 and 1 or -1
+		ex.StrafeFlipTick = now
 	end
 
 	-- ── Aggro detection ──────────────────────────────────────────────────────
-
-	local nearestPlayer = _GetBestTarget(rootPos, config.AggroRange, data.FocusTargeting or 1)
-
-	if nearestPlayer and data.State ~= "Attacking" then
+	local nearest = _GetBestTarget(rootPos, config.AggroRange, ex.FocusTargeting or 1)
+	if nearest and data.State ~= "Attacking" then
 		if data.State ~= "Aggro" then
 			data.State = "Aggro"
-			data.Target = nearestPlayer
-			data.LastAggroTick = now  -- FIX #4: Set aggro transition tick for grace period
+			data.Target = nearest
+			ex.LastAggroTick = now
 			_UpdateVisuals(instanceId)
-			print(("[HollowedService] %s → Aggro on %s"):format(instanceId, nearestPlayer.Name))
 		end
-		data.Target = nearestPlayer
-	elseif not nearestPlayer and data.State == "Aggro" then
-		data.State        = "Patrol"
-		data.Target       = nil
-		data.PatrolTarget = nil
+		data.Target = nearest
+	elseif not nearest and data.State == "Aggro" then
+		data.State = "Patrol"
+		data.Target = nil; data.PatrolTarget = nil
 		_UpdateVisuals(instanceId)
-		print(("[HollowedService] %s → Patrol (target lost)"):format(instanceId))
 	end
 
-	-- ── State behaviour ──────────────────────────────────────────────────────
-
+	-- ── Aggro state ──────────────────────────────────────────────────────────
 	if data.State == "Aggro" and data.Target then
-		local target = data.Target
-		local targetChar = target.Character
-		local targetData = StateService:GetPlayerData(target)
-		local targetRoot = targetChar and (targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?) or nil
-		local isValidTarget = targetChar ~= nil and targetRoot ~= nil and (not targetData or targetData.State ~= "Dead")
-		local outOfRange = false
-		if targetRoot then
-			outOfRange = (targetRoot.Position - rootPos).Magnitude > (config.AggroRange + 5)
+		local target     = data.Target
+		local targetRoot = _GetPlayerRoot(target)
+		local pd         = StateService:GetPlayerData(target)
+		local alive      = targetRoot ~= nil and (not pd or pd.State ~= "Dead")
+		local inRange    = targetRoot and (targetRoot.Position - rootPos).Magnitude <= config.AggroRange + 5
+
+		if not alive or not inRange then
+			data.State = "Patrol"; data.Target = nil; data.PatrolTarget = nil
+			_UpdateVisuals(instanceId); return
 		end
 
-		if (not isValidTarget) or outOfRange then
-			-- Hard-drop stale/invalid targets immediately and reacquire on next AI tick.
-			data.State = "Patrol"
-			data.Target = nil
-			data.PatrolTarget = nil
-			_UpdateVisuals(instanceId)
+		local tr     = targetRoot :: BasePart
+		local dist   = (tr.Position - rootPos).Magnitude
+		local diff2  = math.clamp(data.Difficulty or 1, 1, 10)
+
+		-- ── Combo follow-up check (highest priority after state checks) ───────
+		local comboAvail = ex.ComboAvailable
+		local lastHit    = ex.LastHitLandedTick or 0
+		if comboAvail and (now - lastHit) < COMBO_WINDOW then
+			if _TryAttack(data, model, config, tr, now, true) then
+				ex.ComboAvailable = false
+				return
+			end
+		else
+			ex.ComboAvailable = false
+		end
+
+		-- ── Parry window attempt ───────────────────────────────────────────────
+		if _TryParry(data, model, config, now) then return end
+
+		-- ── Block attempt ──────────────────────────────────────────────────────
+		if data.State == "Blocking" then
+			-- Already blocking — just face the threat
+			_FaceTarget(model, tr.Position)
 			return
 		end
+		if _TryBlock(data, model, config, tr, now) then return end
 
-		_ExecuteVariantAI(data, model, config, dt, targetRoot :: BasePart, now)
+		-- ── Dodge attempt ─────────────────────────────────────────────────────
+		if _TryDodge(data, model, config, tr, now) then return end
 
+		-- ── Feint attempt ─────────────────────────────────────────────────────
+		if _TryFeint(data, model, config, tr, now) then return end
+
+		-- ── Spacing + attack ──────────────────────────────────────────────────
+		--
+		-- Movement is driven by _MoveModel (PivotTo each tick) — Humanoid:MoveTo
+		-- has no effect on anchored parts.
+		--
+		-- Melee mobs close to AttackRange then attack.
+		-- Ranged mobs hold at AttackRange ± 20%, strafe, and fire from distance.
+
+		local isRanged   = (config :: any).IsRanged or false
+		local closeRange = config.AttackRange * 1.5
+		local holdMin    = config.AttackRange * 0.75  -- ranged: don't let player get closer
+		local strafeDir  = ex.StrafeDir or 1
+		local turtling   = diff2 >= 8 and threat > THREAT_TURTLE_THRESH
+
+		local lastIntent = _intentMap[instanceId] or ""
+		local function intent(key: string, anim: "Idle" | "Run")
+			if lastIntent ~= key then
+				_SetLoopAnim(instanceId, model, anim)
+				_intentMap[instanceId] = key
+			end
+		end
+
+		-- Predict where the player will be a short time from now
+		local vel       = tr.AssemblyLinearVelocity
+		local diffN     = math.clamp(diff2 / 10, 0, 1)
+		local lead      = 0.1 + 0.2 * diffN
+		local predicted = Vector3.new(
+			tr.Position.X + vel.X * lead,
+			tr.Position.Y,
+			tr.Position.Z + vel.Z * lead
+		)
+
+		if isRanged then
+			-- ── Ranged behaviour ──────────────────────────────────────────────
+			-- Hold at AttackRange. If player gets too close, back up.
+			-- Always strafe. Fire when in range.
+			if dist < holdMin then
+				-- Player too close — back away
+				intent("backoff", "Run")
+				local awayDir = Vector3.new(rootPos.X - tr.Position.X, 0, rootPos.Z - tr.Position.Z)
+				if awayDir.Magnitude > 0.01 then
+					_MoveModel(model, rootPos + awayDir.Unit * 10, config.MoveSpeed, dt)
+				end
+			elseif dist > closeRange then
+				-- Too far — close until in range
+				intent("chase", "Run")
+				_MoveModel(model, predicted, config.MoveSpeed, dt)
+			else
+				-- In ideal range — strafe and attack
+				intent("strafe", "Run")
+				_StrafeModel(model, tr.Position, strafeDir, config.MoveSpeed, dt)
+				_TryAttack(data, model, config, tr, now, false)
+			end
+			-- Always face target
+			_FaceTarget(model, tr.Position)
+
+		elseif dist <= config.AttackRange then
+			-- ── Melee: in attack range ────────────────────────────────────────
+			if turtling then
+				intent("backoff", "Run")
+				local awayDir = Vector3.new(rootPos.X - tr.Position.X, 0, rootPos.Z - tr.Position.Z)
+				if awayDir.Magnitude > 0.01 then
+					_MoveModel(model, rootPos + awayDir.Unit * 8, config.MoveSpeed, dt)
+				end
+			elseif _TryAttack(data, model, config, tr, now, false) then
+				intent("attack", "Idle")
+			else
+				-- On cooldown — circle-strafe to stay unpredictable
+				intent("circle", "Run")
+				_StrafeModel(model, tr.Position, strafeDir, config.MoveSpeed, dt)
+			end
+
+		elseif dist > closeRange then
+			-- ── Melee: far — run straight at player ───────────────────────────
+			intent("chase", "Run")
+			_MoveModel(model, predicted, config.MoveSpeed, dt)
+
+		else
+			-- ── Melee: closing zone — advance until in attack range ───────────
+			intent("advance", "Run")
+			_MoveModel(model, tr.Position, config.MoveSpeed, dt)
+		end
+
+		-- Face target when standing still (attack intent)
+		if _intentMap[instanceId] == "attack" then
+			_FaceTarget(model, tr.Position)
+		end
+
+	-- ── Patrol state ─────────────────────────────────────────────────────────
 	elseif data.State == "Patrol" then
-		-- Idle at waypoint: wait before picking next
 		if now < data.PatrolWaitUntil then return end
-
-		-- Pick a new waypoint if we don't have one (or just arrived)
 		if not data.PatrolTarget then
 			data.PatrolTarget = _RandomPatrolPoint(data.SpawnCFrame.Position, config.PatrolRadius)
 		end
-
-		local toWaypoint: Vector3 = data.PatrolTarget - rootPos
-		local distWaypoint        = toWaypoint.Magnitude
-
-		if distWaypoint <= PATROL_ARRIVE_DIST then
-			-- Arrived — idle for a bit then pick another waypoint
+		local toWP = data.PatrolTarget - rootPos
+		if toWP.Magnitude <= PATROL_ARRIVE_DIST then
 			data.PatrolTarget    = nil
 			data.PatrolWaitUntil = now + PATROL_WAIT_TIME
-			_SetAnimState(instanceId, model, "Idle")
+			_SetLoopAnim(instanceId, model, "Idle")
 		else
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then humanoid.WalkSpeed = config.MoveSpeed * 0.5 end
-			_WalkTo(model, data.PatrolTarget)
-			if humanoid then humanoid.WalkSpeed = config.MoveSpeed end
-			_SetAnimState(instanceId, model, "Run")
+			_MoveModel(model, data.PatrolTarget, config.MoveSpeed * 0.5, dt)
+			_SetLoopAnim(instanceId, model, "Run")
 		end
 	end
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
 
---[[
-	Spawn a new Hollowed instance of the given config type at spawnCF.
-	Returns the instanceId, or nil if configId is unknown.
-]]
 function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, difficulty: number?): string?
 	local config = CONFIGS[configId]
 	if not config then
 		warn(("[HollowedService] Unknown configId: %s"):format(configId))
 		return nil
 	end
-
 	_nextId += 1
 	local instanceId = ("Hollowed_%d"):format(_nextId)
-
-	local model, _ = _CreateModel(instanceId, config, spawnCF)
+	local model, _   = _CreateModel(instanceId, config, spawnCF)
 	_models[instanceId] = model
 
 	local diff = difficulty or 1
-
 	local data: HollowedData = {
 		InstanceId      = instanceId,
 		ConfigId        = configId,
@@ -994,270 +1181,232 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, diffic
 		FocusDefense    = (10 - diff) / 15,
 		FocusTargeting  = math.clamp(diff / 8, 0, 1),
 	}
-	_instances[instanceId] = data
+	-- Extra combat fields (initialised as a single table to avoid nil-index errors)
+	_ext[instanceId] = {
+		LastFeintTick     = 0,
+		LastParryTick     = 0,
+		LastDodgeTick     = 0,
+		LastBlockTick     = 0,
+		LastHitLandedTick = 0,
+		LastAggroTick     = 0,
+		ComboAvailable    = false,
+		InParryWindow     = false,
+		PlayerThreat      = 0,
+		StrafeDir         = math.random() < 0.5 and 1 or -1,
+		StrafeFlipTick    = 0,
+		IdealRange        = config.AttackRange * 0.85,
+		FocusTargeting    = math.clamp(diff / 8, 0, 1),
+	}
 
-	print(("[HollowedService] Spawned %s (%s) at %s"):format(instanceId, configId, tostring(spawnCF.Position)))
+	_instances[instanceId] = data
+	print(("[HollowedService] Spawned %s (%s) diff=%d"):format(instanceId, configId, diff))
 	return instanceId
 end
 
---[[
-	Despawn and permanently remove a Hollowed instance.
-]]
 function HollowedService.DespawnInstance(instanceId: string)
-	local model = _models[instanceId]
-	if model then
-		model:Destroy()
-		_models[instanceId] = nil :: any
-	end
-	_instances[instanceId] = nil :: any
+	local m = _models[instanceId]
+	if m then m:Destroy(); _models[instanceId] = nil :: any end
+	_instances[instanceId]       = nil :: any
 	_instanceAreaMap[instanceId] = nil
-	_animStates[instanceId] = nil
-	print(("[HollowedService] Despawned %s"):format(instanceId))
+	_animStates[instanceId]      = nil
+	_intentMap[instanceId]       = nil
+	_ext[instanceId]             = nil :: any
 end
 
 --[[
-	Apply hit damage to a Hollowed instance (called by CombatService).
-	attacker: the Player who landed the hit.
-	Returns true if still alive, false if just killed.
+	Apply damage from a player hit.
+	If the mob is in a PARRY window the damage is reflected to the player instead.
+	If the mob is BLOCKING, only posture damage applies.
 ]]
 function HollowedService.ApplyDamage(instanceId: string, damage: number, attacker: Player?, postureDamage: number?): boolean
 	local data   = _instances[instanceId]
 	local config = data and CONFIGS[data.ConfigId]
 	if not data or not config or not data.IsActive then return false end
-	if data.State == "Dead" or data.State == "Dodging" then return false end
+	if data.State == "Dead" or data.State == "Dodging" then return false end  -- Dodging = invincible
 
-	-- Handle Blocking phase (Ironclad primarily)
+	local ex = _ext[instanceId]
+	if not ex then return false end
+
+	-- ── Parry reflect ────────────────────────────────────────────────────────
+	if ex.InParryWindow then
+		ex.InParryWindow = false
+		print(("[HollowedService] %s PARRIED hit from %s — reflecting!"):format(instanceId, attacker and attacker.Name or "?"))
+		if attacker then
+			local char = attacker.Character
+			if char and char.Parent then
+				local reflected = math.floor(damage * PARRY_REFLECT_MULT)
+				local existing  = (char:GetAttribute("IncomingHPDamage") or 0) :: number
+				char:SetAttribute("IncomingHPDamage", existing + reflected)
+				char:SetAttribute("IncomingHPDamageSource", instanceId .. "_Parry")
+				local ep = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
+				char:SetAttribute("IncomingPostureDamage", ep + (postureDamage or 0) * 2)
+				char:SetAttribute("IncomingPostureDamageSource", instanceId .. "_Parry")
+			end
+		end
+		return true  -- mob takes no damage
+	end
+
+	-- ── Block: posture only ──────────────────────────────────────────────────
 	if data.State == "Blocking" then
-		print(("[HollowedService] %s BLOCKED hit from %s"):format(instanceId, attacker and attacker.Name or "Unknown"))
-		-- Potentially apply heavy posture damage or spark effects here
+		if postureDamage then
+			data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
+		end
+		print(("[HollowedService] %s BLOCKED hit"):format(instanceId))
+		ex.PlayerThreat = (ex.PlayerThreat or 0) + THREAT_HIT_ADD * 0.5
+		_UpdateVisuals(instanceId)
 		return true
 	end
 
-	-- Apply HP damage
+	-- ── Normal hit ───────────────────────────────────────────────────────────
+	ex.PlayerThreat = (ex.PlayerThreat or 0) + THREAT_HIT_ADD
+
 	data.CurrentHealth = math.max(0, data.CurrentHealth - damage)
 
-	-- Apply Posture damage and enter stagger state with difficulty scaling
 	if postureDamage then
 		data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
 		if data.CurrentPoise <= 0 then
 			data.State = "Staggered"
-			local diff = data.Difficulty or 1
-			local diffNorm = math.clamp(diff / 10, 0, 1)
-			local staggerDuration = 0.4 - 0.2 * diffNorm  -- Higher difficulty = shorter stagger
-			print(("[HollowedService] %s was STAGGERED for %.2fs!"):format(instanceId, staggerDuration))
-			-- Recover poise and return to Aggro
-			task.delay(staggerDuration, function()
+			_intentMap[instanceId] = ""
+			local diff     = data.Difficulty or 1
+			local diffN    = math.clamp(diff / 10, 0, 1)
+			local staggerT = 0.4 - 0.2 * diffN
+			print(("[HollowedService] %s STAGGERED %.2fs"):format(instanceId, staggerT))
+			task.delay(staggerT, function()
 				if _instances[instanceId] and _instances[instanceId].State == "Staggered" then
-					local newState = "Patrol"
-					if _instances[instanceId].Target then
-						newState = "Aggro"
-					end
-					_instances[instanceId].State = newState
+					_instances[instanceId].State      = _instances[instanceId].Target and "Aggro" or "Patrol"
 					_instances[instanceId].CurrentPoise = config.MaxPoise
+					local m = _models[instanceId]
+					if m then _RestoreSpeed(m, config.MoveSpeed) end
 				end
 			end)
 		end
 	end
 
 	_UpdateVisuals(instanceId)
-
-	print(("[HollowedService] %s took %d damage — HP %d/%d"):format(
-		instanceId, damage, data.CurrentHealth, data.MaxHealth
-	))
+	print(("[HollowedService] %s -%d HP → %d/%d"):format(instanceId, damage, data.CurrentHealth, data.MaxHealth))
 
 	if data.CurrentHealth <= 0 then
-		-- Record killer
 		data.KillerId = attacker and attacker.UserId or nil
-		data.State    = "Dead"
-		data.IsActive = false
-		data.Target   = nil
+		data.State    = "Dead"; data.IsActive = false; data.Target = nil
+		local m = _models[instanceId]
+		if m then _StopMovement(m) end
 		_UpdateVisuals(instanceId)
-
-		print(("[HollowedService] %s died — granting %d Resonance to killer"):format(
-			instanceId, config.ResonanceGrant
-		))
-
-		-- Grant Resonance to the killing player
+		print(("[HollowedService] %s died → +%d Resonance"):format(instanceId, config.ResonanceGrant))
 		if attacker and ProgressionService then
 			ProgressionService.GrantResonance(attacker, config.ResonanceGrant, "Hollowed")
 		end
-
-		-- Schedule respawn
 		task.delay(config.RespawnDelay, function()
-			if _instances[instanceId] then
-				-- Reset health and state, re-activate
-				data.CurrentHealth   = config.MaxHealth
-				data.MaxHealth       = config.MaxHealth
-				data.State           = "Patrol"
-				data.Target          = nil
-				data.PatrolTarget    = nil
-				data.PatrolWaitUntil = 0
-				data.KillerId        = nil
-				data.IsActive        = true
-				-- Teleport model back to spawn
-				local model = _models[instanceId]
-				if model then
-					local spawnPos = data.SpawnCFrame.Position
-					local rootPart = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-					if rootPart then
-						local offset = spawnPos - rootPart.Position
-						_PivotModel(model, offset, nil)
-					end
-				end
-				_UpdateVisuals(instanceId)
-				print(("[HollowedService] %s respawned at spawn point"):format(instanceId))
+			if not _instances[instanceId] then return end
+			data.CurrentHealth   = config.MaxHealth
+			data.MaxHealth       = config.MaxHealth
+			data.State           = "Patrol"; data.Target = nil
+			data.PatrolTarget    = nil; data.PatrolWaitUntil = 0
+			data.KillerId        = nil; data.IsActive = true
+			local ex = _ext[instanceId]
+			if ex then
+				ex.PlayerThreat   = 0
+				ex.ComboAvailable = false
+				ex.InParryWindow  = false
 			end
+			local mdl = _models[instanceId]
+			if mdl then
+				local rp = _GetRoot(mdl)
+				if rp then
+					local off = data.SpawnCFrame.Position - rp.Position
+					mdl:PivotTo((rp.CFrame :: CFrame) + off)
+				end
+				_RestoreSpeed(mdl, config.MoveSpeed)
+			end
+			_UpdateVisuals(instanceId)
+			print(("[HollowedService] %s respawned"):format(instanceId))
 		end)
-
 		return false
 	end
 
 	return true
 end
 
---[[
-	Read-only access to instance data.
-	Called by CombatService to identify Hollowed as a valid hit target.
-]]
 function HollowedService.GetInstanceData(instanceId: string): HollowedData?
 	return _instances[instanceId]
 end
 
---[[
-	Get all active Hollowed instances.
-	Called by WitnessService to find observable Hollowed enemies.
-]]
 function HollowedService.GetAllInstances(): {[string]: HollowedData}
 	return _instances
 end
 
--- ─── Spawning System ──────────────────────────────────────────────────────────
+-- ─── Spawning ─────────────────────────────────────────────────────────────────
 
---[[
-	Count how many Hollowed instances are currently alive in a specific area.
-]]
-local function _CountInstancesInArea(areaName: string): number
-	local count = 0
-	for instanceId, area in _instanceAreaMap do
-		if area == areaName and _instances[instanceId] and _instances[instanceId].State ~= "Dead" then
-			count += 1
-		end
+local function _CountInArea(area: string): number
+	local n = 0
+	for id, a in _instanceAreaMap do
+		if a == area and _instances[id] and _instances[id].State ~= "Dead" then n += 1 end
 	end
-	return count
+	return n
 end
 
---[[
-	Try to spawn respawns in areas that haven't hit their mob cap.
-	Respects collision prevention and player distance.
-]]
 local function _TrySpawnRespawns()
-	local variantList = {"basic_hollowed", "ironclad_hollowed", "silhouette_hollowed", "resonant_hollowed", "ember_hollowed"}
-
-	-- Try spawning in each zone
+	local variants = {"basic_hollowed","ironclad_hollowed","silhouette_hollowed","resonant_hollowed","ember_hollowed"}
 	for _, zone in _spawnerConfig.SpawnZones do
-		local currentCount = _CountInstancesInArea(zone.AreaName)
-		local spotsAvailable = zone.MobCap - currentCount
-
-		-- Spawn up to 1 mob per check cycle per zone (prevents spawn spam)
-		if spotsAvailable > 0 and math.random() < 0.3 then
-			-- Find a safe spawn position
-			local spawnPos = SpawnerConfig.FindSafeSpawnPosition(
-				zone,
-				_instances,
-				_spawnerConfig.CollisionCheckRadius,
-				_spawnerConfig.MinSpawnDistance,
-				5  -- maxAttempts
-			)
-
-			if spawnPos then
-				local randomVariant = variantList[math.random(1, #variantList)]
-				local spawnCF = CFrame.new(spawnPos) * CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
-				local instanceId = HollowedService.SpawnInstance(randomVariant, spawnCF)
-
-				-- Track which area this instance belongs to
-				_instanceAreaMap[instanceId] = zone.AreaName
-				print(("[HollowedService] Spawned %s in %s (%d/%d) at %s"):format(
-					randomVariant, zone.AreaName, currentCount + 1, zone.MobCap, tostring(spawnPos)))
+		local cur = _CountInArea(zone.AreaName)
+		if cur < zone.MobCap and math.random() < 0.3 then
+			local pos = SpawnerConfig.FindSafeSpawnPosition(zone, _instances,
+				_spawnerConfig.CollisionCheckRadius, _spawnerConfig.MinSpawnDistance, 5)
+			if pos then
+				local v  = variants[math.random(1, #variants)]
+				local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(math.random(0,360)), 0)
+				local id = HollowedService.SpawnInstance(v, cf)
+				_instanceAreaMap[id] = zone.AreaName
 			end
 		end
 	end
 end
 
---[[
-	Allow SpawnerConfig override (for testing or dynamic difficulty).
-]]
-function HollowedService.SetSpawnerConfig(newConfig: SpawnerConfig.SpawnerConfig)
-	_spawnerConfig = newConfig
-	print("[HollowedService] Spawner config updated")
+function HollowedService.SetSpawnerConfig(cfg: SpawnerConfig.SpawnerConfig)
+	_spawnerConfig = cfg
 end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-function HollowedService:Init(dependencies: {[string]: any}?)
-	print("[HollowedService] Initializing...")
-	if dependencies then
-		ProgressionService = dependencies.ProgressionService
-		PostureService     = (dependencies :: any).PostureService
+function HollowedService:Init(deps: {[string]: any}?)
+	if deps then
+		ProgressionService = deps.ProgressionService
+		PostureService     = (deps :: any).PostureService
 	end
 	HollowedService._initialized = true
 	print("[HollowedService] Initialized")
 end
 
 function HollowedService:Start()
-	print("[HollowedService] Starting...")
-	assert(HollowedService._initialized, "[HollowedService] Must call Init() before Start()")
-
-	-- Lazy-require PostureService if not injected (avoids load-order issues)
+	assert(HollowedService._initialized, "Call Init() first")
 	if not PostureService then
-		local ok, svc = pcall(require, game:GetService("ServerScriptService").Server.services.PostureService)
-		if ok then PostureService = svc end
+		local ok, s = pcall(require, game:GetService("ServerScriptService").Server.services.PostureService)
+		if ok then PostureService = s end
 	end
 
-	-- Log spawner configuration
-	print(("[HollowedService] Spawning system configured with %d areas"):format(#_spawnerConfig.SpawnZones))
-	for _, zone in _spawnerConfig.SpawnZones do
-		print(("[HollowedService]  - %s (Ring %d): MobCap=%d, Center=%s, Radius=%d"):format(
-			zone.AreaName, zone.Ring, zone.MobCap, tostring(zone.CenterPosition), zone.SearchRadius))
-	end
-
-	-- AI + Spawn loop — evaluate each instance every AI_TICK_RATE seconds
-	-- Also check for respawns periodically
 	_heartbeatConn = RunService.Heartbeat:Connect(function(dt: number)
 		local now = tick()
-
-		-- AI tick for existing instances with difficulty-scaled tick rates
 		for instanceId, data in _instances do
-			local diff = data.Difficulty or 1
-			local aiTick = GetAITickForDiff(diff)
+			local aiTick = GetAITickForDiff(data.Difficulty or 1)
 			if now - data.LastAITick >= aiTick then
 				data.LastAITick = now
 				local ok, err = pcall(_TickAI, instanceId, aiTick)
 				if not ok then
-					warn(("[HollowedService] AI tick error for %s: %s"):format(instanceId, tostring(err)))
+					warn(("[HollowedService] AI error %s: %s"):format(instanceId, tostring(err)))
 				end
 			end
 		end
-
-		-- Check for respawn opportunities periodically
 		if now - _lastSpawnCheckTime >= _spawnerConfig.RespawnCheckInterval then
 			_lastSpawnCheckTime = now
 			_TrySpawnRespawns()
 		end
 	end)
-
-	print("[HollowedService] Started — Dynamic spawning and AI loop active")
+	print("[HollowedService] Started")
 end
 
 function HollowedService:Shutdown()
-	if _heartbeatConn then
-		_heartbeatConn:Disconnect()
-		_heartbeatConn = nil
-	end
-	for instanceId in _instances do
-		HollowedService.DespawnInstance(instanceId)
-		_instanceAreaMap[instanceId] = nil
-	end
-	print("[HollowedService] Shutdown complete")
+	if _heartbeatConn then _heartbeatConn:Disconnect(); _heartbeatConn = nil end
+	for id in _instances do HollowedService.DespawnInstance(id) end
+	print("[HollowedService] Shutdown")
 end
 
 return HollowedService

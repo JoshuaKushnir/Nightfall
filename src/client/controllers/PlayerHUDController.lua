@@ -613,7 +613,7 @@ function PlayerHUDController:Start()
 			print("[PlayerHUDController] Initial profile loaded, calling onProfileLoaded...")
 			onProfileLoaded(currentProf)
 		else
-			warn("[PlayerHUDController] No current profile available at Start time")
+			print("[PlayerHUDController] Profile not yet available at Start time (expected - will arrive via ProfileData event)")
 		end
 	else
 		warn("[PlayerHUDController] StateSyncController not available in Start()")

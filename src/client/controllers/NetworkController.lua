@@ -113,7 +113,6 @@ function NetworkController:Start()
 
 		-- Connect to event
 		remote.OnClientEvent:Connect(function(packet: any)
-			print(`[NetworkController] Received event: {eventName}`)
 			self:_HandleEvent(eventName, packet)
 		end)
 
@@ -134,23 +133,20 @@ function NetworkController:_HandleEvent(eventName: NetworkEvent, packet: any)
 	local handlers = self._handlers[eventName]
 
 	if not handlers or #handlers == 0 then
-		-- No handlers registered, that's okay for some events
-		print(`[NetworkController] _HandleEvent({eventName}): No handlers registered`)
+		-- No handlers registered via NetworkController for this event;
+		-- it may be handled via a direct NetworkProvider connection
 		return
 	end
 
-	print(`[NetworkController] _HandleEvent({eventName}): Found {#handlers} handler(s), executing...`)
 
 	-- Execute all handlers
 	for i, handler in handlers do
-		print(`[NetworkController] _HandleEvent({eventName}): Spawning handler #{i}`)
-		task.spawn(function()
+				task.spawn(function()
 			local success, err = pcall(handler, packet)
 
 			if not success then
 				warn(`[NetworkController] Handler error for {eventName}: {err}`)
 			else
-				print(`[NetworkController] _HandleEvent({eventName}): Handler #{i} executed successfully`)
 			end
 		end)
 	end
@@ -258,5 +254,34 @@ end
 function NetworkController:GetQueueSize(): number
 	return #self._eventQueue
 end
+
+
+-- ─────────────────────────────────────────────
+-- Ethereal Plane Plaque (ShowPlaque handler)
+-- ─────────────────────────────────────────────
+local function showPlaque(data)
+	local gui = Instance.new("ScreenGui", game.Players.LocalPlayer.PlayerGui)
+	gui.IgnoreGuiInset = true
+
+	local plaque = Instance.new("TextLabel", gui)
+	plaque.Size = UDim2.new(1, 0, 0.3, 0)
+	plaque.Position = UDim2.new(0, 0, 0.35, 0)
+	plaque.BackgroundTransparency = 1
+	plaque.Font = Enum.Font.Antique
+	plaque.Text = (data and data.Title) or "THE ETHEREAL PLANE"
+	plaque.TextColor3 = Color3.new(1, 1, 1)
+	plaque.TextScaled = true
+	plaque.TextTransparency = 1
+
+	local ts = game:GetService("TweenService")
+	ts:Create(plaque, TweenInfo.new(3), { TextTransparency = 0 }):Play()
+	task.delay(5, function()
+		ts:Create(plaque, TweenInfo.new(3), { TextTransparency = 1 }):Play()
+		task.wait(3)
+		gui:Destroy()
+	end)
+end
+
+NetworkController:RegisterHandler("ShowPlaque", showPlaque)
 
 return NetworkController

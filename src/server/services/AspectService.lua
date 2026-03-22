@@ -139,7 +139,7 @@ function AspectService.AssignAspect(player: Player, aspectId: AspectTypes.Aspect
         },
         TotalShardsInvested = 0,
     }
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId)
     return true
 end
 
@@ -180,8 +180,8 @@ function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.Aspe
     _requireInventoryService().GrantAspectMoves(player, aspectId)
 
     AspectService.ApplyPassives(player)
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
-    NetworkProvider:FireClient(player, "SwitchAspectResult", {
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId)
+    NetworkProvider:FireClient("SwitchAspectResult", player, {
         Success = true,
         AspectId = aspectId
     })
@@ -304,7 +304,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
     _requireInventoryService().SyncInventory(player)
 
     -- ── Notify client ────────────────────────────────────────────────────
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId) -- existing event reused
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId) -- existing event reused
     NetworkService:SendToClient(player, "SwitchAspectResult", {
         Success  = true,
         Reason   = nil,

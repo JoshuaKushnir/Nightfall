@@ -142,15 +142,16 @@ local startOrder = {
 	"CharacterCreationController",   -- #141: aspect picker; needs NetworkController ready
 	"DeathController",               -- #144: ShardLost popup + respawn notification
 	"StateSyncController",           -- Before MovementController so state cache exists
-	"MovementController",  -- Epic #56: smooth movement (coyote, jump buffer, sprint)
-	"WeaponController",    -- #69: equip state must be ready before ActionController
+	"MovementController",            -- Epic #56: smooth movement (coyote, jump buffer, sprint)
+	"WeaponController",              -- #69: equip state must be ready before ActionController
 	"ActionController",
-	"CombatController",      -- new combat state machine
-	"AspectController",      -- handles Aspect ability input
-	"InventoryController",    -- displays inventory items
-	"ProgressionController", -- #138/#139: Resonance HUD + Discipline selection
+	"CombatController",              -- new combat state machine
+	"AspectController",              -- handles Aspect ability input
+	"InventoryController",           -- displays inventory items
+	"ProgressionController",         -- #138/#139: Resonance HUD + Discipline selection
 	"PlayerHUDController",
 	"CombatFeedbackUI",
+	"HeavenEnvironmentController",   -- Ethereal Plane: grass, wind, sun-rays, lens flare
 }
 
 for _, name in startOrder do

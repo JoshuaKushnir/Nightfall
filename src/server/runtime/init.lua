@@ -71,7 +71,7 @@ local dependencies = {
 	HollowedService = services.HollowedService,
 	ZoneService     = services.ZoneService,
 	AbilitySystem   = services.AbilitySystem,
-	DummyService    = services.DummyService,
+	--DummyService    = services.DummyService,
 	TrainingToolService = services.TrainingToolService,
 	WitnessService  = services.WitnessService,
 }
@@ -256,6 +256,23 @@ if services.NetworkService and services.DummyService then
 			DebugSettings.Set("ShowHitboxes", newState)
 			print(`[AdminCommand] {player.Name} toggled server hitboxes {newState and "ON" or "OFF"}`)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "ok" } })
+			
+		elseif cmd == "tp_dev" then
+            local pointName = args[1]
+            local devPoints = {
+                heaven = Vector3.new(0, 10000, 0),
+                testing = Vector3.new(500, 50, 500),
+                origin = Vector3.new(0, 10, 0)
+            }
+            
+            local target = devPoints[string.lower(pointName)]
+            if target then
+                local char = player.Character
+                if char and char.PrimaryPart then
+                    char:SetPrimaryPartCFrame(CFrame.new(target + Vector3.new(0, 5, 0)))
+                    print(`[Admin] {player.Name} TP'd to {pointName}`)
+                end
+            end
 			
 		elseif cmd == "spawn_dummy" then
 			-- Determine spawn position

@@ -204,6 +204,14 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
             end
         end
     end
+    
+    -- Find where you check if newRing ~= oldRing
+    if newRing == 5 then -- Assuming Ring 5 is Heaven
+        NetworkService:SendToClient(player, "ShowPlaque", {
+            Title = "The Ethereal Plane",
+            Sub = "Where the Echoes of the First World Reside"
+        })
+    end
 
     _ringCache[uid] = newRing
     _zoneCache[uid] = newZone

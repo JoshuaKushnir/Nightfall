@@ -174,7 +174,7 @@ local function requestInitialSync()
 	syncInProgress = true
 
 	-- Request state from server
-	NetworkController.SendToServer("RequestStateSync", {
+	NetworkController:SendToServer("RequestStateSync", {
 		Timestamp = os.time()
 	})
 

@@ -172,10 +172,7 @@ local function _registerHandlers()
         for _, fn in ipairs(AspectController._inventoryChangeListeners) do
             pcall(fn)
         end
-        warn("[AspectController] InventorySync received", #AspectController._inventory)
-        for i, item in ipairs(AspectController._inventory) do
-            warn(`   inv {i}: {item.Id}`)
-        end
+        print(("[AspectController] Inventory synced: " .. #AspectController._inventory .. " items, equipped: " .. (function() local c=0 for _ in pairs(AspectController._equipped) do c+=1 end return c end)() .. " slots"))
         for slot, item in pairs(AspectController._equipped) do
             warn(`   eq {slot}: {item and item.Id or "<empty>"}`)
         end

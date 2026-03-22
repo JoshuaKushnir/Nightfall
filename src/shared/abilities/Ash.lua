@@ -77,7 +77,7 @@ local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
                     -- TALENT HOOK: Hollow Echo Ã¢â‚¬â€ if attacker is Staggered, blindSecs doubles
                     local blindSecs = ASHEN_STEP_BLIND_DURATION
                     pcall(function()
-                        np:FireClient(player, "BlindFlash", { Duration = blindSecs })
+                        np:FireClient("BlindFlash", player, { Duration = blindSecs })
                     end)
                 end
                 break
