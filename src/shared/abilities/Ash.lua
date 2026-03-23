@@ -5,7 +5,7 @@ local _services = {}
 local function GetService(name)
 	if _services[name] ~= nil then return _services[name] end
 	local RunService = game:GetService("RunService")
-	
+
 	if name == "NetworkProvider" then
 		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
 	elseif name == "HitboxService" then
@@ -24,6 +24,13 @@ local function GetService(name)
 		else
 			_services[name] = false
 		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
 	elseif name == "DummyService" then
 		if RunService:IsServer() then
 			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
@@ -32,7 +39,7 @@ local function GetService(name)
 			_services[name] = false
 		end
 	end
-	
+
 	return _services[name]
 end
 --[[
@@ -409,7 +416,7 @@ Ash.Moves[2] = {
         local HitboxService = GetService("HitboxService")
         pcall(function()
             local PostureService = GetService("PostureService")
-            
+
             HitboxService.CreateHitbox({
                 Shape = "Cone",
                 Owner = player,
@@ -438,7 +445,7 @@ Ash.Moves[2] = {
                         DummyService.ApplyDamage(target, CINDER_BURST_HP_DAMAGE or 15, origin)
                         targetModel = workspace:FindFirstChild("Dummy_" .. target)
                     end
-                    
+
                     if targetModel then
                         -- Since we matched them with a Cone hit, we assume they are within the cone
                         targetModel:SetAttribute("StatusExposed", true)
@@ -559,7 +566,7 @@ Ash.Moves[3] = {
                         elseif type(target) == "string" then
                             tChar = workspace:FindFirstChild("Dummy_" .. target)
                         end
-                        
+
                         if tChar then
                             tChar:SetAttribute("StatusSlow", true)
                             tChar:SetAttribute("SlowExpiry", tick() + FADE_EXIT_SLOW_DUR)
@@ -772,17 +779,19 @@ Ash.Moves[5] = {
         local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not root then return end
 
-        -- Activate veil state Ã¢â‚¬â€ CombatService/MovementService read these attributes
+        -- Activate veil state — CombatService/MovementService read these attributes
+        local now = tick()
         char:SetAttribute("StatusGreyVeil", true)
-        char:SetAttribute("GreyVeilExpiry", tick() + GREY_VEIL_DURATION)
+        char:SetAttribute("GreyVeilExpiry", now + GREY_VEIL_DURATION)
         char:SetAttribute("GreyVeilPostureBonus", GREY_VEIL_POSTURE_BONUS)
 
         _VFX_GreyVeil_Enter(player)
 
-        -- TALENT HOOK STUB: SilencedApproach Ã¢â‚¬â€ Silence nearby targets on activation
+        -- TALENT HOOK STUB: SilencedApproach — Silence nearby targets on activation
 
         task.delay(GREY_VEIL_DURATION, function()
             if not char or not char.Parent then return end
+            -- #190 Attribute caching in Grey Veil (no tight loop applicable)
             char:SetAttribute("StatusGreyVeil", nil)
             char:SetAttribute("GreyVeilExpiry", nil)
             char:SetAttribute("GreyVeilPostureBonus", nil)
@@ -806,7 +815,7 @@ Ash.Moves[5] = {
                     elseif type(target) == "string" then
                         tChar = workspace:FindFirstChild("Dummy_" .. target)
                     end
-                    
+
                     if tChar then
                         tChar:SetAttribute("StatusDampened", true)
                         tChar:SetAttribute("DampenedExpiry", tick() + GREY_VEIL_DAMPENED_DUR)

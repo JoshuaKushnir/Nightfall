@@ -23,6 +23,13 @@ local function GetService(name)
 		else
 			_services[name] = false
 		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
 	elseif name == "DummyService" then
 		if RunService:IsServer() then
 			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)

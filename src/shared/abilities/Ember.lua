@@ -4,7 +4,7 @@ local _services = {}
 local function GetService(name)
 	if _services[name] ~= nil then return _services[name] end
 	local RunService = game:GetService("RunService")
-	
+
 	if name == "NetworkProvider" then
 		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
 	elseif name == "HitboxService" then
@@ -23,6 +23,13 @@ local function GetService(name)
 		else
 			_services[name] = false
 		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
 	elseif name == "DummyService" then
 		if RunService:IsServer() then
 			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
@@ -31,7 +38,7 @@ local function GetService(name)
 			_services[name] = false
 		end
 	end
-	
+
 	return _services[name]
 end
 --!strict
@@ -120,14 +127,22 @@ local function _applyHeatStack(
     -- Burning at max stacks
     if newStacks >= HEAT_STACK_MAX then
         char:SetAttribute("StatusBurning", true)
-        char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
+        local targetExpiry = tick() + BURNING_DURATION
+        char:SetAttribute("BurningExpiry", targetExpiry)
         _VFX_BurningStatus(char)
 
         task.spawn(function()
+            -- #190 Attribute Caching
+            local cachedExpiry = targetExpiry
+            local tickCount = 0
             while char and char.Parent do
                 task.wait(1)
-                local expiry = char:GetAttribute("BurningExpiry") :: number?
-                if not expiry or tick() >= expiry then break end
+                tickCount += 1
+                if tickCount % 5 == 0 then
+                    local expiry = char:GetAttribute("BurningExpiry") :: number?
+                    if expiry then cachedExpiry = expiry end
+                end
+                if not cachedExpiry or tick() >= cachedExpiry then break end
                 if tPlayer then
                     if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
                 elseif dummyId then
@@ -765,6 +780,9 @@ Ember.Moves[5] = {
 
         local elapsed = 0
         local stackTimer = 0
+        -- #190 CinderField Attribute Caching
+        local incomingDamageCache: { [Instance]: number } = {}
+
         local function _tick(dt: number)
             elapsed += dt
             stackTimer += dt
@@ -790,9 +808,12 @@ Ember.Moves[5] = {
                         end
                         if not tChar then return end
 
-                        -- HP drain per tick
-                        tChar:SetAttribute("IncomingHPDamage",
-                            (tChar:GetAttribute("IncomingHPDamage") or 0) + CINDER_FIELD_HP_PER_S * dt)
+                        -- HP drain per tick (cached)
+                        local currentDmg = incomingDamageCache[tChar]
+                        if not currentDmg then
+                            currentDmg = (tChar:GetAttribute("IncomingHPDamage") :: number?) or 0
+                        end
+                        incomingDamageCache[tChar] = currentDmg + CINDER_FIELD_HP_PER_S * dt
                         tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CinderFieldDOT")
                         -- Heat stack per interval
                         if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
@@ -820,9 +841,19 @@ Ember.Moves[5] = {
             while tick() - start < CINDER_FIELD_DURATION do
                 local dt = 0.1
                 local done = _tick(dt)
+
                 if done then break end
                 task.wait(dt)
             end
+
+            -- #190 Write back cached damage at the end of duration
+            for charObj, dmg in incomingDamageCache do
+                if charObj and charObj.Parent then
+                    charObj:SetAttribute("IncomingHPDamage", dmg)
+                end
+            end
+            table.clear(incomingDamageCache)
+
             if zonePart and zonePart.Parent then
                 _VFX_CinderField_Expire(fieldCenter)
                 zonePart:Destroy()

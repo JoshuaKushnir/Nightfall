@@ -25,7 +25,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 -- Import Loader utility
-local Loader = require(ReplicatedStorage.Shared.modules.Loader)
+local Loader = require(ReplicatedStorage.Shared.modules.core.Loader)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
 print(("="):rep(60))
@@ -40,7 +40,7 @@ local INITIALIZATION_START = os.clock()
 -- Step 1: Load all services
 print("[Server] [1/3] Loading services...")
 local servicesFolder = ServerScriptService.Server.services
-local services = Loader.LoadModules(servicesFolder, false)
+local services = Loader.LoadModules(servicesFolder, true)
 
 if not next(services) then
 	error("[Server] No services found to load!")
@@ -165,7 +165,7 @@ print("")
 
 -- Register all effect handlers now that EffectRunner and PostureService are started
 if services.EffectRunner then
-    local EffectHandlers = require(ServerScriptService.Server.services.EffectHandlers)
+    local EffectHandlers = require(ServerScriptService.Server.services.abilities.EffectHandlers)
     EffectHandlers.RegisterAll(services.EffectRunner, services.PostureService)
 end
 
@@ -188,7 +188,7 @@ print("")
 if services.CombatService and services.NetworkService then
 	local CombatService = services.CombatService
 	local NetworkService = services.NetworkService
-	local StateService = require(ReplicatedStorage.Shared.modules.StateService)
+	local StateService = require(ReplicatedStorage.Shared.modules.core.StateService)
 	
 	-- Register handler for hit requests from clients
 	-- Clients send this when hitbox triggers
@@ -232,7 +232,7 @@ end
 if services.NetworkService and services.DummyService then
 	local NetworkService = services.NetworkService
 	local DummyService = services.DummyService
-	local Utils = require(ReplicatedStorage.Shared.modules.Utils)
+	local Utils = require(ReplicatedStorage.Shared.modules.core.Utils)
 
 	NetworkService:RegisterHandler("AdminCommand", function(player: Player, packet: any)
 		if not packet or type(packet.Command) ~= "string" then
@@ -252,7 +252,7 @@ if services.NetworkService and services.DummyService then
 
 		if cmd == "toggle_hitboxes" then
 			local newState = args[1] == "true"
-			local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
+			local DebugSettings = require(ReplicatedStorage.Shared.modules.core.DebugSettings)
 			DebugSettings.Set("ShowHitboxes", newState)
 			print(`[AdminCommand] {player.Name} toggled server hitboxes {newState and "ON" or "OFF"}`)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "ok" } })
@@ -494,7 +494,7 @@ if services.NetworkService and services.DummyService then
 			local itemId = "training_tool_" .. string.lower(statName) .. "_" .. rarityLower
 			
 			-- Check if item exists via ItemRegistry
-			local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
+			local ItemRegistry = require(ReplicatedStorage.Shared.modules.progression.ItemRegistry)
 			if not ItemRegistry.Has(itemId) then
 				warn("[AdminCommand] Training tool not found: " .. itemId)
 				if NetworkService and player then

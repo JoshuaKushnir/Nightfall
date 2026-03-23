@@ -18,8 +18,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
-local DebugSettings = require(ReplicatedStorage.Shared.modules.DebugSettings)
-local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
+local DebugSettings = require(ReplicatedStorage.Shared.modules.core.DebugSettings)
+local HitboxService = require(ReplicatedStorage.Shared.modules.combat.HitboxService)
 
 local DebugInput = {}
 DebugInput._lastRingIndex = 0  -- For cycling rings in debug

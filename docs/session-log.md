@@ -1,3 +1,81 @@
+## Session NF-094: Epic Sub-Issue Automation Rule & RunMode Debug Gating
+
+### What Was Built
+- **Cursor Rules Updated**: Added a new rule to `.cursorrules` enforcing the use of `gh sub-issue add` or the GitHub API to properly link sub-issues to epics in GitHub, ensuring they aren't just listed in text descriptions.
+- **RunMode Service (`src/shared/modules/core/RunMode.lua`)**: Created a new core utility to identify if the current environment is `dev`, `staging`, or `production`.
+- **Debug Settings Gating**: Refactored `DebugSettings.lua` to utilize `RunMode`. In production mode, toggling or setting debug flags (like `ShowHitboxes`, `ShowNetworkEvents`) is blocked, and getting boolean debug flags always returns `false`.
+
+### Design Principles Applied
+- **Secure by Default**: Debug features should not leak into production environments where they could be exploited or cause performance issues.
+- **Automated Guardrails**: Use tooling (`.cursorrules`) to enforce project management best practices.
+
+### Integration Points
+- `RunMode.lua` is a shared module accessible from both client and server contexts.
+- `DebugSettings.lua` now depends on `RunMode` to conditionally return default safe values and reject unsafe mutations.
+- **Closed Issue**: #193 (1.5: Disable Debug Systems in Production)
+
+### Files Changed
+- `Modified` `.cursorrules`
+- `Modified` `src/shared/modules/core/DebugSettings.lua`
+- `Added` `src/shared/modules/core/RunMode.lua`
+
+### Next Session Should Start On
+- Begin next issues in Phase 1 Optimization (e.g., #189 Service Require Refactoring or #190 Attribute Caching).
+
+## Session NF-093: Optimization Epic Creation – Comprehensive Performance Roadmap
+
+### What Was Built
+- **Epic Issue #188**: Created main GitHub epic "🚀 Comprehensive Server & Client Performance Optimization"
+- **26 Sub-Issues Created in GitHub**:
+  - **Phase 1 (Foundation):** #189-194 — Server code paths, service caching, debug systems gating
+  - **Phase 2 (Combat):** #195-199 — Hitbox tuning, posture/stamina caching, CombatService optimization
+  - **Phase 3 (VFX & Rendering):** #200-205 — Minimal VFX, emitter pooling, ambient culling, LOD optimization
+  - **Phase 4 (Network):** #206-210 — Snapshot architecture, data quantization, client prediction
+  - **Phase 5 (UI & Animation):** #211-214 — UI binding optimization, recycling, animation preloading, HUD batching
+
+### GitHub Issue Details
+- **Main Epic:** https://github.com/JoshuaKushnir/Nightfall/issues/188
+- **Phase 1 Issues:** #189 (service requires) → #190 (attribute caching) → #191 (tick loops) → #192 (movement) → #193 (debug) → #194 (module init)
+- **Phase 2 Issues:** #195 (hitbox tuning) → #196 (batch checks) → #197 (movement SM) → #198 (posture) → #199 (combat)
+- **Phase 3 Issues:** #200 (minimal VFX) → #201 (emitter pool) → #202 (ambient culling) → #203 (LOD) → #204 (cleanup) → #205 (report)
+- **Phase 4 Issues:** #206 (snapshots) → #207 (quantization) → #208 (logging) → #209 (ability activation) → #210 (prediction)
+- **Phase 5 Issues:** #211 (UI binding) → #212 (UI recycling) → #213 (animation preload) → #214 (HUD queue)
+
+### Design Principles Applied
+- **Server-Thin Architecture**: Move all cosmetic work (VFX, animations, UI) to client; keep server logic minimal.
+- **Per-Frame Profiling**: Every optimization includes before/after profiling; no changes without measured improvement.
+- **Phased Rollout**: Foundation (Phase 1) unblocks all others; can parallelize Phases 2-3 and 4-5.
+- **Issue-First Development**: Each sub-issue is independent with clear acceptance criteria and implementation tasks.
+- **Backward Compatibility**: All optimizations maintain existing gameplay behavior; zero visual/mechanics loss on low-end devices.
+
+### Integration Points
+- **Commit Convention**: All commits must reference sub-issue (e.g., `#189: Service require refactoring...`)
+- **Dependency Graph**: Phase 1 unblocks Phase 2 & 4; Phase 3 is independent; Phase 5 depends on Phase 4 start
+- **Success Metrics**: 
+  - Server frame time: -30% per-frame overhead (target <5ms for 100 players)
+  - Combat per-hit: <0.5ms execution time (from ~2-3ms)
+  - Network bandwidth: -40% data sent per player
+  - Client FPS: 60+ on target devices
+  - GC spikes: eliminate >16ms pauses
+  - Memory peak: -15% reduction
+
+### Files Created/Updated
+- **New**: `docs/OPTIMIZATION-EPIC.md` – 1034 lines, complete epic with 26 sub-issues, dependencies, rollout plan
+- **New**: `docs/OPTIMIZATION-GITHUB-SUMMARY.md` – 441 lines, quick reference guide with all issue links
+
+### GitHub Automation
+- All 26 sub-issues have proper priority labels (high/medium/low), milestone tracking, and dependency comments
+- Epic #188 updated with actual issue numbers and cross-references
+- Dependency blockers configured in issue descriptions
+- Recommended phase start dates documented
+
+### Next Session Should Start On
+- **Immediate:** Review epic #188 and sub-issues for any refinements
+- **Week 1-2:** Begin Phase 1 work (issues #189-194 can run in parallel)
+- **Priority First:** Start with #189 (service requires) as it blocks the most issues
+- **Baseline Profiling:** Measure server frame time, combat per-hit, network bandwidth before any changes
+- **Feature Branch:** Create `feature/optimization-epic` for organizing Phase 1 PRs
+
 ## Session NF-092: GrassGrid Performance & Cutoff Fixes
 
 ### What Was Built

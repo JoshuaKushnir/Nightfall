@@ -26,9 +26,9 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 -- Import utilities
-local Loader = require(ReplicatedStorage.Shared.modules.Loader)
+local Loader = require(ReplicatedStorage.Shared.modules.core.Loader)
 local DebugInput = require(script.Parent.modules.DebugInput)
-local LoadingController = require(script.Parent.controllers.LoadingController)
+local LoadingController = require(script.Parent.controllers.core.LoadingController)
 
 -- show loading screen immediately
 LoadingController:Init()
@@ -84,7 +84,7 @@ print("")
 print("[Client] [2/4] Loading controllers...")
 LoadingController:Report("Loading controllers...", 0.5)
 local controllersFolder = script.Parent.controllers
-local controllers = Loader.LoadModules(controllersFolder, false)
+local controllers = Loader.LoadModules(controllersFolder, true)
 
 -- Handle case where no controllers exist yet
 if not next(controllers) then
