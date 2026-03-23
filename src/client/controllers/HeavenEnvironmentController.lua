@@ -75,6 +75,9 @@ local _bladeFolder: Folder?
 local _activeCells: { [string]: Cell } = {}
 local _bladePool: { BasePart } = {} -- Pool of unused parts
 
+local _lastGridCx: number? = nil
+local _lastGridCz: number? = nil
+
 local _lastWindChange = 0.0
 local _windAngle = 0.0
 local _windStrength = 12.0
@@ -192,6 +195,28 @@ local function getCellKey(cx: number, cz: number): string
 	return cx .. ":" .. cz
 end
 
+local _cellTemplate: Folder? = nil
+
+local function allocateCellBlades()
+	if not _cellTemplate then
+		if not _template then
+			_template = buildBladeMesh() or buildSimpleBlade()
+		end
+		_cellTemplate = Instance.new("Folder")
+		for i = 1, BLADES_PER_CELL do
+			local p = _template:Clone()
+			p.Parent = _cellTemplate
+		end
+	end
+
+	local batch = _cellTemplate:Clone()
+	for _, child in ipairs(batch:GetChildren()) do
+		child.Parent = _bladeFolder
+		table.insert(_bladePool, child)
+	end
+	batch:Destroy()
+end
+
 local function createCell(cx: number, cz: number): Cell
 	local rng = seededRandom(cx, cz)
 	local cellInfo: Cell = {
@@ -203,17 +228,12 @@ local function createCell(cx: number, cz: number): Cell
 	local baseX = cx * CELL_SIZE
 	local baseZ = cz * CELL_SIZE
 
+	if #_bladePool < BLADES_PER_CELL then
+		allocateCellBlades()
+	end
+
 	for i = 1, BLADES_PER_CELL do
-		local part: BasePart
-		if #_bladePool > 0 then
-			part = table.remove(_bladePool) :: BasePart
-		else
-			if not _template then
-				_template = buildBladeMesh() or buildSimpleBlade()
-			end
-			part = _template:Clone()
-			part.Parent = _bladeFolder
-		end
+		local part = table.remove(_bladePool) :: BasePart
 
 		local lx = rng:NextNumber(-CELL_SIZE/2, CELL_SIZE/2)
 		local lz = rng:NextNumber(-CELL_SIZE/2, CELL_SIZE/2)
@@ -268,6 +288,13 @@ local function updateGrid(playerPos: Vector3)
 
 	local cx = math.floor(px / CELL_SIZE + 0.5)
 	local cz = math.floor(pz / CELL_SIZE + 0.5)
+
+	if _lastGridCx == cx and _lastGridCz == cz then
+		return
+	end
+	_lastGridCx = cx
+	_lastGridCz = cz
+
 	local range = math.ceil(DRAW_DISTANCE / CELL_SIZE)
 
 	local needed = {}
@@ -363,16 +390,16 @@ local function updateBlades(dt: number, playerPos: Vector3)
 			local interactRot = CFrame.new()
 
 			if distSq < interactRadiusSq then
-				local dist = math.sqrt(distSq)
-				if dist < 0.1 then dist = 0.1 end
+				local safeDist = dist
+				if safeDist < 0.1 then safeDist = 0.1 end
 
-				local pushFactor = (1 - (dist / INTERACTION_RADIUS)) * INTERACTION_STRENGTH
+				local pushFactor = (1 - (safeDist / INTERACTION_RADIUS)) * INTERACTION_STRENGTH
 				-- Quadratic falloff for smoother feel
 				pushFactor = math.pow(pushFactor, 2.0)
 
 				-- Direction FROM player TO grass
-				local dirX = dx / dist
-				local dirZ = dz / dist
+				local dirX = dx / safeDist
+				local dirZ = dz / safeDist
 
 				-- Rotate away from player.
 				-- Axis is perpendicular to the vector from player to grass.
@@ -401,9 +428,11 @@ local function updateBlades(dt: number, playerPos: Vector3)
 end
 
 -- Wind management (same as before)
+local _windRng = Random.new()
+
 local function pickNewWindTarget()
-	_windTargetAngle = math.random() * math.pi * 2
-	_windTargetStrength = WIND_STRENGTH_MIN + math.random() * (WIND_STRENGTH_MAX - WIND_STRENGTH_MIN)
+	_windTargetAngle = _windRng:NextNumber() * math.pi * 2
+	_windTargetStrength = WIND_STRENGTH_MIN + _windRng:NextNumber() * (WIND_STRENGTH_MAX - WIND_STRENGTH_MIN)
 end
 
 local function updateWind(dt: number)
