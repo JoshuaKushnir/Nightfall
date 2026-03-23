@@ -13,6 +13,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
+-- #189: require at module scope to avoid per-call overhead
+local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
 local Regenerate = {
 	Id          = "Regenerate",
@@ -72,7 +74,6 @@ function Regenerate.OnActivate(player: Player, _weapon: any)
 end
 
 function Regenerate.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = Regenerate.Id, TargetPosition = targetPosition})

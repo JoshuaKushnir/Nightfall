@@ -44,7 +44,9 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 	assert(config.Owner, "Config.Owner cannot be nil")
 	assert(config.Shape, "Config.Shape cannot be nil")
 
-	print(`[HitboxService] CreateHitbox called with shape {config.Shape}`)
+	if DebugSettings.Get("ShowHitboxes") then
+		print(`[HitboxService] CreateHitbox called with shape {config.Shape}`)
+	end
 
 	HitboxCounter += 1
 
@@ -74,8 +76,10 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				task.spawn(self.Config.OnHit, target, hitData)
 			end
 
-			local targetName = typeof(target) == "Instance" and target.Name or tostring(target)
-			print(`[HitboxService] Hit confirmed: {self.Id} -> {targetName} ({self.Config.Damage} damage)`)
+			if DebugSettings.Get("ShowHitboxes") then
+				local targetName = typeof(target) == "Instance" and target.Name or tostring(target)
+				print(`[HitboxService] Hit confirmed: {self.Id} -> {targetName} ({self.Config.Damage} damage)`)
+			end
 			return true
 		end,
 
@@ -86,7 +90,9 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 					self.Config.Origin = position
 				end
 				-- Update debug visual
-				HitboxService._UpdateVisual(self)
+				if DebugSettings.Get("ShowHitboxes") then
+					HitboxService._UpdateVisual(self)
+				end
 			end
 		end,
 
@@ -101,7 +107,9 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 				task.spawn(self.Config.OnExpire)
 			end
 
-			print(`[HitboxService] Hitbox expired: {self.Id}`)
+			if DebugSettings.Get("ShowHitboxes") then
+				print(`[HitboxService] Hitbox expired: {self.Id}`)
+			end
 		end,
 
 		IsValidTarget = function(self: Hitbox, target: any): boolean
@@ -188,8 +196,10 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 
 	table.insert(ActiveHitboxes, hitbox)
 
-	-- Create debug visual (always create, will be shown/hidden based on setting)
-	HitboxService._CreateVisual(hitbox)
+	-- Create debug visual only when ShowHitboxes is enabled (#193)
+	if DebugSettings.Get("ShowHitboxes") then
+		HitboxService._CreateVisual(hitbox)
+	end
 	-- Ensure hitboxes expire: prefer explicit LifeTime, fall back to Duration, otherwise use a safe default
 	local life = config.LifeTime or config.Duration or 0.5
 	task.delay(life, function()
@@ -198,8 +208,10 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 		end
 	end)
 
-	local ownerName = type(config.Owner) == "string" and config.Owner or (typeof(config.Owner) == "Instance" and config.Owner.Name or "Unknown")
-	print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {ownerName})`)
+	if DebugSettings.Get("ShowHitboxes") then
+		local ownerName = type(config.Owner) == "string" and config.Owner or (typeof(config.Owner) == "Instance" and config.Owner.Name or "Unknown")
+		print(`[HitboxService] Created hitbox: {hitbox.Id} ({config.Shape}, Owner: {ownerName})`)
+	end
 	return hitbox
 end
 
@@ -395,22 +407,17 @@ end
 	@param hitbox The hitbox to visualize
 ]]
 function HitboxService._CreateVisual(hitbox: Hitbox)
-	print(`[HitboxService] _CreateVisual called for {hitbox.Id}`)
-
 	local config = hitbox.Config
 	local visual: Instance?
 
 	-- Create folder for all visuals
 	if not HitboxService._VisualFolder then
-		print(`[HitboxService] Creating visual folder in workspace`)
 		HitboxService._VisualFolder = Instance.new("Folder")
 		HitboxService._VisualFolder.Name = "HitboxVisuals"
 		HitboxService._VisualFolder.Parent = workspace
-		print(`[HitboxService] Visual folder created and parented to workspace`)
 	end
 
 	if config.Shape == "Sphere" then
-		print(`[HitboxService] Creating sphere visual`)
 		local part = Instance.new("Part")
 		part.Shape = Enum.PartType.Ball
 		part.Size = (config.Size or Vector3.new(1, 1, 1)) * 2
@@ -428,7 +435,6 @@ function HitboxService._CreateVisual(hitbox: Hitbox)
 		part.Name = `Hitbox_{hitbox.Id}`
 		part.Parent = HitboxService._VisualFolder
 		visual = part
-		print(`[HitboxService] Sphere visual created at {part.Position}`)
 
 	elseif config.Shape == "Box" or config.Shape == "Square" then
 		local part = Instance.new("Part")

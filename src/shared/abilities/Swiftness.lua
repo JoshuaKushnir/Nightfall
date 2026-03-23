@@ -11,6 +11,9 @@
 	and directly adjusts Humanoid.WalkSpeed as an immediate effect.
 ]]
 
+-- #189: require at module scope to avoid per-call overhead
+local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+
 local Swiftness = {
 	Id          = "Swiftness",
 	Type        = "Active",
@@ -55,7 +58,6 @@ function Swiftness.OnActivate(player: Player, _weapon: any)
 end
 
 function Swiftness.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = Swiftness.Id, TargetPosition = targetPosition})

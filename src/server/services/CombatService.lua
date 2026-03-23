@@ -14,6 +14,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")   -- #199: module scope, not per-Start()
 
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
@@ -139,7 +140,7 @@ function CombatService:Start()
 		end)
 	end)
 
-	local RunService = game:GetService("RunService")
+	-- #199: RunService already required at module scope
 	RunService.Heartbeat:Connect(function()
 		for _, player in Players:GetPlayers() do
 			if player.Character then
@@ -187,7 +188,8 @@ function CombatService._ProcessDamageAttributes(character: Model, targetName: st
 	character:SetAttribute("IncomingPostureDamage", 0)
 
 	local sourceStr = (hpVal > 0) and hpSource or postSource
-	local attackerName = string.split(sourceStr, "_")[1] or "Unknown"
+	-- #190: string.match avoids table allocation vs string.split
+	local attackerName = string.match(sourceStr, "^([^_]+)") or "Unknown"
 	local attacker = Players:FindFirstChild(attackerName)
 
 	if attacker then

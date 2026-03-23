@@ -71,7 +71,8 @@ local dependencies = {
 	HollowedService = services.HollowedService,
 	ZoneService     = services.ZoneService,
 	AbilitySystem   = services.AbilitySystem,
-	--DummyService    = services.DummyService,
+	DummyService    = services.DummyService,     -- #194: restored (was accidentally commented out)
+	MovementService = services.MovementService,  -- #194: added to dependency injection
 	TrainingToolService = services.TrainingToolService,
 	WitnessService  = services.WitnessService,
 }
@@ -109,7 +110,9 @@ local startOrder = {
 	"TrainingToolService", -- handles training tool usage
 	"WeaponService",       -- #69: equip system (after NetworkService)
 	"DefenseService",      -- Defense mechanics
+	"MovementService",     -- #194: movement validation (depends on NetworkService)
 	"CombatService",       -- Combat validation and damage application
+	"DummyService",        -- #194: training dummies (after CombatService)
 	"PostureService",      -- #75: Posture+HP dual health (lazy-requires CombatService)
 	"ProgressionService",  -- #138/#139: Resonance, Ring caps, Discipline selection
 	"DeathService",        -- #144: death→respawn pipeline (needs ProgressionService for shard loss)

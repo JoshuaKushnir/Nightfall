@@ -11,6 +11,9 @@
 	that CombatService multiplies onto finalDamage before applying.
 ]]
 
+-- #189: require at module scope to avoid per-call overhead
+local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+
 local Adrenaline = {
 	Id          = "Adrenaline",
 	Type        = "Active",
@@ -49,7 +52,6 @@ function Adrenaline.OnActivate(player: Player, _weapon: any)
 end
 
 function Adrenaline.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = Adrenaline.Id, TargetPosition = targetPosition})

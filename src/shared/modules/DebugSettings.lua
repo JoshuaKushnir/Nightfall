@@ -22,7 +22,7 @@ local DebugSettings = {}
 
 -- Settings storage
 local Settings: {[string]: boolean | number | string} = {
-	ShowHitboxes = true,
+	ShowHitboxes = false,      -- #193: disabled by default; toggle via AdminCommand toggle_hitboxes
 	ShowStateLabels = false,
 	ShowNetworkEvents = false,
 	SlowMotion = false,

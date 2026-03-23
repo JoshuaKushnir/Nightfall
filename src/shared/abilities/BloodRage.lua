@@ -12,6 +12,9 @@
 	and applied to incoming finalDamage before the variance step.
 ]]
 
+-- #189: require at module scope to avoid per-call overhead
+local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+
 local BloodRage = {
 	Id          = "BloodRage",
 	Type        = "Active",
@@ -59,7 +62,6 @@ function BloodRage.OnActivate(player: Player, _weapon: any)
 end
 
 function BloodRage.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = BloodRage.Id, TargetPosition = targetPosition})

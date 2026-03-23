@@ -94,6 +94,9 @@ type PostureState = {
 
 local _states : {[number]: PostureState} = {}
 
+-- #198: per-player discipline config cache; avoids GetPlayerData lookup on every Update tick
+local _discCfgCache : {[number]: any} = {}
+
 local PostureService = {}
 
 -- Helper: network event getter
@@ -128,9 +131,20 @@ local function _applyCharAttributes(player: Player, state: PostureState)
 end
 
 local function _getDiscCfgForPlayer(player: Player)
+	-- #198: use cached config to avoid repeated GetPlayerData lookups per heartbeat
+	local uid = player.UserId
+	local cached = _discCfgCache[uid]
+	if cached then return cached end
 	local data = StateService:GetPlayerData(player)
 	local id = data and data.DisciplineId or "Wayward"
-	return DisciplineConfig.Get(id)
+	local cfg = DisciplineConfig.Get(id)
+	_discCfgCache[uid] = cfg
+	return cfg
+end
+
+-- Invalidate the discipline config cache for a player (call when discipline changes)
+local function _invalidateDiscCfgCache(player: Player)
+	_discCfgCache[player.UserId] = nil
 end
 
 local function _initStateForPlayer(player: Player)
@@ -465,6 +479,8 @@ function PostureService:Init()
 	Players.PlayerAdded:Connect(function(player)
 		-- When the character is added, initialize posture attributes
 		player.CharacterAdded:Connect(function(char)
+			-- #198: invalidate disc cfg cache on respawn so discipline changes take effect
+			_invalidateDiscCfgCache(player)
 			-- Slight delay so StateService has populated the player's data
 			task.delay(0.5, function()
 				PostureService.InitCharacter(player)
@@ -474,6 +490,7 @@ function PostureService:Init()
 
 	Players.PlayerRemoving:Connect(function(player)
 		_states[player.UserId] = nil
+		_discCfgCache[player.UserId] = nil  -- #198: clear cache on leave
 	end)
 end
 

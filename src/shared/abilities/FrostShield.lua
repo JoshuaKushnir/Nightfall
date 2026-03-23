@@ -10,6 +10,9 @@
 	Sets "DamageReduction" character attribute (read by CombatService).
 ]]
 
+-- #189: require at module scope to avoid per-call overhead
+local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+
 local FrostShield = {
 	Id          = "FrostShield",
 	Type        = "Active",
@@ -43,7 +46,6 @@ function FrostShield.OnActivate(player: Player, _weapon: any)
 end
 
 function FrostShield.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = FrostShield.Id, TargetPosition = targetPosition})
