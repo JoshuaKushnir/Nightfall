@@ -228,11 +228,12 @@ function GrassGrid:_updateGrid(playerPos: Vector3)
 	self._lastGridCx = cx
 	self._lastGridCz = cz
 
-	local range = math.ceil(config.DrawDistance / config.CellSize)
+	local range = math.ceil(config.DrawDistance / config.CellSize) + 1
+	local bufferDistSq = (config.DrawDistance + config.CellSize) ^ 2
 	local needed = {}
 	for dx = -range, range do
 		for dz = -range, range do
-			if (dx*dx + dz*dz) * (config.CellSize*config.CellSize) <= config.DrawDistance*config.DrawDistance then
+			if (dx*dx + dz*dz) * (config.CellSize*config.CellSize) <= bufferDistSq then
 				local k = self:_getCellKey(cx + dx, cz + dz)
 				needed[k] = {x = cx + dx, z = cz + dz}
 			end
@@ -274,17 +275,41 @@ function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
 
 	local interactRadiusSq = config.InteractionRadius * config.InteractionRadius
 	local animDistSq = config.AnimationDist * config.AnimationDist
+	local fadeRange = math.max(0.1, config.DrawDistance - config.FadeStart)
 
 	local bulkParts = {}
 	local bulkCFrames = {}
 	local count = 0
+	
+	local cam = Workspace.CurrentCamera
+	local camPos = cam and cam.CFrame.Position or playerPos
+	local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
 
 	for _, cell in pairs(self._activeCells) do
-		local cellDx = (cell.X * config.CellSize) - playerPos.X
-		local cellDz = (cell.Z * config.CellSize) - playerPos.Z
-
-		if (cellDx*cellDx + cellDz*cellDz) > (animDistSq + 400) then
+		local cellX = cell.X * config.CellSize
+		local cellZ = cell.Z * config.CellSize
+		
+		local cellDx = cellX - playerPos.X
+		local cellDz = cellZ - playerPos.Z
+		
+		-- Cull cells way beyond draw distance (buffer included)
+		if (cellDx*cellDx + cellDz*cellDz) > (config.DrawDistance + config.CellSize)^2 + 400 then
 			continue
+		end
+		
+		-- Frustum Culling: Skip cells behind the camera to drastically reduce math overhead
+		local toCamX = cellX - camPos.X
+		local toCamZ = cellZ - camPos.Z
+		local distToCamSq = toCamX*toCamX + toCamZ*toCamZ
+		
+		if distToCamSq > (config.CellSize * config.CellSize * 2) then
+			local distToCam = math.sqrt(distToCamSq)
+			local dirX = toCamX / distToCam
+			local dirZ = toCamZ / distToCam
+			local dot = camLook.X * dirX + camLook.Z * dirZ
+			if dot < -0.25 then -- ~105 degree threshold, wide enough to hide edges
+				continue
+			end
 		end
 
 		for _, blade in ipairs(cell.Blades) do
@@ -297,7 +322,14 @@ function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
 
 			local fade = 0
 			local dist = 0
+			
+			-- Out of animation range: only sink, no wind or interaction
 			if distSq > animDistSq then
+				dist = math.sqrt(distSq)
+				if dist > config.FadeStart then
+					fade = clamp((dist - config.FadeStart) / fadeRange, 0, 1)
+				end
+			
 				local halfHeight = (config.BladeHeight * blade.HeightScale * 0.5)
 				local sinkOffset = fade * (config.BladeHeight * blade.HeightScale)
 				local finalCF = baseCF * CFrame.new(0, halfHeight - sinkOffset, 0)
@@ -310,14 +342,17 @@ function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
 
 			dist = math.sqrt(distSq)
 			if dist > config.FadeStart then
-				fade = clamp((dist - config.FadeStart) / (config.DrawDistance - config.FadeStart), 0, 1)
+				fade = clamp((dist - config.FadeStart) / fadeRange, 0, 1)
 			end
 
 			local swayX = pos.X + blade.Phase
 			local swayZ = pos.Z + blade.Phase
 
-			local n = math.noise(swayX * config.WindNoiseScale, swayZ * config.WindNoiseScale, t * config.WindNoiseTime)
-			local gust = math.noise(swayX * 0.02, t * config.WindGustFreq, 0)
+			-- Optimized wind math using Trig instead of math.noise
+			local n = math.sin(swayX * config.WindNoiseScale + t * config.WindNoiseTime) * 
+			          math.cos(swayZ * config.WindNoiseScale + t * config.WindNoiseTime * 0.8)
+			local gust = math.sin(swayX * 0.02 + t * config.WindGustFreq)
+			
 			local totalWind = (n * 0.8 + gust * 0.4) * self._windStrength
 			local windTilt = math.rad(totalWind)
 
