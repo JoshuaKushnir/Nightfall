@@ -239,7 +239,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
     if not success then
         state = "Idle" -- fallback if service not ready
     end
-    
+
     if state == "Dead" or state == "Stunned" or state == "Ragdolled" then
         return false, "BadState"
     end
@@ -649,8 +649,11 @@ local function _onCastRequest(player: Player, packet: any)
         })
         return
     end
-    if type(packet.AbilityId) ~= "string" or packet.AbilityId == "" then
-        warn(`[AspectService] {player.Name} sent missing/empty AbilityId`)
+    if packet.AbilityId == nil or packet.AbilityId == "" then
+        _requireAbilitySystem().HandleUseAbility(player)
+        return
+    elseif type(packet.AbilityId) ~= "string" then
+        warn(`[AspectService] {player.Name} sent invalid AbilityId`)
         NetworkService:SendToClient(player, "AbilityCastResult", {
             Success = false, Reason = "InvalidAbilityId"
         })

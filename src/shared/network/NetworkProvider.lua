@@ -16,7 +16,7 @@
 
 	Usage (Shared):
 		local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-		local remote = NetworkProvider:GetRemoteEvent("MantraCast")
+		local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
 
 	Usage (Server):
 		remote.OnServerEvent:Connect(function(player, packet)

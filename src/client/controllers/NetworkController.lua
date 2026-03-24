@@ -20,8 +20,8 @@
 		NetworkController:Start()
 
 		-- Send event to server
-		NetworkController:SendToServer("MantraCast", {
-			MantraId = "FireBlast",
+		NetworkController:SendToServer("AbilityCastRequest", {
+			AbilityId = "FireBlast",
 			TargetPosition = Vector3.new(0, 10, 0),
 		})
 

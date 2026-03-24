@@ -19,9 +19,9 @@
 		NetworkService:Init()
 		NetworkService:Start()
 		
-		NetworkService:RegisterHandler("MantraCast", function(player, packet)
+		NetworkService:RegisterHandler("AbilityCastRequest", function(player, packet)
 			-- Handle mantra cast request
-			print(`{player.Name} cast mantra: {packet.MantraId}`)
+			print(`{player.Name} cast ability: {packet.AbilityId}`)
 		end)
 ]]
 

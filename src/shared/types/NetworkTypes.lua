@@ -44,8 +44,6 @@ export type NetworkEvent =
 	| "ClashOutcome"          -- server→clients near event: result of clash
 
 	-- Abilities/Mantras
-	| "MantraCast"
-	| "MantraHit"
 	| "CooldownUpdate"
 
 	-- Equipment
@@ -76,7 +74,6 @@ export type NetworkEvent =
 	| "DummyStateChanged"
 
 	-- Abilities
-	| "UseAbility"
 
 	-- Aspect System Events
 	| "CharacterCreationRequired" -- Server → Client: prompt first-join aspect picker
@@ -291,7 +288,7 @@ export type AspectInvestResultPacket = {
 }
 
 export type AbilityCastRequestPacket = {
-	AbilityId: string,
+	AbilityId: string?,
 	TargetPosition: Vector3?,
 }
 
@@ -407,19 +404,6 @@ export type ParryFeedbackPacket = {
 	Attacker: Player,
 }
 
-export type MantraCastPacket = {
-	MantraId: string,
-	TargetPosition: Vector3?,
-	TargetPlayer: Player?,
-}
-
-export type MantraHitPacket = {
-	MantraId: string,
-	Target: Player | Model,
-	Damage: number,
-	Effects: {string}?,
-}
-
 export type CooldownUpdatePacket = {
 	MantraId: string,
 	CooldownRemaining: number,
@@ -492,10 +476,6 @@ export type UIInteractionPacket = {
 	UIName: string,
 	Action: string,
 	Data: {[string]: any}?,
-}
-
-export type UseAbilityPacket = {
-	-- No payload needed: server resolves equipped weapon from sender
 }
 
 export type AdminCommandPacket = {
@@ -612,8 +592,6 @@ export type NetworkPacket =
 	| ParryFeedbackPacket
 	| ClashOccurredPacket         -- advanced combat
 	| CondemnedStatusPacket      -- advanced combat
-	| MantraCastPacket
-	| MantraHitPacket
 	| CooldownUpdatePacket
 	| EquipItemPacket
 	| UnequipItemPacket
@@ -628,7 +606,6 @@ export type NetworkPacket =
 	| SpawnDummyPacket
 	| DespawnDummyPacket
 	| DummyStateChangedPacket
-	| UseAbilityPacket
 	| AdminCommandPacket
 	| DebugInfoPacket
 	| WeaponAttackRequestPacket
@@ -841,18 +818,6 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		RequiresValidation = false,
 		Description = "Server confirms or rejects aspect selection",
 	},
-	MantraCast = {
-		Direction = "ClientToServer",
-		RateLimitPerSecond = 10,
-		RequiresValidation = true,
-		Description = "Client requests mantra cast",
-	},
-	MantraHit = {
-		Direction = "ServerToClient",
-		RateLimitPerSecond = nil,
-		RequiresValidation = false,
-		Description = "Notify client of mantra hit",
-	},
 	CooldownUpdate = {
 		Direction = "ServerToClient",
 		RateLimitPerSecond = nil,
@@ -1015,12 +980,6 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 	},
 
 	-- Abilities
-	UseAbility = {
-		Direction = "ClientToServer",
-		RateLimitPerSecond = 2,
-		RequiresValidation = true,
-		Description = "Client activates their weapon's active ability",
-	},
 
 	-- Zone (#142)
 	RingChanged = {

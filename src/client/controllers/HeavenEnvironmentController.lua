@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GrassTypes = require(ReplicatedStorage.Shared.types.GrassTypes)
+local CollectionService = game:GetService("CollectionService")
 local GrassGrid = require(script.Parent.Parent.modules.environment.GrassGrid)
 
 local HeavenEnvironmentController = {}
@@ -17,16 +18,16 @@ local HeavenEnvironmentController = {}
 -- Constants
 local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	YOffset = 10000,
-	BladeHeight = 1.2,
-	BladeWidth = 0.15,
-	BladeDepth = 0.10,
+	BladeHeight = 1.6,
+	BladeWidth = 0.35,
+	BladeDepth = 0.20,
 	BladeSegments = 3,
 
-	CellSize = 12.0,
-	DrawDistance = 160,
-	AnimationDist = 80,
-	FadeStart = 120,
-	BladesPerCell = 200,
+	CellSize = 16.0,
+	DrawDistance = 220,
+	AnimationDist = 140,
+	FadeStart = 160,
+	BladesPerCell = 80,
 	InteractionRadius = 5.0,
 	InteractionStrength = 1.8,
 
@@ -176,11 +177,31 @@ function HeavenEnvironmentController:Start()
 		if player then
 			_grassGrid:Start(player)
 		end
-		
+
 		_connection = RunService.Heartbeat:Connect(function(dt: number)
 			_clock = _clock + dt
 			updateClouds(_clock)
 			updateSunEffect()
+
+			-- Distance-Based Ambient Effect Culling (#202)
+			local cam = Workspace.CurrentCamera
+			if cam then
+				local camPos = cam.CFrame.Position
+				for _, emitter in ipairs(CollectionService:GetTagged("AmbientEmitter")) do
+					if emitter:IsA("ParticleEmitter") and emitter.Parent then
+						local pos
+						if emitter.Parent:IsA("BasePart") then
+							pos = emitter.Parent.Position
+						elseif emitter.Parent:IsA("Attachment") then
+							pos = emitter.Parent.WorldPosition
+						end
+						if pos then
+							local dist = (camPos - pos).Magnitude
+							emitter.Enabled = (dist <= 100)
+						end
+					end
+				end
+			end
 		end)
 		print("[HeavenEnv] Started with decoupled GrassGrid system.")
 	end)

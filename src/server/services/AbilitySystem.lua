@@ -10,7 +10,7 @@
 	Passive abilities are triggered from CombatService after a confirmed hit
 	via AbilitySystem.OnHit(attacker, target, weapon).
 
-	Active abilities are triggered by a client remote event ("UseAbility").
+	Active abilities are triggered by a client remote event ("AbilityCastRequest").
 	Server enforces cooldowns; clients cannot bypass them.
 
 	Public API (server):
