@@ -28,7 +28,7 @@ local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	TipColor = Color3.fromRGB(150, 220, 50),
 
 	CellSize = 24,
-	BladesPerCell = 450,
+	BladesPerCell = 600, -- Increased to compensate for Perlin culling
 	DrawDistance = 300,
 	AnimationDist = 120,
     FadeStart = 140,
@@ -53,6 +53,8 @@ local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 		Color3.fromRGB(255, 120, 150), -- Pink
 		Color3.fromRGB(255, 220, 100), -- Yellow
 	},
+	DensityNoiseScale = 0.05,
+	DensityNoiseThreshold = -0.2,
 	SurfaceFilter = nil,
 }
 

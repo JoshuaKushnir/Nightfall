@@ -37,6 +37,8 @@ export type GrassConfig = {
     GrassValMax: number,
     FlowerProbability: number?,
     FlowerColors: {Color3}?,
+    DensityNoiseScale: number?,
+    DensityNoiseThreshold: number?,
 	SurfaceFilter: {BasePart}?, -- Optional list of surfaces to place grass on
 }
 

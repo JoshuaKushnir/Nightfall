@@ -52,6 +52,7 @@ function GrassGrid.new(config: GrassConfig)
 	self._clock = 0.0
 	self._activeCells = {} :: { [string]: Cell }
 	self._bladePool = {} :: { BasePart }
+	self._flowerPool = {} :: { BasePart }
 	self._lastGridCx = nil :: number?
 	self._lastGridCz = nil :: number?
 
@@ -67,7 +68,9 @@ function GrassGrid.new(config: GrassConfig)
 	self._bladeFolder.Parent = Workspace
 
 	self._template = nil :: BasePart?
+	self._flowerTemplate = nil :: BasePart?
 	self._cellTemplate = nil :: Folder?
+	self._flowerCellTemplate = nil :: Folder?
 	self._connection = nil :: RBXScriptConnection?
 
 	self._targetPlayer = nil :: Player?
@@ -161,6 +164,51 @@ function GrassGrid:_buildBladeMesh(): BasePart?
 	return mp
 end
 
+function GrassGrid:_buildFlowerMesh(): BasePart?
+	local config = self.Config
+	local success, result = pcall(function()
+		local em = AssetService:CreateEditableMesh()
+		local numPetals = 5
+		local h = config.BladeHeight * 0.8
+		local w = config.BladeWidth * 1.2
+		for b = 1, numPetals do
+			local angle = (b - 1) * (math.pi * 2 / numPetals)
+			local bRot = CFrame.Angles(0, angle, 0)
+			local pL = bRot * Vector3.new(-w/2, h, 0)
+			local pC = bRot * Vector3.new(0, 0, 0)
+			local pR = bRot * Vector3.new(w/2, h, 0)
+			local pT = bRot * Vector3.new(0, h + w/2, 0)
+
+			local vL = em:AddVertex(pL)
+			local vC = em:AddVertex(pC)
+			local vR = em:AddVertex(pR)
+			local vT = em:AddVertex(pT)
+
+			em:AddTriangle(vL, vC, vR)
+			em:AddTriangle(vL, vR, vT)
+
+			local color = Color3.fromRGB(200, 200, 200)
+			pcall(function()
+				em:SetVertexColor(vL, color)
+				em:SetVertexColor(vC, Color3.fromRGB(50, 150, 50))
+				em:SetVertexColor(vR, color)
+				em:SetVertexColor(vT, color)
+			end)
+		end
+		return AssetService:CreateMeshPartAsync(Content.fromObject(em))
+	end)
+	if not success then return nil end
+	local mp = result :: MeshPart
+	mp.Name = "Flower"
+	mp.Anchored = true
+	mp.CanCollide = false
+	mp.CastShadow = false
+	pcall(function() mp.DoubleSided = true end)
+	mp.Material = Enum.Material.Neon
+	mp.Color = Color3.fromRGB(255, 255, 255)
+	return mp
+end
+
 function GrassGrid:_buildSimpleBlade(): BasePart
 	local p = Instance.new("Part")
 	p.Name = "SimpleBlade"
@@ -186,6 +234,16 @@ function GrassGrid:_allocateCellBlades()
 			p.Parent = self._cellTemplate
 		end
 	end
+	if not self._flowerCellTemplate then
+		if not self._flowerTemplate then
+			self._flowerTemplate = self:_buildFlowerMesh() or self:_buildSimpleBlade()
+		end
+		self._flowerCellTemplate = Instance.new("Folder")
+		for i = 1, math.max(1, math.floor(self.Config.BladesPerCell * (self.Config.FlowerProbability or 0.1))) do
+			local p = self._flowerTemplate:Clone()
+			p.Parent = self._flowerCellTemplate
+		end
+	end
 
 	local batch = self._cellTemplate:Clone()
 	for _, child in ipairs(batch:GetChildren()) do
@@ -193,6 +251,13 @@ function GrassGrid:_allocateCellBlades()
 		table.insert(self._bladePool, child)
 	end
 	batch:Destroy()
+
+	local flowerBatch = self._flowerCellTemplate:Clone()
+	for _, child in ipairs(flowerBatch:GetChildren()) do
+		child.Parent = self._bladeFolder
+		table.insert(self._flowerPool, child)
+	end
+	flowerBatch:Destroy()
 end
 
 function GrassGrid:_getCellKey(cx: number, cz: number): string
@@ -207,39 +272,49 @@ function GrassGrid:_createCell(cx: number, cz: number): Cell
 	local baseX = cx * config.CellSize
 	local baseZ = cz * config.CellSize
 
+	local noiseScale = config.DensityNoiseScale or 0.1
+	local noiseThreshold = config.DensityNoiseThreshold or -0.2
+
 	if #self._bladePool < config.BladesPerCell then
 		self:_allocateCellBlades()
 	end
 
-	for i = 1, config.BladesPerCell do
-		local part = table.remove(self._bladePool) :: BasePart
+	local attempts = math.floor(config.BladesPerCell * 1.5)
+	local placedCount = 0
+
+	for i = 1, attempts do
+		if placedCount >= config.BladesPerCell then break end
+		if #self._bladePool == 0 or #self._flowerPool == 0 then self:_allocateCellBlades() end
 
 		local lx = rng:NextNumber(-config.CellSize/2, config.CellSize/2)
 		local lz = rng:NextNumber(-config.CellSize/2, config.CellSize/2)
 		local x = baseX + lx
 		local z = baseZ + lz
+
+		-- Perlin noise for density
+		local nx = math.noise(x * noiseScale, z * noiseScale, 0)
+		if nx < noiseThreshold then continue end
+
 		local y = config.YOffset
 
 		local rotY = rng:NextNumber(0, math.pi * 2)
 		local hScale = rng:NextNumber(0.85, 1.35)
-		local hue = rng:NextNumber(config.GrassHueMin, config.GrassHueMax)
-		local sat = rng:NextNumber(config.GrassSatMin, config.GrassSatMax)
-		local val = rng:NextNumber(config.GrassValMin, config.GrassValMax)
-		local baseColor = Color3.fromHSV(hue, sat, val)
-		local isFlower = false
+		local isFlower = config.FlowerProbability and rng:NextNumber() < config.FlowerProbability
 
-		if config.FlowerProbability and rng:NextNumber() < config.FlowerProbability then
+		local part = isFlower and table.remove(self._flowerPool) or table.remove(self._bladePool)
+		if not part then continue end
+
+		if isFlower then
 			if config.FlowerColors and #config.FlowerColors > 0 then
-				baseColor = config.FlowerColors[rng:NextInteger(1, #config.FlowerColors)]
-			else
-				baseColor = Color3.fromRGB(255, 255, 255)
+				part.Color = config.FlowerColors[rng:NextInteger(1, #config.FlowerColors)]
 			end
-			isFlower = true
+			hScale = hScale * 0.7
+		else
+			local hue = rng:NextNumber(config.GrassHueMin, config.GrassHueMax)
+			local sat = rng:NextNumber(config.GrassSatMin, config.GrassSatMax)
+			local val = rng:NextNumber(config.GrassValMin, config.GrassValMax)
+			part.Color = Color3.fromHSV(hue, sat, val)
 		end
-
-		part.Color = baseColor
-		part.Material = isFlower and Enum.Material.Neon or Enum.Material.SmoothPlastic
-		part.Size = Vector3.new(config.BladeWidth, config.BladeHeight * hScale, config.BladeDepth)
 
 		local rootY = y - 0.2
 		local baseCF = CFrame.new(x, rootY, z) * CFrame.Angles(0, rotY, 0)
@@ -256,6 +331,7 @@ function GrassGrid:_createCell(cx: number, cz: number): Cell
 			WindWaveOffset = x * 0.1 + z * 0.1 + phase * 0.1,
 			WindGustOffset = x * 0.05 + z * 0.05,
 		})
+		placedCount = placedCount + 1
 	end
 
 	return cellInfo
@@ -267,7 +343,11 @@ function GrassGrid:_removeCell(key: string)
 
 	for _, bInfo in ipairs(cell.Blades) do
 		bInfo.Part.CFrame = CFrame.new(0, -10000, 0)
-		table.insert(self._bladePool, bInfo.Part)
+		if bInfo.Part.Name == "Flower" then
+			table.insert(self._flowerPool, bInfo.Part)
+		else
+			table.insert(self._bladePool, bInfo.Part)
+		end
 	end
 
 	self._activeCells[key] = nil
