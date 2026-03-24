@@ -650,7 +650,7 @@ local function _onCastRequest(player: Player, packet: any)
         return
     end
     if packet.AbilityId == nil or packet.AbilityId == "" then
-        _requireAbilitySystem().HandleUseAbility(player)
+        _requireAbilitySystem().HandleWeaponAbility(player)
         return
     elseif type(packet.AbilityId) ~= "string" then
         warn(`[AspectService] {player.Name} sent invalid AbilityId`)

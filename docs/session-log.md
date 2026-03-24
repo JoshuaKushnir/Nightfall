@@ -1,3 +1,14 @@
+## Session NF-105: Ability Activation Networking Consolidation (Issue #209)
+
+### What Was Built
+- **Consolidated Ability Events**: Removed redundant `UseAbility` and `MantraCast` events, replacing them with a single `AbilityCastRequest` event.
+- **Modified Network Types**: Updated `NetworkTypes.lua` to make `AbilityId` optional in `AbilityCastRequestPacket`, allowing it to handle weapon active abilities without needing a separate payload.
+- **Updated AspectService**: Modified `_onCastRequest` in `AspectService.lua` to intercept empty `AbilityId` requests and properly invoke `AbilitySystem.HandleWeaponAbility()` (formerly `HandleUseAbility`).
+- **Client Refactoring**: Updated `NetworkController.lua` and client scripts to utilize `AbilityCastRequest` instead of legacy types.
+
+### Technical Debt / Pending Tasks
+- Ensure no legacy string references to `MantraCast` or `UseAbility` cause issues in older UI or plugin code that might not have been caught.
+
 ## Session NF-104: HeavenEnvironmentController Loading Fix (Issue #222)
 
 ### What Was Built

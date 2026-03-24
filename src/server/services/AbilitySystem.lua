@@ -15,7 +15,7 @@
 
 	Public API (server):
 		AbilitySystem.OnHit(attacker, target, weapon)
-		AbilitySystem.HandleUseAbility(player)    -- called by server runtime via NetworkService
+		AbilitySystem.HandleWeaponAbility(player)    -- called by server runtime via NetworkService
 		AbilitySystem.GetPassive(weapon)  -> abilityConfig?
 		AbilitySystem.GetActive(weapon)   -> abilityConfig?
 ]]
@@ -169,14 +169,14 @@ function AbilitySystem:Init(dependencies: any?)
 end
 
 --[[
-	Handle a UseAbility request from a client. Called by the server runtime
+	Handle an active ability request from a client. Called by the server runtime
 	via NetworkService:RegisterHandler so that rate-limiting middleware applies.
 ]]
-function AbilitySystem.HandleUseAbility(player: Player)
+function AbilitySystem.HandleWeaponAbility(player: Player)
     -- Look up this player's equipped weapon
     local weaponId = WeaponService.GetEquipped(player)
     if not weaponId then
-        print(("[AbilitySystem] UseAbility from %s — no weapon equipped"):format(player.Name))
+        print(("[AbilitySystem] AbilityCastRequest from %s — no weapon equipped"):format(player.Name))
         return
     end
 
