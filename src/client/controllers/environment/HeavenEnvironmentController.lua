@@ -10,23 +10,23 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GrassTypes = require(ReplicatedStorage.Shared.types.GrassTypes)
-local GrassGrid = require(script.Parent.Parent.modules.environment.GrassGrid)
+local GrassGrid = require(script.Parent.Parent.Parent.modules.environment.GrassGrid)
 
 local HeavenEnvironmentController = {}
 
 -- Constants
 local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	YOffset = 10000,
-	BladeHeight = 1.2,
-	BladeWidth = 0.15,
-	BladeDepth = 0.10,
+	BladeHeight = 1.6,
+	BladeWidth = 0.35,
+	BladeDepth = 0.20,
 	BladeSegments = 3,
 
-	CellSize = 12.0,
-	DrawDistance = 160,
-	AnimationDist = 80,
-	FadeStart = 120,
-	BladesPerCell = 200,
+	CellSize = 16.0,
+	DrawDistance = 220,
+	AnimationDist = 140,
+	FadeStart = 160,
+	BladesPerCell = 80,
 	InteractionRadius = 5.0,
 	InteractionStrength = 1.8,
 
