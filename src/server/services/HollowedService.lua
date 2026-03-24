@@ -1379,7 +1379,7 @@ end
 function HollowedService:Start()
 	assert(HollowedService._initialized, "Call Init() first")
 	if not PostureService then
-		local ok, s = pcall(require, game:GetService("ServerScriptService").Server.services.PostureService)
+		local s = require(game:GetService("ServerScriptService").Server.services.PostureService); local ok = true
 		if ok then PostureService = s end
 	end
 

@@ -45,7 +45,7 @@ end
 -- Safely get hollowed service
 local function GetHollowedService(): any?
 	if not HollowedService then
-		local ok, svc = pcall(require, game:GetService("ServerScriptService").Server.services.HollowedService)
+		local svc = require(game:GetService("ServerScriptService").Server.services.HollowedService); local ok = true
 		if ok then HollowedService = svc end
 	end
 	return HollowedService

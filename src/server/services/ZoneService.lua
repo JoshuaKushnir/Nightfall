@@ -169,7 +169,7 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
     -- Check Ring 2 Progression Gate
     if newRing == 2 and oldRing < 2 then
         local profile = nil
-        local dsOk, DataService = pcall(require, game:GetService("ServerScriptService").Server.services.DataService)
+        local DataService = require(game:GetService("ServerScriptService").Server.services.DataService); local dsOk = true
         if dsOk and DataService then
             profile = DataService:GetProfile(player)
         end
@@ -326,11 +326,11 @@ function ZoneService:Init(dependencies: {[string]: any})
 
     -- Fallback: lazy-require if not injected (supports standalone tests)
     if not NetworkService then
-        local ok, svc = pcall(require, script.Parent.NetworkService)
+        local svc = require(script.Parent.NetworkService); local ok = true
         if ok then NetworkService = svc end
     end
     if not ProgressionService then
-        local ok, svc = pcall(require, script.Parent.ProgressionService)
+        local svc = require(script.Parent.ProgressionService); local ok = true
         if ok then ProgressionService = svc end
     end
 

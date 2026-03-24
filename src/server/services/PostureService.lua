@@ -43,12 +43,6 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
 -- Optional safe require for CombatService when needed (avoid module-cycle at top)
-local function safeRequireCombat()
-	local ok, mod = pcall(function()
-		return require(game:GetService("ServerScriptService").Server.services.CombatService)
-	end)
-	if ok then return mod end
-	return nil
 end
 
 -- Tunables local to PostureService (kept small & explicit)

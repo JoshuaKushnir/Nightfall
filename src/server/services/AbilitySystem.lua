@@ -28,6 +28,7 @@ local AbilityRegistry  = require(ReplicatedStorage.Shared.modules.AbilityRegistr
 local WeaponService    = require(script.Parent.WeaponService)
 local AbilityValidator  = require(script.Parent.AbilityValidator)
 local EffectRunner      = require(script.Parent.EffectRunner)
+local PassiveSystem: any = nil
 
 local AbilitySystem = {}
 
@@ -199,7 +200,7 @@ function AbilitySystem.HandleUseAbility(player: Player)
         -- Self-targeting effects (Heal, SelfBuff) receive nil hitCtx and handle it internally.
         for _, effectDef in active.effects do
             -- PassiveSystem injected lazily to avoid circular require at load time
-            local PassiveSystem = require(script.Parent.PassiveSystem)
+            PassiveSystem = PassiveSystem or require(script.Parent.PassiveSystem)
             local runOk, runErr = pcall(EffectRunner.Run, EffectRunner, effectDef, eventCtx, nil, PassiveSystem)
             if not runOk then
                 warn(("[AbilitySystem] EffectRunner.Run error for '%s': %s")

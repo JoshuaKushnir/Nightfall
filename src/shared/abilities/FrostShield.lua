@@ -11,21 +11,24 @@ local function GetService(name)
 		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
 	elseif name == "PostureService" then
 		if RunService:IsServer() then
-			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			local result = require(game:GetService("ServerScriptService").Server.services.PostureService)
+			local success = true
 			_services[name] = success and result or false
 		else
 			_services[name] = false
 		end
 	elseif name == "CombatService" then
 		if RunService:IsServer() then
-			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			local result = require(game:GetService("ServerScriptService").Server.services.CombatService)
+			local success = true
 			_services[name] = success and result or false
 		else
 			_services[name] = false
 		end
 	elseif name == "DummyService" then
 		if RunService:IsServer() then
-			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			local result = require(game:GetService("ServerScriptService").Server.services.DummyService)
+			local success = true
 			_services[name] = success and result or false
 		else
 			_services[name] = false
