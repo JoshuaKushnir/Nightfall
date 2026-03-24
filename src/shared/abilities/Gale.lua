@@ -1,3 +1,46 @@
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+	
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+	
+	return _services[name]
+end
 --!strict
 --[[
     Class: Gale
@@ -213,9 +256,9 @@ Gale.Moves[1] = {
             root.CFrame = CFrame.new(dest, dest + forward)
             _VFX_WindStrike_Dash(origin, dest)
 
-            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            local HitboxService = GetService("HitboxService")
             pcall(function()
-                local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+                local PostureService = GetService("PostureService")
                 
                 HitboxService.CreateHitbox({
                     Shape = "Sphere",
@@ -232,7 +275,7 @@ Gale.Moves[1] = {
                             tPlayer = hitTarget
                             tChar = hitTarget.Character
                         elseif type(hitTarget) == "string" then
-                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            local DummyService = GetService("DummyService")
                             tChar = DummyService.GetDummyModel(hitTarget)
                         end
                         if not tChar then return end
@@ -245,7 +288,7 @@ Gale.Moves[1] = {
                             -- apply posture + HP
                             PostureService.GainPosture(tPlayer, postureDmg)
                             local ok2, CS = pcall(function()
-                                return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                                return GetService("CombatService")
                             end)
                             if ok2 and CS then
                                 CS.ApplyBreakDamage(tPlayer, WINDSTRIKE_HP_DMG)
@@ -260,7 +303,7 @@ Gale.Moves[1] = {
                                 tChar:SetAttribute("IncomingPostureDamageSource", player.Name .. "_WindStrike")
                             end
                             -- HP damage
-                            local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                            local DummyService = GetService("DummyService")
                             DummyService.ApplyDamage(tChar.Name:gsub("Dummy_", ""), WINDSTRIKE_HP_DMG, dest)
                         end
                         
@@ -285,7 +328,7 @@ Gale.Moves[1] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "WindStrike", TargetPosition = targetPosition }) end
     end,
@@ -362,7 +405,7 @@ Gale.Moves[2] = {
 
         _VFX_Crosswind(origin, rightDir)
 
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
             HitboxService.CreateHitbox({
                 Shape = "Circle",
@@ -377,7 +420,7 @@ Gale.Moves[2] = {
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
@@ -437,7 +480,7 @@ Gale.Moves[2] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Crosswind", TargetPosition = targetPosition }) end
     end,
@@ -530,7 +573,7 @@ Gale.Moves[3] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Windwall", TargetPosition = targetPosition }) end
     end,
@@ -627,7 +670,7 @@ Gale.Moves[4] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Updraft", TargetPosition = targetPosition }) end
     end,
@@ -710,7 +753,7 @@ Gale.Moves[5] = {
         local halfArcRad = math.rad(SHEAR_ARC_DEGREES / 2)
         _VFX_Shear(origin, forward)
 
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
             HitboxService.CreateHitbox({
                 Shape = "Cone",
@@ -727,7 +770,7 @@ Gale.Moves[5] = {
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
@@ -755,7 +798,7 @@ Gale.Moves[5] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Shear", TargetPosition = targetPosition }) end
     end,

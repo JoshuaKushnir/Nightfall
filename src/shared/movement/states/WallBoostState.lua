@@ -26,7 +26,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
 
 -- Config (safe fallbacks if section missing)
 local CFG_ENABLED       = (MovementConfig.WallBoost and MovementConfig.WallBoost.Enabled)       ~= false

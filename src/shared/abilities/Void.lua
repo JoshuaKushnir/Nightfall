@@ -1,3 +1,46 @@
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+	
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+	
+	return _services[name]
+end
 --!strict
 --[[
     Class: Void
@@ -209,7 +252,7 @@ Void.Moves[1] = {
         for _, t in Players:GetPlayers() do
             if t ~= player and t.Character then table.insert(targets, t.Character) end
         end
-        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        local DummyService = GetService("DummyService") or nil
         if DummyService and DummyService.activeDummies then
             for _, dummyData in pairs(DummyService.activeDummies) do
                 table.insert(targets, dummyData.model)
@@ -234,7 +277,7 @@ Void.Moves[1] = {
             local targetPlayer = Players:GetPlayerFromCharacter(bestChar)
             if targetPlayer then
                 local ok, PostureService = pcall(function()
-                    return require(game:GetService("ServerScriptService").Server.services.PostureService)
+                    return GetService("PostureService")
                 end)
                 if ok and PostureService then
                     -- Blink arrival = pressure on the target (posture gain for them = danger)
@@ -245,7 +288,7 @@ Void.Moves[1] = {
                 local dummyId = bestChar.Name:match("^Dummy_(.+)$")
                 if dummyId then
                     local ok, DummyService = pcall(function()
-                        return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        return GetService("DummyService")
                     end)
                     if ok and DummyService then
                         DummyService.ApplyDamage(dummyId, BLINK_HP_HIT, dest)
@@ -278,7 +321,7 @@ Void.Moves[1] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Blink", TargetPosition = targetPosition }) end
     end,
@@ -359,7 +402,7 @@ Void.Moves[2] = {
         for _, t in Players:GetPlayers() do
             if t ~= player and t.Character then table.insert(targets, t.Character) end
         end
-        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        local DummyService = GetService("DummyService") or nil
         if DummyService and DummyService.activeDummies then
             for _, dummyData in pairs(DummyService.activeDummies) do
                 table.insert(targets, dummyData.model)
@@ -412,7 +455,7 @@ Void.Moves[2] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Silence", TargetPosition = targetPosition }) end
     end,
@@ -510,7 +553,7 @@ Void.Moves[3] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "PhaseShift", TargetPosition = targetPosition }) end
     end,
@@ -589,9 +632,9 @@ Void.Moves[4] = {
         -- TALENT HOOK STUB: PhaseChain â€” if Blink within last 2s, skip cast time (instant)
 
         -- Use HitboxService for physical collision detection
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
-            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+            local PostureService = GetService("PostureService")
             
             HitboxService.CreateHitbox({
                 Shape = "Raycast",
@@ -610,7 +653,7 @@ Void.Moves[4] = {
                         tPlayer = hitTarget
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
@@ -654,7 +697,7 @@ Void.Moves[4] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "VoidPulse", TargetPosition = targetPosition }) end
     end,
@@ -735,7 +778,7 @@ Void.Moves[5] = {
         for _, t in Players:GetPlayers() do
             if t ~= player and t.Character then table.insert(targets, t.Character) end
         end
-        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        local DummyService = GetService("DummyService") or nil
         if DummyService and DummyService.activeDummies then
             for _, dummyData in pairs(DummyService.activeDummies) do
                 table.insert(targets, dummyData.model)
@@ -805,7 +848,7 @@ Void.Moves[5] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "IsolationField", TargetPosition = targetPosition }) end
     end,

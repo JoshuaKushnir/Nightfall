@@ -74,7 +74,11 @@
       "name": "No Communion Ability Implementation",
       "pattern": "(?i)Communion",
       "message": "Communion abilities must be stubs only. No implementation."
+    },
+    {
+      "name": "Use GH Sub-Issue for Epics",
+      "pattern": "(?i)(epic|sub-issue)",
+      "message": "When creating sub-issues for an epic, you MUST use the `gh sub-issue add <epic-id> <sub-issue-id>` command or `gh api graphql` to link them properly. Do not just list them in the epic description."
     }
   ]
 }
-

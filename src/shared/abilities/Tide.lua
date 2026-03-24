@@ -1,3 +1,46 @@
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+	
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+	
+	return _services[name]
+end
 --!strict
 --[[
     Class: Tide
@@ -218,9 +261,9 @@ Tide.Moves[1] = {
         local midPos    = origin + direction * (CURRENT_RANGE / 2)
 
         -- Use HitboxService for physical collision detection
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
-            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+            local PostureService = GetService("PostureService")
             
             HitboxService.CreateHitbox({
                 Shape = "Cylinder",
@@ -238,7 +281,7 @@ Tide.Moves[1] = {
                         -- #157: ability hits fill target posture and deal HP
                         PostureService.GainPosture(tPlayer, CURRENT_POSTURE_DMG)
                         local ok2, CS = pcall(function()
-                            return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                            return GetService("CombatService")
                         end)
                         if ok2 and CS then
                             CS.ApplyBreakDamage(tPlayer, CURRENT_HP_DMG)
@@ -246,7 +289,7 @@ Tide.Moves[1] = {
                         _applyKnockbackAndMonitor(player, tPlayer, direction)
                     elseif type(target) == "string" then
                         -- Dummy hit: HP damage only (posture handled by server-loop?)
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         DummyService.ApplyDamage(target, CURRENT_HP_DMG, root.Position)
                     end
                 end
@@ -257,7 +300,7 @@ Tide.Moves[1] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Current", TargetPosition = targetPosition }) end
     end,
@@ -326,7 +369,7 @@ Tide.Moves[2] = {
         local myPos = root.Position
         local direction = root.CFrame.LookVector
         
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         
         local pulled = false
         HitboxService.CreateHitbox({
@@ -394,7 +437,7 @@ Tide.Moves[2] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Undertow", TargetPosition = targetPosition }) end
     end,
@@ -480,7 +523,7 @@ Tide.Moves[3] = {
 
             -- Pushback nearby targets
             local myPos = root.Position
-            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            local HitboxService = GetService("HitboxService")
             HitboxService.CreateHitbox({
                 Shape = "Circle",
                 Radius = SWELL_PUSHBACK_RADIUS,
@@ -517,7 +560,7 @@ Tide.Moves[3] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Swell", TargetPosition = targetPosition }) end
     end,
@@ -597,7 +640,7 @@ Tide.Moves[4] = {
         _VFX_FloodMark_Create(targetPos, FLOOD_MARK_RADIUS)
 
         -- Apply Saturated to any player already in zone
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         HitboxService.CreateHitbox({
             Shape = "Circle",
             Radius = FLOOD_MARK_RADIUS,
@@ -632,7 +675,7 @@ Tide.Moves[4] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "FloodMark", TargetPosition = targetPosition }) end
     end,
@@ -718,7 +761,7 @@ Tide.Moves[5] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Pressure", TargetPosition = targetPosition }) end
     end,

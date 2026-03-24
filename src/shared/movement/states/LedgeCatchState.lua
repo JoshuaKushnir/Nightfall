@@ -15,8 +15,8 @@ Public surface:
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
-local Utils = require(ReplicatedStorage.Shared.modules.Utils)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
+local Utils = require(ReplicatedStorage.Shared.modules.core.Utils)
 
 -- Config constants
 local HEIGHT_OFFSET = (MovementConfig.LedgeCatch and MovementConfig.LedgeCatch.HeightCheckOffset) or 6.0

@@ -1,4 +1,47 @@
 --!strict
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+
+	return _services[name]
+end
 --[[
     Class: Ash
     Description: ASH Ã¢â‚¬â€ Misdirection, patience, and information advantage.
@@ -21,7 +64,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Lazy-load NetworkProvider Ã¢â‚¬â€ only used server-side inside OnActivate calls
 local function _getNetworkProvider()
-    return require(ReplicatedStorage.Shared.network.NetworkProvider)
+    return GetService("NetworkProvider")
 end
 
 -- Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
@@ -95,9 +138,9 @@ local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
 end
 
 local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector3)
-    local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+    local HitboxService = GetService("HitboxService")
     pcall(function()
-        local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+        local PostureService = GetService("PostureService")
         HitboxService.CreateHitbox({
             Shape = "Circle",
             Owner = caster,
@@ -111,13 +154,13 @@ local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector
                     -- HP + posture on hit
                     PostureService.GainPosture(target, ASHEN_STEP_POSTURE_DAMAGE)
                     local ok2, CS = pcall(function()
-                        return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                        return GetService("CombatService")
                     end)
                     if ok2 and CS then
                         CS.ApplyBreakDamage(target, ASHEN_STEP_HP_DAMAGE)
                     end
                 elseif type(target) == "string" then
-                    local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                    local DummyService = GetService("DummyService")
                     DummyService.ApplyDamage(target, ASHEN_STEP_HP_DAMAGE, landingPos)
                 end
             end
@@ -294,7 +337,7 @@ Ash.Moves[1] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then
             remote:FireServer({ AbilityId = "AshenStep", TargetPosition = targetPosition })
@@ -370,10 +413,10 @@ Ash.Moves[2] = {
         local origin  = root.Position
         local forward = root.CFrame.LookVector
 
-        local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
-            local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
-            
+            local PostureService = GetService("PostureService")
+
             HitboxService.CreateHitbox({
                 Shape = "Cone",
                 Owner = player,
@@ -391,18 +434,18 @@ Ash.Moves[2] = {
                         -- apply posture + HP
                         PostureService.GainPosture(target, CINDER_BURST_POSTURE_DAMAGE)
                         local ok2, CS = pcall(function()
-                            return require(game:GetService("ServerScriptService").Server.services.CombatService)
+                            return GetService("CombatService")
                         end)
                         if ok2 and CS then
                             CS.ApplyBreakDamage(target, CINDER_BURST_HP_DAMAGE or 15)
                         end
                     elseif type(target) == "string" then
                         -- Dummy
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         DummyService.ApplyDamage(target, CINDER_BURST_HP_DAMAGE or 15, origin)
                         targetModel = workspace:FindFirstChild("Dummy_" .. target)
                     end
-                    
+
                     if targetModel then
                         -- Since we matched them with a Cone hit, we assume they are within the cone
                         targetModel:SetAttribute("StatusExposed", true)
@@ -421,7 +464,7 @@ Ash.Moves[2] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then
             remote:FireServer({ AbilityId = "CinderBurst", TargetPosition = targetPosition })
@@ -507,7 +550,7 @@ Ash.Moves[3] = {
 
                 -- Exit Slow to nearby targets
                 local myPos = root.Position
-                local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+                local HitboxService = GetService("HitboxService")
                 HitboxService.CreateHitbox({
                     Shape = "Circle",
                     Radius = FADE_EXIT_SLOW_RADIUS,
@@ -523,7 +566,7 @@ Ash.Moves[3] = {
                         elseif type(target) == "string" then
                             tChar = workspace:FindFirstChild("Dummy_" .. target)
                         end
-                        
+
                         if tChar then
                             tChar:SetAttribute("StatusSlow", true)
                             tChar:SetAttribute("SlowExpiry", tick() + FADE_EXIT_SLOW_DUR)
@@ -543,7 +586,7 @@ Ash.Moves[3] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then
             remote:FireServer({ AbilityId = "Fade", TargetPosition = targetPosition })
@@ -666,7 +709,7 @@ Ash.Moves[4] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then
             remote:FireServer({ AbilityId = "Trace", TargetPosition = targetPosition })
@@ -736,17 +779,19 @@ Ash.Moves[5] = {
         local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
         if not root then return end
 
-        -- Activate veil state Ã¢â‚¬â€ CombatService/MovementService read these attributes
+        -- Activate veil state — CombatService/MovementService read these attributes
+        local now = tick()
         char:SetAttribute("StatusGreyVeil", true)
-        char:SetAttribute("GreyVeilExpiry", tick() + GREY_VEIL_DURATION)
+        char:SetAttribute("GreyVeilExpiry", now + GREY_VEIL_DURATION)
         char:SetAttribute("GreyVeilPostureBonus", GREY_VEIL_POSTURE_BONUS)
 
         _VFX_GreyVeil_Enter(player)
 
-        -- TALENT HOOK STUB: SilencedApproach Ã¢â‚¬â€ Silence nearby targets on activation
+        -- TALENT HOOK STUB: SilencedApproach — Silence nearby targets on activation
 
         task.delay(GREY_VEIL_DURATION, function()
             if not char or not char.Parent then return end
+            -- #190 Attribute caching in Grey Veil (no tight loop applicable)
             char:SetAttribute("StatusGreyVeil", nil)
             char:SetAttribute("GreyVeilExpiry", nil)
             char:SetAttribute("GreyVeilPostureBonus", nil)
@@ -754,7 +799,7 @@ Ash.Moves[5] = {
             local myPos = root.Position
 
             -- Exit burst: apply Dampened to nearby targets using a Hitbox
-            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            local HitboxService = GetService("HitboxService")
             HitboxService.CreateHitbox({
                 Shape = "Circle",
                 Radius = GREY_VEIL_EXIT_RADIUS,
@@ -770,7 +815,7 @@ Ash.Moves[5] = {
                     elseif type(target) == "string" then
                         tChar = workspace:FindFirstChild("Dummy_" .. target)
                     end
-                    
+
                     if tChar then
                         tChar:SetAttribute("StatusDampened", true)
                         tChar:SetAttribute("DampenedExpiry", tick() + GREY_VEIL_DAMPENED_DUR)
@@ -790,7 +835,7 @@ Ash.Moves[5] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then
             remote:FireServer({ AbilityId = "GreyVeil", TargetPosition = targetPosition })

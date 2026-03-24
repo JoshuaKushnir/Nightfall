@@ -24,7 +24,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService          = game:GetService("RunService")
 local Workspace            = game:GetService("Workspace")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local SLIDE_SPEED     = (MovementConfig.Dodge and MovementConfig.Dodge.Speed)          or 50

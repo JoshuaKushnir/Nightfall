@@ -22,7 +22,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local MAX_STEPS         = (MovementConfig.WallRun and MovementConfig.WallRun.MaxSteps)           or 5

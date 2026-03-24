@@ -22,7 +22,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService         = game:GetService("RunService")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
 
 -- ── Config constants ──────────────────────────────────────────────────────────
 local MAX_HEIGHT    = (MovementConfig.Vault and MovementConfig.Vault.MaxObstacleHeight)     or 5.5

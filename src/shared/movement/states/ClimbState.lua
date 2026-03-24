@@ -20,8 +20,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local MovementConfig = require(ReplicatedStorage.Shared.modules.MovementConfig)
-local Utils = require(ReplicatedStorage.Shared.modules.Utils)
+local MovementConfig = require(ReplicatedStorage.Shared.modules.utility.MovementConfig)
+local Utils = require(ReplicatedStorage.Shared.modules.core.Utils)
 
 -- Cache LedgeCatchState safely — syntax errors during dev must not break climbing.
 local _ledgeCatchOk, LedgeCatchMod = pcall(require, script.Parent.LedgeCatchState)

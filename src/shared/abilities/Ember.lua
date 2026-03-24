@@ -1,3 +1,46 @@
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+
+	return _services[name]
+end
 --!strict
 --[[
     Class: Ember
@@ -57,7 +100,7 @@ local function _applyHeatStack(
     -- Posture gain (pressure fills on hit) â€” players only, dummies have no posture
     if tPlayer then
         local ok, PS = pcall(function()
-            return require(game:GetService("ServerScriptService").Server.services.PostureService)
+            return GetService("PostureService")
         end)
         if ok and PS then
             PS.GainPosture(tPlayer, IGNITE_POSTURE_PER_HEAT * stacks)
@@ -66,7 +109,7 @@ local function _applyHeatStack(
 
     -- HP damage
     local ok2, CS = pcall(function()
-        return require(game:GetService("ServerScriptService").Server.services.CombatService)
+        return GetService("CombatService")
     end)
     if tPlayer then
         if ok2 and CS then
@@ -74,7 +117,7 @@ local function _applyHeatStack(
         end
     elseif dummyId then
         local ok3, DS = pcall(function()
-            return require(game:GetService("ServerScriptService").Server.services.DummyService)
+            return GetService("DummyService")
         end)
         if ok3 and DS then
             DS.ApplyDamage(dummyId, IGNITE_HP_DMG * stacks, casterPos)
@@ -84,19 +127,27 @@ local function _applyHeatStack(
     -- Burning at max stacks
     if newStacks >= HEAT_STACK_MAX then
         char:SetAttribute("StatusBurning", true)
-        char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
+        local targetExpiry = tick() + BURNING_DURATION
+        char:SetAttribute("BurningExpiry", targetExpiry)
         _VFX_BurningStatus(char)
 
         task.spawn(function()
+            -- #190 Attribute Caching
+            local cachedExpiry = targetExpiry
+            local tickCount = 0
             while char and char.Parent do
                 task.wait(1)
-                local expiry = char:GetAttribute("BurningExpiry") :: number?
-                if not expiry or tick() >= expiry then break end
+                tickCount += 1
+                if tickCount % 5 == 0 then
+                    local expiry = char:GetAttribute("BurningExpiry") :: number?
+                    if expiry then cachedExpiry = expiry end
+                end
+                if not cachedExpiry or tick() >= cachedExpiry then break end
                 if tPlayer then
                     if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
                 elseif dummyId then
                     local ok3, DS = pcall(function()
-                        return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        return GetService("DummyService")
                     end)
                     if ok3 and DS then DS.ApplyDamage(dummyId, BURNING_HP_PER_SEC, nil) end
                 end
@@ -269,9 +320,9 @@ Ember.Moves[1] = {
             _VFX_Ignite_Dash(origin, destination)
 
             -- Use HitboxService for landing detection
-            local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+            local HitboxService = GetService("HitboxService")
             pcall(function()
-                local PostureService = require(game:GetService("ServerScriptService").Server.services.PostureService)
+                local PostureService = GetService("PostureService")
 
                 HitboxService.CreateHitbox({
                     Shape = "Sphere",
@@ -299,7 +350,7 @@ Ember.Moves[1] = {
                             tChar = tPlayer.Character
                         else
                             local ok, DS = pcall(function()
-                                return require(game:GetService("ServerScriptService").Server.services.DummyService)
+                                return GetService("DummyService")
                             end)
                             if ok and DS and dummyId then
                                 tChar = DS.GetDummyModel(dummyId)
@@ -315,7 +366,7 @@ Ember.Moves[1] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Ignite", TargetPosition = targetPosition }) end
     end,
@@ -394,7 +445,7 @@ Ember.Moves[2] = {
         -- TALENT HOOK STUB: Flashpoint â€” at 3Ã— Momentum, radius = 8, overheatDur = 3.5
 
         -- AoE hit detection
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
+        local HitboxService = GetService("HitboxService")
         pcall(function()
             HitboxService.CreateHitbox({
                 Shape = "Sphere",
@@ -409,7 +460,7 @@ Ember.Moves[2] = {
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
                         tChar = hitTarget.Character
                     elseif type(hitTarget) == "string" then
-                        local DummyService = require(game:GetService("ServerScriptService").Server.services.DummyService)
+                        local DummyService = GetService("DummyService")
                         tChar = DummyService.GetDummyModel(hitTarget)
                     end
                     if not tChar then return end
@@ -449,7 +500,7 @@ Ember.Moves[2] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Flashfire", TargetPosition = targetPosition }) end
     end,
@@ -544,7 +595,7 @@ Ember.Moves[3] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "HeatShield", TargetPosition = targetPosition }) end
     end,
@@ -636,7 +687,7 @@ Ember.Moves[4] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "Surge", TargetPosition = targetPosition }) end
     end,
@@ -724,11 +775,14 @@ Ember.Moves[5] = {
         _VFX_CinderField_Create(fieldCenter, CINDER_FIELD_RADIUS)
 
         -- Periodic damage + stack application to targets inside zone
-        local HitboxService = require(game:GetService("ReplicatedStorage").Shared.modules.HitboxService)
-        local DummyService = pcall(function() return require(game:GetService("ServerScriptService").Server.services.DummyService) end) and require(game:GetService("ServerScriptService").Server.services.DummyService) or nil
+        local HitboxService = GetService("HitboxService")
+        local DummyService = GetService("DummyService") or nil
 
         local elapsed = 0
         local stackTimer = 0
+        -- #190 CinderField Attribute Caching
+        local incomingDamageCache: { [Instance]: number } = {}
+
         local function _tick(dt: number)
             elapsed += dt
             stackTimer += dt
@@ -754,9 +808,12 @@ Ember.Moves[5] = {
                         end
                         if not tChar then return end
 
-                        -- HP drain per tick
-                        tChar:SetAttribute("IncomingHPDamage",
-                            (tChar:GetAttribute("IncomingHPDamage") or 0) + CINDER_FIELD_HP_PER_S * dt)
+                        -- HP drain per tick (cached)
+                        local currentDmg = incomingDamageCache[tChar]
+                        if not currentDmg then
+                            currentDmg = (tChar:GetAttribute("IncomingHPDamage") :: number?) or 0
+                        end
+                        incomingDamageCache[tChar] = currentDmg + CINDER_FIELD_HP_PER_S * dt
                         tChar:SetAttribute("IncomingHPDamageSource", player.Name .. "_CinderFieldDOT")
                         -- Heat stack per interval
                         if stackTimer >= CINDER_FIELD_STACK_INTERVAL then
@@ -784,9 +841,19 @@ Ember.Moves[5] = {
             while tick() - start < CINDER_FIELD_DURATION do
                 local dt = 0.1
                 local done = _tick(dt)
+
+                -- #190 Write back cached damage at the end of tick
+                for charObj, dmg in incomingDamageCache do
+                    if charObj and charObj.Parent then
+                        charObj:SetAttribute("IncomingHPDamage", dmg)
+                    end
+                end
+                table.clear(incomingDamageCache)
+
                 if done then break end
                 task.wait(dt)
             end
+
             if zonePart and zonePart.Parent then
                 _VFX_CinderField_Expire(fieldCenter)
                 zonePart:Destroy()
@@ -796,7 +863,7 @@ Ember.Moves[5] = {
     end,
 
     ClientActivate = function(targetPosition: Vector3?)
-        local np = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+        local np = GetService("NetworkProvider")
         local remote = np:GetRemoteEvent("AbilityCastRequest")
         if remote then remote:FireServer({ AbilityId = "CinderField", TargetPosition = targetPosition }) end
     end,
