@@ -23,11 +23,11 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
-local AbilityRegistry  = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
-local WeaponService    = require(script.Parent.WeaponService)
-local AbilityValidator  = require(script.Parent.AbilityValidator)
-local EffectRunner      = require(script.Parent.EffectRunner)
+local WeaponRegistry: any = nil
+local AbilityRegistry: any = nil
+local WeaponService: any = nil
+local AbilityValidator: any = nil
+local EffectRunner: any = nil
 local PassiveSystem: any = nil
 
 local AbilitySystem = {}
@@ -77,7 +77,7 @@ local function _StartActiveCooldown(player: Player, abilityId: string, cooldown:
 	if not _activeCooldowns[uid] then _activeCooldowns[uid] = {} end
 	local endTime = tick() + cooldown
 	_activeCooldowns[uid][abilityId] = endTime
-	
+
 	-- Sync to character attribute for client UI reflection
 	local char = player.Character
 	if char then
@@ -143,8 +143,22 @@ end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-function AbilitySystem:Init()
+function AbilitySystem:Init(dependencies: any?)
 	print("[AbilitySystem] Initializing...")
+
+	WeaponRegistry   = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
+	AbilityRegistry  = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
+	AbilityValidator = require(script.Parent.AbilityValidator)
+
+	if dependencies then
+		WeaponService = dependencies.WeaponService
+		EffectRunner = dependencies.EffectRunner
+		PassiveSystem = dependencies.PassiveSystem
+	else
+		WeaponService = require(script.Parent.WeaponService)
+		EffectRunner = require(script.Parent.EffectRunner)
+		PassiveSystem = require(script.Parent.PassiveSystem)
+	end
 
 	Players.PlayerRemoving:Connect(function(player)
 		_hitCounters[player.UserId]    = nil
@@ -199,8 +213,6 @@ function AbilitySystem.HandleUseAbility(player: Player)
         -- No hitCtx at cast time — individual effects supply hitCtx when a hit is confirmed.
         -- Self-targeting effects (Heal, SelfBuff) receive nil hitCtx and handle it internally.
         for _, effectDef in active.effects do
-            -- PassiveSystem injected lazily to avoid circular require at load time
-            PassiveSystem = PassiveSystem or require(script.Parent.PassiveSystem)
             local runOk, runErr = pcall(EffectRunner.Run, EffectRunner, effectDef, eventCtx, nil, PassiveSystem)
             if not runOk then
                 warn(("[AbilitySystem] EffectRunner.Run error for '%s': %s")

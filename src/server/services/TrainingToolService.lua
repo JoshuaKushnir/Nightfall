@@ -16,9 +16,9 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DataService = require(script.Parent.DataService)
-local ProgressionService = require(script.Parent.ProgressionService)
-local NetworkService = require(script.Parent.NetworkService)
+local DataService: any = nil
+local ProgressionService: any = nil
+local NetworkService: any = nil
 local ProgressionTypes = require(ReplicatedStorage.Shared.types.ProgressionTypes)
 local ItemTypes = require(ReplicatedStorage.Shared.types.ItemTypes)
 local ItemRegistry = require(ReplicatedStorage.Shared.modules.ItemRegistry)
@@ -136,7 +136,25 @@ end
     Init() -> void
     Initializes the service.
 ]]
-function TrainingToolService:Init()
+function TrainingToolService:Init(dependencies)
+
+    if dependencies and dependencies.DataService then
+        DataService = dependencies.DataService
+    else
+        DataService = require(script.Parent.DataService)
+    end
+
+    if dependencies and dependencies.ProgressionService then
+        ProgressionService = dependencies.ProgressionService
+    else
+        ProgressionService = require(script.Parent.ProgressionService)
+    end
+
+    if dependencies and dependencies.NetworkService then
+        NetworkService = dependencies.NetworkService
+    else
+        NetworkService = require(script.Parent.NetworkService)
+    end
     print("[TrainingToolService] Initializing...")
     self._initialized = true
     print("[TrainingToolService] Initialized successfully")

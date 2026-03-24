@@ -18,7 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local DummyService = require(script.Parent.DummyService)
+local DummyService: any = nil
 
 -- Lazy-required to avoid load-order cycles; resolved in :Start()
 local AbilitySystem: any = nil
@@ -87,7 +87,13 @@ local PARRY_FEEDBACK_EVENT_NAME = "ParryFeedback"
 --[[
 	Initialize the service
 ]]
-function CombatService:Init()
+function CombatService:Init(dependencies)
+
+    if dependencies and dependencies.DummyService then
+        DummyService = dependencies.DummyService
+    else
+        DummyService = require(script.Parent.DummyService)
+    end
 	print("[CombatService] Initializing...")
 
 	-- Clean up when players leave

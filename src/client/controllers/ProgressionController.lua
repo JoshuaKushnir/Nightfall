@@ -21,7 +21,7 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 
-local NetworkController = require(script.Parent.NetworkController)
+local NetworkController: any = nil
 
 -- ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -349,6 +349,11 @@ end
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
 function ProgressionController:Init(dependencies)
+    if dependencies then
+        NetworkController = dependencies.NetworkController
+    else
+        NetworkController = require(script.Parent.NetworkController)
+    end
     print("[ProgressionController] Initializing...")
     self._initialized = true
     print("[ProgressionController] Initialized")
@@ -448,27 +453,27 @@ function ProgressionController:Start()
 
         _refreshStatUI()
         _notifyListeners()
-    end)    
+    end)
     NetworkController:RegisterHandler("ProgressionGateBlocked", function(packet: any)
         local PlayerHUDController = require(script.Parent.PlayerHUDController)
 
         if packet.Reason == "MissingCodex" then
             PlayerHUDController:ShowToast(
-                "Gate Blocked", 
+                "Gate Blocked",
                 "You lack the understanding of the Hollowed.",
                 Color3.fromRGB(200, 50, 50),
                 5.0
             )
         elseif packet.Reason == "NoDuskwalker" then
             PlayerHUDController:ShowToast(
-                "Gate Blocked", 
+                "Gate Blocked",
                 "You must survive the Duskwalker's trial first.",
                 Color3.fromRGB(200, 50, 50),
                 5.0
             )
         else
             PlayerHUDController:ShowToast(
-                "Gate Blocked", 
+                "Gate Blocked",
                 "You are not ready to proceed.",
                 Color3.fromRGB(200, 50, 50),
                 5.0

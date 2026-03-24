@@ -14,11 +14,11 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DataService = require(script.Parent.DataService)
-local AspectService = require(script.Parent.AspectService)
-local AbilitySystem = require(script.Parent.AbilitySystem)
+local DataService: any = nil
+local AspectService: any = nil
+local AbilitySystem: any = nil
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local NetworkService = require(script.Parent.NetworkService)
+local NetworkService: any = nil
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
 local AbilityRegistry = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
@@ -440,7 +440,31 @@ end
 -- exposed for testing
 InventoryService._onPlayerAdded = _onPlayerAdded
 
-function InventoryService:Init()
+function InventoryService:Init(dependencies)
+
+    if dependencies and dependencies.DataService then
+        DataService = dependencies.DataService
+    else
+        DataService = require(script.Parent.DataService)
+    end
+
+    if dependencies and dependencies.AspectService then
+        AspectService = dependencies.AspectService
+    else
+        AspectService = require(script.Parent.AspectService)
+    end
+
+    if dependencies and dependencies.AbilitySystem then
+        AbilitySystem = dependencies.AbilitySystem
+    else
+        AbilitySystem = require(script.Parent.AbilitySystem)
+    end
+
+    if dependencies and dependencies.NetworkService then
+        NetworkService = dependencies.NetworkService
+    else
+        NetworkService = require(script.Parent.NetworkService)
+    end
     if self._initialized then
         warn("[InventoryService] already initialized")
         return

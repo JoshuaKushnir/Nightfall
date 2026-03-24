@@ -57,7 +57,7 @@ local TweenService      = game:GetService("TweenService")
 
 local AnimationDatabase = require(ReplicatedStorage.Shared.AnimationDatabase)
 local HitboxService     = require(ReplicatedStorage.Shared.modules.HitboxService)
-local DummyService      = require(script.Parent.DummyService)
+local DummyService: any = nil
 local StateService      = require(ReplicatedStorage.Shared.modules.StateService)
 local NetworkProvider   = require(ReplicatedStorage.Shared.network.NetworkProvider)
 local SpawnerConfig     = require(game:GetService("ServerScriptService").Server.modules.SpawnerConfig)
@@ -1367,10 +1367,16 @@ end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-function HollowedService:Init(deps: {[string]: any}?)
-	if deps then
-		ProgressionService = deps.ProgressionService
-		PostureService     = (deps :: any).PostureService
+function HollowedService:Init(dependencies: {[string]: any}?)
+
+    if dependencies and dependencies.DummyService then
+        DummyService = dependencies.DummyService
+    else
+        DummyService = require(script.Parent.DummyService)
+    end
+	if dependencies then
+		ProgressionService = dependencies.ProgressionService
+		PostureService     = (dependencies :: any).PostureService
 	end
 	HollowedService._initialized = true
 	print("[HollowedService] Initialized")

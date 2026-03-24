@@ -18,12 +18,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 -- DataService is a sibling module under Server.services; load via relative path
-local DataService = require(script.Parent.DataService)
+local DataService: any = nil
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
-local CombatService = require(script.Parent.CombatService)
+local CombatService: any = nil
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local NetworkService = require(script.Parent.NetworkService)
+local NetworkService: any = nil
 local AspectRegistry = require(ReplicatedStorage.Shared.modules.AspectRegistry)
 local AbilityRegistry = require(ReplicatedStorage.Shared.modules.AbilityRegistry)
 local Utils = require(ReplicatedStorage.Shared.modules.Utils)
@@ -746,7 +746,25 @@ end
 --[[
     Init and Start
 ]]
-function AspectService:Init()
+function AspectService:Init(dependencies)
+
+    if dependencies and dependencies.DataService then
+        DataService = dependencies.DataService
+    else
+        DataService = require(script.Parent.DataService)
+    end
+
+    if dependencies and dependencies.CombatService then
+        CombatService = dependencies.CombatService
+    else
+        CombatService = require(script.Parent.CombatService)
+    end
+
+    if dependencies and dependencies.NetworkService then
+        NetworkService = dependencies.NetworkService
+    else
+        NetworkService = require(script.Parent.NetworkService)
+    end
     print("[AspectService] Initializing...")
     Players.PlayerAdded:Connect(_onPlayerAdded)
     Players.PlayerRemoving:Connect(function(player)

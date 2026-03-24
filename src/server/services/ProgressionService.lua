@@ -27,8 +27,8 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local DataService = require(script.Parent.DataService)
-local NetworkService = require(script.Parent.NetworkService)
+local DataService: any = nil
+local NetworkService: any = nil
 local ProgressionTypes = require(ReplicatedStorage.Shared.types.ProgressionTypes)
 
 local RING_CONFIGS           = ProgressionTypes.RING_CONFIGS
@@ -476,7 +476,19 @@ end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-function ProgressionService:Init()
+function ProgressionService:Init(dependencies)
+
+    if dependencies and dependencies.DataService then
+        DataService = dependencies.DataService
+    else
+        DataService = require(script.Parent.DataService)
+    end
+
+    if dependencies and dependencies.NetworkService then
+        NetworkService = dependencies.NetworkService
+    else
+        NetworkService = require(script.Parent.NetworkService)
+    end
     print("[ProgressionService] Initializing...")
     self._initialized = true
     print("[ProgressionService] Initialized successfully")
