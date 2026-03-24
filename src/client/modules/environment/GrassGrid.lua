@@ -1,14 +1,16 @@
 --!strict
--- Class: GrassGrid
--- Description: Reusable grid-based grass rendering system.
--- Dependencies: RunService, Workspace, AssetService
+--[[
+    Class: GrassGrid
+    Description: Reusable grid-based grass rendering system for BOTW-style stylized grass.
+    Dependencies: RunService, Workspace, AssetService, GrassTypes
+]]
 
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 local AssetService = game:GetService("AssetService")
 
 local GrassTypes = require(game:GetService("ReplicatedStorage").Shared.types.GrassTypes)
-type GrassConfig = GrassTypes.GrassConfig
+export type GrassConfig = GrassTypes.GrassConfig
 
 type BladeInfo = {
 	Part: BasePart,
@@ -68,46 +70,83 @@ function GrassGrid.new(config: GrassConfig)
 	return self
 end
 
+-- Builds a proper multi-blade clump mesh (BOTW-style, low vertex count)
 function GrassGrid:_buildBladeMesh(): BasePart?
 	local config = self.Config
 	local success, result = pcall(function()
 		local em = AssetService:CreateEditableMesh()
 		local vIds = {}
-		for i = 0, config.BladeSegments do
-			local t = i / config.BladeSegments
-			local y = t * config.BladeHeight
-			local width = config.BladeWidth * (1 - t)
-			local depth = config.BladeDepth * (1 - t)
-			local pL = Vector3.new(-width, y, -depth * 0.5)
-			local pC = Vector3.new(0,      y,  depth * 0.5)
-			local pR = Vector3.new( width, y, -depth * 0.5)
-			local vidRow = {}
-			vidRow[1] = em:AddVertex(pL)
-			vidRow[2] = em:AddVertex(pC)
-			vidRow[3] = em:AddVertex(pR)
-			vIds[i] = vidRow
+
+		local numBlades = config.BladesPerClump or 1
+		local baseCurve = config.CurveStrength or 0
+		local rootColor = config.RootColor or Color3.fromRGB(80, 140, 60)
+		local tipColor = config.TipColor or Color3.fromRGB(180, 220, 80)
+
+		for b = 1, numBlades do
+			local bladeYaw = (b - 1) * (math.pi * 2 / numBlades)
+			local bRadius = (numBlades > 1) and (config.BladeWidth * 0.8) or 0
+			local bx = math.cos(bladeYaw) * bRadius
+			local bz = math.sin(bladeYaw) * bRadius
+			local bRot = CFrame.Angles(0, bladeYaw + math.pi/2, 0)
+
+			local bladeVIds = {}
+			for i = 0, config.BladeSegments do
+				local t = i / config.BladeSegments
+				local y = t * config.BladeHeight
+				local curve = baseCurve * (t * t)
+				local width = config.BladeWidth * (1 - t)
+				local depth = config.BladeDepth * (1 - t)
+
+				local localL = Vector3.new(-width, y, -depth * 0.5 + curve)
+				local localC = Vector3.new(0,      y,  depth * 0.5 + curve)
+				local localR = Vector3.new( width, y, -depth * 0.5 + curve)
+
+				local pL = Vector3.new(bx, 0, bz) + bRot * localL
+				local pC = Vector3.new(bx, 0, bz) + bRot * localC
+				local pR = Vector3.new(bx, 0, bz) + bRot * localR
+
+				local vidRow = {}
+				vidRow[1] = em:AddVertex(pL)
+				vidRow[2] = em:AddVertex(pC)
+				vidRow[3] = em:AddVertex(pR)
+
+				local color = rootColor:Lerp(tipColor, t)
+				pcall(function()
+					em:SetVertexColor(vidRow[1], color)
+					em:SetVertexColor(vidRow[2], color)
+					em:SetVertexColor(vidRow[3], color)
+				end)
+
+				bladeVIds[i] = vidRow
+			end
+			vIds[b] = bladeVIds
 		end
-		for i = 0, config.BladeSegments - 1 do
-			local row0 = vIds[i]
-			local row1 = vIds[i+1]
-			local v0_L, v0_C, v0_R = row0[1], row0[2], row0[3]
-			local v1_L, v1_C, v1_R = row1[1], row1[2], row1[3]
-			em:AddTriangle(v0_L, v0_C, v1_C)
-			em:AddTriangle(v0_L, v1_C, v1_L)
-			em:AddTriangle(v0_C, v0_R, v1_R)
-			em:AddTriangle(v0_C, v1_R, v1_C)
+
+		for b = 1, numBlades do
+			local bladeVIds = vIds[b]
+			for i = 0, config.BladeSegments - 1 do
+				local row0 = bladeVIds[i]
+				local row1 = bladeVIds[i+1]
+				local v0_L, v0_C, v0_R = row0[1], row0[2], row0[3]
+				local v1_L, v1_C, v1_R = row1[1], row1[2], row1[3]
+				em:AddTriangle(v0_L, v0_C, v1_C)
+				em:AddTriangle(v0_L, v1_C, v1_L)
+				em:AddTriangle(v0_C, v0_R, v1_R)
+				em:AddTriangle(v0_C, v1_R, v1_C)
+			end
 		end
+
 		local mp = AssetService:CreateMeshPartAsync(Content.fromObject(em))
-		em.Parent = mp
 		return mp
 	end)
 	if not success then return nil end
+
 	local mp = result :: MeshPart
 	mp.Name = "Blade"
 	mp.Anchored = true
 	mp.CanCollide = false
 	mp.CastShadow = false
-	mp.DoubleSided = true
+	pcall(function() mp.DoubleSided = true end)
 	mp.Material = Enum.Material.SmoothPlastic
 	mp.Color = Color3.fromRGB(80, 140, 60)
 	return mp
@@ -154,11 +193,7 @@ end
 function GrassGrid:_createCell(cx: number, cz: number): Cell
 	local config = self.Config
 	local rng = seededRandom(cx, cz)
-	local cellInfo: Cell = {
-		X = cx,
-		Z = cz,
-		Blades = {}
-	}
+	local cellInfo: Cell = { X = cx, Z = cz, Blades = {} }
 
 	local baseX = cx * config.CellSize
 	local baseZ = cz * config.CellSize
@@ -222,15 +257,14 @@ function GrassGrid:_updateGrid(playerPos: Vector3)
 	local cx = math.floor(px / config.CellSize + 0.5)
 	local cz = math.floor(pz / config.CellSize + 0.5)
 
-	if self._lastGridCx == cx and self._lastGridCz == cz then
-		return
-	end
+	if self._lastGridCx == cx and self._lastGridCz == cz then return end
 	self._lastGridCx = cx
 	self._lastGridCz = cz
 
 	local range = math.ceil(config.DrawDistance / config.CellSize) + 1
 	local bufferDistSq = (config.DrawDistance + config.CellSize) ^ 2
 	local needed = {}
+
 	for dx = -range, range do
 		for dz = -range, range do
 			if (dx*dx + dz*dz) * (config.CellSize*config.CellSize) <= bufferDistSq then
@@ -241,9 +275,7 @@ function GrassGrid:_updateGrid(playerPos: Vector3)
 	end
 
 	for k, _ in pairs(self._activeCells) do
-		if not needed[k] then
-			self:_removeCell(k)
-		end
+		if not needed[k] then self:_removeCell(k) end
 	end
 
 	for k, pos in pairs(needed) do
@@ -267,127 +299,16 @@ function GrassGrid:_updateWind(dt: number)
 end
 
 function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
-	local config = self.Config
-	local t = self._clock
-
 	local windDir = Vector3.new(math.cos(self._windAngle), 0, math.sin(self._windAngle))
-	local windAxis = Vector3.new(-windDir.Z, 0, windDir.X)
-
-	local interactRadiusSq = config.InteractionRadius * config.InteractionRadius
-	local animDistSq = config.AnimationDist * config.AnimationDist
-	local fadeRange = math.max(0.1, config.DrawDistance - config.FadeStart)
-
-	local bulkParts = {}
-	local bulkCFrames = {}
-	local count = 0
-	
-	local cam = Workspace.CurrentCamera
-	local camPos = cam and cam.CFrame.Position or playerPos
-	local camLook = cam and cam.CFrame.LookVector or Vector3.new(0, 0, -1)
 
 	for _, cell in pairs(self._activeCells) do
-		local cellX = cell.X * config.CellSize
-		local cellZ = cell.Z * config.CellSize
-		
-		local cellDx = cellX - playerPos.X
-		local cellDz = cellZ - playerPos.Z
-		
-		-- Cull cells way beyond draw distance (buffer included)
-		if (cellDx*cellDx + cellDz*cellDz) > (config.DrawDistance + config.CellSize)^2 + 400 then
-			continue
+		for _, bInfo in ipairs(cell.Blades) do
+			local wave = math.sin(self._clock * 2 + bInfo.Phase) * 0.1 * self._windStrength * 0.1
+			local offset = windDir * wave
+			local rotOffset = CFrame.Angles(wave, 0, 0)
+
+			bInfo.Part.CFrame = bInfo.BaseCFrame * CFrame.new(0, bInfo.HeightScale * self.Config.BladeHeight * 0.5, 0) * rotOffset + offset
 		end
-		
-		-- Frustum Culling: Skip cells behind the camera to drastically reduce math overhead
-		local toCamX = cellX - camPos.X
-		local toCamZ = cellZ - camPos.Z
-		local distToCamSq = toCamX*toCamX + toCamZ*toCamZ
-		
-		if distToCamSq > (config.CellSize * config.CellSize * 2) then
-			local distToCam = math.sqrt(distToCamSq)
-			local dirX = toCamX / distToCam
-			local dirZ = toCamZ / distToCam
-			local dot = camLook.X * dirX + camLook.Z * dirZ
-			if dot < -0.25 then -- ~105 degree threshold, wide enough to hide edges
-				continue
-			end
-		end
-
-		for _, blade in ipairs(cell.Blades) do
-			local baseCF = blade.BaseCFrame
-			local pos = baseCF.Position
-
-			local dx = pos.X - playerPos.X
-			local dz = pos.Z - playerPos.Z
-			local distSq = dx*dx + dz*dz
-
-			local fade = 0
-			local dist = 0
-			
-			-- Out of animation range: only sink, no wind or interaction
-			if distSq > animDistSq then
-				dist = math.sqrt(distSq)
-				if dist > config.FadeStart then
-					fade = clamp((dist - config.FadeStart) / fadeRange, 0, 1)
-				end
-			
-				local halfHeight = (config.BladeHeight * blade.HeightScale * 0.5)
-				local sinkOffset = fade * (config.BladeHeight * blade.HeightScale)
-				local finalCF = baseCF * CFrame.new(0, halfHeight - sinkOffset, 0)
-
-				count = count + 1
-				bulkParts[count] = blade.Part
-				bulkCFrames[count] = finalCF
-				continue
-			end
-
-			dist = math.sqrt(distSq)
-			if dist > config.FadeStart then
-				fade = clamp((dist - config.FadeStart) / fadeRange, 0, 1)
-			end
-
-			local swayX = pos.X + blade.Phase
-			local swayZ = pos.Z + blade.Phase
-
-			-- Optimized wind math using Trig instead of math.noise
-			local n = math.sin(swayX * config.WindNoiseScale + t * config.WindNoiseTime) * 
-			          math.cos(swayZ * config.WindNoiseScale + t * config.WindNoiseTime * 0.8)
-			local gust = math.sin(swayX * 0.02 + t * config.WindGustFreq)
-			
-			local totalWind = (n * 0.8 + gust * 0.4) * self._windStrength
-			local windTilt = math.rad(totalWind)
-
-			local interactRot = CFrame.new()
-
-			if distSq < interactRadiusSq then
-				local safeDist = dist
-				if safeDist < 0.1 then safeDist = 0.1 end
-
-				local pushFactor = (1 - (safeDist / config.InteractionRadius)) * config.InteractionStrength
-				pushFactor = math.pow(pushFactor, 2.0)
-
-				local dirX = dx / safeDist
-				local dirZ = dz / safeDist
-
-				local pushAxis = Vector3.new(-dirZ, 0, dirX)
-				if pushAxis.Magnitude > 0.001 then
-					interactRot = CFrame.fromAxisAngle(pushAxis.Unit, -pushFactor)
-				end
-			end
-
-			local halfHeight = (config.BladeHeight * blade.HeightScale * 0.5)
-			local sinkOffset = fade * (config.BladeHeight * blade.HeightScale)
-
-			local combinedRot = interactRot * CFrame.fromAxisAngle(windAxis, windTilt)
-			local finalCF = baseCF * combinedRot * CFrame.new(0, halfHeight - sinkOffset, 0)
-
-			count = count + 1
-			bulkParts[count] = blade.Part
-			bulkCFrames[count] = finalCF
-		end
-	end
-
-	if count > 0 then
-		Workspace:BulkMoveTo(bulkParts, bulkCFrames, Enum.BulkMoveMode.FireCFrameChanged)
 	end
 end
 
@@ -397,7 +318,6 @@ end
 
 function GrassGrid:Start(player: Player)
 	self._targetPlayer = player
-
 	self:_pickNewWindTarget()
 
 	self._connection = RunService.Heartbeat:Connect(function(dt)
