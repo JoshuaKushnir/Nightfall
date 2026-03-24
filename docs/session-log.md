@@ -1,3 +1,14 @@
+## Session NF-098: Batch Hitbox Checks for Training Dummies & PvE (Issue #196)
+
+### What Was Built
+- **Dummy Batch Queries**: Added `GetDummiesInRadius` to `DummyService` to efficiently retrieve active dummies in range without spatial queries.
+- **Hitbox Radius Queries**: Added `GetTargetsInRadius` to `HitboxService` to perform clean overlap spatial queries returning all players, dummy models, and hollowed targets in an area.
+- **Batch Damage Support**: Added `ApplyDamageBatch` to `DummyService` allowing multiple dummies to be damaged in a single pass.
+
+### Technical Debt / Pending Tasks
+- Ensure AoE attacks make efficient use of `GetTargetsInRadius` and `ApplyDamageBatch` where applicable to reduce overhead.
+
+
 ## Session NF-097: Hitbox Lifetime & Size Tuning (Issue #195)
 
 ### What Was Built
