@@ -371,6 +371,51 @@ function HitboxService.TestHitbox(hitbox: Hitbox): number
 end
 
 --[[
+	Get all valid targets within a radius
+	@param position Center of the sphere
+	@param radius Radius of the sphere
+	@param excludeInstances Optional array of instances to exclude
+	@return Array of hit targets (Players, Dummy IDs, Hollowed IDs)
+]]
+function HitboxService.GetTargetsInRadius(position: Vector3, radius: number, excludeInstances: {Instance}?): {any}
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	if excludeInstances then
+		params.FilterDescendantsInstances = excludeInstances
+	end
+
+	local results = workspace:GetPartBoundsInRadius(position, radius, params)
+	local hitTargets = {}
+	local processedModels = {}
+
+	for _, part in ipairs(results) do
+		local model = part:FindFirstAncestorOfClass("Model")
+		if not model or processedModels[model] then continue end
+
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if not humanoid then continue end
+
+		local target: any = nil
+		local player = Players:GetPlayerFromCharacter(model)
+
+		if player then
+			target = player
+		elseif model.Name:match("^Dummy_") then
+			target = model.Name:match("^Dummy_(.*)")
+		elseif model.Name:match("^Hollowed_") then
+			target = model.Name
+		end
+
+		if target then
+			processedModels[model] = true
+			table.insert(hitTargets, target)
+		end
+	end
+
+	return hitTargets
+end
+
+--[[
 	Remove a hitbox
 	@param hitbox The hitbox to remove
 ]]

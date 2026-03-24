@@ -571,6 +571,20 @@ function DummyService.ApplyDamage(dummyId: string, damage: number, attackerPosit
 end
 
 --[[
+Apply damage to multiple dummies at once.
+@param damageMap Table mapping dummyId to damage amount.
+@param attackerPosition Optional world position of the attacker for knockback direction.
+@return Table mapping dummyId to a boolean indicating if they are still alive.
+]]
+function DummyService.ApplyDamageBatch(damageMap: {[string]: number}, attackerPosition: Vector3?): {[string]: boolean}
+    local results = {}
+    for dummyId, damage in pairs(damageMap) do
+        results[dummyId] = DummyService.ApplyDamage(dummyId, damage, attackerPosition)
+    end
+    return results
+end
+
+--[[
 Return data for a dummy by ID.
 ]]
 function DummyService.GetDummyData(dummyId: string): DummyData?
@@ -585,6 +599,19 @@ function DummyService.GetAllDummyData(): {[string]: DummyData}
         copy[k] = v
     end
     return copy
+end
+
+--[[
+Return all active dummy datasets within a radius of a position.
+]]
+function DummyService.GetDummiesInRadius(position: Vector3, radius: number): {DummyData}
+    local out = {}
+    for _, d in pairs(ActiveDummies) do
+        if d.IsActive and (d.Position - position).Magnitude <= radius then
+            table.insert(out, d)
+        end
+    end
+    return out
 end
 
 --[[
