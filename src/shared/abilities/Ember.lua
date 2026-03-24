@@ -25,6 +25,15 @@ local function GetService(name)
 		else
 			_services[name] = false
 		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local result = require(game:GetService("ServerScriptService").Server.services.TickManager)
+			local success = true
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+
 	elseif name == "DummyService" then
 		if RunService:IsServer() then
 			local result = require(game:GetService("ServerScriptService").Server.services.DummyService)
@@ -126,25 +135,30 @@ local function _applyHeatStack(
         char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
         _VFX_BurningStatus(char)
 
-        task.spawn(function()
-            while char and char.Parent do
-                task.wait(1)
+        local TM = GetService("TickManager")
+        if TM then
+            local effectId = "Burning_" .. tostring(char:GetDebugId())
+            TM.RegisterEffect(effectId, 1, function()
+                if not char or not char.Parent then
+                    TM.DeregisterEffect(effectId)
+                    return
+                end
                 local expiry = char:GetAttribute("BurningExpiry") :: number?
-                if not expiry or tick() >= expiry then break end
+                if not expiry or tick() >= expiry then
+                    char:SetAttribute("StatusBurning", nil)
+                    char:SetAttribute("BurningExpiry", nil)
+                    TM.DeregisterEffect(effectId)
+                    return
+                end
+                
                 if tPlayer then
                     if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
                 elseif dummyId then
-                    local ok3, DS = pcall(function()
-                        return GetService("DummyService")
-                    end)
+                    local ok3, DS = pcall(function() return GetService("DummyService") end)
                     if ok3 and DS then DS.ApplyDamage(dummyId, BURNING_HP_PER_SEC, nil) end
                 end
-            end
-            if char and char.Parent then
-                char:SetAttribute("StatusBurning", nil)
-                char:SetAttribute("BurningExpiry", nil)
-            end
-        end)
+            end)
+        end
     end
 
     print(("[Ignite] %s â† %d stack(s) â†’ %d total (+%dHP)"):format(
@@ -817,21 +831,20 @@ Ember.Moves[5] = {
             return false
         end
 
-        -- Drive via task.delay steps (simple polling every 0.1s)
-        local function _runField()
+        local TM = GetService("TickManager")
+        if TM then
+            local effectId = "CinderField_" .. tostring(tick()) .. "_" .. tostring(casterId)
             local start = tick()
-            while tick() - start < CINDER_FIELD_DURATION do
-                local dt = 0.1
-                local done = _tick(dt)
-                if done then break end
-                task.wait(dt)
-            end
-            if zonePart and zonePart.Parent then
-                _VFX_CinderField_Expire(fieldCenter)
-                zonePart:Destroy()
-            end
+            TM.RegisterEffect(effectId, 0.1, function()
+                if tick() - start >= CINDER_FIELD_DURATION or _tick(0.1) then
+                    TM.DeregisterEffect(effectId)
+                    if zonePart and zonePart.Parent then
+                        _VFX_CinderField_Expire(fieldCenter)
+                        zonePart:Destroy()
+                    end
+                end
+            end)
         end
-        task.spawn(_runField)
     end,
 
     ClientActivate = function(targetPosition: Vector3?)

@@ -5,7 +5,7 @@
                  Handlers are registered by `kind` string at startup (EffectHandlers.lua).
                  Every Run() call fires BeforeEffect → handler → AfterEffect hooks through
                  PassiveSystem, so passives can intercept and modify any effect.
-    Issue: #170
+    Issue: #170, #191
     Dependencies: (PassiveSystem injected at runtime to break circular require)
     Usage:
         -- In EffectHandlers.lua (startup):
