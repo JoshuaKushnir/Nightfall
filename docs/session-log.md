@@ -1,3 +1,13 @@
+## Session NF-093: Performance Optimization (Movement State Caching)
+
+### What Was Built
+- **Movement Config Caching**: Optimized `MovementController` and state modules to cache references to configs, `HumanoidRootPart`, `Humanoid` to prevent querying values repeatedly per frame.
+- **Context Reuse**: Changed `MovementController._buildCtx` to reuse a single cached context table rather than allocating a new table object every frame, reducing memory allocation pressure (GC pressure).
+
+### Technical Debt / Pending Tasks
+- Next up is Issue #194: Module Initialization & Require Order Audit.
+
+
 ## Session NF-092: GrassGrid Performance & Cutoff Fixes
 
 ### What Was Built
