@@ -842,17 +842,17 @@ Ember.Moves[5] = {
                 local dt = 0.1
                 local done = _tick(dt)
 
+                -- #190 Write back cached damage at the end of tick
+                for charObj, dmg in incomingDamageCache do
+                    if charObj and charObj.Parent then
+                        charObj:SetAttribute("IncomingHPDamage", dmg)
+                    end
+                end
+                table.clear(incomingDamageCache)
+
                 if done then break end
                 task.wait(dt)
             end
-
-            -- #190 Write back cached damage at the end of duration
-            for charObj, dmg in incomingDamageCache do
-                if charObj and charObj.Parent then
-                    charObj:SetAttribute("IncomingHPDamage", dmg)
-                end
-            end
-            table.clear(incomingDamageCache)
 
             if zonePart and zonePart.Parent then
                 _VFX_CinderField_Expire(fieldCenter)
