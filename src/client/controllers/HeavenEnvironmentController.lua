@@ -17,17 +17,17 @@ local HeavenEnvironmentController = {}
 
 -- Constants
 local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
-	YOffset = 10000,
-	BladeHeight = 1.6,
+	YOffset = 9999,
+	BladeHeight = 2.1,
 	BladeWidth = 0.35,
 	BladeDepth = 0.20,
 	BladeSegments = 3,
 	BladesPerClump = 3,
 	CurveStrength = 0.15,
 
-	CellSize = 18.0,
-	BladesPerCell = 15,      -- optimized with clumps
-	DrawDistance = 180,
+	CellSize = 24,
+	BladesPerCell = 300,      -- optimized with clumps
+	DrawDistance = 300,
 	AnimationDist = 120,
     FadeStart = 140,
 

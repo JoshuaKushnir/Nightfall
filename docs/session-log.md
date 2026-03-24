@@ -1,3 +1,15 @@
+## Session NF-106: Refactor Modular Enemy System (Behavior Tree & Data-Driven Movesets) (Issue #223)
+
+### What Was Built
+- **Replaced HollowedService**: Replaced the hard-coded `HollowedService.lua` with a new `ModularEnemyService.lua` using a Behavior Tree and data-driven approach.
+- **Created EnemyTypes**: Extracted modular `EnemyData`, `EnemyStats`, `EnemyAttack`, and `EnemyMoveset` into `src/shared/types/EnemyTypes.lua`. Deleted old `HollowedTypes.lua`.
+- **Dynamic Movesets**: Created `src/server/modules/movesets/` directory and decoupled moveset configuration from enemy core logic (`basic_hollowed.lua`).
+- **Dependencies & Spawning Update**: Refactored `CombatService`, `WitnessService`, and `init.lua` to properly initialize and consume `ModularEnemyService` instead of `HollowedService`.
+
+### Technical Debt / Pending Tasks
+- Port over more movesets for the rest of the hollowed enemies.
+- Expand Behavior Tree nodes for different tactics (feints, optimal spacing, block reading).
+- Enhance `LoadModel` in `ModularEnemyService` to pull actual pre-built rigs from `ReplicatedStorage.Models` instead of generating a fallback part.
 ## Session NF-105: Ability Activation Networking Consolidation (Issue #209)
 
 ### What Was Built

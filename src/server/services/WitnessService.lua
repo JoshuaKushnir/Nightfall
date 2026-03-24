@@ -2,7 +2,7 @@
 --[[
 	Class: WitnessService
 	Description: Server-authoritative observation tracking for Codex entries (#179)
-	Dependencies: StateService, HollowedService, NetworkProvider
+	Dependencies: StateService, ModularEnemyService, NetworkProvider
 
 	Usage:
 		Track players observing entities (like Hollowed variants) and award
@@ -16,7 +16,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
 
-local HollowedService = nil
+local ModularEnemyService = nil
 
 local WitnessService = {}
 WitnessService._initialized = false
@@ -37,18 +37,18 @@ local _heartbeatConn: RBXScriptConnection? = nil
 
 function WitnessService:Init(dependencies: {[string]: any}?)
 	if dependencies then
-		HollowedService = dependencies.HollowedService
+		ModularEnemyService = dependencies.ModularEnemyService
 	end
 	WitnessService._initialized = true
 end
 
 -- Safely get hollowed service
-local function GetHollowedService(): any?
-	if not HollowedService then
-		local svc = require(game:GetService("ServerScriptService").Server.services.HollowedService); local ok = true
-		if ok then HollowedService = svc end
+local function GetModularEnemyService(): any?
+	if not ModularEnemyService then
+		local svc = require(game:GetService("ServerScriptService").Server.services.ModularEnemyService); local ok = true
+		if ok then ModularEnemyService = svc end
 	end
-	return HollowedService
+	return ModularEnemyService
 end
 
 -- Resets the observation progress for a player
@@ -60,7 +60,7 @@ end
 
 -- Evaluate witnessing for all players
 local function _TickWitnessing(dt: number)
-	local hollowedSvc = GetHollowedService()
+	local hollowedSvc = GetModularEnemyService()
 	if not hollowedSvc then return end
 
 	local now = tick()

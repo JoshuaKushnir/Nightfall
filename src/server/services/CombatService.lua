@@ -25,7 +25,7 @@ local AbilitySystem: any = nil
 local WeaponService: any = nil
 local PostureService: any = nil
 local ProgressionService: any = nil
-local HollowedService: any = nil
+local ModularEnemyService: any = nil
 local StateSyncService: any = nil
 local WeaponRegistry = require(ReplicatedStorage.Shared.modules.WeaponRegistry)
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
@@ -115,7 +115,7 @@ function CombatService:Start()
 	WeaponService     = require(script.Parent.WeaponService)
 	PostureService    = require(script.Parent.PostureService)
 	ProgressionService = require(script.Parent.ProgressionService)
-	HollowedService   = require(script.Parent.HollowedService)
+	ModularEnemyService   = require(script.Parent.ModularEnemyService)
 	StateSyncService  = require(script.Parent.StateSyncService)
 
 	Players.PlayerAdded:Connect(function(player)
@@ -160,8 +160,8 @@ function CombatService:Start()
 				end
 			end
 		end
-		if HollowedService and HollowedService.GetAllInstances then
-			for id, _ in HollowedService.GetAllInstances() do
+		if ModularEnemyService and ModularEnemyService.GetAllInstances then
+			for id, _ in ModularEnemyService.GetAllInstances() do
 				local model = workspace:FindFirstChild(id)
 				if model then
 					CombatService._ProcessDamageAttributes(model, id)
@@ -262,8 +262,8 @@ function CombatService._ProcessDamageAttributes(character: Model, targetName: st
 					hitEvent:FireAllClients(nil, targetName, hpVal, false, true)
 				end
 			end
-		elseif HollowedService and HollowedService.GetInstanceData(targetName) then
-			HollowedService.ApplyDamage(targetName, hpVal, attacker, postVal)
+		elseif ModularEnemyService and ModularEnemyService.GetInstanceData(targetName) then
+			ModularEnemyService.ApplyDamage(targetName, hpVal, attacker, postVal)
 			if hpVal > 0 then
 				local hitEvent = NetworkProvider:GetRemoteEvent(CONFIRM_HIT_EVENT_NAME)
 				if hitEvent then
@@ -346,7 +346,7 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		-- Target is a training dummy
 		targetDummy = DummyService.GetDummyData(targetName)
 		isDummy = true
-	elseif HollowedService and HollowedService.GetInstanceData(targetName) then
+	elseif ModularEnemyService and ModularEnemyService.GetInstanceData(targetName) then
 		-- Target is a Hollowed enemy NPC
 		isHollowed = true
 	else
@@ -366,8 +366,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 		targetData = targetDummy
 	elseif isHollowed then
 		-- Hollowed instances do not use the PlayerData struct;
-		-- damage is dispatched via HollowedService.ApplyDamage below.
-		targetData = HollowedService.GetInstanceData(targetName)
+		-- damage is dispatched via ModularEnemyService.ApplyDamage below.
+		targetData = ModularEnemyService.GetInstanceData(targetName)
 	else
 		targetData = StateService:GetPlayerData(targetPlayer)
 		if not targetData then
@@ -499,8 +499,8 @@ function CombatService.ValidateHit(attacker: Player?, hitData: {[string]: any}?)
 				print(`[CombatService] ✓ Hit confirmed: {attacker.Name} → Dummy {targetName} ({finalDamage} damage)`)
 			end
 		elseif isHollowed then
-			-- Dispatch to HollowedService; it handles health, death, and Resonance grant.
-			local stillAlive = HollowedService.ApplyDamage(targetName, finalDamage, attacker, hitData.PostureDamage)
+			-- Dispatch to ModularEnemyService; it handles health, death, and Resonance grant.
+			local stillAlive = ModularEnemyService.ApplyDamage(targetName, finalDamage, attacker, hitData.PostureDamage)
 			if not stillAlive then
 				print(`[CombatService] ☠️ Hollowed defeated! ({finalDamage} damage)`)
 			else
