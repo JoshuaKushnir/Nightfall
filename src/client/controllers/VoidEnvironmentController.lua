@@ -4,6 +4,10 @@
 -- Dependencies: GrassGrid, GrassTypes
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local CollectionService = game:GetService("CollectionService")
+
 local GrassTypes = require(ReplicatedStorage.Shared.types.GrassTypes)
 local GrassGrid = require(script.Parent.Parent.modules.environment.GrassGrid)
 
@@ -38,12 +42,38 @@ local VOID_GRASS_CONFIG: GrassTypes.GrassConfig = {
 local VoidEnvironmentController = {}
 
 local _grassGrid = GrassGrid.new(VOID_GRASS_CONFIG)
+local _connection: RBXScriptConnection?
 
 function VoidEnvironmentController:Start(player: Player)
 	_grassGrid:Start(player)
+
+	_connection = RunService.Heartbeat:Connect(function()
+		local cam = Workspace.CurrentCamera
+		if cam then
+			local camPos = cam.CFrame.Position
+			for _, emitter in ipairs(CollectionService:GetTagged("AmbientEmitter")) do
+				if emitter:IsA("ParticleEmitter") and emitter.Parent then
+					local pos
+					if emitter.Parent:IsA("BasePart") then
+						pos = emitter.Parent.Position
+					elseif emitter.Parent:IsA("Attachment") then
+						pos = emitter.Parent.WorldPosition
+					end
+					if pos then
+						local dist = (camPos - pos).Magnitude
+						emitter.Enabled = (dist <= 100)
+					end
+				end
+			end
+		end
+	end)
 end
 
 function VoidEnvironmentController:Stop()
+	if _connection then
+		_connection:Disconnect()
+		_connection = nil
+	end
 	_grassGrid:Stop()
 end
 
