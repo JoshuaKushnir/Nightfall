@@ -56,7 +56,7 @@ local function sendStatToClient(player: Player)
 		return
 	end
 
-	local state = StateService.GetState(player)
+	local state = StateService:GetState(player)
 	if not state then
 		warn("[StateSyncService] No state found for player:", player.Name)
 		return
@@ -215,7 +215,7 @@ function StateSyncService:Start()
 	NetworkService:RegisterHandler("RequestStateSync", onRequestStateSync)
 
 	-- Connect to StateService signals
-	local stateChangedSignal = StateService.GetStateChangedSignal()
+	local stateChangedSignal = StateService:GetStateChangedSignal()
 	stateChangedSignal:Connect(onStateChanged)
 
 	-- Connect to player events
