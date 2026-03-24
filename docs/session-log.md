@@ -1,3 +1,13 @@
+## Session NF-099: Posture Caching & Network Batching (Issue #198)
+
+### What Was Built
+- **Config Caching**: Added caching for `BaseRegen`, `BlockMultiplier`, and `StaggerDuration` in `PostureService.lua`'s `PostureState`. This eliminates repeated `DisciplineConfig.Get(id)` lookups within inner heartbeat loops.
+- **Network Sync Batching**: Added rate-limiting to `PostureService` network and attribute updates inside the per-frame `Update(dt)` function. Updates for passive regen and stress decay are now batched out every 0.2 seconds (`NextNetworkSync`), reducing redundant client RemoteEvents while keeping visual responsiveness.
+- **Instant Combat Feedback**: Hard hits, drains, parries, and posture breaks retain immediate network syncing (`_forceSync`) so players receive immediate HUD and attribute updates during active combat logic.
+
+### Technical Debt / Pending Tasks
+- Ensure `StateSyncService` and `MovementController` properly sync stamina/mana configurations as further disciplines and agility progression loops are expanded.
+
 ## Session NF-098: Batch Hitbox Checks for Training Dummies & PvE (Issue #196)
 
 ### What Was Built
