@@ -266,7 +266,7 @@ Tide.Moves[1] = {
                 Radius = CURRENT_RADIUS,
                 Size = Vector3.new(0, CURRENT_RANGE, 0), -- Y is used for height
                 Damage = CURRENT_POSTURE_DMG,
-                LifeTime = 0.5,
+                LifeTime = 0.2,
                 CanHitTwice = false,
                 OnHit = function(target: any)
                     local tPlayer = typeof(target) == "Instance" and target:IsA("Player") and target or nil

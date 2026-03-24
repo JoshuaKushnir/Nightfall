@@ -315,7 +315,7 @@ Ember.Moves[1] = {
                     Position = destination,
                     Size = Vector3.new(IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS),
                     Damage = 0,
-                    LifeTime = 0.5,
+                    LifeTime = 0.2,
                     CanHitTwice = false,
                     OnHit = function(hitTarget: any)
                         local tPlayer: Player? = nil
@@ -438,7 +438,7 @@ Ember.Moves[2] = {
                 Position = origin,
                 Size = Vector3.new(radius, radius, radius),
                 Damage = 0,
-                LifeTime = 0.5,
+                LifeTime = 0.2,
                 CanHitTwice = false,
                 OnHit = function(hitTarget: any)
                     local tChar

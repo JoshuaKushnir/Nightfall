@@ -259,7 +259,7 @@ Gale.Moves[1] = {
                     Position = dest,
                     Size = Vector3.new(WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS),
                     Damage = 0,
-                    LifeTime = 0.5,
+                    LifeTime = 0.2,
                     CanHitTwice = false,
                     OnHit = function(hitTarget: any)
                         local tChar
@@ -406,7 +406,7 @@ Gale.Moves[2] = {
                 Position = origin,
                 Radius = CROSSWIND_HIT_RADIUS,
                 Damage = 0,
-                LifeTime = 0.5,
+                LifeTime = 0.2,
                 CanHitTwice = false,
                 OnHit = function(hitTarget: any)
                     local tChar
@@ -756,7 +756,7 @@ Gale.Moves[5] = {
                 Length = SHEAR_RANGE,
                 Angle = 85, -- Wide arc
                 Damage = 0,
-                LifeTime = 0.5,
+                LifeTime = 0.2,
                 CanHitTwice = false,
                 OnHit = function(hitTarget: any)
                     local tChar
