@@ -1,3 +1,15 @@
+## Session NF-094: Service Require Refactoring (Issue #189)
+
+### What Was Built
+- **Eliminated Per-Hit Requires**: Modified the `GetService()` function in all ability modules (`src/shared/abilities/*.lua`) to resolve their dependencies correctly without relying on `pcall(function() return require(...) end)` per ability execution. 
+- **Fixed Incorrect Module Paths**: Fixed paths for `CombatService`, `PostureService`, and `DummyService` inside ability modules that previously pointed to outdated non-existent directories.
+- **AbilitySystem Optimization**: Promoted `PassiveSystem` to be cached efficiently in `AbilitySystem.lua` instead of per-effect/per-frame instantiation.
+- **Removed Pcall from Critical Services**: Removed unnecessary `pcall` wrapped require logic from `HollowedService`, `WitnessService`, `ZoneService`, and deleted dead code in `PostureService`.
+
+### Technical Debt / Pending Tasks
+- Ensure all other services use optimal lazy-loading mechanisms.
+- Move towards tackling #190: Attribute Caching in tight loops.
+
 ## Session NF-093: Performance Optimization (Movement State Caching)
 
 ### What Was Built
