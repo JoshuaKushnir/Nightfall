@@ -9,6 +9,10 @@ export type GrassConfig = {
     BladeWidth: number,
     BladeDepth: number,
     BladeSegments: number,
+    BladesPerClump: number?,
+    CurveStrength: number?,
+    RootColor: Color3?,
+    TipColor: Color3?,
 
     CellSize: number,
     DrawDistance: number,

@@ -17,12 +17,17 @@ type BladeInfo = {
 	BaseCFrame: CFrame,
 	Phase: number,
 	HeightScale: number,
+	PushTime: number?,
+	PushDir: Vector3?,
+	WindWaveOffset: number,
+	WindGustOffset: number,
 }
 
 type Cell = {
 	Blades: { BladeInfo },
 	X: number,
 	Z: number,
+	LastUpdate: number?,
 }
 
 local GrassGrid = {}
@@ -225,12 +230,15 @@ function GrassGrid:_createCell(cx: number, cz: number): Cell
 		local halfHeight = (config.BladeHeight * hScale * 0.5)
 		part.CFrame = baseCF * CFrame.new(0, halfHeight, 0)
 		part.Transparency = 0
+		local phase = rng:NextNumber(0, 100)
 
 		table.insert(cellInfo.Blades, {
 			Part = part,
 			BaseCFrame = baseCF,
-			Phase = rng:NextNumber(0, 100),
+			Phase = phase,
 			HeightScale = hScale,
+			WindWaveOffset = x * 0.1 + z * 0.1 + phase * 0.1,
+			WindGustOffset = x * 0.05 + z * 0.05,
 		})
 	end
 
@@ -278,9 +286,27 @@ function GrassGrid:_updateGrid(playerPos: Vector3)
 		if not needed[k] then self:_removeCell(k) end
 	end
 
+	local cellsToCreate = {}
 	for k, pos in pairs(needed) do
 		if not self._activeCells[k] then
-			self._activeCells[k] = self:_createCell(pos.x, pos.z)
+			table.insert(cellsToCreate, {k = k, x = pos.x, z = pos.z})
+		end
+	end
+
+	-- Sort by distance to spawn closest cells first (avoids progressive popping out of order)
+	table.sort(cellsToCreate, function(a, b)
+		local distA = (a.x - cx)^2 + (a.z - cz)^2
+		local distB = (b.x - cx)^2 + (b.z - cz)^2
+		return distA < distB
+	end)
+
+	-- Throttle cell creation (max 8 per frame to avoid lag spikes)
+	local createdCount = 0
+	for _, c in ipairs(cellsToCreate) do
+		self._activeCells[c.k] = self:_createCell(c.x, c.z)
+		createdCount = createdCount + 1
+		if createdCount >= 8 then
+			break
 		end
 	end
 end
@@ -299,15 +325,88 @@ function GrassGrid:_updateWind(dt: number)
 end
 
 function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
-	local windDir = Vector3.new(math.cos(self._windAngle), 0, math.sin(self._windAngle))
+	local baseWindDir = Vector3.new(math.cos(self._windAngle), 0, math.sin(self._windAngle))
+	local timeSec = self._clock
+	local config = self.Config
+
+	local camera = Workspace.CurrentCamera
+	local camPos = camera and camera.CFrame.Position or playerPos
+	local camLook = camera and camera.CFrame.LookVector or Vector3.new(0,0,-1)
+
+	-- Precomputed constants to reduce per-blade math
+	local windStrengthScaled = self._windStrength * 0.1
+	local t2 = timeSec * 2
+	local t3 = timeSec * 3
+	local halfBladeHeight = config.BladeHeight * 0.5
+	local px, pz = playerPos.X, playerPos.Z
 
 	for _, cell in pairs(self._activeCells) do
-		for _, bInfo in ipairs(cell.Blades) do
-			local wave = math.sin(self._clock * 2 + bInfo.Phase) * 0.1 * self._windStrength * 0.1
-			local offset = windDir * wave
-			local rotOffset = CFrame.Angles(wave, 0, 0)
+		-- LOD Throttling: Update distant cells less frequently
+		local cellCenter = Vector3.new(cell.X * config.CellSize, playerPos.Y, cell.Z * config.CellSize)
+		local distToCam = (cellCenter - camPos).Magnitude
 
-			bInfo.Part.CFrame = bInfo.BaseCFrame * CFrame.new(0, bInfo.HeightScale * self.Config.BladeHeight * 0.5, 0) * rotOffset + offset
+		if not cell.LastUpdate then cell.LastUpdate = 0 end
+		local updateRate = 0
+		if distToCam > config.DrawDistance * 0.6 then
+			updateRate = 1 / 10 -- 10 FPS for distant
+		elseif distToCam > config.DrawDistance * 0.3 then
+			updateRate = 1 / 20 -- 20 FPS for mid
+		end
+
+		if timeSec - cell.LastUpdate < updateRate then
+			continue
+		end
+		cell.LastUpdate = timeSec
+
+		-- Frustum Culling (Conservative)
+		local toCell = (cellCenter - camPos).Unit
+		if distToCam > config.CellSize * 1.5 and camLook:Dot(toCell) < -0.2 then
+			continue
+		end
+
+		for _, bInfo in ipairs(cell.Blades) do
+			-- BOTW Wind (world-space rolling waves + gusts)
+			local windWave = math.sin(bInfo.WindWaveOffset + t2)
+			local windGust = math.max(0, math.sin(bInfo.WindGustOffset - t3))
+			local sway = (windWave * 0.05 + windGust * 0.15) * windStrengthScaled
+
+			-- Player Interaction (Persistent Push Memory)
+			local bx, bz = bInfo.BaseCFrame.X, bInfo.BaseCFrame.Z
+			local dx, dz = px - bx, pz - bz
+			local distToPlayerSq = dx * dx + dz * dz
+
+			if not bInfo.PushTime then bInfo.PushTime = 0 end
+			if not bInfo.PushDir then bInfo.PushDir = baseWindDir end
+
+			local pushSway = 0
+			local squash = 0
+			local currentWindDir = baseWindDir
+
+			if distToPlayerSq < 9.0 then
+				bInfo.PushTime = timeSec
+				if distToPlayerSq > 0.01 then
+					local distToPlayer = math.sqrt(distToPlayerSq)
+					bInfo.PushDir = Vector3.new(-dx / distToPlayer, 0, -dz / distToPlayer)
+				end
+			end
+
+			local timeSincePush = timeSec - bInfo.PushTime
+			if timeSincePush < 1.0 then
+				local pushIntensity = 1.0 - timeSincePush
+				-- Exponential ease out for natural spring back
+				pushIntensity = pushIntensity * pushIntensity
+				pushSway = pushIntensity * 0.8
+				squash = pushIntensity * 0.4
+				currentWindDir = baseWindDir:Lerp(bInfo.PushDir, pushIntensity).Unit
+			end
+
+			local finalSway = sway + pushSway
+			local offset = currentWindDir * (finalSway * config.BladeHeight)
+			local rotOffset = CFrame.Angles(finalSway, 0, 0)
+
+			-- Height squash for step-on effect
+			local hScale = bInfo.HeightScale * (1.0 - squash)
+			bInfo.Part.CFrame = bInfo.BaseCFrame * CFrame.new(0, hScale * halfBladeHeight, 0) * rotOffset + offset
 		end
 	end
 end

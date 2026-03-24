@@ -22,14 +22,14 @@ local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	BladeWidth = 0.35,
 	BladeDepth = 0.20,
 	BladeSegments = 3,
+	BladesPerClump = 3,
+	CurveStrength = 0.15,
 
-	CellSize = 16.0,
-	DrawDistance = 220,
-	AnimationDist = 140,
-	FadeStart = 160,
-	BladesPerCell = 80,
-	InteractionRadius = 5.0,
-	InteractionStrength = 1.8,
+	CellSize = 18.0,
+	BladesPerCell = 15,      -- optimized with clumps
+	DrawDistance = 180,
+	AnimationDist = 120,
+    FadeStart = 140,
 
 	WindChangeInterval = 5.0,
 	WindStrengthMin = 6.0,
