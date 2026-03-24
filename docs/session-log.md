@@ -1,3 +1,13 @@
+## Session NF-101: Event-Level Snapshot Architecture (Issue #206)
+
+### What Was Built
+- **Fixed Snapshot Sending Rate**: Refactored `StateSyncService` to queue state and combat updates and flush them to clients via a `StateSnapshot` packet at a fixed 20Hz rate (using `RunService.Heartbeat`).
+- **Combined Updates**: Added a unified `StateSnapshotPacket` type to `NetworkTypes` that coalesces PlayerState, Health, Mana, Posture, and Level changes into a single network broadcast per tick per player.
+- **Client Refactoring**: Refactored `StateSyncController` to subscribe to `StateSnapshot` events instead of discrete State and Combat updates, rebuilding the local state and firing the respective reactive signals smoothly.
+
+### Technical Debt / Pending Tasks
+- Ensure future additions to player combat state are added to the `StateSnapshotPacket` instead of new unique events where possible.
+
 ## Session NF-100: Distance-Based Ambient Effect Culling (Issue #202)
 
 ### What Was Built
