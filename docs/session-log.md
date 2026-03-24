@@ -1,3 +1,14 @@
+## Session NF-100: Distance-Based Ambient Effect Culling (Issue #202)
+
+### What Was Built
+- **Distance Culling for Ambient Effects**: Added Heartbeat-driven culling logic to both `HeavenEnvironmentController` and `VoidEnvironmentController`.
+- **CollectionService Tagging**: Emitters tagged with `AmbientEmitter` are automatically processed.
+- **Attachment Support**: Logic calculates world position from either BasePart parents or Attachment ancestors to accurately gauge distance to the player's camera.
+- **Performance Win**: Distant `ParticleEmitter`s (>100 studs) are automatically set to `Enabled = false`, reducing overdraw and GPU overhead.
+
+### Technical Debt / Pending Tasks
+- Ensure future map builders tag environment emitters with `AmbientEmitter`.
+
 ## Session NF-099: Posture Caching & Network Batching (Issue #198)
 
 ### What Was Built
@@ -3771,41 +3782,41 @@ Client Layer:
   - Robustified isOnGround in MovementController.lua to recognize Landed/Running states as grounded.
   - Cleaned up ClimbState and VaultState Exit functions to include physics neutralization.
 - **Blockers:** None.
-# #   S e s s i o n   N F - 0 4 2 :   I s s u e   B o a r d   P l a n n i n g   &   A u d i t 
- * * D a t e : * *   2 0 2 6 - 0 2 - 2 5     
- * * T a s k : * *   F u l l   i s s u e   a u d i t   a n d   c r e a t i o n      n o   c o d e   w r i t t e n 
- 
- # # #   S u m m a r y 
- -   A u d i t e d   o p e n / c l o s e d   i s s u e   b o a r d   a g a i n s t   s e s s i o n   l o g 
- -   C l o s e d   3   s t a l e   P h a s e  3   i s s u e s   ( # 3 1 ,   # 3 2 ,   # 3 3 )   d u e   t o   A s p e c t   s y s t e m   s u p e r s e d i n g   t h e m 
- -   C r e a t e d   2 2   n e w   i s s u e s : 
-     -   E p i c :   C u s t o m   I n v e n t o r y   S y s t e m   ( # 1 1 6 ) 
-     -   6   i n v e n t o r y   s u b  i s s u e s   ( # 1 1 7  # 1 2 2 ) 
-     -   5   E x p r e s s i o n   a b i l i t y   i m p l e m e n t a t i o n   t a s k s   ( # 1 2 3  # 1 2 7 ) 
-     -   D i s c i p l i n e   s e l e c t i o n   a t   c r e a t i o n   ( # 1 2 8 ) 
-     -   3   s p e c   g a p   i s s u e s   f o r   P h a s e � 4   ( # 1 2 9  # 1 3 1 ) 
-     -   3   P h a s e � 4   e q u i p m e n t / s y s t e m   t a s k s   ( # 1 3 2  # 1 3 4 ) 
-     -   3   c r o s s  c u t t i n g   t e c h  d e b t   i s s u e s   ( # 1 3 5  # 1 3 7 ) 
- -   L i n k e d   a l l   n e w   s u b  i s s u e s   t o   p a r e n t   e p i c s   ( # 5 0   f o r   P h a s e � 3 ,   # 5 1   f o r   P h a s e � 4 ,   # 1 1 6   f o r   i n v e n t o r y ) 
- -   A d d e d   b l o c k i n g / d e p e n d e n c y   c o m m e n t s   b e t w e e n   r e l a t e d   i s s u e s 
- -   C r e a t e d   m i s s i n g   l a b e l s :   p h a s e - 1 ,   p h a s e - 3 ,   p h a s e - 4 ,   p h a s e - 5 ,   s p e c - g a p ,   t e c h - d e b t 
- -   C o r r e c t e d   p h a s e   l a b e l i n g   o n   e x i s t i n g   i s s u e s   ( e . g .   # 7 9 ,   # 8 0 ,   # 8 1 ,   # 3 4 ,   # 3 5 ,   # 4 6 ,   # 4 7 ) 
- -   U p d a t e d   P h a s e � 2   i s s u e   l a b e l s   r e m a i n   # 1 0 1   a n d   # 9 8 ;   l e f t   o p e n   a s   a c t i v e   w o r k 
- -   V e r i f i e d   P h a s e � 5   e p i c   a l r e a d y   c o n t a i n e d   s u b - i s s u e s   ( # 3 7  # 4 0 ) 
- 
- # # #   B o a r d   S t a t e   A f t e r   T h i s   S e s s i o n 
- -   P h a s e   1 :   '  C o m p l e t e   ( n o   o p e n   p h a s e - 1   i s s u e s ) 
- -   P h a s e   2 :   '  M o s t l y   c o m p l e t e   ( 2   a c t i v e   r e f a c t o r / a n i m a t i o n   i s s u e s   r e m a i n ) 
- -   P h a s e   3 :     ( n o w   2 2   o p e n   s u b - i s s u e s   u n d e r   e p i c   # 5 0   p l u s   s p e c   g a p s ) 
- -   P h a s e   4 :     ( m u l t i p l e   o p e n   i s s u e s   p r o p e r l y   l a b e l e d ;   7   n e w   s u b - i s s u e s   a d d e d ) 
- -   P h a s e   5 :     4   o p e n   s u b - i s s u e s   u n d e r   e p i c   # 1 8 
- -   S p e c   g a p s   t r a c k e d :   9   i s s u e s   ( # 1 1 1  # 1 1 5 ,   # 1 2 9  # 1 3 1 ) 
- -   T e c h   d e b t   t r a c k e d :   3   i s s u e s   ( # 1 3 5  # 1 3 7 ) 
- 
- # # #   N e x t   W o r k   S e s s i o n   S h o u l d   S t a r t   O n 
- I s s u e   # 1 1 6 :   C u s t o m   I n v e n t o r y   S y s t e m      e n s u r e s   t a s k s   p r e v i o u s l y   c o d e d   a r e   d o c u m e n t e d   a n d   p r e p a r e s   f o r   U I   p o l i s h 
- 
- 
+## Session NF-042: Issue Board Planning & Audit
+**Date:** 2026-02-25  
+**Task:** Full issue audit and creation   no code written
+
+### Summary
+- Audited open/closed issue board against session log
+- Closed 3 stale Phase 3 issues (#31, #32, #33) due to Aspect system superseding them
+- Created 22 new issues:
+  - Epic: Custom Inventory System (#116)
+  - 6 inventory sub issues (#117 #122)
+  - 5 Expression ability implementation tasks (#123 #127)
+  - Discipline selection at creation (#128)
+  - 3 spec gap issues for Phase�4 (#129 #131)
+  - 3 Phase�4 equipment/system tasks (#132 #134)
+  - 3 cross cutting tech debt issues (#135 #137)
+- Linked all new sub issues to parent epics (#50 for Phase�3, #51 for Phase�4, #116 for inventory)
+- Added blocking/dependency comments between related issues
+- Created missing labels: phase-1, phase-3, phase-4, phase-5, spec-gap, tech-debt
+- Corrected phase labeling on existing issues (e.g. #79, #80, #81, #34, #35, #46, #47)
+- Updated Phase�2 issue labels remain #101 and #98; left open as active work
+- Verified Phase�5 epic already contained sub-issues (#37 #40)
+
+### Board State After This Session
+- Phase 1: ' Complete (no open phase-1 issues)
+- Phase 2: ' Mostly complete (2 active refactor/animation issues remain)
+- Phase 3:  (now 22 open sub-issues under epic #50 plus spec gaps)
+- Phase 4:  (multiple open issues properly labeled; 7 new sub-issues added)
+- Phase 5:  4 open sub-issues under epic #18
+- Spec gaps tracked: 9 issues (#111 #115, #129 #131)
+- Tech debt tracked: 3 issues (#135 #137)
+
+### Next Work Session Should Start On
+Issue #116: Custom Inventory System   ensures tasks previously coded are documented and prepares for UI polish
+
+
 ## Session NF-041: Progression System � Ring Soft Caps, Shard Loss, Discipline Selection
 **Date:** 2026-02-24  
 **Issues:** #138 (ProgressionService), #139 (Discipline selection)
@@ -3896,5 +3907,3 @@ Implement custom drag/drop layout or continue refining actual physical Aspect co
 
 ### Next Session Should Start On
 Issue #180: Five Hollowed enemy types with distinct movesets � Flesh out the 5 base combat variants mapped out in the Hollowed configuration for Witnessing.
-
-
