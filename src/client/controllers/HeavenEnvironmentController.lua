@@ -30,8 +30,8 @@ local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	CellSize = 24,
 	BladesPerCell = 600, -- Increased to compensate for Perlin culling
 	DrawDistance = 300,
-	AnimationDist = 120,
-    FadeStart = 140,
+	AnimationDist = 140,
+    FadeStart = 200,
 
 	WindChangeInterval = 5.0,
 	WindStrengthMin = 6.0,

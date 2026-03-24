@@ -21,6 +21,8 @@ type BladeInfo = {
 	PushDir: Vector3?,
 	WindWaveOffset: number,
 	WindGustOffset: number,
+	State: string?,
+	DitherThreshold: number,
 }
 
 type Cell = {
@@ -330,6 +332,7 @@ function GrassGrid:_createCell(cx: number, cz: number): Cell
 			HeightScale = hScale,
 			WindWaveOffset = x * 0.1 + z * 0.1 + phase * 0.1,
 			WindGustOffset = x * 0.05 + z * 0.05,
+			DitherThreshold = rng:NextNumber(),
 		})
 		placedCount = placedCount + 1
 	end
@@ -443,9 +446,11 @@ function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
 
 		if not cell.LastUpdate then cell.LastUpdate = 0 end
 		local updateRate = 0
-		if distToCam > config.DrawDistance * 0.6 then
+		if distToCam > config.DrawDistance * 0.8 then
+			updateRate = 1 / 2 -- 2 FPS for very distant
+		elseif distToCam > config.DrawDistance * 0.5 then
 			updateRate = 1 / 10 -- 10 FPS for distant
-		elseif distToCam > config.DrawDistance * 0.3 then
+		elseif distToCam > config.DrawDistance * 0.25 then
 			updateRate = 1 / 20 -- 20 FPS for mid
 		end
 
@@ -460,49 +465,72 @@ function GrassGrid:_updateBlades(dt: number, playerPos: Vector3)
 			continue
 		end
 
-		for _, bInfo in ipairs(cell.Blades) do
-			-- BOTW Wind (world-space rolling waves + gusts)
-			local windWave = math.sin(bInfo.WindWaveOffset + t2)
-			local windGust = math.max(0, math.sin(bInfo.WindGustOffset - t3))
-			local sway = (windWave * 0.05 + windGust * 0.15) * windStrengthScaled
+		local animateWind = distToCam < config.AnimationDist
+		local fadeRange = math.max(1, config.DrawDistance - config.FadeStart)
+		local cellAlpha = math.clamp((distToCam - config.FadeStart) / fadeRange, 0, 1)
 
-			-- Player Interaction (Persistent Push Memory)
+		for _, bInfo in ipairs(cell.Blades) do
+			if cellAlpha >= 1 then
+				bInfo.Part.Transparency = 1
+				continue
+			end
+
 			local bx, bz = bInfo.BaseCFrame.X, bInfo.BaseCFrame.Z
 			local dx, dz = px - bx, pz - bz
 			local distToPlayerSq = dx * dx + dz * dz
 
-			if not bInfo.PushTime then bInfo.PushTime = 0 end
-			if not bInfo.PushDir then bInfo.PushDir = baseWindDir end
-
+			local sway = 0
+			local currentWindDir = baseWindDir
 			local pushSway = 0
 			local squash = 0
-			local currentWindDir = baseWindDir
 
-			if distToPlayerSq < 9.0 then
-				bInfo.PushTime = timeSec
-				if distToPlayerSq > 0.01 then
-					local distToPlayer = math.sqrt(distToPlayerSq)
-					bInfo.PushDir = Vector3.new(-dx / distToPlayer, 0, -dz / distToPlayer)
+			if animateWind then
+				-- BOTW Wind (world-space rolling waves + gusts)
+				local windWave = math.sin(bInfo.WindWaveOffset + t2)
+				local windGust = math.max(0, math.sin(bInfo.WindGustOffset - t3))
+				sway = (windWave * 0.05 + windGust * 0.15) * windStrengthScaled
+
+				-- Player Interaction (Persistent Push Memory)
+				if not bInfo.PushTime then bInfo.PushTime = 0 end
+				if not bInfo.PushDir then bInfo.PushDir = baseWindDir end
+
+				if distToPlayerSq < 9.0 then
+					bInfo.PushTime = timeSec
+					if distToPlayerSq > 0.01 then
+						local distToPlayer = math.sqrt(distToPlayerSq)
+						bInfo.PushDir = Vector3.new(-dx / distToPlayer, 0, -dz / distToPlayer)
+					end
+				end
+
+				local timeSincePush = timeSec - bInfo.PushTime
+				if timeSincePush < 1.0 then
+					local pushIntensity = 1.0 - timeSincePush
+					-- Exponential ease out for natural spring back
+					pushIntensity = pushIntensity * pushIntensity
+					pushSway = pushIntensity * 0.8
+					squash = pushIntensity * 0.4
+					currentWindDir = baseWindDir:Lerp(bInfo.PushDir, pushIntensity).Unit
 				end
 			end
 
-			local timeSincePush = timeSec - bInfo.PushTime
-			if timeSincePush < 1.0 then
-				local pushIntensity = 1.0 - timeSincePush
-				-- Exponential ease out for natural spring back
-				pushIntensity = pushIntensity * pushIntensity
-				pushSway = pushIntensity * 0.8
-				squash = pushIntensity * 0.4
-				currentWindDir = baseWindDir:Lerp(bInfo.PushDir, pushIntensity).Unit
-			end
-
 			local finalSway = sway + pushSway
-			local offset = currentWindDir * (finalSway * config.BladeHeight)
-			local rotOffset = CFrame.Angles(finalSway, 0, 0)
-
-			-- Height squash for step-on effect
+			local offset = finalSway == 0 and Vector3.zero or currentWindDir * (finalSway * config.BladeHeight)
+			local rotOffset = finalSway == 0 and CFrame.identity or CFrame.Angles(finalSway, 0, 0)
 			local hScale = bInfo.HeightScale * (1.0 - squash)
+
 			bInfo.Part.CFrame = bInfo.BaseCFrame * CFrame.new(0, hScale * halfBladeHeight, 0) * rotOffset + offset
+
+			-- Dithering based on distance and phase
+			if cellAlpha > 0 then
+				local dither = bInfo.DitherThreshold
+				if cellAlpha > dither then
+					bInfo.Part.Transparency = 1
+				else
+					bInfo.Part.Transparency = 0
+				end
+			else
+				bInfo.Part.Transparency = 0
+			end
 		end
 	end
 end
