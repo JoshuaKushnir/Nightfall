@@ -1,3 +1,13 @@
+## Session NF-095: Centralized Tick Loop for Periodic Effects (Issue #191)
+
+### What Was Built
+- **TickManager Service**: Created `src/server/services/TickManager.lua` to centrally handle repeating loop operations without spawning individual tasks per loop.
+- **Ember Ability Adjustments**: Swapped out individual `task.spawn` loops in `src/shared/abilities/Ember.lua` for both the Burning effect and the Cinder Field behavior, registering them to the `TickManager` instead.
+- **EffectRunner Notes**: Added issue reference for integration and future-proofing.
+
+### Technical Debt / Pending Tasks
+- Ensure other effects and logic relying on individual background loops or polling are migrated to the `TickManager` service.
+
 ## Session NF-094: Service Require Refactoring (Issue #189)
 
 ### What Was Built
