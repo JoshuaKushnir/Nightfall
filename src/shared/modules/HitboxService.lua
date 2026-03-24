@@ -191,7 +191,7 @@ function HitboxService.CreateHitbox(config: HitboxConfig): Hitbox
 	-- Create debug visual (always create, will be shown/hidden based on setting)
 	HitboxService._CreateVisual(hitbox)
 	-- Ensure hitboxes expire: prefer explicit LifeTime, fall back to Duration, otherwise use a safe default
-	local life = config.LifeTime or config.Duration or 0.5
+	local life = config.LifeTime or config.Duration or 0.2
 	task.delay(life, function()
 		if hitbox.Active then
 			hitbox:Expire()

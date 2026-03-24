@@ -694,7 +694,7 @@ local function _spawnAfterimage(origin: Vector3, ownerPlayer: Player)
                     -- TALENT HOOK: Hollow Echo Ã¢â‚¬â€ if attacker is Staggered, blindSecs doubles
                     local blindSecs = ASHEN_STEP_BLIND_DURATION
                     pcall(function()
-                        np:FireClient(player, "BlindFlash", { Duration = blindSecs })
+                        np:FireClient("BlindFlash", player, { Duration = blindSecs })
                     end)
                 end
                 break
@@ -7373,6 +7373,57 @@ return HitboxService
         </Item>
         <Item class="ModuleScript" referent="44">
           <Properties>
+            <string name="Name">HollowedAnimationConfig</string>
+            <string name="Source">--!strict
+-- HollowedAnimationConfig: modular anim config per enemy variant.
+-- Add/edit entries here to change what animations each variant plays.
+-- HollowedService reads this at runtime - no changes needed there.
+local RS = game:GetService('ReplicatedStorage')
+local DB = require(RS.Shared.AnimationDatabase)
+
+local FIST = {
+    DB.Combat.General.Punch1, DB.Combat.General.Punch2,
+    DB.Combat.General.Punch3, DB.Combat.General.Punch4,
+    DB.Combat.General.Punch5, DB.Combat.General.LeftHit,
+    DB.Combat.General.RightHit,
+}
+local HEAVY = {
+    DB.Combat.General.Punch3,
+    DB.Combat.General.Punch4,
+    DB.Combat.General.Punch5,
+}
+
+local CONFIGS = {
+    basic_hollowed      = { Movement={Idle=DB.Movement.Idle, Walk=DB.Movement.Running}, Attack={Pool=FIST,  BlockIdle=DB.Combat.General.BlockIdle} },
+    ironclad_hollowed   = { Movement={Idle=DB.Movement.Idle, Walk=DB.Movement.Running}, Attack={Pool=HEAVY, BlockIdle=DB.Combat.General.BlockIdle} },
+    silhouette_hollowed = { Movement={Idle=DB.Movement.Idle, Walk=DB.Movement.Running}, Attack={Pool=FIST,  BlockIdle=DB.Combat.General.BlockIdle} },
+    resonant_hollowed   = { Movement={Idle=DB.Movement.Idle, Walk=DB.Movement.Running}, Attack={Pool={DB.Combat.General.Punch1,DB.Combat.General.Punch2,DB.Combat.General.LeftHit,DB.Combat.General.RightHit}, BlockIdle=DB.Combat.General.BlockIdle} },
+    ember_hollowed      = { Movement={Idle=DB.Movement.Idle, Walk=DB.Movement.Running}, Attack={Pool=FIST,  BlockIdle=DB.Combat.General.BlockIdle} },
+}
+
+local M = {}
+
+function M.Get(configId)
+    return CONFIGS[configId] or CONFIGS.basic_hollowed
+end
+
+function M.PickAttack(configId)
+    local pool = M.Get(configId).Attack.Pool
+    local valid = {}
+    for _, id in ipairs(pool) do
+        if id and id ~= '' and id ~= 'rbxassetid://0' and id ~= 'rbxassetid://' then
+            table.insert(valid, id)
+        end
+    end
+    if #valid == 0 then return '' end
+    return valid[math.random(1, #valid)]
+end
+
+return M</string>
+          </Properties>
+        </Item>
+        <Item class="ModuleScript" referent="45">
+          <Properties>
             <string name="Name">ItemRegistry</string>
             <string name="Source">--!strict
 --[[
@@ -7598,7 +7649,7 @@ end
 return ItemRegistry</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="45">
+        <Item class="ModuleScript" referent="46">
           <Properties>
             <string name="Name">Loader</string>
             <string name="Source"><![CDATA[--!strict
@@ -7815,7 +7866,7 @@ return Loader
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="46">
+        <Item class="ModuleScript" referent="47">
           <Properties>
             <string name="Name">LootLibrary</string>
             <string name="Source"><![CDATA[--!strict
@@ -8040,7 +8091,7 @@ return LootLibrary
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="47">
+        <Item class="ModuleScript" referent="48">
           <Properties>
             <string name="Name">MovementBlackboard</string>
             <string name="Source"><![CDATA[--!strict
@@ -8113,7 +8164,7 @@ return MovementBlackboard
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="48">
+        <Item class="ModuleScript" referent="49">
           <Properties>
             <string name="Name">MovementConfig</string>
             <string name="Source"><![CDATA[--[[
@@ -8370,7 +8421,7 @@ return MovementConfig
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="49">
+        <Item class="ModuleScript" referent="50">
           <Properties>
             <string name="Name">StateService</string>
             <string name="Source"><![CDATA[--!strict
@@ -8917,7 +8968,7 @@ return StateService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="50">
+        <Item class="ModuleScript" referent="51">
           <Properties>
             <string name="Name">Utils</string>
             <string name="Source"><![CDATA[--!strict
@@ -9309,7 +9360,7 @@ return Utils
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="51">
+        <Item class="ModuleScript" referent="52">
           <Properties>
             <string name="Name">WeaponRegistry</string>
             <string name="Source"><![CDATA[--!strict
@@ -9536,7 +9587,7 @@ return WeaponRegistry
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="52">
+        <Item class="ModuleScript" referent="53">
           <Properties>
             <string name="Name">WeaponValidator</string>
             <string name="Source"><![CDATA[--!strict
@@ -9746,12 +9797,223 @@ return WeaponValidator
 ]]></string>
           </Properties>
         </Item>
+        <Item class="Folder" referent="54">
+          <Properties>
+            <string name="Name">environment</string>
+          </Properties>
+          <Item class="ModuleScript" referent="55">
+            <Properties>
+              <string name="Name">GrassService</string>
+              <string name="Source">-- ReplicatedStorage/Modules/Environment/GrassService.lua
+local GrassService = {}
+GrassService.__index = GrassService
+
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+-- ─── Configuration ──────────────────────────────────────────────────────────
+local SETTINGS = {
+	POOL_SIZE = 4500,
+	RENDER_RADIUS = 130,
+	WIND_RADIUS = 70,
+	CELL_SIZE = 3.5,
+	BLADE_COLOR = Color3.fromRGB(140, 200, 90),
+	INTERACTION_RADIUS = 8, -- Distance grass starts parting from player
+}
+
+function GrassService.new(height: number)
+	local self = setmetatable({}, GrassService)
+	
+	self.Height = height
+	self.Pool = {}
+	self.Active = {}
+	self.Folder = Instance.new("Folder")
+	self.Folder.Name = "EtherealGrass_Render"
+	self.Folder.Parent = Workspace
+	
+	self._lastGridPos = nil
+	self._connection = nil
+	
+	self:SetupPool()
+	return self
+end
+
+function GrassService:SetupPool()
+	local template = Instance.new("WedgePart")
+	template.Size = Vector3.new(0.15, 4, 0.4)
+	template.Anchored = true
+	template.CanCollide = false
+	template.CastShadow = false
+	template.Material = Enum.Material.SmoothPlastic
+	template.Color = SETTINGS.BLADE_COLOR
+	
+	for i = 1, SETTINGS.POOL_SIZE do
+		local clone = template:Clone()
+		clone.CFrame = CFrame.new(0, -500, 0)
+		clone.Parent = self.Folder
+		table.insert(self.Pool, clone)
+	end
+	template:Destroy()
+end
+
+function GrassService:GetCellData(x, z)
+	local seed = (x * 73856093) % 19349663 + (z * 83492791) % 23459113
+	local rng = Random.new(seed)
+	return rng:NextNumber(-1, 1), rng:NextNumber(-1, 1), rng:NextNumber(0.7, 1.3), rng:NextNumber(0, math.pi * 2)
+end
+
+function GrassService:UpdateGrid(centerPos)
+	local gX = math.floor(centerPos.X / SETTINGS.CELL_SIZE) * SETTINGS.CELL_SIZE
+	local gZ = math.floor(centerPos.Z / SETTINGS.CELL_SIZE) * SETTINGS.CELL_SIZE
+	local currentPos = Vector3.new(gX, 0, gZ)
+	
+	if self._lastGridPos and (self._lastGridPos - currentPos).Magnitude &lt; SETTINGS.CELL_SIZE then return end
+	self._lastGridPos = currentPos
+	
+	-- Recycle
+	for _, data in ipairs(self.Active) do
+		table.insert(self.Pool, data.Part)
+		data.Part.CFrame = CFrame.new(0, -500, 0)
+	end
+	table.clear(self.Active)
+	
+	local extent = math.floor(SETTINGS.RENDER_RADIUS / SETTINGS.CELL_SIZE)
+	for x = -extent, extent do
+		for z = -extent, extent do
+			if x*x + z*z > extent*extent then continue end
+			if #self.Pool == 0 then break end
+			
+			local wX, wZ = gX + (x * SETTINGS.CELL_SIZE), gZ + (z * SETTINGS.CELL_SIZE)
+			local offX, offZ, hMult, rotY = self:GetCellData(wX, wZ)
+			
+			local baseCF = CFrame.new(wX + offX, self.Height, wZ + offZ) * CFrame.Angles(0, rotY, 0)
+			local blade = table.remove(self.Pool)
+			
+			table.insert(self.Active, {
+				Part = blade,
+				BaseCF = baseCF,
+				Pos = Vector3.new(wX + offX, self.Height, wZ + offZ)
+			})
+		end
+	end
+end
+
+function GrassService:Start(playerObj)
+	self._connection = RunService.RenderStepped:Connect(function()
+		local char = playerObj.Character
+		if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+		local rootPos = char.HumanoidRootPart.Position
+		
+		self:UpdateGrid(rootPos)
+		
+		local t = tick()
+		for _, data in ipairs(self.Active) do
+			local dist = (rootPos - data.Pos).Magnitude
+			
+			if dist &lt; SETTINGS.WIND_RADIUS then
+				-- Wind Sway
+				local noise = math.noise(data.Pos.X * 0.1, t * 0.5, data.Pos.Z * 0.1)
+				local windAngle = math.rad(noise * 25)
+				
+				-- Interaction (Parting the grass)
+				local interactionCF = CFrame.identity
+				if dist &lt; SETTINGS.INTERACTION_RADIUS then
+					local diff = (data.Pos - rootPos).Unit
+					local strength = 1 - (dist / SETTINGS.INTERACTION_RADIUS)
+					interactionCF = CFrame.Angles(diff.X * strength, 0, diff.Z * strength)
+				end
+				
+				data.Part.CFrame = data.BaseCF * interactionCF * CFrame.Angles(windAngle, 0, windAngle)
+			else
+				data.Part.CFrame = data.BaseCF
+			end
+		end
+	end)
+end
+
+function GrassService:Stop()
+	if self._connection then self._connection:Disconnect() end
+	self.Folder:ClearAllChildren()
+end
+
+return GrassService</string>
+            </Properties>
+          </Item>
+        </Item>
+        <Item class="Folder" referent="56">
+          <Properties>
+            <string name="Name">ui</string>
+          </Properties>
+          <Item class="ModuleScript" referent="57">
+            <Properties>
+              <string name="Name">NotificationService</string>
+              <string name="Source">-- ReplicatedStorage/Modules/UI/NotificationService.lua
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local NotificationService = {}
+
+function NotificationService.DisplayPlaque(title: string, subtitle: string)
+	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
+	local screenGui = playerGui:FindFirstChild("EtherealNotifications") or Instance.new("ScreenGui")
+	screenGui.Name = "EtherealNotifications"
+	screenGui.IgnoreGuiInset = true
+	screenGui.Parent = playerGui
+
+	-- Create Plaque Container
+	local frame = Instance.new("Frame")
+	frame.Size = UDim2.new(0.4, 0, 0.2, 0)
+	frame.Position = UDim2.new(0.3, 0, 0.4, 0)
+	frame.BackgroundTransparency = 1
+	frame.Parent = screenGui
+
+	local titleLabel = Instance.new("TextLabel")
+	titleLabel.Size = UDim2.new(1, 0, 0.6, 0)
+	titleLabel.Text = title:upper()
+	titleLabel.Font = Enum.Font.Antique
+	titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	titleLabel.TextScaled = true
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.TextTransparency = 1
+	titleLabel.Parent = frame
+
+	local subLabel = Instance.new("TextLabel")
+	subLabel.Size = UDim2.new(1, 0, 0.3, 0)
+	subLabel.Position = UDim2.new(0, 0, 0.6, 0)
+	subLabel.Text = subtitle
+	subLabel.Font = Enum.Font.Italic
+	subLabel.TextColor3 = Color3.fromRGB(200, 230, 255)
+	subLabel.TextScaled = true
+	subLabel.BackgroundTransparency = 1
+	subLabel.TextTransparency = 1
+	subLabel.Parent = frame
+
+	-- Animation Sequence
+	task.spawn(function()
+		local fadeIn = TweenInfo.new(2, Enum.EasingStyle.Quint, Enum.EasingDirection.Out)
+		TweenService:Create(titleLabel, fadeIn, {TextTransparency = 0}):Play()
+		task.wait(0.5)
+		TweenService:Create(subLabel, fadeIn, {TextTransparency = 0.2}):Play()
+		
+		task.wait(4) -- Display time
+		
+		local fadeOut = TweenInfo.new(3, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+		TweenService:Create(titleLabel, fadeOut, {TextTransparency = 1}):Play()
+		TweenService:Create(subLabel, fadeOut, {TextTransparency = 1}):Play()
+	end)
+end
+
+return NotificationService</string>
+            </Properties>
+          </Item>
+        </Item>
       </Item>
-      <Item class="Folder" referent="53">
+      <Item class="Folder" referent="58">
         <Properties>
           <string name="Name">movement</string>
         </Properties>
-        <Item class="ModuleScript" referent="54">
+        <Item class="ModuleScript" referent="59">
           <Properties>
             <string name="Name">StateContext</string>
             <string name="Source"><![CDATA[--!strict
@@ -9796,11 +10058,11 @@ return {}
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="55">
+        <Item class="Folder" referent="60">
           <Properties>
             <string name="Name">states</string>
           </Properties>
-          <Item class="ModuleScript" referent="56">
+          <Item class="ModuleScript" referent="61">
             <Properties>
               <string name="Name">ClimbState</string>
               <string name="Source">--!strict
@@ -10112,7 +10374,7 @@ end
 return ClimbState</string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="57">
+          <Item class="ModuleScript" referent="62">
             <Properties>
               <string name="Name">IdleState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10152,7 +10414,7 @@ return IdleState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="58">
+          <Item class="ModuleScript" referent="63">
             <Properties>
               <string name="Name">JumpState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10192,7 +10454,7 @@ return JumpState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="59">
+          <Item class="ModuleScript" referent="64">
             <Properties>
               <string name="Name">LedgeCatchState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10473,7 +10735,7 @@ return LedgeCatchState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="60">
+          <Item class="ModuleScript" referent="65">
             <Properties>
               <string name="Name">SlideState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10755,7 +11017,7 @@ return SlideState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="61">
+          <Item class="ModuleScript" referent="66">
             <Properties>
               <string name="Name">SprintState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10796,7 +11058,7 @@ return SprintState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="62">
+          <Item class="ModuleScript" referent="67">
             <Properties>
               <string name="Name">VaultState</string>
               <string name="Source"><![CDATA[--!strict
@@ -10974,7 +11236,7 @@ return VaultState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="63">
+          <Item class="ModuleScript" referent="68">
             <Properties>
               <string name="Name">WalkState</string>
               <string name="Source"><![CDATA[--!strict
@@ -11012,7 +11274,7 @@ return WalkState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="64">
+          <Item class="ModuleScript" referent="69">
             <Properties>
               <string name="Name">WallBoostState</string>
               <string name="Source"><![CDATA[--!strict
@@ -11156,7 +11418,7 @@ return WallBoostState
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="65">
+          <Item class="ModuleScript" referent="70">
             <Properties>
               <string name="Name">WallRunState</string>
               <string name="Source"><![CDATA[--!strict
@@ -11619,11 +11881,11 @@ return WallRunState
           </Item>
         </Item>
       </Item>
-      <Item class="Folder" referent="66">
+      <Item class="Folder" referent="71">
         <Properties>
           <string name="Name">network</string>
         </Properties>
-        <Item class="ModuleScript" referent="67">
+        <Item class="ModuleScript" referent="72">
           <Properties>
             <string name="Name">NetworkProvider</string>
             <string name="Source"><![CDATA[--!strict
@@ -11900,11 +12162,11 @@ return NetworkProvider
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="68">
+      <Item class="Folder" referent="73">
         <Properties>
           <string name="Name">types</string>
         </Properties>
-        <Item class="ModuleScript" referent="69">
+        <Item class="ModuleScript" referent="74">
           <Properties>
             <string name="Name">ActionTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12122,7 +12384,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="70">
+        <Item class="ModuleScript" referent="75">
           <Properties>
             <string name="Name">AspectTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12278,7 +12540,7 @@ return _exports
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="71">
+        <Item class="ModuleScript" referent="76">
           <Properties>
             <string name="Name">CodexTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12315,7 +12577,7 @@ return {}
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="72">
+        <Item class="ModuleScript" referent="77">
           <Properties>
             <string name="Name">DummyData</string>
             <string name="Source">--!strict
@@ -12351,7 +12613,7 @@ export type DummyData = {
 return {}</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="73">
+        <Item class="ModuleScript" referent="78">
           <Properties>
             <string name="Name">EffectTypes</string>
             <string name="Source">--!strict
@@ -12433,7 +12695,7 @@ export type EffectEvent = {
 return {}</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="74">
+        <Item class="ModuleScript" referent="79">
           <Properties>
             <string name="Name">HitboxTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12509,7 +12771,7 @@ return {}
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="75">
+        <Item class="ModuleScript" referent="80">
           <Properties>
             <string name="Name">HollowedTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12572,6 +12834,7 @@ export type HollowedData = {
 	State            : HollowedState,
 	Target           : Player?,      -- current aggro target (nil when patrolling)
 	LastAttackTick   : number,       -- tick() of last swing
+	LastAggroTick    : number,       -- tick() when transitioned to Aggro state
 	PatrolTarget     : Vector3?,     -- current waypoint (nil = pick a new one)
 	PatrolWaitUntil  : number,       -- tick() timestamp — idle at waypoint until then
 	LastAITick       : number,       -- tick() of last AI evaluation (throttle)
@@ -12587,7 +12850,7 @@ return HollowedTypes
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="76">
+        <Item class="ModuleScript" referent="81">
           <Properties>
             <string name="Name">InventoryTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12657,7 +12920,7 @@ return {}
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="77">
+        <Item class="ModuleScript" referent="82">
           <Properties>
             <string name="Name">ItemTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12740,7 +13003,7 @@ return _exports
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="78">
+        <Item class="ModuleScript" referent="83">
           <Properties>
             <string name="Name">NetworkTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -12853,7 +13116,9 @@ export type NetworkEvent =
 	| "RingChanged"            -- Server → Client: player entered a new ring boundary
 	| "WitnessProgress"        -- Server → Client: progress percentage towards witnessing a target
 	| "WitnessStarted"         -- Server → Client: player started observing an entity
-	| "WitnessFailed"          -- Server → Client: observation interrupted
+	| "WitnessFailed"
+	-- Ethereal Zone
+	| "ShowPlaque"          -- Server → Client: observation interrupted
 
 	| "PlayerRespawned"  -- Server → Client: player respawned at Ember Point or default spawn
 
@@ -13318,6 +13583,10 @@ export type WitnessFailedPacket = {
 	Reason: string,
 }
 
+export type ShowPlaquePacket = {
+	Title: string?,
+}
+
 -- Unified packet type for type safety
 export type NetworkPacket =
 	StateChangedPacket
@@ -13367,6 +13636,7 @@ export type NetworkPacket =
 	| WitnessProgressPacket
 	| WitnessStartedPacket
 	| WitnessFailedPacket
+	| ShowPlaquePacket
 
 -- Network Event Direction
 export type EventDirection = "ServerToClient" | "ClientToServer" | "Bidirectional"
@@ -13843,6 +14113,14 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 		Description = "Notify client that observation was interrupted",
 	},
 
+	-- Ethereal Zone
+	ShowPlaque = {
+		Direction = "ServerToClient",
+		RateLimitPerSecond = nil,
+		RequiresValidation = false,
+		Description = "Display the Ethereal Plane plaque to the client",
+	},
+
 	-- Aspect System
 	AspectAssigned = {
 		Direction = "ServerToClient",
@@ -13917,7 +14195,7 @@ return NetworkTypes
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="79">
+        <Item class="ModuleScript" referent="84">
           <Properties>
             <string name="Name">PlayerData</string>
             <string name="Source"><![CDATA[--!strict
@@ -14072,7 +14350,7 @@ return {}
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="80">
+        <Item class="ModuleScript" referent="85">
           <Properties>
             <string name="Name">ProgressionTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -14312,7 +14590,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="81">
+        <Item class="ModuleScript" referent="86">
           <Properties>
             <string name="Name">WeaponTypes</string>
             <string name="Source"><![CDATA[--!strict
@@ -14567,11 +14845,11 @@ return {
           </Properties>
         </Item>
       </Item>
-      <Item class="Folder" referent="82">
+      <Item class="Folder" referent="87">
         <Properties>
           <string name="Name">weapons</string>
         </Properties>
-        <Item class="ModuleScript" referent="83">
+        <Item class="ModuleScript" referent="88">
           <Properties>
             <string name="Name">Fists</string>
             <string name="Source"><![CDATA[--!strict
@@ -14680,7 +14958,7 @@ return Fists
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="84">
+        <Item class="ModuleScript" referent="89">
           <Properties>
             <string name="Name">IronSword</string>
             <string name="Source"><![CDATA[--!strict
@@ -14784,7 +15062,7 @@ return IronSword
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="85">
+        <Item class="ModuleScript" referent="90">
           <Properties>
             <string name="Name">ResonantStaff</string>
             <string name="Source"><![CDATA[--!strict
@@ -14889,7 +15167,7 @@ return ResonantStaff
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="86">
+        <Item class="ModuleScript" referent="91">
           <Properties>
             <string name="Name">SilhouetteDagger</string>
             <string name="Source"><![CDATA[--!strict
@@ -14998,11 +15276,11 @@ return SilhouetteDagger
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="87">
+        <Item class="Folder" referent="92">
           <Properties>
             <string name="Name">Sword</string>
           </Properties>
-          <Item class="ModuleScript" referent="88">
+          <Item class="ModuleScript" referent="93">
             <Properties>
               <string name="Name">IronSabre</string>
               <string name="Source"><![CDATA[--!strict
@@ -15131,7 +15409,7 @@ return IronSabre
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="89">
+        <Item class="ModuleScript" referent="94">
           <Properties>
             <string name="Name">WaywardSword</string>
             <string name="Source"><![CDATA[--!strict
@@ -15239,7 +15517,7 @@ return WaywardSword
         </Item>
       </Item>
     </Item>
-    <Item class="ModuleScript" referent="90">
+    <Item class="ModuleScript" referent="95">
       <Properties>
         <string name="Name">Signal</string>
         <string name="Source"><![CDATA[--!strict
@@ -15433,15 +15711,15 @@ return Signal
       </Properties>
     </Item>
   </Item>
-  <Item class="ServerScriptService" referent="91">
+  <Item class="ServerScriptService" referent="96">
     <Properties>
       <string name="Name">ServerScriptService</string>
     </Properties>
-    <Item class="Folder" referent="92">
+    <Item class="Folder" referent="97">
       <Properties>
         <string name="Name">Server</string>
       </Properties>
-      <Item class="Script" referent="93">
+      <Item class="Script" referent="98">
         <Properties>
           <string name="Name">DevWorldBootstrap</string>
           <token name="RunContext">0</token>
@@ -15839,7 +16117,121 @@ print("[DevWorldBootstrap] See docs/Game Plan/World_Design.md for complete speci
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Script" referent="94">
+      <Item class="Script" referent="99">
+        <Properties>
+          <string name="Name">HeavenBootstrap</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[--!strict
+local RunService = game:GetService("RunService")
+local Lighting   = game:GetService("Lighting")
+local Workspace  = game:GetService("Workspace")
+
+if not RunService:IsStudio() then return end
+
+local HEAVEN_Y      = 10000
+local MEADOW_RADIUS = 2500
+local GLASS_COLOR   = Color3.fromRGB(210, 235, 255)
+
+local function setupEnvironment()
+	Lighting.ClockTime            = 13.5
+	Lighting.GeographicLatitude   = 15
+	Lighting.Brightness           = 3.8
+	Lighting.OutdoorAmbient       = Color3.fromRGB(170, 195, 255)
+	Lighting.ShadowSoftness       = 0.35
+	Lighting.ExposureCompensation = 0.55
+
+	local atm       = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere", Lighting)
+	atm.Density     = 0.32
+	atm.Offset      = 0.55
+	atm.Color       = Color3.fromRGB(185, 215, 255)
+	atm.Decay       = Color3.fromRGB(235, 248, 255)
+	atm.Glare       = 0.95
+	atm.Haze        = 3.0
+
+	local clouds    = Workspace.Terrain:FindFirstChildOfClass("Clouds") or Instance.new("Clouds", Workspace.Terrain)
+	clouds.Cover    = 0.65
+	clouds.Density  = 0.72
+	clouds.Color    = Color3.fromRGB(255, 255, 255)
+
+	local sr        = Lighting:FindFirstChildOfClass("SunRaysEffect") or Instance.new("SunRaysEffect", Lighting)
+	sr.Intensity    = 0.45
+	sr.Spread       = 0.6
+
+	local bloom     = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect", Lighting)
+	bloom.Intensity = 0.55
+	bloom.Size      = 32
+	bloom.Threshold = 1.4
+
+	local cc        = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect", Lighting)
+	cc.Brightness   = 0.04
+	cc.Contrast     = 0.06
+	cc.Saturation   = 0.14
+	cc.TintColor    = Color3.fromRGB(255, 248, 230)
+
+	print("[HeavenBootstrap] Environment configured")
+end
+
+local function createGlassL(name, position, rotation, scale)
+	local model  = Instance.new("Model")
+	model.Name   = name
+	local function makePart(size, offset)
+		local p           = Instance.new("Part")
+		p.Material        = Enum.Material.Glass
+		p.Transparency    = 0.38
+		p.Reflectance     = 0.72
+		p.Color           = GLASS_COLOR
+		p.Size            = size * scale
+		p.Anchored        = true
+		p.CastShadow      = true
+		p.CFrame          = CFrame.new(position)
+			* CFrame.Angles(0, math.rad(rotation), 0)
+			* CFrame.new(offset * scale)
+		p.Parent          = model
+	end
+	local vertSz  = Vector3.new(200, 1200, 200)
+	local horizSz = Vector3.new(1000, 200, 200)
+	makePart(vertSz,  Vector3.new(0, vertSz.Y / 2, 0))
+	makePart(horizSz, Vector3.new(horizSz.X / 2 - vertSz.X / 2, vertSz.Y - 100, 0))
+	model.Parent  = Workspace
+	return model
+end
+
+local function createFloor()
+	local old = Workspace:FindFirstChild("HeavenlyFloor")
+	if old then old:Destroy() end
+	local floor         = Instance.new("Part")
+	floor.Name          = "HeavenlyFloor"
+	floor.Size          = Vector3.new(MEADOW_RADIUS * 2, 1, MEADOW_RADIUS * 2)
+	floor.Position      = Vector3.new(0, HEAVEN_Y - 0.5, 0)
+	floor.BrickColor    = BrickColor.new("Bright green")
+	floor.Material      = Enum.Material.Grass
+	floor.Anchored      = true
+	floor.Locked        = true
+	floor.CastShadow    = false
+	floor.Parent        = Workspace
+end
+
+print("[HeavenBootstrap] Initializing Ethereal Infrastructure...")
+setupEnvironment()
+createFloor()
+createGlassL("Monolith_Main",     Vector3.new(-600,  HEAVEN_Y, -800),   45,  1.0)
+createGlassL("Monolith_FarRight", Vector3.new(1200,  HEAVEN_Y,  400),  -30,  1.4)
+createGlassL("Monolith_Distance", Vector3.new(-2000, HEAVEN_Y, 1500),  120,  0.8)
+createGlassL("Monolith_Near",     Vector3.new(400,   HEAVEN_Y, -200),   15,  0.65)
+
+local spawn        = Instance.new("SpawnLocation")
+spawn.Position     = Vector3.new(0, HEAVEN_Y + 5, 0)
+spawn.Size         = Vector3.new(10, 1, 10)
+spawn.Transparency = 1
+spawn.CanCollide   = false
+spawn.Anchored     = true
+spawn.Parent       = Workspace
+
+print("[HeavenBootstrap] Ethereal Plane constructed at Y=" .. HEAVEN_Y)
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="100">
         <Properties>
           <string name="Name">ServerInit</string>
           <token name="RunContext">0</token>
@@ -15865,11 +16257,25 @@ print("[ServerInit] Bootstrap initiated - see runtime output above")
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="95">
+      <Item class="Script" referent="101">
+        <Properties>
+          <string name="Name">_EnableEditableMesh</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[-- _EnableEditableMesh.server.lua
+-- Runs at server startup to set workspace.Capabilities to include DynamicGeneration
+-- (required for EditableMesh / EditableImage APIs to work in Play mode)
+-- This must live in ServerScriptService so it executes before any LocalScript loads.
+
+workspace.Capabilities = SecurityCapabilities.new(Enum.SecurityCapability.DynamicGeneration)
+print("[CapabilityFix] DynamicGeneration enabled on workspace (server)")
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Folder" referent="102">
         <Properties>
           <string name="Name">modules</string>
         </Properties>
-        <Item class="ModuleScript" referent="96">
+        <Item class="ModuleScript" referent="103">
           <Properties>
             <string name="Name">SpawnerConfig</string>
             <string name="Source"><![CDATA[--!strict
@@ -16135,7 +16541,7 @@ return SpawnerConfig
           </Properties>
         </Item>
       </Item>
-      <Item class="ModuleScript" referent="97">
+      <Item class="ModuleScript" referent="104">
         <Properties>
           <string name="Name">runtime</string>
           <string name="Source"><![CDATA[--!strict
@@ -16211,7 +16617,7 @@ local dependencies = {
 	HollowedService = services.HollowedService,
 	ZoneService     = services.ZoneService,
 	AbilitySystem   = services.AbilitySystem,
-	DummyService    = services.DummyService,
+	--DummyService    = services.DummyService,
 	TrainingToolService = services.TrainingToolService,
 	WitnessService  = services.WitnessService,
 }
@@ -16396,6 +16802,23 @@ if services.NetworkService and services.DummyService then
 			DebugSettings.Set("ShowHitboxes", newState)
 			print(`[AdminCommand] {player.Name} toggled server hitboxes {newState and "ON" or "OFF"}`)
 			NetworkService:SendToClient(player, "DebugInfo", { Category = "AdminCommand", Data = { Result = "ok" } })
+			
+		elseif cmd == "tp_dev" then
+            local pointName = args[1]
+            local devPoints = {
+                heaven = Vector3.new(0, 10000, 0),
+                testing = Vector3.new(500, 50, 500),
+                origin = Vector3.new(0, 10, 0)
+            }
+            
+            local target = devPoints[string.lower(pointName)]
+            if target then
+                local char = player.Character
+                if char and char.PrimaryPart then
+                    char:SetPrimaryPartCFrame(CFrame.new(target + Vector3.new(0, 5, 0)))
+                    print(`[Admin] {player.Name} TP'd to {pointName}`)
+                end
+            end
 			
 		elseif cmd == "spawn_dummy" then
 			-- Determine spawn position
@@ -16695,11 +17118,11 @@ return true
 ]]></string>
         </Properties>
       </Item>
-      <Item class="Folder" referent="98">
+      <Item class="Folder" referent="105">
         <Properties>
           <string name="Name">services</string>
         </Properties>
-        <Item class="ModuleScript" referent="99">
+        <Item class="ModuleScript" referent="106">
           <Properties>
             <string name="Name">AbilitySystem</string>
             <string name="Source"><![CDATA[--!strict
@@ -17025,7 +17448,7 @@ return AbilitySystem
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="100">
+        <Item class="ModuleScript" referent="107">
           <Properties>
             <string name="Name">AbilityValidator</string>
             <string name="Source">--!strict
@@ -17176,7 +17599,7 @@ end
 return AbilityValidator</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="101">
+        <Item class="ModuleScript" referent="108">
           <Properties>
             <string name="Name">AspectService</string>
             <string name="Source"><![CDATA[--!strict
@@ -17320,7 +17743,7 @@ function AspectService.AssignAspect(player: Player, aspectId: AspectTypes.Aspect
         },
         TotalShardsInvested = 0,
     }
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId)
     return true
 end
 
@@ -17361,8 +17784,8 @@ function AspectService.DebugSetAspect(player: Player, aspectId: AspectTypes.Aspe
     _requireInventoryService().GrantAspectMoves(player, aspectId)
 
     AspectService.ApplyPassives(player)
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId)
-    NetworkProvider:FireClient(player, "SwitchAspectResult", {
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId)
+    NetworkProvider:FireClient("SwitchAspectResult", player, {
         Success = true,
         AspectId = aspectId
     })
@@ -17485,7 +17908,7 @@ function AspectService.SwitchAspect(player: Player, aspectId: AspectTypes.Aspect
     _requireInventoryService().SyncInventory(player)
 
     -- ── Notify client ────────────────────────────────────────────────────
-    NetworkProvider:FireClient(player, "AspectAssigned", aspectId) -- existing event reused
+    NetworkProvider:FireClient("AspectAssigned", player, aspectId) -- existing event reused
     NetworkService:SendToClient(player, "SwitchAspectResult", {
         Success  = true,
         Reason   = nil,
@@ -18020,7 +18443,7 @@ return AspectService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="102">
+        <Item class="ModuleScript" referent="109">
           <Properties>
             <string name="Name">CombatService</string>
             <string name="Source"><![CDATA[--!strict
@@ -18727,7 +19150,7 @@ return CombatService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="103">
+        <Item class="ModuleScript" referent="110">
           <Properties>
             <string name="Name">DataService</string>
             <string name="Source"><![CDATA[--!strict
@@ -19200,7 +19623,7 @@ return DataService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="104">
+        <Item class="ModuleScript" referent="111">
           <Properties>
             <string name="Name">DeathService</string>
             <string name="Source"><![CDATA[--!strict
@@ -19439,7 +19862,7 @@ return DeathService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="105">
+        <Item class="ModuleScript" referent="112">
           <Properties>
             <string name="Name">DefenseService</string>
             <string name="Source"><![CDATA[--!strict
@@ -19679,7 +20102,7 @@ return DefenseService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="106">
+        <Item class="ModuleScript" referent="113">
           <Properties>
             <string name="Name">DummyService</string>
             <string name="Source"><![CDATA[--!strict
@@ -20296,7 +20719,7 @@ return DummyService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="107">
+        <Item class="ModuleScript" referent="114">
           <Properties>
             <string name="Name">EffectHandlers</string>
             <string name="Source">--!strict
@@ -20514,7 +20937,7 @@ end
 return EffectHandlers</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="108">
+        <Item class="ModuleScript" referent="115">
           <Properties>
             <string name="Name">EffectRunner</string>
             <string name="Source">--!strict
@@ -20653,57 +21076,73 @@ end
 return EffectRunner</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="109">
+        <Item class="ModuleScript" referent="116">
           <Properties>
             <string name="Name">HollowedService</string>
-            <string name="Source"><![CDATA[--!strict
+            <string name="Source">--!strict
 --[[
-	HollowedService.lua
+	HollowedService.lua  —  Issue #143  (Phase 4 — World &amp; Narrative)
 
-	Issue #143: HollowedService — Ring 1 enemy with patrol, aggro, basic attack,
-	            death, and Resonance grant.
-	Epic: Phase 4 — World & Narrative
+	Server-authoritative AI for Hollowed enemies in Ring 1 (Verdant Shelf).
 
-	Server-authoritative AI service for Hollowed enemies in Ring 1 (Verdant Shelf).
+	─── HITBOX AXIS FIX ────────────────────────────────────────────────────────
+	CFrame.LookVector = -Z in local space (Roblox convention).
+	CFrame.lookAt() makes LookVector face the target.
+	Therefore "in front of the mob" = root.CFrame * CFrame.new(0, 0, -N).
+	All hitbox offsets use NEGATIVE Z.  Positive Z = behind.
 
-	Behaviour:
-		• Patrol  — random wander within PatrolRadius of spawn, pause at waypoints
-		• Aggro   — chase nearest player found within AggroRange
-		• Attack  — melee swing when within AttackRange; applies HP + Posture damage
-		• Dead    — visual death state, respawk after RespawnDelay
+	─── LEVEL-10 COMBAT AI ─────────────────────────────────────────────────────
+	The elite AI runs a full combat micro-loop on every tick with these layers:
 
-	Model:
-		All body parts are anchored.  Movement is applied by shifting every part's
-		CFrame each AI tick.  This avoids Roblox physics rig complexity for MVP.
+	  1. SPACING  — Maintains an ideal engagement distance per variant.
+	               Circles / strafes to avoid standing still.
 
-	Registry integration:
-		HollowedService.GetInstanceData(name) is called by CombatService so that
-		player hitboxes can register damage against Hollowed models.
+	  2. FEINT    — Before committing to an attack the mob plays a fake windup
+	               (animation + brief hesitation) to bait the player's block/dodge.
+	               Only the real commit spawns a hitbox.
 
-	Spawn:
-		On Start(), one instance is spawned per Part tagged "HollowedSpawn" in
-		CollectionService.  Placing tagged Parts in Ring 1 respects the zone boundary
-		requirement; the service does not enforce it in code.
+	  3. PARRY    — While the mob is NOT in its own attack cooldown, there is a
+	               small per-tick chance it enters a PARRY window.  If a player
+	               hit lands during that window, damage is reflected and the
+	               player is staggered instead.
 
-	Dependencies: ProgressionService, PostureService, StateService, NetworkProvider,
-	              RunService, CollectionService, Players
+	  4. BLOCK    — Separate from parry: a sustained blocking state that absorbs
+	               incoming hits (posture damage only) for a short window.
+	               The mob raises its block reactively when the player is close
+	               and recently swung, simulating read-reaction.
+
+	  5. DODGE    — When the mob detects an incoming player attack (via the
+	               IncomingHPDamage attribute on its own dummy target, or via a
+	               short reaction window after aggro), it may roll sideways out
+	               of range, becoming briefly invincible.
+
+	  6. COMBO    — After a successful hit the mob immediately checks for a
+	               follow-up second strike (shorter cooldown window), chaining
+	               up to 2 hits per engagement burst.
+
+	  7. THREAT   — Reads the player's recent attack cadence (stored in
+	               data.PlayerAttackCadence) to decide when to be aggressive vs
+	               defensive.  If the player is spamming, the mob turtles and
+	               waits for an opening.
+
+	Dependencies: ProgressionService, PostureService, StateService,
+	              NetworkProvider, RunService, CollectionService, Players
 ]]
 
-local Players            = game:GetService("Players")
-local RunService         = game:GetService("RunService")
-local CollectionService  = game:GetService("CollectionService")
-local Workspace          = game:GetService("Workspace")
-local ReplicatedStorage  = game:GetService("ReplicatedStorage")
-local TweenService       = game:GetService("TweenService")
-local AnimationDatabase  = require(ReplicatedStorage.Shared.AnimationDatabase)
-local HitboxService    = require(ReplicatedStorage.Shared.modules.HitboxService)
+local Players           = game:GetService("Players")
+local RunService        = game:GetService("RunService")
+local CollectionService = game:GetService("CollectionService")
+local Workspace         = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService      = game:GetService("TweenService")
+
+local AnimationDatabase = require(ReplicatedStorage.Shared.AnimationDatabase)
+local HitboxService     = require(ReplicatedStorage.Shared.modules.HitboxService)
 local DummyService      = require(script.Parent.DummyService)
+local StateService      = require(ReplicatedStorage.Shared.modules.StateService)
+local NetworkProvider   = require(ReplicatedStorage.Shared.network.NetworkProvider)
+local SpawnerConfig     = require(game:GetService("ServerScriptService").Server.modules.SpawnerConfig)
 
-local StateService     = require(ReplicatedStorage.Shared.modules.StateService)
-local NetworkProvider  = require(ReplicatedStorage.Shared.network.NetworkProvider)
-local SpawnerConfig    = require(game:GetService("ServerScriptService").Server.modules.SpawnerConfig)
-
--- Lazy-required to avoid load-order cycles
 local ProgressionService: any = nil
 local PostureService: any     = nil
 
@@ -20711,27 +21150,54 @@ local HollowedTypesModule = require(ReplicatedStorage.Shared.types.HollowedTypes
 type HollowedConfig = HollowedTypesModule.HollowedConfig
 type HollowedData   = HollowedTypesModule.HollowedData
 type HollowedState  = HollowedTypesModule.HollowedState
-type SpawnZone = SpawnerConfig.SpawnZone
+type SpawnZone      = SpawnerConfig.SpawnZone
 
 -- ─── Service ─────────────────────────────────────────────────────────────────
 
 local HollowedService = {}
 HollowedService._initialized = false
 
--- ─── Constants ───────────────────────────────────────────────────────────────
+-- ─── Timing Constants ────────────────────────────────────────────────────────
 
-local AI_TICK_RATE       = 0.2   -- seconds between AI evaluations per NPC
-local PATROL_ARRIVE_DIST = 2.0   -- studs — close enough to waypoint to stop
-local PATROL_WAIT_TIME   = 2.0   -- seconds to idle at each waypoint
-local CONFIRM_HIT_EVENT  = "HitConfirmed"
-local NPC_HIT_DAMAGE_VAR = 0.10  -- ±10% attack damage variance (mirrors CombatService)
+local BASE_AI_TICK        = 0.18
+local PATROL_ARRIVE_DIST  = 2.0
+local PATROL_WAIT_TIME    = 2.0
+
+-- Attack phase durations (seconds)
+local WINDUP              = 0.18   -- commit → hitbox
+local SWING               = 0.30   -- hitbox active
+local RECOVERY            = 0.50   -- post-swing lock
+-- Total lock per swing   = 0.98 s  → all AttackCooldowns must be ≥ 1.0 s
+
+-- Feint: fake windup played before the real commit to bait the player
+local FEINT_DURATION      = 0.28   -- how long the fake windup looks convincing
+local FEINT_COOLDOWN      = 4.0    -- minimum seconds between feints per mob
+
+-- Parry window: mob can parry incoming hits during this window
+local PARRY_WINDOW        = 0.35   -- how long the parry window stays open
+local PARRY_COOLDOWN      = 5.0    -- minimum seconds between parry attempts
+local PARRY_REFLECT_MULT  = 1.5    -- damage multiplier reflected back to player
+
+-- Dodge
+local DODGE_DURATION      = 0.45   -- invincibility + lateral movement time
+local DODGE_DISTANCE      = 7.0    -- studs per dodge
+local DODGE_COOLDOWN      = 3.0    -- minimum seconds between dodges
+
+-- Block
+local BLOCK_DURATION      = 0.8    -- max sustained block window
+local BLOCK_COOLDOWN      = 2.5    -- minimum seconds between blocks
+
+-- Combo: after a hit lands, shortened cooldown window for a follow-up
+local COMBO_WINDOW        = 0.9    -- seconds after a hit during which combo applies
+local COMBO_CD_MULT       = 0.45   -- multiply AttackCooldown for the follow-up swing
+
+-- Threat: how quickly the mob reads player attack spam
+local THREAT_DECAY        = 0.15   -- threat decays this much per second
+local THREAT_HIT_ADD      = 1.0    -- threat added each time a player hit registers
+local THREAT_TURTLE_THRESH = 2.5   -- above this → mob goes defensive
 
 -- ─── Enemy Configs ───────────────────────────────────────────────────────────
 
---[[
-	Registered Hollowed types.  Add new entries here to create new enemy variants.
-	Placeholder values — spec-gap issue #129/130/131 pending art/balance pass.
-]]
 local CONFIGS: {[string]: HollowedConfig} = {
 	basic_hollowed = {
 		Id             = "basic_hollowed",
@@ -20742,6 +21208,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 18,
 		AggroRange     = 30,
 		AttackRange    = 5,
+		MeleeReach     = 3,    -- hitbox placed this far in front of mob
+		IsRanged       = false,
 		PatrolRadius   = 20,
 		MoveSpeed      = 8,
 		AttackCooldown = 2.0,
@@ -20758,6 +21226,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 40,
 		AggroRange     = 25,
 		AttackRange    = 6,
+		MeleeReach     = 4,
+		IsRanged       = false,
 		PatrolRadius   = 15,
 		MoveSpeed      = 6,
 		AttackCooldown = 3.5,
@@ -20774,6 +21244,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 10,
 		AggroRange     = 35,
 		AttackRange    = 4,
+		MeleeReach     = 3,
+		IsRanged       = false,
 		PatrolRadius   = 25,
 		MoveSpeed      = 14,
 		AttackCooldown = 1.5,
@@ -20789,7 +21261,9 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		AttackDamage   = 25,
 		PostureDamage  = 15,
 		AggroRange     = 40,
-		AttackRange    = 20,
+		AttackRange    = 18,   -- preferred combat distance (stays at range)
+		MeleeReach     = 18,   -- hitbox placed AT the player's position
+		IsRanged       = true, -- holds distance, ranged hitbox
 		PatrolRadius   = 20,
 		MoveSpeed      = 7,
 		AttackCooldown = 4.0,
@@ -20806,6 +21280,8 @@ local CONFIGS: {[string]: HollowedConfig} = {
 		PostureDamage  = 50,
 		AggroRange     = 35,
 		AttackRange    = 8,
+		MeleeReach     = 5,
+		IsRanged       = false,
 		PatrolRadius   = 25,
 		MoveSpeed      = 10,
 		AttackCooldown = 2.5,
@@ -20815,661 +21291,955 @@ local CONFIGS: {[string]: HollowedConfig} = {
 	},
 }
 
+-- ─── Extended HollowedData fields (combat AI) ─────────────────────────────────
+--[[
+	These fields are appended to each instance table at spawn time.
+	They are not in HollowedTypes to avoid type file churn during iteration.
+
+	.LastFeintTick      : number   — tick() of last feint attempt
+	.LastParryTick      : number   — tick() of last parry window open
+	.LastDodgeTick      : number   — tick() of last dodge
+	.LastBlockTick      : number   — tick() of last block attempt
+	.LastHitLandedTick  : number   — tick() when this mob last landed a hit on player
+	.ComboAvailable     : boolean  — true during COMBO_WINDOW after a hit
+	.InParryWindow      : boolean  — true while parry is active
+	.PlayerThreat       : number   — accumulated aggression score from player attacks
+	.StrafeDir          : number   — +1 or -1, flipped periodically for circle-strafe
+	.StrafeFlipTick     : number   — tick() of last strafe direction flip
+	.IdealRange         : number   — per-variant preferred engagement distance
+]]
+
 -- ─── State ───────────────────────────────────────────────────────────────────
 
-local _instances: {[string]: HollowedData}  = {}
-local _models:    {[string]: Model}         = {}
-local _animStates: {[string]: string}       = {}
-local _nextId     = 0
-local _heartbeatConn: RBXScriptConnection?  = nil
+local _instances: {[string]: HollowedData}    = {}
+local _models:    {[string]: Model}           = {}
+local _animStates:{[string]: string}          = {}
+local _intentMap: {[string]: string}          = {}
+local _nextId = 0
+local _heartbeatConn: RBXScriptConnection?    = nil
 local _spawnerConfig: SpawnerConfig.SpawnerConfig = SpawnerConfig.GetDefaultConfig()
 local _lastSpawnCheckTime: number = 0
-local _instanceAreaMap: {[string]: string} = {}  -- Maps instanceId -> areaName for mob cap tracking
+local _instanceAreaMap: {[string]: string}    = {}
 
--- ─── Private — Model ─────────────────────────────────────────────────────────
+-- Extended per-instance combat state (avoids casting HollowedData everywhere)
+type ExtData = {
+	LastFeintTick     : number,
+	LastParryTick     : number,
+	LastDodgeTick     : number,
+	LastBlockTick     : number,
+	LastHitLandedTick : number,
+	LastAggroTick     : number,
+	ComboAvailable    : boolean,
+	InParryWindow     : boolean,
+	PlayerThreat      : number,
+	StrafeDir         : number,
+	StrafeFlipTick    : number,
+	IdealRange        : number,
+	FocusTargeting    : number,
+}
+local _ext: {[string]: ExtData} = {}
 
---[[
-	Build a simple anchored R6-like humanoid rig for a Hollowed enemy.
-	All parts are anchored; movement is done by shifting CFrames in the AI loop.
-	Returns the created Model and the HumanoidRootPart.
-]]
+-- ─── Private — Rig &amp; Model ────────────────────────────────────────────────────
+
 local function _RigModel(model: Model)
-	local root = model:FindFirstChild("HumanoidRootPart")
+	local root  = model:FindFirstChild("HumanoidRootPart")
 	local torso = model:FindFirstChild("Torso")
 	if not root or not torso then return end
 
-	local function makeJoint(name, part0, part1, c0, c1)
+	local function joint(name, p0, p1, c0, c1)
 		local m = Instance.new("Motor6D")
-		m.Name = name
-		m.Part0 = part0
-		m.Part1 = part1
-		m.C0 = c0
-		m.C1 = c1
-		m.Parent = part0
+		m.Name = name; m.Part0 = p0; m.Part1 = p1; m.C0 = c0; m.C1 = c1
+		m.Parent = p0
 	end
 
-	-- Standard R6 joints
-	makeJoint("RootJoint", root, torso, CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0), CFrame.new(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0))
+	joint("RootJoint", root, torso,
+		CFrame.new(0,0,0,-1,0,0,0,0,1,0,1,-0), CFrame.new(0,0,0,-1,0,0,0,0,1,0,1,-0))
 
 	local head = model:FindFirstChild("Head")
 	if head then
-		makeJoint("Neck", torso, head, CFrame.new(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0), CFrame.new(0, -0.5, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0))
+		joint("Neck", torso, head,
+			CFrame.new(0,1,0,-1,0,0,0,0,1,0,1,-0), CFrame.new(0,-0.5,0,-1,0,0,0,0,1,0,1,-0))
 	end
-
-	local lArm = model:FindFirstChild("Left Arm")
-	if lArm then
-		makeJoint("Left Shoulder", torso, lArm, CFrame.new(-1, 0.5, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(0.5, 0.5, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0))
+	local lA = model:FindFirstChild("Left Arm")
+	if lA then
+		joint("Left Shoulder", torso, lA,
+			CFrame.new(-1,0.5,0,-0,-0,-1,0,1,0,1,0,0), CFrame.new(0.5,0.5,0,-0,-0,-1,0,1,0,1,0,0))
 	end
-
-	local rArm = model:FindFirstChild("Right Arm")
-	if rArm then
-		makeJoint("Right Shoulder", torso, rArm, CFrame.new(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0), CFrame.new(-0.5, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0))
+	local rA = model:FindFirstChild("Right Arm")
+	if rA then
+		joint("Right Shoulder", torso, rA,
+			CFrame.new(1,0.5,0,0,0,1,0,1,-0,-1,0,0), CFrame.new(-0.5,0.5,0,0,0,1,0,1,-0,-1,0,0))
 	end
-
-	local lLeg = model:FindFirstChild("Left Leg")
-	if lLeg then
-		makeJoint("Left Hip", torso, lLeg, CFrame.new(-1, -1, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0), CFrame.new(0.5, 1, 0, -0, -0, -1, 0, 1, 0, 1, 0, 0))
+	local lL = model:FindFirstChild("Left Leg")
+	if lL then
+		joint("Left Hip", torso, lL,
+			CFrame.new(-1,-1,0,-0,-0,-1,0,1,0,1,0,0), CFrame.new(0.5,1,0,-0,-0,-1,0,1,0,1,0,0))
 	end
-
-	local rLeg = model:FindFirstChild("Right Leg")
-	if rLeg then
-		makeJoint("Right Hip", torso, rLeg, CFrame.new(1, -1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0), CFrame.new(-0.5, 1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0))
+	local rL = model:FindFirstChild("Right Leg")
+	if rL then
+		joint("Right Hip", torso, rL,
+			CFrame.new(1,-1,0,0,0,1,0,1,-0,-1,0,0), CFrame.new(-0.5,1,0,0,0,1,0,1,-0,-1,0,0))
 	end
 end
 
 local function _CreateModel(instanceId: string, config: HollowedConfig, spawnCF: CFrame): (Model, BasePart)
-	local model   = Instance.new("Model")
-	model.Name    = instanceId
-
-	local origin = spawnCF.Position
+	local model  = Instance.new("Model")
+	model.Name   = instanceId
+	local origin = spawnCF.Position + Vector3.new(0, 3, 0)
 	local color  = config.BodyColor
 
-	-- Helper: create a colour-matched body part
 	local function makePart(name: string, size: Vector3, offset: Vector3): Part
 		local p = Instance.new("Part")
-		p.Name       = name
-		p.Size       = size
-		p.CFrame     = CFrame.new(origin + offset)
-		p.Anchored   = false
-		p.CanCollide = (name ~= "HumanoidRootPart")
+		p.Name = name; p.Size = size
+		p.CFrame = CFrame.new(origin + offset)
+		p.Anchored   = false  -- physics-driven; Humanoid:MoveTo handles movement
+		p.CanCollide = false  -- no collision so parts don't push player or each other
 		p.BrickColor = color
-		p.Material   = Enum.Material.SmoothPlastic
-		if name == "HumanoidRootPart" then
-			p.Transparency = 1
-			p.CanCollide   = false
-		end
+		p.Material = Enum.Material.SmoothPlastic
+		if name == "HumanoidRootPart" then p.Transparency = 1 end
 		p.Parent = model
 		return p
 	end
 
-	-- Body parts (root at pelvis height ~= 0)
-	local root = makePart("HumanoidRootPart", Vector3.new(2, 2, 1),      Vector3.new(0,    0,    0))
-	makePart("Torso",     Vector3.new(2, 2, 1),      Vector3.new(0,    1.5,  0))
-	makePart("Head",      Vector3.new(1, 1, 1),       Vector3.new(0,    3,    0))
-	makePart("Left Arm",  Vector3.new(1, 2, 1),       Vector3.new(-1.5, 1.5,  0))
-	makePart("Right Arm", Vector3.new(1, 2, 1),       Vector3.new( 1.5, 1.5,  0))
-	makePart("Left Leg",  Vector3.new(1, 2, 1),       Vector3.new(-0.5, -0.5, 0))
-	makePart("Right Leg", Vector3.new(1, 2, 1),       Vector3.new( 0.5, -0.5, 0))
+	local root = makePart("HumanoidRootPart", Vector3.new(2,2,1), Vector3.new(0,0,0))
+	makePart("Torso",     Vector3.new(2,2,1), Vector3.new(0,   1.5,  0))
+	makePart("Head",      Vector3.new(1,1,1), Vector3.new(0,   3,    0))
+	makePart("Left Arm",  Vector3.new(1,2,1), Vector3.new(-1.5,1.5,  0))
+	makePart("Right Arm", Vector3.new(1,2,1), Vector3.new( 1.5,1.5,  0))
+	makePart("Left Leg",  Vector3.new(1,2,1), Vector3.new(-0.5,-0.5, 0))
+	makePart("Right Leg", Vector3.new(1,2,1), Vector3.new( 0.5,-0.5, 0))
 
-	-- Humanoid for animations
 	local humanoid = Instance.new("Humanoid")
-	humanoid.MaxHealth = config.MaxHealth
-	humanoid.Health = config.MaxHealth
+	humanoid.MaxHealth = config.MaxHealth; humanoid.Health = config.MaxHealth
 	humanoid.WalkSpeed = config.MoveSpeed
+	humanoid.AutoRotate     = true
 	humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
 	humanoid.Parent = model
 
 	_RigModel(model)
 
-	-- Play Idle animation
-	local animator = humanoid:FindFirstChild("Animator") or Instance.new("Animator", humanoid)
+	local animator = Instance.new("Animator", humanoid)
 	local idleAnim = Instance.new("Animation")
 	idleAnim.AnimationId = AnimationDatabase.Movement.Idle
-	local track = animator:LoadAnimation(idleAnim)
-	track.Looped = true
-	track:Play()
+	local idleTrack = animator:LoadAnimation(idleAnim)
+	idleTrack.Looped = true; idleTrack:Play()
 
-	-- Health billboard above head
-	local head: BasePart? = model:FindFirstChild("Head") :: BasePart?
-	if head then
-		local billboard         = Instance.new("BillboardGui")
-		billboard.Name          = "HollowedHUD"
-		billboard.Adornee       = head
-		billboard.Size          = UDim2.new(0, 120, 0, 40)
-		billboard.StudsOffset   = Vector3.new(0, 2.5, 0)
-		billboard.AlwaysOnTop   = false
-		billboard.Parent        = model
+	local head2: BasePart? = model:FindFirstChild("Head") :: BasePart?
+	if head2 then
+		local bb = Instance.new("BillboardGui")
+		bb.Name = "HollowedHUD"; bb.Adornee = head2
+		bb.Size = UDim2.new(0,120,0,40); bb.StudsOffset = Vector3.new(0,2.5,0)
+		bb.AlwaysOnTop = false; bb.Parent = model
 
-		local nameLabel            = Instance.new("TextLabel")
-		nameLabel.Name             = "NameLabel"
-		nameLabel.Size             = UDim2.new(1, 0, 0.5, 0)
-		nameLabel.Position         = UDim2.new(0, 0, 0, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.TextColor3       = Color3.fromRGB(220, 80, 80)
-		nameLabel.TextScaled       = true
-		nameLabel.Font             = Enum.Font.GothamBold
-		nameLabel.Text             = config.DisplayName
-		nameLabel.Parent           = billboard
+		local nl = Instance.new("TextLabel")
+		nl.Name = "NameLabel"; nl.Size = UDim2.new(1,0,0.5,0)
+		nl.BackgroundTransparency = 1; nl.TextColor3 = Color3.fromRGB(220,80,80)
+		nl.TextScaled = true; nl.Font = Enum.Font.GothamBold
+		nl.Text = config.DisplayName; nl.Parent = bb
 
-		local hpBar               = Instance.new("Frame")
-		hpBar.Name                = "HealthBar"
-		hpBar.BackgroundColor3    = Color3.fromRGB(210, 45, 45)
-		hpBar.BorderSizePixel     = 0
-		hpBar.Size                = UDim2.new(1, 0, 0.3, 0)
-		hpBar.Position            = UDim2.new(0, 0, 0.65, 0)
-		hpBar.Parent              = billboard
+		local hb2 = Instance.new("Frame")
+		hb2.Name = "HealthBar"; hb2.BackgroundColor3 = Color3.fromRGB(210,45,45)
+		hb2.BorderSizePixel = 0; hb2.Size = UDim2.new(1,0,0.3,0)
+		hb2.Position = UDim2.new(0,0,0.65,0); hb2.Parent = bb
 	end
 
-	model.Parent   = Workspace
 	model.PrimaryPart = root :: PVInstance
-
+	model.Parent = Workspace
 	return model, root :: BasePart
 end
 
---[[
-	Recolour all visible body parts and update the health bar fraction.
-]]
 local function _UpdateVisuals(instanceId: string)
 	local data  = _instances[instanceId]
 	local model = _models[instanceId]
 	if not data or not model then return end
-
+	local ex    = _ext[instanceId]
 	local hpFrac = math.clamp(data.CurrentHealth / data.MaxHealth, 0, 1)
-	local col    = if data.State == "Dead" then BrickColor.new("Medium stone grey") else
-	               if data.State == "Aggro" or data.State == "Attacking" then BrickColor.new("Bright red") else
-	               BrickColor.new("Dark stone grey")
+	local col =
+		if data.State == "Dead"     then BrickColor.new("Medium stone grey")
+		elseif data.State == "Attacking" or data.State == "Aggro"
+		                            then BrickColor.new("Bright red")
+		elseif data.State == "Blocking" or ex.InParryWindow
+		                            then BrickColor.new("Bright blue")
+		elseif data.State == "Dodging"  then BrickColor.new("Bright yellow")
+		else                             BrickColor.new("Dark stone grey")
 
-	for _, part in model:GetDescendants() do
-		if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-			(part :: BasePart).BrickColor = col
+	for _, p in model:GetDescendants() do
+		if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
+			(p :: BasePart).BrickColor = col
 		end
 	end
-
-	-- Update health bar width
-	local billboard = model:FindFirstChild("HollowedHUD", true)
-	local hpBar     = billboard and billboard:FindFirstChild("HealthBar")
-	if hpBar and hpBar:IsA("Frame") then
-		(hpBar :: Frame).Size = UDim2.new(hpFrac, 0, 0.3, 0)
+	local bb  = model:FindFirstChild("HollowedHUD", true)
+	local bar = bb and bb:FindFirstChild("HealthBar")
+	if bar and bar:IsA("Frame") then
+		(bar :: Frame).Size = UDim2.new(hpFrac, 0, 0.3, 0)
 	end
 end
 
--- ─── Private — Movement ──────────────────────────────────────────────────────
-
+-- ─── Movement helpers ────────────────────────────────────────────────────────
 --[[
-	Walk the model towards a target using Humanoid:MoveTo.
+	All parts are Anchored = true.  Humanoid:MoveTo has zero effect on anchored
+	parts — it only works on physics-simulated rigs.  Movement is driven manually
+	by calling _MoveModel / _StrafeModel every AI tick, which shift the entire
+	model via PivotTo.
+
+	_StopMovement and _RestoreSpeed are kept as no-ops so call sites in the
+	attack/dodge/block code compile without changes.
 ]]
-local function _WalkTo(model: Model, targetPos: Vector3)
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if humanoid then
-		humanoid:MoveTo(targetPos)
-	end
+
+local function _GetHumanoid(model: Model): Humanoid?
+	return model:FindFirstChild("Humanoid") :: Humanoid?
+end
+
+local function _GetRoot(model: Model): BasePart?
+	return (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")) :: BasePart?
 end
 
 --[[
-	Instantly move the model by `delta` studs.
-	Also rotates the model to face the XZ direction of `facePos` if provided.
+	Step the model toward targetPos by (speed × dt) studs, staying on the XZ
+	plane of the root.  Automatically faces the direction of travel.
+	Returns the distance remaining after the step.
 ]]
-local function _PivotModel(model: Model, delta: Vector3, facePos: Vector3?)
-	local root = model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart?
+local function _MoveModel(model: Model, targetPos: Vector3, speed: number, _dt: number): number
+	local h = _GetHumanoid(model)
+	local root = _GetRoot(model)
+	if not h or not root then return 0 end
+	h.WalkSpeed = speed
+	local flat = Vector3.new(targetPos.X, root.Position.Y, targetPos.Z)
+	local dist = (flat - root.Position).Magnitude
+	if dist &lt; 0.5 then
+		h.WalkSpeed = 0
+		return 0
+	end
+	h:MoveTo(targetPos)
+	return dist
+end
+
+--[[
+	Step the model sideways relative to the direction toward facePos.
+	sign: +1 = right, -1 = left.  Model keeps facing facePos while moving.
+]]
+local function _StrafeModel(model: Model, facePos: Vector3, sign: number, speed: number, _dt: number)
+	local h = _GetHumanoid(model)
+	local root = _GetRoot(model)
+	if not h or not root then return end
+	h.WalkSpeed = speed
+	local toTarget = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
+	if toTarget.Magnitude &lt; 0.01 then return end
+	local sideDir = if sign >= 0
+		then toTarget.Unit:Cross(Vector3.yAxis)
+		else Vector3.yAxis:Cross(toTarget.Unit)
+	local sideTarget = root.Position + sideDir.Unit * 4
+	h:MoveTo(sideTarget)
+end
+
+--[[
+	Face the model toward facePos (used when attacking while stationary).
+]]
+local function _FaceTarget(model: Model, facePos: Vector3)
+	local root = _GetRoot(model)
 	if not root then return end
-	local newCF = root.CFrame + delta
-	if facePos then
-		local flatDir = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
-		if flatDir.Magnitude > 0.01 then
-			newCF = CFrame.lookAt(newCF.Position, newCF.Position + flatDir)
-		end
-	end
-	model:PivotTo(newCF)
+	local dir = Vector3.new(facePos.X - root.Position.X, 0, facePos.Z - root.Position.Z)
+	if dir.Magnitude &lt; 0.01 then return end
+	local targetCF = CFrame.lookAt(root.Position, root.Position + dir)
+	root.CFrame = root.CFrame:Lerp(targetCF, 0.3)
 end
 
--- ─── Private — AI ────────────────────────────────────────────────────────────
+local function _StopMovement(model: Model)
+	local h = _GetHumanoid(model)
+	if h then h.WalkSpeed = 0 end
+end
+local function _RestoreSpeed(model: Model, speed: number)
+	local h = _GetHumanoid(model)
+	if h then h.WalkSpeed = speed end
+end
 
---[[
-	Returns the best Player target whose character is within `maxRange` studs of
-	`origin`, ignoring dead characters.  Returns nil if none found.
-]]
-local function _GetBestTarget(origin: Vector3, maxRange: number, focusTargeting: number): Player?
-	local bestPlayer: Player? = nil
+-- ─── Animation helpers ────────────────────────────────────────────────────────
+
+local function _GetAnimator(model: Model): Animator?
+	local h = _GetHumanoid(model)
+	if not h then return nil end
+	return h:FindFirstChild("Animator") :: Animator?
+		or Instance.new("Animator", h)
+end
+
+local function _SetLoopAnim(instanceId: string, model: Model, state: "Idle" | "Run")
+	if _animStates[instanceId] == state then return end
+	_animStates[instanceId] = state
+	local anim = _GetAnimator(model)
+	if not anim then return end
+	for _, t in anim:GetPlayingAnimationTracks() do
+		if t.Animation.AnimationId == AnimationDatabase.Movement.Idle
+		or t.Animation.AnimationId == AnimationDatabase.Movement.Run then
+			t:Stop(0.2)
+		end
+	end
+	local a = Instance.new("Animation")
+	a.AnimationId = (state == "Run") and AnimationDatabase.Movement.Run or AnimationDatabase.Movement.Idle
+	local tr = anim:LoadAnimation(a); tr.Looped = true; tr:Play(0.2)
+end
+
+local function _PlayOneshot(model: Model, animId: string)
+	if animId == "" or animId == "rbxassetid://0" then return end
+	local anim = _GetAnimator(model)
+	if not anim then return end
+	local a = Instance.new("Animation"); a.AnimationId = animId
+	local tr = anim:LoadAnimation(a); tr:Play()
+end
+
+local function _PickAttackAnim(configId: string): string
+	if configId == "silhouette_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Ash.AshenStep
+	elseif configId == "resonant_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Gale.WindStrike
+	elseif configId == "ember_hollowed" then
+		return AnimationDatabase.Combat.Aspect.Ember.Surge
+	end
+	local pool = {
+		AnimationDatabase.Combat.General.Punch1,
+		AnimationDatabase.Combat.General.Punch2,
+		AnimationDatabase.Combat.General.Punch3,
+		AnimationDatabase.Combat.General.LeftHit,
+		AnimationDatabase.Combat.General.RightHit,
+	}
+	return pool[math.random(1, #pool)]
+end
+
+-- ─── Target utils ─────────────────────────────────────────────────────────────
+
+local function _GetBestTarget(origin: Vector3, maxRange: number, focusTgt: number): Player?
+	local best: Player? = nil
 	local bestScore = -math.huge
-
 	for _, player in Players:GetPlayers() do
 		local char = player.Character
 		if not char then continue end
-		local data = StateService:GetPlayerData(player)
-		if data and data.State == "Dead" then continue end
-		local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-		if not root then continue end
-		
-		local dist = (root.Position - origin).Magnitude
-		if dist <= maxRange then
-			local distScore = -dist
-			local hpScore = 0
-			if data then
-				local hpFrac = (data.CurrentHealth or 100) / (data.MaxHealth or 100)
-				hpScore = (1 - hpFrac) * 30 * focusTargeting
-			end
-			
-			local total = distScore + hpScore
-			if total > bestScore then
-				bestScore = total
-				bestPlayer = player
-			end
+		local pd = StateService:GetPlayerData(player)
+		if pd and pd.State == "Dead" then continue end
+		local r = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if not r then continue end
+		local dist = (r.Position - origin).Magnitude
+		if dist &lt;= maxRange then
+			local score = -dist
+			if pd then score += (1 - math.clamp((pd.CurrentHealth or 100)/(pd.MaxHealth or 100), 0, 1)) * 30 * focusTgt end
+			if score > bestScore then bestScore = score; best = player end
 		end
 	end
-
-	return bestPlayer
+	return best
 end
 
---[[
-	Pick a random patrol waypoint within `radius` studs of `spawnPos` at the
-	same Y height (NPCs don't climb).
-]]
-local function _RandomPatrolPoint(spawnPos: Vector3, radius: number): Vector3
-	local angle  = math.random() * math.pi * 2
-	local dist   = math.random() * radius
-	return Vector3.new(
-		spawnPos.X + math.cos(angle) * dist,
-		spawnPos.Y,
-		spawnPos.Z + math.sin(angle) * dist
-	)
+local function _GetPlayerRoot(player: Player): BasePart?
+	local char = player.Character
+	return char and (char:FindFirstChild("HumanoidRootPart") :: BasePart?) or nil
 end
 
---[[
-	Set the loop animation state (Idle vs Run) for a mob.
-	Only changes if the new state is different from current.
-]]
-local function _SetAnimState(instanceId: string, model: Model, state: "Idle" | "Run")
-	if _animStates[instanceId] == state then return end
-	_animStates[instanceId] = state
-
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
-
-	local animator = humanoid:FindFirstChild("Animator") :: Animator?
-	if not animator then return end
-
-	-- Stop running tracks that match movement
-	for _, track in animator:GetPlayingAnimationTracks() do
-		if track.Animation.AnimationId == AnimationDatabase.Movement.Idle or
-		   track.Animation.AnimationId == AnimationDatabase.Movement.Run then
-			track:Stop(0.2)
-		end
-	end
-
-	local animId = (state == "Run") and AnimationDatabase.Movement.Run or AnimationDatabase.Movement.Idle
-	local anim = Instance.new("Animation")
-	anim.AnimationId = animId
-	local track = animator:LoadAnimation(anim)
-	track.Looped = true
-	track:Play(0.2)
-end
+-- ─── Core attack executor ────────────────────────────────────────────────────
 
 --[[
-	Play a standard R6 animation on the humanoid.
-	@param model - The Hollowed model
-	@param attackType - Type of attack (e.g. "melee")
-	@param duration - Total animation duration in seconds
+	Spawn a hitbox in front of the mob.
+
+	AXIS NOTE:  CFrame.LookVector = -Z in Roblox.
+	            root.CFrame * CFrame.new(0, 0, -3)  →  3 studs FORWARD.
+	            Negative Z offset = in front.  Do NOT use positive Z.
+
+	@param targetRootSnap  The player's root at the moment of commit.  Used for:
+	                       - face-lock before windup fires
+	                       - range re-check inside the delay (FIX D)
+	@param isCombo         If true, skip the feint check and use a shorter recovery
 ]]
-local function _PlayAttackAnimation(model: Model, configId: string, duration: number)
-	local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-	if not humanoid then return end
-
-	local animator = humanoid:FindFirstChild("Animator") :: Animator?
-	if not animator then
-		animator = Instance.new("Animator")
-		animator.Parent = humanoid
-	end
-
-	-- Pick animation ID from database based on variant
-	local animId = AnimationDatabase.Combat.General.Punch1 -- Default
-
-	if configId == "silhouette_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Ash.AshenStep
-	elseif configId == "resonant_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Gale.WindStrike
-	elseif configId == "ember_hollowed" then
-		animId = AnimationDatabase.Combat.Aspect.Ember.Surge
-	else
-		-- basic_hollowed, ironclad_hollowed (or default)
-		local punches = {
-			AnimationDatabase.Combat.General.Punch1,
-			AnimationDatabase.Combat.General.Punch2,
-			AnimationDatabase.Combat.General.Punch3,
-			AnimationDatabase.Combat.General.LeftHit,
-			AnimationDatabase.Combat.General.RightHit
-		}
-		animId = punches[math.random(1, #punches)]
-	end
-
-	-- Fallback if the aspect animation is a stub
-	if animId == "" or animId == "rbxassetid://0" then
-		animId = AnimationDatabase.Combat.General.Punch1
-	end
-
-	local animation = Instance.new("Animation")
-	animation.AnimationId = animId
-
-	local track = animator:LoadAnimation(animation)
-	track:Play()
-end
-
---[[
-	Apply melee damage from this Hollowed instance to `targetPlayer`.
-	Handles HP subtraction and posture gain.  Sets player Dead if HP reaches 0.
-	Broadcasts HitConfirmed event to all clients.
-]]
-local function _ExecuteHitboxAttack(data: HollowedData, model: Model, config: HollowedConfig, shape: "Box" | "Sphere", size: Vector3, offset: Vector3, duration: number)
-	data.State = "Attacking"
+local function _FireHitbox(
+	data          : HollowedData,
+	model         : Model,
+	config        : HollowedConfig,
+	targetSnap    : BasePart,
+	isCombo       : boolean?
+)
+	data.State          = "Attacking"
 	data.LastAttackTick = tick()
+	_intentMap[data.InstanceId] = ""
 	_UpdateVisuals(data.InstanceId)
+	_SetLoopAnim(data.InstanceId, model, "Idle")
+	_StopMovement(model)
+	_FaceTarget(model, targetSnap.Position)
+	_PlayOneshot(model, _PickAttackAnim(data.ConfigId))
 
-	-- Play attack animation before executing hitbox
-	_PlayAttackAnimation(model, data.ConfigId, duration)
-
-	local root = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not root then return end
-
-	local hitboxConfig = {
-		Shape = shape,
-		Owner = data.InstanceId,
-		Damage = config.AttackDamage,
-		PostureDamage = config.PostureDamage,
-		Position = (root.CFrame * CFrame.new(offset)).Position,
-		CFrame = root.CFrame * CFrame.new(offset),
-		Size = size,
-		Radius = size.X, -- Assuming uniform if sphere
-		Duration = duration,
-	}
-
-	-- Trigger hitbox logic. Create the hitbox, attach server-side OnHit to apply damage,
-	-- then immediately evaluate collisions via TestHitbox so server-controlled NPC attacks
-	-- apply damage to players/dummies reliably.
-	local hb = HitboxService.CreateHitbox(hitboxConfig)
-
-	-- Attach OnHit to route damage into player/dummy damage pipelines
-	do
-		local origOnHit = hb.Config.OnHit
-		hb.Config.OnHit = function(target: any, hitData: any)
-			-- Preserve original callback behavior if present
-			if origOnHit then
-				pcall(origOnHit, target, hitData)
-			end
-
-			-- Resolve target and apply damage via the IncomingHPDamage attribute for players,
-			-- or DummyService.ApplyDamage for dummies (server-side canonical path).
-			local dmg = hb.Config.Damage or config.AttackDamage or 0
-			local post = hb.Config.PostureDamage or config.PostureDamage or 0
-
-			-- Player target
-			if typeof(target) == "Instance" and target:IsA("Player") then
-				local ply = target :: Player
-				local char = ply.Character
-				if char and char.Parent then
-					local targetState = StateService:GetPlayerData(ply)
-					local isBlocking = targetState and targetState.State == "Blocking"
-
-					if isBlocking then
-						-- Target is blocking, apply only posture damage
-						local existingP = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
-						char:SetAttribute("IncomingPostureDamage", existingP + post)
-						char:SetAttribute("IncomingPostureDamageSource", (data and data.InstanceId or "Hollowed") .. "_Attack")
-					else
-						-- Target not blocking, apply only HP damage
-						local existing = (char:GetAttribute("IncomingHPDamage") or 0) :: number
-						char:SetAttribute("IncomingHPDamage", existing + dmg)
-						char:SetAttribute("IncomingHPDamageSource", (data and data.InstanceId or "Hollowed") .. "_Attack")
-					end
-				end
-
-			-- Dummy target (string identifier)
-			elseif type(target) == "string" then
-				local dummyId = target
-				-- Ensure DummyService exists and apply direct damage
-				if DummyService and DummyService.ApplyDamage then
-					pcall(function()
-						DummyService.ApplyDamage(dummyId, dmg)
-					end)
-				end
-			end
-		end
+	local root = _GetRoot(model)
+	if not root then
+		_RestoreSpeed(model, config.MoveSpeed)
+		if _instances[data.InstanceId] then _instances[data.InstanceId].State = "Aggro" end
+		return
 	end
 
-	-- Immediately test the hitbox to invoke OnHit for current frame
-	HitboxService.TestHitbox(hb)
-
-	-- Lock in attack state for cooldown, then resume
-	task.delay(duration + 0.5, function()
-		if _instances[data.InstanceId] and _instances[data.InstanceId].State == "Attacking" then
-			_instances[data.InstanceId].State = "Aggro"
-			_UpdateVisuals(data.InstanceId)
-		end
-	end)
-end
-
-
-
---[[
-	Execute the specific custom AI move set per variant instead of just swinging.
-]]
-local function _ExecuteVariantAI(data: HollowedData, model: Model, config: HollowedConfig, dt: number, targetRoot: BasePart, now: number)
-	local rootPos = (model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") :: BasePart).Position
-	local toTarget = targetRoot.Position - rootPos
-	local dist = toTarget.Magnitude
-	local hasFacingDir = toTarget.Magnitude > 0.01
-
-	-- Always keep Hollowed oriented toward the live target while engaged.
-	if hasFacingDir then
-		_PivotModel(model, Vector3.zero, targetRoot.Position)
-	end
-
-	local diff = data.Difficulty or 1
-	local aggro = data.FocusAggression or 1
-	local def = data.FocusDefense or 1
-	local effectiveCooldown = config.AttackCooldown / diff
-
-	if data.ConfigId == "basic_hollowed" then
-		local desiredMin = config.AttackRange * 0.7
-		local desiredMax = config.AttackRange * 1.1
-
-		local shouldAttack = (dist <= config.AttackRange)
-			and (now - data.LastAttackTick >= effectiveCooldown)
-			and (math.random() < 0.25 + aggro * 0.5)
-
-		if shouldAttack then
-			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(4, 4, 4), Vector3.new(0, 0, -3), 0.3)
-			_SetAnimState(data.InstanceId, model, "Idle")
-		else
-			if dist > desiredMax then
-				_WalkTo(model, targetRoot.Position)
-				_SetAnimState(data.InstanceId, model, "Run")
-			elseif dist < desiredMin then
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local backPos = rootPos - dir * 4
-				_WalkTo(model, backPos)
-				_SetAnimState(data.InstanceId, model, "Run")
-			else
-				local dir = dist > 0.01 and toTarget.Unit or Vector3.new(0, 0, -1)
-				local side = math.random() < 0.5 and dir:Cross(Vector3.yAxis()) or Vector3.yAxis():Cross(dir)
-				side = side.Unit
-				local strafeDist = 5 + 5 * aggro
-				local strafePos = rootPos + side * strafeDist * dt * 5
-				_WalkTo(model, strafePos)
-				_SetAnimState(data.InstanceId, model, "Run")
-			end
-		end
-
-	elseif data.ConfigId == "ironclad_hollowed" then
-		-- Ironclad: occasionally blocks while moving, heavy slam
-		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(6, 6, 6), Vector3.new(0, 0, -2), 0.5)
-			end
-			_SetAnimState(data.InstanceId, model, "Idle")
-		else
-			-- Move forward
-			_WalkTo(model, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
-			-- Randomly block
-			if math.random() < (0.05 * def) and data.State ~= "Blocking" then
-				data.State = "Blocking"
-				task.delay(1.5, function() if data.State == "Blocking" then data.State = "Aggro" end end)
-			end
-		end
-
-	elseif data.ConfigId == "silhouette_hollowed" then
-		-- Silhouette: Stays just out of reach, dashes in
-		if dist > config.AttackRange and dist < 12 and now - data.LastAttackTick >= effectiveCooldown then
-			-- Dash attack
-			_PivotModel(model, toTarget.Unit * 8, targetRoot.Position)
-			_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(3, 4, 3), Vector3.new(0, 0, -2), 0.2)
-			_SetAnimState(data.InstanceId, model, "Run")
-		elseif dist <= config.AttackRange then
-			-- Back up
-			_PivotModel(model, -toTarget.Unit * config.MoveSpeed * dt, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
-		else
-			-- Chase / circle
-			_WalkTo(model, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
-		end
-
-	elseif data.ConfigId == "resonant_hollowed" then
-		-- Resonant: Casts spheres from afar
-		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Sphere", Vector3.new(8, 8, 8), Vector3.new(0, 0, -dist), 0.5)
-			end
-			_SetAnimState(data.InstanceId, model, "Idle")
-		else
-			-- Keep distance / chase
-			_WalkTo(model, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
-		end
-
-	elseif data.ConfigId == "ember_hollowed" then
-		-- Ember: Wide cleave sweeps
-		if dist <= config.AttackRange then
-			if now - data.LastAttackTick >= effectiveCooldown then
-				_ExecuteHitboxAttack(data, model, config, "Box", Vector3.new(8, 4, 6), Vector3.new(0, 0, -4), 0.6)
-			end
-			_SetAnimState(data.InstanceId, model, "Idle")
-		else
-			-- Aggressive chase
-			_WalkTo(model, targetRoot.Position)
-			_SetAnimState(data.InstanceId, model, "Run")
-		end
-	end
-end
-
---[[
-	Evaluate AI for a single Hollowed instance.  Called every AI_TICK_RATE seconds.
-]]
-local function _TickAI(instanceId: string, dt: number)
-	local data   = _instances[instanceId]
-	local model  = _models[instanceId]
-	local config = CONFIGS[data.ConfigId]
-	if not data or not model or not config then return end
-	if not data.IsActive or data.State == "Dead" then return end
-
-	local now          = tick()
-	local rootPart     = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-	if not rootPart then return end
-
-	local rootPos = rootPart.Position
-	data.RootPosition = rootPos
-
-	-- ── Aggro detection ──────────────────────────────────────────────────────
-
-	local nearestPlayer = _GetBestTarget(rootPos, config.AggroRange, data.FocusTargeting or 1)
-
-	if nearestPlayer and data.State ~= "Attacking" then
-		if data.State ~= "Aggro" then
-			data.State = "Aggro"
-			data.Target = nearestPlayer
-			_UpdateVisuals(instanceId)
-			print(("[HollowedService] %s → Aggro on %s"):format(instanceId, nearestPlayer.Name))
-		end
-		data.Target = nearestPlayer
-	elseif not nearestPlayer and data.State == "Aggro" then
-		data.State        = "Patrol"
-		data.Target       = nil
-		data.PatrolTarget = nil
-		_UpdateVisuals(instanceId)
-		print(("[HollowedService] %s → Patrol (target lost)"):format(instanceId))
-	end
-
-	-- ── State behaviour ──────────────────────────────────────────────────────
-
-	if data.State == "Aggro" and data.Target then
-		local target = data.Target
-		local targetChar = target.Character
-		local targetData = StateService:GetPlayerData(target)
-		local targetRoot = targetChar and (targetChar:FindFirstChild("HumanoidRootPart") :: BasePart?) or nil
-		local isValidTarget = targetChar ~= nil and targetRoot ~= nil and (not targetData or targetData.State ~= "Dead")
-		local outOfRange = false
-		if targetRoot then
-			outOfRange = (targetRoot.Position - rootPos).Magnitude > (config.AggroRange + 5)
-		end
-
-		if (not isValidTarget) or outOfRange then
-			-- Hard-drop stale/invalid targets immediately and reacquire on next AI tick.
-			data.State = "Patrol"
-			data.Target = nil
-			data.PatrolTarget = nil
-			_UpdateVisuals(instanceId)
+	task.delay(WINDUP, function()
+		local live = _instances[data.InstanceId]
+		if not live or live.State ~= "Attacking" then
+			_RestoreSpeed(model, config.MoveSpeed)
 			return
 		end
 
-		_ExecuteVariantAI(data, model, config, dt, targetRoot :: BasePart, now)
+		-- Range re-check: cancel if player escaped during windup
+		local rootNow    = _GetRoot(model)
+		local liveRoot   = _GetPlayerRoot(live.Target)
+		local checkPos   = liveRoot and liveRoot.Position or targetSnap.Position
+		if rootNow then
+			local distNow = (checkPos - rootNow.Position).Magnitude
+			if distNow > config.AttackRange * 1.6 then
+				task.delay(RECOVERY, function()
+					local l2 = _instances[data.InstanceId]
+					if l2 and l2.State == "Attacking" then
+						l2.State = "Aggro"
+						_RestoreSpeed(model, config.MoveSpeed)
+						_UpdateVisuals(data.InstanceId)
+					end
+				end)
+				return
+			end
+		end
 
+		-- Re-face at impact using live player position
+		local liveTarget = _GetPlayerRoot(live.Target)
+		local aimPos     = liveTarget and liveTarget.Position or targetSnap.Position
+		_FaceTarget(model, aimPos)
+
+		local root2 = _GetRoot(model)
+		if not root2 then return end
+
+		-- For ranged mobs: place hitbox AT the player.
+		-- For melee mobs: place hitbox MeleeReach studs in front of the mob.
+		local reach  = (config :: any).MeleeReach or 3
+		local isRanged = (config :: any).IsRanged or false
+		local hitPos: Vector3
+		if isRanged then
+			-- Ranged: place a sphere hitbox at the player's position
+			hitPos = aimPos
+		else
+			-- Melee: place hitbox forward of the mob root
+			hitPos = (root2.CFrame * CFrame.new(0, 0, -reach)).Position
+		end
+		local hitCF = CFrame.new(hitPos)
+
+		local hb = HitboxService.CreateHitbox({
+			Shape         = "Box",
+			Owner         = data.InstanceId,
+			Damage        = config.AttackDamage,
+			PostureDamage = config.PostureDamage,
+			Position      = hitCF.Position,
+			CFrame        = hitCF,
+			Size          = Vector3.new(4, 4, 4),
+			Radius        = 4,
+			Duration      = SWING,
+		})
+
+		local origOnHit = hb.Config.OnHit
+		hb.Config.OnHit = function(target: any, hitData: any)
+			if origOnHit then pcall(origOnHit, target, hitData) end
+
+			local dmg  = hb.Config.Damage        or config.AttackDamage  or 0
+			local post = hb.Config.PostureDamage  or config.PostureDamage or 0
+
+			if typeof(target) == "Instance" and target:IsA("Player") then
+				local ply  = target :: Player
+				local char = ply.Character
+				if char and char.Parent then
+					local pd = StateService:GetPlayerData(ply)
+					-- Record threat: player just got hit, opening for combo
+					local extD = _ext[data.InstanceId]
+					if extD then
+						extD.LastHitLandedTick = tick()
+						extD.ComboAvailable    = true
+					end
+					if pd and pd.State == "Blocking" then
+						local ep = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
+						char:SetAttribute("IncomingPostureDamage", ep + post)
+						char:SetAttribute("IncomingPostureDamageSource", data.InstanceId .. "_Attack")
+					else
+						local eh = (char:GetAttribute("IncomingHPDamage") or 0) :: number
+						char:SetAttribute("IncomingHPDamage", eh + dmg)
+						char:SetAttribute("IncomingHPDamageSource", data.InstanceId .. "_Attack")
+					end
+				end
+			elseif type(target) == "string" and DummyService and DummyService.ApplyDamage then
+				pcall(DummyService.ApplyDamage, target, dmg)
+			end
+		end
+
+		HitboxService.TestHitbox(hb)
+
+		local recoverTime = isCombo and (RECOVERY * 0.6) or RECOVERY
+		task.delay(SWING + recoverTime, function()
+			local l2 = _instances[data.InstanceId]
+			if l2 and l2.State == "Attacking" then
+				l2.State = "Aggro"
+				_RestoreSpeed(model, config.MoveSpeed)
+				_UpdateVisuals(data.InstanceId)
+			end
+		end)
+	end)
+end
+
+-- ─── Combat behaviour primitives ─────────────────────────────────────────────
+
+--[[
+	Try to commit a real attack.  Returns true if attack was fired.
+	Checks cooldown, range, aggro grace period.
+	If difficulty ≥ 8, considers threat level and may delay to turtle.
+]]
+local function _TryAttack(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number,
+	isCombo    : boolean?
+): boolean
+	local root = _GetRoot(model)
+	if not root then return false end
+	local ex   = _ext[data.InstanceId]
+	if not ex  then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	if dist > config.AttackRange then return false end
+
+	-- Aggro grace period
+	if now - (ex.LastAggroTick or now) &lt; 0.3 then return false end
+
+	-- Difficulty-scaled cooldown
+	local diff     = math.clamp(data.Difficulty or 5, 1, 10)
+	local diffNorm = (diff - 5) / 5                          -- -1..+1
+	local cdMult   = isCombo and COMBO_CD_MULT or (1.0 - 0.3 * diffNorm)
+	if now - data.LastAttackTick &lt; config.AttackCooldown * cdMult then return false end
+
+	-- High-difficulty threat check: if player is hammering, wait for opening
+	local threat = ex.PlayerThreat or 0
+	if diff >= 8 and threat > THREAT_TURTLE_THRESH and not isCombo then
+		return false
+	end
+
+	_FireHitbox(data, model, config, targetRoot, isCombo)
+	return true
+end
+
+--[[
+	Perform a feint: play the attack animation start WITHOUT spawning a hitbox.
+	Stalls movement briefly to sell the fake.
+	Returns true if feint was performed.
+]]
+local function _TryFeint(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff &lt; 7 then return false end  -- feints only at difficulty 7+
+
+	local lastFeint = ex.LastFeintTick or 0
+	if now - lastFeint &lt; FEINT_COOLDOWN then return false end
+
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	-- Only feint when close enough to be convincing
+	if dist > config.AttackRange * 2 then return false end
+
+	-- Roll: 25% chance per tick when eligible
+	if math.random() > 0.25 then return false end
+
+	ex.LastFeintTick = now
+	_FaceTarget(model, targetRoot.Position)
+	_StopMovement(model)
+	-- Play the attack anim start (no hitbox)
+	_PlayOneshot(model, _PickAttackAnim(data.ConfigId))
+
+	-- After the feint duration, resume normal AI
+	task.delay(FEINT_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Aggro" then
+			_RestoreSpeed(model, config.MoveSpeed)
+		end
+	end)
+
+	return true
+end
+
+--[[
+	Open a parry window.  While InParryWindow is true, incoming hits are
+	reflected in ApplyDamage.  Returns true if parry window was opened.
+]]
+local function _TryParry(
+	data  : HollowedData,
+	model : Model,
+	config: HollowedConfig,
+	now   : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff &lt; 8 then return false end  -- parry only at difficulty 8+
+
+	local lastParry = ex.LastParryTick or 0
+	if now - lastParry &lt; PARRY_COOLDOWN then return false end
+	if ex.InParryWindow then return false end
+	if now - data.LastAttackTick &lt; config.AttackCooldown * 0.5 then return false end
+
+	-- Roll: chance scales with difficulty above 8
+	local chance = 0.04 + 0.03 * (diff - 8)   -- 4% at diff 8, 10% at diff 10
+	if math.random() > chance then return false end
+
+	ex.LastParryTick  = now
+	ex.InParryWindow  = true
+	_StopMovement(model)
+	_UpdateVisuals(data.InstanceId)
+
+	task.delay(PARRY_WINDOW, function()
+		local live = _instances[data.InstanceId]
+		if live then
+			local ex = _ext[data.InstanceId]
+			if ex then ex.InParryWindow = false end
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+
+	return true
+end
+
+--[[
+	Enter a blocking state reactively (player recently attacked, mob is nearby).
+	Returns true if block was raised.
+]]
+local function _TryBlock(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff &lt; 6 then return false end  -- block at difficulty 6+
+
+	local lastBlock = ex.LastBlockTick or 0
+	if now - lastBlock &lt; BLOCK_COOLDOWN then return false end
+	if data.State == "Blocking" then return false end
+
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+	-- Only worth blocking when the player can actually reach us
+	if dist > config.AttackRange * 1.5 then return false end
+
+	-- Block chance scales with threat: mob blocks MORE when being hammered
+	local threat = ex.PlayerThreat or 0
+	local chance = 0.04 + 0.05 * math.clamp(threat / THREAT_TURTLE_THRESH, 0, 1) * (diff / 10)
+	if math.random() > chance then return false end
+
+	ex.LastBlockTick = now
+	data.State = "Blocking"
+	_StopMovement(model)
+	_FaceTarget(model, targetRoot.Position)
+	_UpdateVisuals(data.InstanceId)
+
+	task.delay(BLOCK_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Blocking" then
+			live.State = "Aggro"
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+
+	return true
+end
+
+--[[
+	Perform a lateral dodge away from the incoming threat.
+	Mob becomes invincible (Dodging state) for DODGE_DURATION.
+]]
+local function _TryDodge(
+	data       : HollowedData,
+	model      : Model,
+	config     : HollowedConfig,
+	targetRoot : BasePart,
+	now        : number
+): boolean
+	local ex = _ext[data.InstanceId]
+	if not ex then return false end
+	local diff = math.clamp(data.Difficulty or 1, 1, 10)
+	if diff &lt; 7 then return false end  -- dodge at difficulty 7+
+
+	local lastDodge = ex.LastDodgeTick or 0
+	if now - lastDodge &lt; DODGE_COOLDOWN then return false end
+	if data.State == "Dodging" then return false end
+
+	local root = _GetRoot(model)
+	if not root then return false end
+	local dist = (targetRoot.Position - root.Position).Magnitude
+
+	-- Dodge chance spikes when the player is very close (about to swing)
+	local threat = ex.PlayerThreat or 0
+	local proximityFactor = math.clamp(1 - (dist / (config.AttackRange * 1.2)), 0, 1)
+	local chance = proximityFactor * 0.12 * (diff / 10) * math.clamp(threat / 1.5, 0, 2)
+	if math.random() > chance then return false end
+
+	ex.LastDodgeTick = now
+	data.State = "Dodging"
+	_StopMovement(model)
+	_UpdateVisuals(data.InstanceId)
+
+	-- Pick a lateral direction (perpendicular to player)
+	local toTarget = (targetRoot.Position - root.Position)
+	local flat     = Vector3.new(toTarget.X, 0, toTarget.Z)
+	local sideDir  = if ex.StrafeDir == 1
+		then flat.Unit:Cross(Vector3.yAxis)
+		else Vector3.yAxis:Cross(flat.Unit)
+
+	-- Slide the mob laterally — instant dash via PivotTo
+	local dodgeTarget = root.Position + sideDir.Unit * DODGE_DISTANCE
+	model:PivotTo(CFrame.lookAt(dodgeTarget, dodgeTarget + flat.Unit))
+
+	task.delay(DODGE_DURATION, function()
+		local live = _instances[data.InstanceId]
+		if live and live.State == "Dodging" then
+			live.State = "Aggro"
+			_RestoreSpeed(model, config.MoveSpeed)
+			_UpdateVisuals(data.InstanceId)
+		end
+	end)
+
+	return true
+end
+
+-- ─── Patrol ───────────────────────────────────────────────────────────────────
+
+local function _RandomPatrolPoint(spawnPos: Vector3, radius: number): Vector3
+	local angle = math.random() * math.pi * 2
+	local d     = math.random() * radius
+	return Vector3.new(spawnPos.X + math.cos(angle)*d, spawnPos.Y, spawnPos.Z + math.sin(angle)*d)
+end
+
+-- ─── AI tick ─────────────────────────────────────────────────────────────────
+
+local function GetAITickForDiff(diff: number): number
+	return BASE_AI_TICK - 0.06 * (diff / 10)
+end
+
+local function _TickAI(instanceId: string, dt: number)
+	local data   = _instances[instanceId]
+	local model  = _models[instanceId]
+	if not data or not model then return end
+	local config = CONFIGS[data.ConfigId]
+	if not config then return end
+	if not data.IsActive or data.State == "Dead" then return end
+
+	local ex = _ext[instanceId]
+	if not ex then return end
+
+	local now      = tick()
+	local rootPart = _GetRoot(model)
+	if not rootPart then return end
+	data.RootPosition = rootPart.Position
+	local rootPos  = rootPart.Position
+
+	-- Skip AI during hard-locked states
+	if data.State == "Attacking" or data.State == "Stunned" or data.State == "Staggered"
+	or data.State == "Dodging" then return end
+
+	-- ── Decay player threat score ────────────────────────────────────────────
+	local threat = ex.PlayerThreat or 0
+	threat = math.max(0, threat - THREAT_DECAY * dt)
+	ex.PlayerThreat = threat
+
+	-- ── Strafe direction: flip every 2–4 seconds ──────────────────────────────
+	local strafeFlip = ex.StrafeFlipTick or 0
+	if now - strafeFlip > 2 + math.random() * 2 then
+		ex.StrafeDir      = math.random() &lt; 0.5 and 1 or -1
+		ex.StrafeFlipTick = now
+	end
+
+	-- ── Aggro detection ──────────────────────────────────────────────────────
+	local nearest = _GetBestTarget(rootPos, config.AggroRange, ex.FocusTargeting or 1)
+	if nearest and data.State ~= "Attacking" then
+		if data.State ~= "Aggro" then
+			data.State = "Aggro"
+			data.Target = nearest
+			ex.LastAggroTick = now
+			_UpdateVisuals(instanceId)
+		end
+		data.Target = nearest
+	elseif not nearest and data.State == "Aggro" then
+		data.State = "Patrol"
+		data.Target = nil; data.PatrolTarget = nil
+		_UpdateVisuals(instanceId)
+	end
+
+	-- ── Aggro state ──────────────────────────────────────────────────────────
+	if data.State == "Aggro" and data.Target then
+		local target     = data.Target
+		local targetRoot = _GetPlayerRoot(target)
+		local pd         = StateService:GetPlayerData(target)
+		local alive      = targetRoot ~= nil and (not pd or pd.State ~= "Dead")
+		local inRange    = targetRoot and (targetRoot.Position - rootPos).Magnitude &lt;= config.AggroRange + 5
+
+		if not alive or not inRange then
+			data.State = "Patrol"; data.Target = nil; data.PatrolTarget = nil
+			_UpdateVisuals(instanceId); return
+		end
+
+		local tr     = targetRoot :: BasePart
+		local dist   = (tr.Position - rootPos).Magnitude
+		local diff2  = math.clamp(data.Difficulty or 1, 1, 10)
+
+		-- ── Combo follow-up check (highest priority after state checks) ───────
+		local comboAvail = ex.ComboAvailable
+		local lastHit    = ex.LastHitLandedTick or 0
+		if comboAvail and (now - lastHit) &lt; COMBO_WINDOW then
+			if _TryAttack(data, model, config, tr, now, true) then
+				ex.ComboAvailable = false
+				return
+			end
+		else
+			ex.ComboAvailable = false
+		end
+
+		-- ── Parry window attempt ───────────────────────────────────────────────
+		if _TryParry(data, model, config, now) then return end
+
+		-- ── Block attempt ──────────────────────────────────────────────────────
+		if data.State == "Blocking" then
+			-- Already blocking — just face the threat
+			_FaceTarget(model, tr.Position)
+			return
+		end
+		if _TryBlock(data, model, config, tr, now) then return end
+
+		-- ── Dodge attempt ─────────────────────────────────────────────────────
+		if _TryDodge(data, model, config, tr, now) then return end
+
+		-- ── Feint attempt ─────────────────────────────────────────────────────
+		if _TryFeint(data, model, config, tr, now) then return end
+
+		-- ── Spacing + attack ──────────────────────────────────────────────────
+		--
+		-- Movement is driven by _MoveModel (PivotTo each tick) — Humanoid:MoveTo
+		-- has no effect on anchored parts.
+		--
+		-- Melee mobs close to AttackRange then attack.
+		-- Ranged mobs hold at AttackRange ± 20%, strafe, and fire from distance.
+
+		local isRanged   = (config :: any).IsRanged or false
+		local closeRange = config.AttackRange * 1.5
+		local holdMin    = config.AttackRange * 0.75  -- ranged: don't let player get closer
+		local strafeDir  = ex.StrafeDir or 1
+		local turtling   = diff2 >= 8 and threat > THREAT_TURTLE_THRESH
+
+		local lastIntent = _intentMap[instanceId] or ""
+		local function intent(key: string, anim: "Idle" | "Run")
+			if lastIntent ~= key then
+				_SetLoopAnim(instanceId, model, anim)
+				_intentMap[instanceId] = key
+			end
+		end
+
+		-- Predict where the player will be a short time from now
+		local vel       = tr.AssemblyLinearVelocity
+		local diffN     = math.clamp(diff2 / 10, 0, 1)
+		local lead      = 0.1 + 0.2 * diffN
+		local predicted = Vector3.new(
+			tr.Position.X + vel.X * lead,
+			tr.Position.Y,
+			tr.Position.Z + vel.Z * lead
+		)
+
+		if isRanged then
+			-- ── Ranged behaviour ──────────────────────────────────────────────
+			-- Hold at AttackRange. If player gets too close, back up.
+			-- Always strafe. Fire when in range.
+			if dist &lt; holdMin then
+				-- Player too close — back away
+				intent("backoff", "Run")
+				local awayDir = Vector3.new(rootPos.X - tr.Position.X, 0, rootPos.Z - tr.Position.Z)
+				if awayDir.Magnitude > 0.01 then
+					_MoveModel(model, rootPos + awayDir.Unit * 10, config.MoveSpeed, dt)
+				end
+			elseif dist > closeRange then
+				-- Too far — close until in range
+				intent("chase", "Run")
+				_MoveModel(model, predicted, config.MoveSpeed, dt)
+			else
+				-- In ideal range — strafe and attack
+				intent("strafe", "Run")
+				_StrafeModel(model, tr.Position, strafeDir, config.MoveSpeed, dt)
+				_TryAttack(data, model, config, tr, now, false)
+			end
+			-- Always face target
+			_FaceTarget(model, tr.Position)
+
+		elseif dist &lt;= config.AttackRange then
+			-- ── Melee: in attack range ────────────────────────────────────────
+			if turtling then
+				intent("backoff", "Run")
+				local awayDir = Vector3.new(rootPos.X - tr.Position.X, 0, rootPos.Z - tr.Position.Z)
+				if awayDir.Magnitude > 0.01 then
+					_MoveModel(model, rootPos + awayDir.Unit * 8, config.MoveSpeed, dt)
+				end
+			elseif _TryAttack(data, model, config, tr, now, false) then
+				intent("attack", "Idle")
+			else
+				-- On cooldown — circle-strafe to stay unpredictable
+				intent("circle", "Run")
+				_StrafeModel(model, tr.Position, strafeDir, config.MoveSpeed, dt)
+			end
+
+		elseif dist > closeRange then
+			-- ── Melee: far — run straight at player ───────────────────────────
+			intent("chase", "Run")
+			_MoveModel(model, predicted, config.MoveSpeed, dt)
+
+		else
+			-- ── Melee: closing zone — advance until in attack range ───────────
+			intent("advance", "Run")
+			_MoveModel(model, tr.Position, config.MoveSpeed, dt)
+		end
+
+		-- Face target when standing still (attack intent)
+		if _intentMap[instanceId] == "attack" then
+			_FaceTarget(model, tr.Position)
+		end
+
+	-- ── Patrol state ─────────────────────────────────────────────────────────
 	elseif data.State == "Patrol" then
-		-- Idle at waypoint: wait before picking next
-		if now < data.PatrolWaitUntil then return end
-
-		-- Pick a new waypoint if we don't have one (or just arrived)
+		if now &lt; data.PatrolWaitUntil then return end
 		if not data.PatrolTarget then
 			data.PatrolTarget = _RandomPatrolPoint(data.SpawnCFrame.Position, config.PatrolRadius)
 		end
-
-		local toWaypoint: Vector3 = data.PatrolTarget - rootPos
-		local distWaypoint        = toWaypoint.Magnitude
-
-		if distWaypoint <= PATROL_ARRIVE_DIST then
-			-- Arrived — idle for a bit then pick another waypoint
+		local toWP = data.PatrolTarget - rootPos
+		if toWP.Magnitude &lt;= PATROL_ARRIVE_DIST then
 			data.PatrolTarget    = nil
 			data.PatrolWaitUntil = now + PATROL_WAIT_TIME
-			_SetAnimState(instanceId, model, "Idle")
+			_SetLoopAnim(instanceId, model, "Idle")
 		else
-			local humanoid = model:FindFirstChild("Humanoid") :: Humanoid?
-			if humanoid then humanoid.WalkSpeed = config.MoveSpeed * 0.5 end
-			_WalkTo(model, data.PatrolTarget)
-			if humanoid then humanoid.WalkSpeed = config.MoveSpeed end
-			_SetAnimState(instanceId, model, "Run")
+			_MoveModel(model, data.PatrolTarget, config.MoveSpeed * 0.5, dt)
+			_SetLoopAnim(instanceId, model, "Run")
 		end
 	end
 end
 
 -- ─── Public API ──────────────────────────────────────────────────────────────
 
---[[
-	Spawn a new Hollowed instance of the given config type at spawnCF.
-	Returns the instanceId, or nil if configId is unknown.
-]]
 function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, difficulty: number?): string?
 	local config = CONFIGS[configId]
 	if not config then
 		warn(("[HollowedService] Unknown configId: %s"):format(configId))
 		return nil
 	end
-
 	_nextId += 1
 	local instanceId = ("Hollowed_%d"):format(_nextId)
-
-	local model, _ = _CreateModel(instanceId, config, spawnCF)
+	local model, _   = _CreateModel(instanceId, config, spawnCF)
 	_models[instanceId] = model
 
 	local diff = difficulty or 1
-
 	local data: HollowedData = {
 		InstanceId      = instanceId,
 		ConfigId        = configId,
@@ -21481,6 +22251,7 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, diffic
 		State           = "Patrol",
 		Target          = nil,
 		LastAttackTick  = 0,
+		LastAggroTick   = 0,
 		PatrolTarget    = nil,
 		PatrolWaitUntil = 0,
 		LastAITick      = 0,
@@ -21490,282 +22261,239 @@ function HollowedService.SpawnInstance(configId: string, spawnCF: CFrame, diffic
 		FocusAggression = diff / 10,
 		FocusDefense    = (10 - diff) / 15,
 		FocusTargeting  = math.clamp(diff / 8, 0, 1),
-
-
-
 	}
-	_instances[instanceId] = data
+	-- Extra combat fields (initialised as a single table to avoid nil-index errors)
+	_ext[instanceId] = {
+		LastFeintTick     = 0,
+		LastParryTick     = 0,
+		LastDodgeTick     = 0,
+		LastBlockTick     = 0,
+		LastHitLandedTick = 0,
+		LastAggroTick     = 0,
+		ComboAvailable    = false,
+		InParryWindow     = false,
+		PlayerThreat      = 0,
+		StrafeDir         = math.random() &lt; 0.5 and 1 or -1,
+		StrafeFlipTick    = 0,
+		IdealRange        = config.AttackRange * 0.85,
+		FocusTargeting    = math.clamp(diff / 8, 0, 1),
+	}
 
-	print(("[HollowedService] Spawned %s (%s) at %s"):format(instanceId, configId, tostring(spawnCF.Position)))
+	_instances[instanceId] = data
+	print(("[HollowedService] Spawned %s (%s) diff=%d"):format(instanceId, configId, diff))
 	return instanceId
 end
 
-function HollowedService.SetDifficulty(instanceId: string, diff: number)
-	local data = _instances[instanceId]
-	if data then
-		data.Difficulty = diff
-		data.FocusAggression = diff / 10
-		data.FocusDefense = (10 - diff) / 15
-		data.FocusTargeting = math.clamp(diff / 8, 0, 1)
-	end
-end
-
---[[
-	Despawn and permanently remove a Hollowed instance.
-]]
 function HollowedService.DespawnInstance(instanceId: string)
-	local model = _models[instanceId]
-	if model then
-		model:Destroy()
-		_models[instanceId] = nil :: any
-	end
-	_instances[instanceId] = nil :: any
+	local m = _models[instanceId]
+	if m then m:Destroy(); _models[instanceId] = nil :: any end
+	_instances[instanceId]       = nil :: any
 	_instanceAreaMap[instanceId] = nil
-	_animStates[instanceId] = nil
-	print(("[HollowedService] Despawned %s"):format(instanceId))
+	_animStates[instanceId]      = nil
+	_intentMap[instanceId]       = nil
+	_ext[instanceId]             = nil :: any
 end
 
 --[[
-	Apply hit damage to a Hollowed instance (called by CombatService).
-	attacker: the Player who landed the hit.
-	Returns true if still alive, false if just killed.
+	Apply damage from a player hit.
+	If the mob is in a PARRY window the damage is reflected to the player instead.
+	If the mob is BLOCKING, only posture damage applies.
 ]]
 function HollowedService.ApplyDamage(instanceId: string, damage: number, attacker: Player?, postureDamage: number?): boolean
 	local data   = _instances[instanceId]
 	local config = data and CONFIGS[data.ConfigId]
 	if not data or not config or not data.IsActive then return false end
-	if data.State == "Dead" or data.State == "Dodging" then return false end
+	if data.State == "Dead" or data.State == "Dodging" then return false end  -- Dodging = invincible
 
-	-- Handle Blocking phase (Ironclad primarily)
+	local ex = _ext[instanceId]
+	if not ex then return false end
+
+	-- ── Parry reflect ────────────────────────────────────────────────────────
+	if ex.InParryWindow then
+		ex.InParryWindow = false
+		print(("[HollowedService] %s PARRIED hit from %s — reflecting!"):format(instanceId, attacker and attacker.Name or "?"))
+		if attacker then
+			local char = attacker.Character
+			if char and char.Parent then
+				local reflected = math.floor(damage * PARRY_REFLECT_MULT)
+				local existing  = (char:GetAttribute("IncomingHPDamage") or 0) :: number
+				char:SetAttribute("IncomingHPDamage", existing + reflected)
+				char:SetAttribute("IncomingHPDamageSource", instanceId .. "_Parry")
+				local ep = (char:GetAttribute("IncomingPostureDamage") or 0) :: number
+				char:SetAttribute("IncomingPostureDamage", ep + (postureDamage or 0) * 2)
+				char:SetAttribute("IncomingPostureDamageSource", instanceId .. "_Parry")
+			end
+		end
+		return true  -- mob takes no damage
+	end
+
+	-- ── Block: posture only ──────────────────────────────────────────────────
 	if data.State == "Blocking" then
-		print(("[HollowedService] %s BLOCKED hit from %s"):format(instanceId, attacker and attacker.Name or "Unknown"))
-		-- Potentially apply heavy posture damage or spark effects here
+		if postureDamage then
+			data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
+		end
+		print(("[HollowedService] %s BLOCKED hit"):format(instanceId))
+		ex.PlayerThreat = (ex.PlayerThreat or 0) + THREAT_HIT_ADD * 0.5
+		_UpdateVisuals(instanceId)
 		return true
 	end
 
-	-- Apply HP damage
+	-- ── Normal hit ───────────────────────────────────────────────────────────
+	ex.PlayerThreat = (ex.PlayerThreat or 0) + THREAT_HIT_ADD
+
 	data.CurrentHealth = math.max(0, data.CurrentHealth - damage)
 
-	-- Apply Posture damage if stunned mechanics are active
 	if postureDamage then
 		data.CurrentPoise = math.max(0, data.CurrentPoise - postureDamage)
-		if data.CurrentPoise <= 0 then
-			data.State = "Stunned"
-			print(("[HollowedService] %s was STUNNED!"):format(instanceId))
-			-- Recover poise after 3 seconds
-			task.delay(3, function()
-				if _instances[instanceId] and _instances[instanceId].State == "Stunned" then
-					_instances[instanceId].State = "Aggro"
+		if data.CurrentPoise &lt;= 0 then
+			data.State = "Staggered"
+			_intentMap[instanceId] = ""
+			local diff     = data.Difficulty or 1
+			local diffN    = math.clamp(diff / 10, 0, 1)
+			local staggerT = 0.4 - 0.2 * diffN
+			print(("[HollowedService] %s STAGGERED %.2fs"):format(instanceId, staggerT))
+			task.delay(staggerT, function()
+				if _instances[instanceId] and _instances[instanceId].State == "Staggered" then
+					_instances[instanceId].State      = _instances[instanceId].Target and "Aggro" or "Patrol"
 					_instances[instanceId].CurrentPoise = config.MaxPoise
+					local m = _models[instanceId]
+					if m then _RestoreSpeed(m, config.MoveSpeed) end
 				end
 			end)
 		end
 	end
 
 	_UpdateVisuals(instanceId)
+	print(("[HollowedService] %s -%d HP → %d/%d"):format(instanceId, damage, data.CurrentHealth, data.MaxHealth))
 
-	print(("[HollowedService] %s took %d damage — HP %d/%d"):format(
-		instanceId, damage, data.CurrentHealth, data.MaxHealth
-	))
-
-	if data.CurrentHealth <= 0 then
-		-- Record killer
+	if data.CurrentHealth &lt;= 0 then
 		data.KillerId = attacker and attacker.UserId or nil
-		data.State    = "Dead"
-		data.IsActive = false
-		data.Target   = nil
+		data.State    = "Dead"; data.IsActive = false; data.Target = nil
+		local m = _models[instanceId]
+		if m then _StopMovement(m) end
 		_UpdateVisuals(instanceId)
-
-		print(("[HollowedService] %s died — granting %d Resonance to killer"):format(
-			instanceId, config.ResonanceGrant
-		))
-
-		-- Grant Resonance to the killing player
+		print(("[HollowedService] %s died → +%d Resonance"):format(instanceId, config.ResonanceGrant))
 		if attacker and ProgressionService then
 			ProgressionService.GrantResonance(attacker, config.ResonanceGrant, "Hollowed")
 		end
-
-		-- Schedule respawn
 		task.delay(config.RespawnDelay, function()
-			if _instances[instanceId] then
-				-- Reset health and state, re-activate
-				data.CurrentHealth   = config.MaxHealth
-				data.MaxHealth       = config.MaxHealth
-				data.State           = "Patrol"
-				data.Target          = nil
-				data.PatrolTarget    = nil
-				data.PatrolWaitUntil = 0
-				data.KillerId        = nil
-				data.IsActive        = true
-				-- Teleport model back to spawn
-				local model = _models[instanceId]
-				if model then
-					local spawnPos = data.SpawnCFrame.Position
-					local rootPart = model:FindFirstChild("HumanoidRootPart") :: BasePart?
-					if rootPart then
-						local offset = spawnPos - rootPart.Position
-						_PivotModel(model, offset, nil)
-					end
-				end
-				_UpdateVisuals(instanceId)
-				print(("[HollowedService] %s respawned at spawn point"):format(instanceId))
+			if not _instances[instanceId] then return end
+			data.CurrentHealth   = config.MaxHealth
+			data.MaxHealth       = config.MaxHealth
+			data.State           = "Patrol"; data.Target = nil
+			data.PatrolTarget    = nil; data.PatrolWaitUntil = 0
+			data.KillerId        = nil; data.IsActive = true
+			local ex = _ext[instanceId]
+			if ex then
+				ex.PlayerThreat   = 0
+				ex.ComboAvailable = false
+				ex.InParryWindow  = false
 			end
+			local mdl = _models[instanceId]
+			if mdl then
+				local rp = _GetRoot(mdl)
+				if rp then
+					local off = data.SpawnCFrame.Position - rp.Position
+					mdl:PivotTo((rp.CFrame :: CFrame) + off)
+				end
+				_RestoreSpeed(mdl, config.MoveSpeed)
+			end
+			_UpdateVisuals(instanceId)
+			print(("[HollowedService] %s respawned"):format(instanceId))
 		end)
-
 		return false
 	end
 
 	return true
 end
 
---[[
-	Read-only access to instance data.
-	Called by CombatService to identify Hollowed as a valid hit target.
-]]
 function HollowedService.GetInstanceData(instanceId: string): HollowedData?
 	return _instances[instanceId]
 end
 
---[[
-	Get all active Hollowed instances.
-	Called by WitnessService to find observable Hollowed enemies.
-]]
 function HollowedService.GetAllInstances(): {[string]: HollowedData}
 	return _instances
 end
 
--- ─── Spawning System ──────────────────────────────────────────────────────────
+-- ─── Spawning ─────────────────────────────────────────────────────────────────
 
---[[
-	Count how many Hollowed instances are currently alive in a specific area.
-]]
-local function _CountInstancesInArea(areaName: string): number
-	local count = 0
-	for instanceId, area in _instanceAreaMap do
-		if area == areaName and _instances[instanceId] and _instances[instanceId].State ~= "Dead" then
-			count += 1
-		end
+local function _CountInArea(area: string): number
+	local n = 0
+	for id, a in _instanceAreaMap do
+		if a == area and _instances[id] and _instances[id].State ~= "Dead" then n += 1 end
 	end
-	return count
+	return n
 end
 
---[[
-	Try to spawn respawns in areas that haven't hit their mob cap.
-	Respects collision prevention and player distance.
-]]
 local function _TrySpawnRespawns()
-	local variantList = {"basic_hollowed", "ironclad_hollowed", "silhouette_hollowed", "resonant_hollowed", "ember_hollowed"}
-
-	-- Try spawning in each zone
+	local variants = {"basic_hollowed","ironclad_hollowed","silhouette_hollowed","resonant_hollowed","ember_hollowed"}
 	for _, zone in _spawnerConfig.SpawnZones do
-		local currentCount = _CountInstancesInArea(zone.AreaName)
-		local spotsAvailable = zone.MobCap - currentCount
-
-		-- Spawn up to 1 mob per check cycle per zone (prevents spawn spam)
-		if spotsAvailable > 0 and math.random() < 0.3 then
-			-- Find a safe spawn position
-			local spawnPos = SpawnerConfig.FindSafeSpawnPosition(
-				zone,
-				_instances,
-				_spawnerConfig.CollisionCheckRadius,
-				_spawnerConfig.MinSpawnDistance,
-				5  -- maxAttempts
-			)
-
-			if spawnPos then
-				local randomVariant = variantList[math.random(1, #variantList)]
-				local spawnCF = CFrame.new(spawnPos) * CFrame.Angles(0, math.rad(math.random(0, 360)), 0)
-				local instanceId = HollowedService.SpawnInstance(randomVariant, spawnCF)
-
-				-- Track which area this instance belongs to
-				_instanceAreaMap[instanceId] = zone.AreaName
-				print(("[HollowedService] Spawned %s in %s (%d/%d) at %s"):format(
-					randomVariant, zone.AreaName, currentCount + 1, zone.MobCap, tostring(spawnPos)))
+		local cur = _CountInArea(zone.AreaName)
+		if cur &lt; zone.MobCap and math.random() &lt; 0.3 then
+			local pos = SpawnerConfig.FindSafeSpawnPosition(zone, _instances,
+				_spawnerConfig.CollisionCheckRadius, _spawnerConfig.MinSpawnDistance, 5)
+			if pos then
+				local v  = variants[math.random(1, #variants)]
+				local cf = CFrame.new(pos) * CFrame.Angles(0, math.rad(math.random(0,360)), 0)
+				local id = HollowedService.SpawnInstance(v, cf)
+				_instanceAreaMap[id] = zone.AreaName
 			end
 		end
 	end
 end
 
---[[
-	Allow SpawnerConfig override (for testing or dynamic difficulty).
-]]
-function HollowedService.SetSpawnerConfig(newConfig: SpawnerConfig.SpawnerConfig)
-	_spawnerConfig = newConfig
-	print("[HollowedService] Spawner config updated")
+function HollowedService.SetSpawnerConfig(cfg: SpawnerConfig.SpawnerConfig)
+	_spawnerConfig = cfg
 end
 
 -- ─── Lifecycle ────────────────────────────────────────────────────────────────
 
-function HollowedService:Init(dependencies: {[string]: any}?)
-	print("[HollowedService] Initializing...")
-	if dependencies then
-		ProgressionService = dependencies.ProgressionService
-		PostureService     = (dependencies :: any).PostureService
+function HollowedService:Init(deps: {[string]: any}?)
+	if deps then
+		ProgressionService = deps.ProgressionService
+		PostureService     = (deps :: any).PostureService
 	end
 	HollowedService._initialized = true
 	print("[HollowedService] Initialized")
 end
 
 function HollowedService:Start()
-	print("[HollowedService] Starting...")
-	assert(HollowedService._initialized, "[HollowedService] Must call Init() before Start()")
-
-	-- Lazy-require PostureService if not injected (avoids load-order issues)
+	assert(HollowedService._initialized, "Call Init() first")
 	if not PostureService then
-		local ok, svc = pcall(require, game:GetService("ServerScriptService").Server.services.PostureService)
-		if ok then PostureService = svc end
+		local ok, s = pcall(require, game:GetService("ServerScriptService").Server.services.PostureService)
+		if ok then PostureService = s end
 	end
 
-	-- Log spawner configuration
-	print(("[HollowedService] Spawning system configured with %d areas"):format(#_spawnerConfig.SpawnZones))
-	for _, zone in _spawnerConfig.SpawnZones do
-		print(("[HollowedService]  - %s (Ring %d): MobCap=%d, Center=%s, Radius=%d"):format(
-			zone.AreaName, zone.Ring, zone.MobCap, tostring(zone.CenterPosition), zone.SearchRadius))
-	end
-
-	-- AI + Spawn loop — evaluate each instance every AI_TICK_RATE seconds
-	-- Also check for respawns periodically
 	_heartbeatConn = RunService.Heartbeat:Connect(function(dt: number)
 		local now = tick()
-
-		-- AI tick for existing instances
 		for instanceId, data in _instances do
-			if now - data.LastAITick >= AI_TICK_RATE then
+			local aiTick = GetAITickForDiff(data.Difficulty or 1)
+			if now - data.LastAITick >= aiTick then
 				data.LastAITick = now
-				local ok, err = pcall(_TickAI, instanceId, AI_TICK_RATE)
+				local ok, err = pcall(_TickAI, instanceId, aiTick)
 				if not ok then
-					warn(("[HollowedService] AI tick error for %s: %s"):format(instanceId, tostring(err)))
+					warn(("[HollowedService] AI error %s: %s"):format(instanceId, tostring(err)))
 				end
 			end
 		end
-
-		-- Check for respawn opportunities periodically
 		if now - _lastSpawnCheckTime >= _spawnerConfig.RespawnCheckInterval then
 			_lastSpawnCheckTime = now
 			_TrySpawnRespawns()
 		end
 	end)
-
-	print("[HollowedService] Started — Dynamic spawning and AI loop active")
+	print("[HollowedService] Started")
 end
 
 function HollowedService:Shutdown()
-	if _heartbeatConn then
-		_heartbeatConn:Disconnect()
-		_heartbeatConn = nil
-	end
-	for instanceId in _instances do
-		HollowedService.DespawnInstance(instanceId)
-		_instanceAreaMap[instanceId] = nil
-	end
-	print("[HollowedService] Shutdown complete")
+	if _heartbeatConn then _heartbeatConn:Disconnect(); _heartbeatConn = nil end
+	for id in _instances do HollowedService.DespawnInstance(id) end
+	print("[HollowedService] Shutdown")
 end
 
-return HollowedService
-]]></string>
+return HollowedService</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="110">
+        <Item class="ModuleScript" referent="117">
           <Properties>
             <string name="Name">InventoryService</string>
             <string name="Source">--!strict
@@ -22233,7 +22961,7 @@ end
 return InventoryService</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="111">
+        <Item class="ModuleScript" referent="118">
           <Properties>
             <string name="Name">MovementService</string>
             <string name="Source">--!strict
@@ -22312,7 +23040,7 @@ end)
 return MovementService</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="112">
+        <Item class="ModuleScript" referent="119">
           <Properties>
             <string name="Name">NetworkService</string>
             <string name="Source"><![CDATA[--!strict
@@ -22651,7 +23379,7 @@ return NetworkService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="113">
+        <Item class="ModuleScript" referent="120">
           <Properties>
             <string name="Name">PassiveSystem</string>
             <string name="Source">--!strict
@@ -22802,7 +23530,7 @@ end
 return PassiveSystem</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="114">
+        <Item class="ModuleScript" referent="121">
           <Properties>
             <string name="Name">PostureService</string>
             <string name="Source"><![CDATA[--!strict
@@ -23305,7 +24033,7 @@ return PostureService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="115">
+        <Item class="ModuleScript" referent="122">
           <Properties>
             <string name="Name">ProgressionService</string>
             <string name="Source"><![CDATA[--!strict
@@ -23853,7 +24581,7 @@ return ProgressionService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="116">
+        <Item class="ModuleScript" referent="123">
           <Properties>
             <string name="Name">StateSyncService</string>
             <string name="Source"><![CDATA[--!strict
@@ -24109,7 +24837,7 @@ return StateSyncService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="117">
+        <Item class="ModuleScript" referent="124">
           <Properties>
             <string name="Name">TrainingToolService</string>
             <string name="Source"><![CDATA[--!strict
@@ -24279,7 +25007,7 @@ return TrainingToolService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="118">
+        <Item class="ModuleScript" referent="125">
           <Properties>
             <string name="Name">WeaponService</string>
             <string name="Source">--!strict
@@ -24888,7 +25616,7 @@ end
 return WeaponService</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="119">
+        <Item class="ModuleScript" referent="126">
           <Properties>
             <string name="Name">WitnessService</string>
             <string name="Source"><![CDATA[--!strict
@@ -25116,7 +25844,7 @@ return WitnessService
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="120">
+        <Item class="ModuleScript" referent="127">
           <Properties>
             <string name="Name">ZoneService</string>
             <string name="Source"><![CDATA[--!strict
@@ -25325,6 +26053,14 @@ local function _updatePlayerRing(player: Player, pos: Vector3)
             end
         end
     end
+    
+    -- Find where you check if newRing ~= oldRing
+    if newRing == 5 then -- Assuming Ring 5 is Heaven
+        NetworkService:SendToClient(player, "ShowPlaque", {
+            Title = "The Ethereal Plane",
+            Sub = "Where the Echoes of the First World Reside"
+        })
+    end
 
     _ringCache[uid] = newRing
     _zoneCache[uid] = newZone
@@ -25500,15 +26236,15 @@ return ZoneService
         </Item>
       </Item>
     </Item>
-    <Item class="Folder" referent="121">
+    <Item class="Folder" referent="128">
       <Properties>
         <string name="Name">tests</string>
       </Properties>
-      <Item class="Folder" referent="122">
+      <Item class="Folder" referent="129">
         <Properties>
           <string name="Name">unit</string>
         </Properties>
-        <Item class="ModuleScript" referent="123">
+        <Item class="ModuleScript" referent="130">
           <Properties>
             <string name="Name">ActionController.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -25846,7 +26582,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="124">
+        <Item class="ModuleScript" referent="131">
           <Properties>
             <string name="Name">AnimationLoader.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -25924,7 +26660,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="125">
+        <Item class="ModuleScript" referent="132">
           <Properties>
             <string name="Name">AshExpression.test</string>
             <string name="Source">--!strict
@@ -26132,7 +26868,7 @@ print(("-- AshExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("AshExpression tests: %d failure(s)"):format(failed)) end</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="126">
+        <Item class="ModuleScript" referent="133">
           <Properties>
             <string name="Name">AspectController.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26187,7 +26923,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="127">
+        <Item class="ModuleScript" referent="134">
           <Properties>
             <string name="Name">AspectService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26259,7 +26995,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="128">
+        <Item class="ModuleScript" referent="135">
           <Properties>
             <string name="Name">AspectSwitching.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26344,7 +27080,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="129">
+        <Item class="ModuleScript" referent="136">
           <Properties>
             <string name="Name">CombatController.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26402,7 +27138,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="130">
+        <Item class="ModuleScript" referent="137">
           <Properties>
             <string name="Name">CombatService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26495,7 +27231,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="131">
+        <Item class="ModuleScript" referent="138">
           <Properties>
             <string name="Name">DummyService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -26579,7 +27315,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="132">
+        <Item class="ModuleScript" referent="139">
           <Properties>
             <string name="Name">EmberExpression.test</string>
             <string name="Source">--!strict
@@ -26794,7 +27530,7 @@ print(("-- EmberExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("EmberExpression tests: %d failure(s)"):format(failed)) end</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="133">
+        <Item class="ModuleScript" referent="140">
           <Properties>
             <string name="Name">GaleExpression.test</string>
             <string name="Source">--!strict
@@ -26987,7 +27723,7 @@ print(("-- GaleExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("GaleExpression tests: %d failure(s)"):format(failed)) end</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="134">
+        <Item class="ModuleScript" referent="141">
           <Properties>
             <string name="Name">HollowedService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -27213,7 +27949,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="135">
+        <Item class="ModuleScript" referent="142">
           <Properties>
             <string name="Name">InventoryController.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -27545,7 +28281,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="136">
+        <Item class="ModuleScript" referent="143">
           <Properties>
             <string name="Name">InventoryService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -27791,7 +28527,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="137">
+        <Item class="ModuleScript" referent="144">
           <Properties>
             <string name="Name">ItemTypes.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -27843,7 +28579,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="138">
+        <Item class="ModuleScript" referent="145">
           <Properties>
             <string name="Name">MovementController.test</string>
             <string name="Source">--!strict
@@ -28042,7 +28778,7 @@ return {
 }</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="139">
+        <Item class="ModuleScript" referent="146">
           <Properties>
             <string name="Name">MovementControllerDisc.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -28079,7 +28815,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="140">
+        <Item class="ModuleScript" referent="147">
           <Properties>
             <string name="Name">MovementService.test</string>
             <string name="Source">--!strict
@@ -28136,7 +28872,7 @@ return {
 }</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="141">
+        <Item class="ModuleScript" referent="148">
           <Properties>
             <string name="Name">NetworkProvider.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -28190,7 +28926,7 @@ end)
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="142">
+        <Item class="ModuleScript" referent="149">
           <Properties>
             <string name="Name">PostureService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -28278,7 +29014,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="143">
+        <Item class="ModuleScript" referent="150">
           <Properties>
             <string name="Name">ProgressionService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -28573,7 +29309,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="144">
+        <Item class="ModuleScript" referent="151">
           <Properties>
             <string name="Name">TideExpression.test</string>
             <string name="Source">--!strict
@@ -28764,7 +29500,7 @@ print(("-- TideExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("TideExpression tests: %d failure(s)"):format(failed)) end</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="145">
+        <Item class="ModuleScript" referent="152">
           <Properties>
             <string name="Name">VoidExpression.test</string>
             <string name="Source">--!strict
@@ -28999,7 +29735,7 @@ print(("-- VoidExpression: %d passed, %d failed"):format(passed, failed))
 if failed > 0 then error(("VoidExpression tests: %d failure(s)"):format(failed)) end</string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="146">
+        <Item class="ModuleScript" referent="153">
           <Properties>
             <string name="Name">WeaponRegistry.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -29178,7 +29914,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="147">
+        <Item class="ModuleScript" referent="154">
           <Properties>
             <string name="Name">WeaponService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -29420,7 +30156,7 @@ return {
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="148">
+        <Item class="ModuleScript" referent="155">
           <Properties>
             <string name="Name">WitnessService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -29449,7 +30185,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="149">
+        <Item class="ModuleScript" referent="156">
           <Properties>
             <string name="Name">ZoneService.test</string>
             <string name="Source"><![CDATA[--!strict
@@ -29725,7 +30461,7 @@ end
 ]]></string>
           </Properties>
         </Item>
-        <Item class="ModuleScript" referent="150">
+        <Item class="ModuleScript" referent="157">
           <Properties>
             <string name="Name">ZoneTriggerIgnore.test</string>
             <string name="Source">--!strict
@@ -29787,19 +30523,57 @@ end</string>
       </Item>
     </Item>
   </Item>
-  <Item class="StarterPlayer" referent="151">
+  <Item class="StarterPlayer" referent="158">
     <Properties>
       <string name="Name">StarterPlayer</string>
     </Properties>
-    <Item class="StarterPlayerScripts" referent="152">
+    <Item class="StarterPlayerScripts" referent="159">
       <Properties>
         <string name="Name">StarterPlayerScripts</string>
       </Properties>
-      <Item class="Folder" referent="153">
+      <Item class="Folder" referent="160">
         <Properties>
           <string name="Name">Client</string>
         </Properties>
-        <Item class="LocalScript" referent="154">
+        <Item class="LocalScript" referent="161">
+          <Properties>
+            <string name="Name">AdminConsoleController</string>
+            <string name="Source"><![CDATA[-- AdminConsoleController.client.lua
+-- Teleport shortcut for dev: Press P to go to Heaven zone
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService  = game:GetService("UserInputService")
+local Players           = game:GetService("Players")
+
+-- Wait for LocalPlayer to be initialized
+while not Players.LocalPlayer do
+    Players.PlayerAdded:Wait()
+end
+local player        = Players.LocalPlayer
+local IS_DEV        = (player.Name == "oofer_ytb" or player.UserId == game.CreatorId)
+
+-- Wait for the server to create RemoteEvents before trying to use them
+local networkFolder = ReplicatedStorage:WaitForChild("NetworkEvents", 15)
+if not networkFolder then
+    warn("[AdminConsoleController] NetworkEvents folder not found — admin shortcuts disabled")
+    return
+end
+
+local adminRemote = networkFolder:WaitForChild("AdminCommand", 10)
+if not adminRemote then
+    warn("[AdminConsoleController] AdminCommand RemoteEvent not found — admin shortcuts disabled")
+    return
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed or not IS_DEV then return end
+    if input.KeyCode == Enum.KeyCode.P then
+        adminRemote:FireServer({ Command = "tp_dev", Args = { "heaven" } })
+    end
+end)
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="LocalScript" referent="162">
           <Properties>
             <string name="Name">ClientInit</string>
             <string name="Source"><![CDATA[--!strict
@@ -29824,11 +30598,24 @@ print("[ClientInit] Bootstrap initiated - see runtime output above")
 ]]></string>
           </Properties>
         </Item>
-        <Item class="Folder" referent="155">
+        <Item class="LocalScript" referent="163">
+          <Properties>
+            <string name="Name">_CapabilityEnabler</string>
+            <string name="Source"><![CDATA[-- _CapabilityEnabler.client.lua
+-- Runs at client startup (before Client/ClientInit) to ensure workspace.Capabilities
+-- includes DynamicGeneration for EditableMesh / EditableImage APIs.
+-- Lives in StarterPlayerScripts root (not inside Client/) so it executes first.
+
+workspace.Capabilities = SecurityCapabilities.new(Enum.SecurityCapability.DynamicGeneration)
+print("[CapabilityEnabler] DynamicGeneration set on workspace (client-side)")
+]]></string>
+          </Properties>
+        </Item>
+        <Item class="Folder" referent="164">
           <Properties>
             <string name="Name">controllers</string>
           </Properties>
-          <Item class="ModuleScript" referent="156">
+          <Item class="ModuleScript" referent="165">
             <Properties>
               <string name="Name">ActionController</string>
               <string name="Source">--!strict
@@ -31241,7 +32028,7 @@ end
 return ActionController</string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="157">
+          <Item class="ModuleScript" referent="166">
             <Properties>
               <string name="Name">AspectController</string>
               <string name="Source"><![CDATA[--!strict
@@ -31418,10 +32205,7 @@ local function _registerHandlers()
         for _, fn in ipairs(AspectController._inventoryChangeListeners) do
             pcall(fn)
         end
-        warn("[AspectController] InventorySync received", #AspectController._inventory)
-        for i, item in ipairs(AspectController._inventory) do
-            warn(`   inv {i}: {item.Id}`)
-        end
+        print(("[AspectController] Inventory synced: " .. #AspectController._inventory .. " items, equipped: " .. (function() local c=0 for _ in pairs(AspectController._equipped) do c+=1 end return c end)() .. " slots"))
         for slot, item in pairs(AspectController._equipped) do
             warn(`   eq {slot}: {item and item.Id or "<empty>"}`)
         end
@@ -31495,7 +32279,7 @@ return AspectController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="158">
+          <Item class="ModuleScript" referent="167">
             <Properties>
               <string name="Name">CharacterCreationController</string>
               <string name="Source"><![CDATA[--!strict
@@ -31778,7 +32562,7 @@ return CharacterCreationController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="159">
+          <Item class="ModuleScript" referent="168">
             <Properties>
               <string name="Name">CombatController</string>
               <string name="Source"><![CDATA[--!strict
@@ -31940,7 +32724,7 @@ return CombatController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="160">
+          <Item class="ModuleScript" referent="169">
             <Properties>
               <string name="Name">CombatFeedbackUI</string>
               <string name="Source"><![CDATA[--!strict
@@ -32591,7 +33375,7 @@ return CombatFeedbackUI
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="161">
+          <Item class="ModuleScript" referent="170">
             <Properties>
               <string name="Name">DeathController</string>
               <string name="Source"><![CDATA[--!strict
@@ -32752,7 +33536,7 @@ return DeathController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="162">
+          <Item class="ModuleScript" referent="171">
             <Properties>
               <string name="Name">DummyController</string>
               <string name="Source">--!strict
@@ -32975,7 +33759,7 @@ end
 return DummyController</string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="163">
+          <Item class="ModuleScript" referent="172">
             <Properties>
               <string name="Name">EmberPointController</string>
               <string name="Source"><![CDATA[--!strict
@@ -33059,7 +33843,420 @@ return EmberPointController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="164">
+          <Item class="ModuleScript" referent="173">
+            <Properties>
+              <string name="Name">HeavenEnvironmentController</string>
+              <string name="Source"><![CDATA[--!strict
+local RunService                  = game:GetService("RunService")
+local Lighting                    = game:GetService("Lighting")
+local Workspace                   = game:GetService("Workspace")
+local Players                     = game:GetService("Players")
+local AssetService                = game:GetService("AssetService")
+
+local HeavenEnvironmentController = {}
+
+-- Constants
+local HEAVEN_Y                    = 10000
+local BLADE_WIDTH                 = 0.28
+local BLADE_HEIGHT                = 5.0
+local BLADE_SEGMENTS              = 3
+local GRASS_POOL_SIZE             = 800
+local DRAW_RADIUS                 = 150
+local CELL_SIZE                   = 5.0
+local UPDATE_THRESHOLD            = CELL_SIZE
+local WIND_CHANGE_INTERVAL        = 5.0
+local WIND_STRENGTH_MIN           = 6.0
+local WIND_STRENGTH_MAX           = 22.0
+local WIND_NOISE_SCALE            = 0.06
+local WIND_NOISE_TIME             = 0.35
+local WIND_GUST_FREQ              = 0.9
+local GRASS_HUE_MIN               = 0.275; local GRASS_HUE_MAX = 0.355
+local GRASS_SAT_MIN               = 0.55; local GRASS_SAT_MAX = 0.85
+local GRASS_VAL_MIN               = 0.40; local GRASS_VAL_MAX = 0.70
+local CLOUD_PULSE_SPEED           = 0.018; local CLOUD_COVER_BASE = 0.82; local CLOUD_COVER_AMP = 0.15
+local CLOUD_DENSITY_BASE          = 0.85; local CLOUD_DENSITY_AMP = 0.12
+local SUN_GLARE_ANGLE             = 35; local SUN_GLARE_ANGLE2 = 10; local FLARE_MAX_ALPHA = 0.55
+
+-- State
+local _initialized                = false
+local _connections                = {}
+local _clock                      = 0
+local _bladeFolder
+local _pool                       = {}
+local _active                     = {}
+local _lastGridX                  = math.huge; local _lastGridZ = math.huge
+local _lastWindChange             = 0
+local _windAngle                  = 0.0; local _windStrength = 12.0
+local _windTargetAngle            = 0.0; local _windTargetStrength = 12.0
+local _sunRaysEffect; local _bloomEffect; local _clouds; local _lensFlareGui
+
+-- Seeded RNG
+local function seededRand(x, z)
+    local seed = math.abs(math.floor(x) * 2654435761 + math.floor(z) * 2246822519) % 2147483647
+    return Random.new(seed)
+end
+
+-- Simple fallback grass blade using basic Part
+-- Used if EditableMesh is unavailable
+local function buildSimpleGrassBlade()
+    print("[HeavenEnv] Building simple grass blade (fallback)")
+    local part = Instance.new("Part")
+    part.Name = "GrassBlade"
+    part.Shape = Enum.PartType.Block
+    part.Anchored = true
+    part.CanCollide = false
+    part.CastShadow = false
+    part.Material = Enum.Material.Grass
+    part.TopSurface = Enum.SurfaceType.Smooth
+    part.BottomSurface = Enum.SurfaceType.Smooth
+    part.Size = Vector3.new(BLADE_WIDTH * 2, BLADE_HEIGHT, BLADE_WIDTH * 0.1)
+    print("[HeavenEnv] Simple grass blade created")
+    return part
+end
+
+-- Build blade EditableMesh -> MeshPart
+-- Each blade is a segmented quad (BLADE_SEGMENTS strips) with:
+--   • All vertex normals pointing straight up (0,1,0) — vegetation-style lighting
+--   • UV V=0 at root, V=1 at tip — pairs with SDF alpha texture
+--   • Slight width taper toward tip for a natural blade shape
+local function buildBladeMesh()
+    print("[HeavenEnv] buildBladeMesh START")
+    local em = AssetService:CreateEditableMesh()
+    print("[HeavenEnv] EditableMesh created successfully")
+    local nUp = em:AddNormal(Vector3.new(0, 1, 0))
+    print("[HeavenEnv] Normal added")
+    local vIds = {}; local uvIds = {}
+    for row = 0, BLADE_SEGMENTS do
+        local v     = row / BLADE_SEGMENTS
+        local y     = v * BLADE_HEIGHT
+        local halfW = BLADE_WIDTH * (1 - v * 0.6) -- taper toward tip
+        local vRow  = {}; local uvRow = {}
+        for col = 0, 1 do
+            local x    = (col == 0) and -halfW or halfW
+            vRow[col]  = em:AddVertex(Vector3.new(x, y, 0))
+            uvRow[col] = em:AddUV(Vector2.new(col, v))
+        end
+        vIds[row] = vRow; uvIds[row] = uvRow
+    end
+    print("[HeavenEnv] Vertices and UVs added: " .. (BLADE_SEGMENTS + 1) .. " rows")
+    for row = 0, BLADE_SEGMENTS - 1 do
+        local v00 = vIds[row][0]; local v10 = vIds[row][1]
+        local v01 = vIds[row + 1][0]; local v11 = vIds[row + 1][1]
+        local u00 = uvIds[row][0]; local u10 = uvIds[row][1]
+        local u01 = uvIds[row + 1][0]; local u11 = uvIds[row + 1][1]
+        local t1 = em:AddTriangle(v00, v10, v11)
+        em:SetFaceNormals(t1, { nUp, nUp, nUp }); em:SetFaceUVs(t1, { u00, u10, u11 })
+        local t2 = em:AddTriangle(v00, v11, v01)
+        em:SetFaceNormals(t2, { nUp, nUp, nUp }); em:SetFaceUVs(t2, { u00, u11, u01 })
+    end
+    print("[HeavenEnv] Faces added and normals/UVs set")
+    local ok, mp = pcall(function()
+        return AssetService:CreateMeshPartAsync(Content.fromObject(em))
+    end)
+    em:Destroy()
+    print("[HeavenEnv] CreateMeshPartAsync result: ok=" .. tostring(ok) .. ", result=" .. tostring(mp))
+    if not ok then
+        warn("[HeavenEnv] Blade build failed: " .. tostring(mp)); return nil
+    end
+    local part      = mp
+    part.Anchored   = true; part.CanCollide = false; part.CastShadow = false
+    part.Name       = "GrassBlade"; part.Material = Enum.Material.SmoothPlastic
+    part.Color      = Color3.fromHSV(0.3, 0.6, 0.5) -- natural grass green
+    print("[HeavenEnv] Part properties set: anchored, no collide, name, material, color")
+    print("[HeavenEnv] buildBladeMesh SUCCESS")
+    return part
+end
+
+-- Pool init
+local function initGrassPool()
+    print("[HeavenEnv] initGrassPool START")
+    _bladeFolder        = Instance.new("Folder")
+    _bladeFolder.Name   = "HeavenGrass"
+    _bladeFolder.Parent = Workspace
+    print("[HeavenEnv] Blade folder created")
+
+    -- Try EditableMesh first
+    local template = buildBladeMesh()
+    print("[HeavenEnv] buildBladeMesh returned: " .. tostring(template))
+
+    -- Fallback to simple grass if EditableMesh failed
+    if not template then
+        print("[HeavenEnv] Falling back to simple grass blade system")
+        template = buildSimpleGrassBlade()
+        if not template then
+            warn("[HeavenEnv] Both EditableMesh and simple grass blade creation failed")
+            return
+        end
+    end
+
+    template.CFrame = CFrame.new(0, -9999, 0)
+    template.Parent = _bladeFolder
+    table.insert(_pool, template)
+    print("[HeavenEnv] Template blade added to pool")
+
+    for i = 1, GRASS_POOL_SIZE - 1 do
+        local c = template:Clone()
+        c.CFrame = CFrame.new(0, -9999, 0)
+        c.Parent = _bladeFolder
+        table.insert(_pool, c)
+        if i % 100 == 0 then
+            print("[HeavenEnv] Cloned " .. i .. " blades...")
+        end
+    end
+    print("[HeavenEnv] initGrassPool SUCCESS - Grass pool ready: " .. #_pool .. " blades")
+end
+
+-- Scatter blades in a jittered grid around camera
+local function scatterBladesAround(camX, camZ)
+    for _, e in _active do
+        e.part.CFrame = CFrame.new(0, -9999, 0)
+        table.insert(_pool, e.part)
+    end
+    table.clear(_active)
+    local floorY = HEAVEN_Y + 0.5
+    local half   = math.ceil(DRAW_RADIUS / CELL_SIZE)
+    for gx = -half, half do
+        for gz = -half, half do
+            if gx * gx + gz * gz > half * half then continue end
+            if #_pool == 0 then break end
+            local wx0    = camX + gx * CELL_SIZE
+            local wz0    = camZ + gz * CELL_SIZE
+            local rng    = seededRand(wx0, wz0)
+            local wx     = wx0 + rng:NextNumber(-CELL_SIZE * 0.4, CELL_SIZE * 0.4)
+            local wz     = wz0 + rng:NextNumber(-CELL_SIZE * 0.4, CELL_SIZE * 0.4)
+            local hMul   = rng:NextNumber(0.72, 1.28)
+            local rotY   = rng:NextNumber(0, math.pi * 2)
+            local ph     = rng:NextNumber(0, math.pi * 2)
+            local hue    = rng:NextNumber(GRASS_HUE_MIN, GRASS_HUE_MAX)
+            local sat    = rng:NextNumber(GRASS_SAT_MIN, GRASS_SAT_MAX)
+            local val    = rng:NextNumber(GRASS_VAL_MIN, GRASS_VAL_MAX)
+            local blade  = table.remove(_pool)
+            blade.Size   = Vector3.new(BLADE_WIDTH * 2, BLADE_HEIGHT * hMul, BLADE_WIDTH * 0.1)
+            blade.Color  = Color3.fromHSV(hue, sat, val)
+            blade.CFrame = CFrame.new(wx, floorY, wz) * CFrame.Angles(0, rotY, 0)
+            table.insert(_active, { part = blade, worldX = wx, worldZ = wz, phase = ph, rotY = rotY })
+        end
+        if #_pool == 0 then break end
+    end
+    _lastGridX = camX; _lastGridZ = camZ
+end
+
+-- Wind
+local function pickNewWindTarget()
+    _windTargetAngle    = math.random() * math.pi * 2
+    _windTargetStrength = WIND_STRENGTH_MIN + math.random() * (WIND_STRENGTH_MAX - WIND_STRENGTH_MIN)
+end
+
+local function updateWind(dt)
+    local k       = 1 - math.exp(-dt * 0.8)
+    local da      = (_windTargetAngle - _windAngle + math.pi * 3) % (math.pi * 2) - math.pi
+    _windAngle    = _windAngle + da * k
+    _windStrength = _windStrength + (_windTargetStrength - _windStrength) * k
+end
+
+-- Grass animation: rotate each blade from its root using noise-driven lean
+-- tiltAxis is perpendicular to wind direction in XZ so blades lean correctly
+local function animateGrass()
+    if #_active == 0 then return end
+    local floorY = HEAVEN_Y + 0.5
+    local t      = _clock
+    local wdx    = math.cos(_windAngle)
+    local wdz    = math.sin(_windAngle)
+    local str    = _windStrength
+    for _, e in _active do
+        local wx = e.worldX; local wz = e.worldZ; local ph = e.phase
+        local n1 = math.noise(wx * WIND_NOISE_SCALE, wz * WIND_NOISE_SCALE, t * WIND_NOISE_TIME)
+        local n2 = math.noise(wx * WIND_NOISE_SCALE * 0.4, t * WIND_GUST_FREQ + ph, 0)
+        local combined = n1 * 0.65 + n2 * 0.35 + math.sin(t * 1.1 + ph) * 0.12
+        local leanRad = math.rad(combined * str)
+        local tiltAxis = Vector3.new(-wdz, 0, wdx)
+        e.part.CFrame =
+            CFrame.new(wx, floorY, wz)
+            * CFrame.Angles(0, e.rotY, 0)
+            * CFrame.fromAxisAngle(tiltAxis, leanRad)
+    end
+end
+
+-- Clouds pulse
+local function updateClouds(t)
+    if not _clouds then return end
+    _clouds.Cover   = CLOUD_COVER_BASE + math.sin(t * CLOUD_PULSE_SPEED) * CLOUD_COVER_AMP
+    _clouds.Density = CLOUD_DENSITY_BASE + math.cos(t * CLOUD_PULSE_SPEED * 1.3) * CLOUD_DENSITY_AMP
+end
+
+-- Sun direction + lens flare
+local function getSunDirection()
+    local ok, dir = pcall(function() return Lighting:GetSunDirection() end)
+    if ok and dir then return -dir end
+    local t = (Lighting.ClockTime / 24) * math.pi * 2
+    return Vector3.new(math.cos(t), math.sin(t) * 0.8, 0.2).Unit
+end
+
+local function buildLensFlareUI()
+    local player = Players.LocalPlayer
+    if not player then return end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "HeavenLensFlare"; gui.IgnoreGuiInset = true; gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; gui.Parent = player.PlayerGui
+    local halo = Instance.new("ImageLabel")
+    halo.Name = "Halo"; halo.AnchorPoint = Vector2.new(0.5, 0.5)
+    halo.Size = UDim2.new(1.8, 0, 1.8, 0); halo.Position = UDim2.new(0.5, 0, 0.5, 0)
+    halo.BackgroundTransparency = 1; halo.Image = "rbxassetid://6023426952"
+    halo.ImageColor3 = Color3.fromRGB(255, 248, 210); halo.ImageTransparency = 1
+    halo.ScaleType = Enum.ScaleType.Fit; halo.ZIndex = 10; halo.Parent = gui
+    local streak = Instance.new("ImageLabel")
+    streak.Name = "Streak"; streak.AnchorPoint = Vector2.new(0.5, 0.5)
+    streak.Size = UDim2.new(1.4, 0, 1.4, 0); streak.Position = UDim2.new(0.5, 0, 0.5, 0)
+    streak.BackgroundTransparency = 1; streak.Image = "rbxassetid://6023426952"
+    streak.ImageColor3 = Color3.fromRGB(200, 225, 255); streak.ImageTransparency = 1
+    streak.Rotation = 45; streak.ZIndex = 11; streak.Parent = gui
+    _lensFlareGui = gui
+end
+
+local function updateSunEffect()
+    if not _sunRaysEffect then return end
+    local camera = Workspace.CurrentCamera; if not camera then return end
+    local sunDir = getSunDirection(); local camDir = camera.CFrame.LookVector
+    local dot = camDir:Dot(sunDir)
+    local angleDeg = math.deg(math.acos(math.clamp(dot, -1, 1)))
+    local t = 1 - math.clamp((angleDeg - SUN_GLARE_ANGLE2) / (SUN_GLARE_ANGLE - SUN_GLARE_ANGLE2), 0, 1)
+    t = t * t
+    _sunRaysEffect.Intensity = 0.05 + t * 0.85; _sunRaysEffect.Spread = 0.4 + t * 0.35
+    if _bloomEffect then
+        _bloomEffect.Intensity = 0.4 + t * 0.7; _bloomEffect.Threshold = 1.5 - t * 0.6
+    end
+    if _lensFlareGui then
+        local halo = _lensFlareGui:FindFirstChild("Halo"); local streak = _lensFlareGui:FindFirstChild("Streak")
+        local alpha = 1 - t * FLARE_MAX_ALPHA
+        if halo then halo.ImageTransparency = alpha end
+        if streak then streak.ImageTransparency = alpha + 0.18 end
+    end
+end
+
+-- Post-FX setup
+local function setupPostProcessing()
+    local sr = Lighting:FindFirstChildOfClass("SunRaysEffect") or Instance.new("SunRaysEffect", Lighting)
+    sr.Intensity = 0.05; sr.Spread = 0.5; _sunRaysEffect = sr
+    local bl = Lighting:FindFirstChildOfClass("BloomEffect") or Instance.new("BloomEffect", Lighting)
+    bl.Intensity = 0.5; bl.Size = 30; bl.Threshold = 1.5; _bloomEffect = bl
+    local cc = Lighting:FindFirstChildOfClass("ColorCorrectionEffect") or Instance.new("ColorCorrectionEffect", Lighting)
+    cc.Brightness = 0.08; cc.Contrast = 0.08; cc.Saturation = 0.15; cc.TintColor = Color3.fromRGB(255, 250, 240)
+    local dof = Lighting:FindFirstChildOfClass("DepthOfFieldEffect") or Instance.new("DepthOfFieldEffect", Lighting)
+    dof.FarIntensity = 0.15; dof.NearIntensity = 0.0; dof.FocusDistance = 80; dof.InFocusRadius = 40
+    -- Setup atmosphere for ethereal fog (less dense)
+    local atm = Lighting:FindFirstChildOfClass("Atmosphere") or Instance.new("Atmosphere", Lighting)
+    atm.Density = 0.25
+    atm.Offset = 0.1
+    atm.Haze = 0.92
+    atm.Glare = 0.5
+    atm.Color = Color3.fromRGB(220, 230, 245)
+end
+
+-- Lifecycle
+function HeavenEnvironmentController:Init()
+    _clouds = Workspace.Terrain:FindFirstChildOfClass("Clouds")
+    _initialized = true
+end
+
+function HeavenEnvironmentController:Start()
+    if not _initialized then
+        warn("[HeavenEnv] Not initialized"); return
+    end
+    _clouds = _clouds or Workspace.Terrain:FindFirstChildOfClass("Clouds")
+
+    setupPostProcessing()
+    buildLensFlareUI()
+    pickNewWindTarget()
+
+    -- Start heartbeat immediately (animateGrass is a no-op until pool is populated)
+    local conn = RunService.Heartbeat:Connect(function(dt)
+        _clock += dt
+        if _clock - _lastWindChange > WIND_CHANGE_INTERVAL then
+            pickNewWindTarget(); _lastWindChange = _clock
+        end
+        updateWind(dt)
+        animateGrass()
+        updateClouds(_clock)
+        updateSunEffect()
+        local camera = Workspace.CurrentCamera
+        if camera then
+            local p  = camera.CFrame.Position
+            local dx = p.X - _lastGridX
+            local dz = p.Z - _lastGridZ
+            if dx * dx + dz * dz > UPDATE_THRESHOLD * UPDATE_THRESHOLD then
+                scatterBladesAround(p.X, p.Z)
+            end
+        end
+    end)
+    table.insert(_connections, conn)
+
+    -- Defer grass pool build to next frame.
+    -- This escapes the synchronous bootstrap pcall() wrapper so that:
+    --   1. _CapabilityEnabler.client.lua has already run
+    --   2. _EnableEditableMesh.server.lua has propagated workspace.Capabilities
+    --   3. Any errors from EditableMesh are caught by our own retry pcall
+    task.defer(function()
+        local capOk = false
+        for attempt = 1, 10 do
+            local ok = pcall(function()
+                local em = AssetService:CreateEditableMesh()
+                em:Destroy()
+            end)
+            if ok then
+                capOk = true
+                break
+            end
+            print("[HeavenEnv] EditableMesh not ready (attempt " .. attempt .. "), retrying in 0.15s...")
+            task.wait(0.15)
+        end
+
+        if not capOk then
+            warn(
+                "[HeavenEnv] Grass disabled — EditableMesh inaccessible after 1.5s. Enable 'Allow Mesh/Image Edit APIs' in Game Settings > Security.")
+            return
+        end
+
+        -- Extra stabilisation wait: capability confirmed but give the engine
+        -- one more full frame to fully propagate the security context before
+        -- we call CreateEditableMesh for real inside buildBladeMesh.
+        task.wait(0.25)
+
+        print("[HeavenEnv] Starting grass pool initialization...")
+        local poolOk, poolErr = pcall(initGrassPool)
+        print("[HeavenEnv] initGrassPool pcall returned: ok=" .. tostring(poolOk) .. ", err=" .. tostring(poolErr))
+        if not poolOk then
+            warn("[HeavenEnv] Grass pool build failed: " .. tostring(poolErr))
+            return
+        end
+        if #_pool == 0 then
+            warn("[HeavenEnv] Grass pool build failed — no blades created")
+            return
+        end
+
+        print("[HeavenEnv] Pool has " .. #_pool .. " blades, scattering around camera...")
+        local cam    = Workspace.CurrentCamera
+        local camPos = cam and cam.CFrame.Position or Vector3.new(0, HEAVEN_Y + 5, 0)
+        scatterBladesAround(camPos.X, camPos.Z)
+        print("[HeavenEnv] Grass active — " .. #_active .. " blades visible")
+    end)
+
+    print("[HeavenEnv] Heaven environment running (mesh grass v2 — deferred init)")
+end
+
+function HeavenEnvironmentController:Stop()
+    for _, c in _connections do c:Disconnect() end
+    table.clear(_connections)
+    if _bladeFolder then _bladeFolder:Destroy() end
+    if _lensFlareGui then
+        _lensFlareGui:Destroy(); _lensFlareGui = nil
+    end
+end
+
+return HeavenEnvironmentController
+]]></string>
+            </Properties>
+          </Item>
+          <Item class="ModuleScript" referent="174">
             <Properties>
               <string name="Name">InventoryController</string>
               <string name="Source"><![CDATA[--!strict
@@ -34320,7 +35517,7 @@ return InventoryController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="165">
+          <Item class="ModuleScript" referent="175">
             <Properties>
               <string name="Name">LoadingController</string>
               <string name="Source"><![CDATA[--!strict
@@ -34488,7 +35685,7 @@ return LoadingController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="166">
+          <Item class="ModuleScript" referent="176">
             <Properties>
               <string name="Name">MovementController</string>
               <string name="Source"><![CDATA[--!strict
@@ -35703,7 +36900,7 @@ return MovementController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="167">
+          <Item class="ModuleScript" referent="177">
             <Properties>
               <string name="Name">NetworkController</string>
               <string name="Source"><![CDATA[--!strict
@@ -35821,7 +37018,6 @@ function NetworkController:Start()
 
 		-- Connect to event
 		remote.OnClientEvent:Connect(function(packet: any)
-			print(`[NetworkController] Received event: {eventName}`)
 			self:_HandleEvent(eventName, packet)
 		end)
 
@@ -35842,23 +37038,20 @@ function NetworkController:_HandleEvent(eventName: NetworkEvent, packet: any)
 	local handlers = self._handlers[eventName]
 
 	if not handlers or #handlers == 0 then
-		-- No handlers registered, that's okay for some events
-		print(`[NetworkController] _HandleEvent({eventName}): No handlers registered`)
+		-- No handlers registered via NetworkController for this event;
+		-- it may be handled via a direct NetworkProvider connection
 		return
 	end
 
-	print(`[NetworkController] _HandleEvent({eventName}): Found {#handlers} handler(s), executing...`)
 
 	-- Execute all handlers
 	for i, handler in handlers do
-		print(`[NetworkController] _HandleEvent({eventName}): Spawning handler #{i}`)
-		task.spawn(function()
+				task.spawn(function()
 			local success, err = pcall(handler, packet)
 
 			if not success then
 				warn(`[NetworkController] Handler error for {eventName}: {err}`)
 			else
-				print(`[NetworkController] _HandleEvent({eventName}): Handler #{i} executed successfully`)
 			end
 		end)
 	end
@@ -35967,11 +37160,40 @@ function NetworkController:GetQueueSize(): number
 	return #self._eventQueue
 end
 
+
+-- ─────────────────────────────────────────────
+-- Ethereal Plane Plaque (ShowPlaque handler)
+-- ─────────────────────────────────────────────
+local function showPlaque(data)
+	local gui = Instance.new("ScreenGui", game.Players.LocalPlayer.PlayerGui)
+	gui.IgnoreGuiInset = true
+
+	local plaque = Instance.new("TextLabel", gui)
+	plaque.Size = UDim2.new(1, 0, 0.3, 0)
+	plaque.Position = UDim2.new(0, 0, 0.35, 0)
+	plaque.BackgroundTransparency = 1
+	plaque.Font = Enum.Font.Antique
+	plaque.Text = (data and data.Title) or "THE ETHEREAL PLANE"
+	plaque.TextColor3 = Color3.new(1, 1, 1)
+	plaque.TextScaled = true
+	plaque.TextTransparency = 1
+
+	local ts = game:GetService("TweenService")
+	ts:Create(plaque, TweenInfo.new(3), { TextTransparency = 0 }):Play()
+	task.delay(5, function()
+		ts:Create(plaque, TweenInfo.new(3), { TextTransparency = 1 }):Play()
+		task.wait(3)
+		gui:Destroy()
+	end)
+end
+
+NetworkController:RegisterHandler("ShowPlaque", showPlaque)
+
 return NetworkController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="168">
+          <Item class="ModuleScript" referent="178">
             <Properties>
               <string name="Name">PlayerHUDController</string>
               <string name="Source"><![CDATA[--!strict
@@ -36589,7 +37811,7 @@ function PlayerHUDController:Start()
 			print("[PlayerHUDController] Initial profile loaded, calling onProfileLoaded...")
 			onProfileLoaded(currentProf)
 		else
-			warn("[PlayerHUDController] No current profile available at Start time")
+			print("[PlayerHUDController] Profile not yet available at Start time (expected - will arrive via ProfileData event)")
 		end
 	else
 		warn("[PlayerHUDController] StateSyncController not available in Start()")
@@ -36658,7 +37880,7 @@ return PlayerHUDController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="169">
+          <Item class="ModuleScript" referent="179">
             <Properties>
               <string name="Name">ProgressionController</string>
               <string name="Source">--!strict
@@ -37156,7 +38378,7 @@ end
 return ProgressionController</string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="170">
+          <Item class="ModuleScript" referent="180">
             <Properties>
               <string name="Name">StateSyncController</string>
               <string name="Source"><![CDATA[--!strict
@@ -37335,7 +38557,7 @@ local function requestInitialSync()
 	syncInProgress = true
 
 	-- Request state from server
-	NetworkController.SendToServer("RequestStateSync", {
+	NetworkController:SendToServer("RequestStateSync", {
 		Timestamp = os.time()
 	})
 
@@ -37513,7 +38735,7 @@ return StateSyncController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="171">
+          <Item class="ModuleScript" referent="181">
             <Properties>
               <string name="Name">WeaponController</string>
               <string name="Source"><![CDATA[--!strict
@@ -37896,7 +39118,7 @@ return WeaponController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="172">
+          <Item class="ModuleScript" referent="182">
             <Properties>
               <string name="Name">WeaponEffectsController</string>
               <string name="Source"><![CDATA[--!strict
@@ -38163,7 +39385,7 @@ return WeaponEffectsController
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="173">
+          <Item class="ModuleScript" referent="183">
             <Properties>
               <string name="Name">WitnessController</string>
               <string name="Source"><![CDATA[--!strict
@@ -38349,11 +39571,11 @@ return WitnessController
             </Properties>
           </Item>
         </Item>
-        <Item class="Folder" referent="174">
+        <Item class="Folder" referent="184">
           <Properties>
             <string name="Name">modules</string>
           </Properties>
-          <Item class="ModuleScript" referent="175">
+          <Item class="ModuleScript" referent="185">
             <Properties>
               <string name="Name">DebugInput</string>
               <string name="Source"><![CDATA[--!strict
@@ -38773,7 +39995,7 @@ return DebugInput
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="176">
+          <Item class="ModuleScript" referent="186">
             <Properties>
               <string name="Name">HUDLayout</string>
               <string name="Source"><![CDATA[--!strict
@@ -38949,7 +40171,7 @@ return HUDLayout
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="177">
+          <Item class="ModuleScript" referent="187">
             <Properties>
               <string name="Name">HUDPrimitives</string>
               <string name="Source"><![CDATA[--!strict
@@ -39340,7 +40562,7 @@ return HUDPrimitives
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="178">
+          <Item class="ModuleScript" referent="188">
             <Properties>
               <string name="Name">UIBinding</string>
               <string name="Source"><![CDATA[--!strict
@@ -39636,7 +40858,7 @@ return UIBinding
 ]]></string>
             </Properties>
           </Item>
-          <Item class="ModuleScript" referent="179">
+          <Item class="ModuleScript" referent="189">
             <Properties>
               <string name="Name">UITheme</string>
               <string name="Source"><![CDATA[--!strict
@@ -39928,7 +41150,7 @@ return UITheme
             </Properties>
           </Item>
         </Item>
-        <Item class="ModuleScript" referent="180">
+        <Item class="ModuleScript" referent="190">
           <Properties>
             <string name="Name">runtime</string>
             <string name="Source"><![CDATA[--!strict
@@ -40075,15 +41297,16 @@ local startOrder = {
 	"CharacterCreationController",   -- #141: aspect picker; needs NetworkController ready
 	"DeathController",               -- #144: ShardLost popup + respawn notification
 	"StateSyncController",           -- Before MovementController so state cache exists
-	"MovementController",  -- Epic #56: smooth movement (coyote, jump buffer, sprint)
-	"WeaponController",    -- #69: equip state must be ready before ActionController
+	"MovementController",            -- Epic #56: smooth movement (coyote, jump buffer, sprint)
+	"WeaponController",              -- #69: equip state must be ready before ActionController
 	"ActionController",
-	"CombatController",      -- new combat state machine
-	"AspectController",      -- handles Aspect ability input
-	"InventoryController",    -- displays inventory items
-	"ProgressionController", -- #138/#139: Resonance HUD + Discipline selection
+	"CombatController",              -- new combat state machine
+	"AspectController",              -- handles Aspect ability input
+	"InventoryController",           -- displays inventory items
+	"ProgressionController",         -- #138/#139: Resonance HUD + Discipline selection
 	"PlayerHUDController",
 	"CombatFeedbackUI",
+	"HeavenEnvironmentController",   -- Ethereal Plane: grass, wind, sun-rays, lens flare
 }
 
 for _, name in startOrder do
