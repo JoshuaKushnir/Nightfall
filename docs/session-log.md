@@ -1,3 +1,14 @@
+## Session NF-097: Hitbox Lifetime & Size Tuning (Issue #195)
+
+### What Was Built
+- **Hitbox Tuning**: Reviewed all ability hitbox definitions in `src/shared/abilities/*.lua`. Reduced default `.LifeTime` to 0.15s where possible to make hits more accurate and avoid lingering hitboxes registering delayed damage.
+- **Hitbox Size Reduction**: Scaled down excessive default hit radiuses in `Ash`, `Ember`, `Gale`, `Tide`, and `Void` ability configurations to ensure precise targeting boundaries.
+- **CanHitTwice Cleanup**: Removed redundant `CanHitTwice = false` settings across all abilities, as default Hitbox functionality already assumes single-hit unless specified otherwise.
+- **HitboxService Updates**: Adjusted the default default LifeTime fallback value in `src/shared/modules/HitboxService.lua` from 0.5s to 0.15s.
+
+### Technical Debt / Pending Tasks
+- Continue monitoring ability success rates in playtests to ensure 0.15s lifetimes are sufficient under standard network latency conditions.
+
 ## Session NF-096: Module Initialization & Require Order Audit (Issue #194)
 
 ### What Was Built
