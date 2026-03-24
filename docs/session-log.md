@@ -1,3 +1,13 @@
+## Session NF-093: Centralized TickManager (Issue #191)
+
+### What Was Built
+- **Core TickManager Service**: Created `src/server/services/core/TickManager.lua` to serve as a centralized, batched loop for periodic effects. Uses `RunService.Heartbeat` to efficiently step all registered callbacks and `task.spawn`s them only when their interval triggers.
+- **Ember Burning Migration**: Updated `src/shared/abilities/Ember.lua` to remove the per-target `task.spawn` `while` loop for the Burning status. It now registers with `TickManager` and deregisters correctly when the effect expires or the character is destroyed.
+- **GetService Integration**: Registered `TickManager` into `Ember.lua`'s dependency injector so it can seamlessly resolve the new server service.
+
+### Technical Debt / Pending Tasks
+- Deep audit of the codebase to see if any other non-`abilities/` files (like `DummyService`'s block cycle) would benefit from using the `TickManager` rather than isolated loops.
+
 ## Session NF-092: GrassGrid Performance & Cutoff Fixes
 
 ### What Was Built

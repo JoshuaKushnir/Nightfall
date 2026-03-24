@@ -4,7 +4,7 @@ local _services = {}
 local function GetService(name)
 	if _services[name] ~= nil then return _services[name] end
 	local RunService = game:GetService("RunService")
-	
+
 	if name == "NetworkProvider" then
 		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
 	elseif name == "HitboxService" then
@@ -30,8 +30,15 @@ local function GetService(name)
 		else
 			_services[name] = false
 		end
+	elseif name == "TickManager" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.core.TickManager) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
 	end
-	
+
 	return _services[name]
 end
 --!strict
@@ -123,11 +130,21 @@ local function _applyHeatStack(
         char:SetAttribute("BurningExpiry", tick() + BURNING_DURATION)
         _VFX_BurningStatus(char)
 
-        task.spawn(function()
-            while char and char.Parent do
-                task.wait(1)
+        local TM = GetService("TickManager")
+        if TM then
+            local tickId = "Ember_Burning_" .. (tPlayer and tostring(tPlayer.UserId) or tostring(dummyId) or tostring(char:GetDebugId(10)))
+            TM.Register(tickId, 1, function()
+                if not char or not char.Parent then
+                    TM.Deregister(tickId)
+                    return
+                end
                 local expiry = char:GetAttribute("BurningExpiry") :: number?
-                if not expiry or tick() >= expiry then break end
+                if not expiry or tick() >= expiry then
+                    char:SetAttribute("StatusBurning", nil)
+                    char:SetAttribute("BurningExpiry", nil)
+                    TM.Deregister(tickId)
+                    return
+                end
                 if tPlayer then
                     if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
                 elseif dummyId then
@@ -136,12 +153,8 @@ local function _applyHeatStack(
                     end)
                     if ok3 and DS then DS.ApplyDamage(dummyId, BURNING_HP_PER_SEC, nil) end
                 end
-            end
-            if char and char.Parent then
-                char:SetAttribute("StatusBurning", nil)
-                char:SetAttribute("BurningExpiry", nil)
-            end
-        end)
+            end)
+        end
     end
 
     print(("[Ignite] %s â† %d stack(s) â†’ %d total (+%dHP)"):format(
