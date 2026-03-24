@@ -68,7 +68,7 @@ local Players = game:GetService("Players")
 local WINDSTRIKE_DASH_DIST      : number = 12
 local WINDSTRIKE_POSTURE_BASE   : number = 20
 local WINDSTRIKE_HP_DMG          : number = 15   -- HP damage placeholder
-local WINDSTRIKE_HIT_RADIUS     : number = 5
+local WINDSTRIKE_HIT_RADIUS     : number = 4
 local WINDSTRIKE_LAUNCH_DUR     : number = 0.5
 local WINDSTRIKE_AERIAL_MULT    : number = 1.5
 
@@ -109,7 +109,7 @@ end
 local CROSSWIND_PUSH_DIST       : number = 4
 local CROSSWIND_POSTURE_DMG     : number = 12
 local CROSSWIND_AERIAL_HP_DMG   : number = 15
-local CROSSWIND_HIT_RADIUS      : number = 8
+local CROSSWIND_HIT_RADIUS      : number = 6
 local CROSSWIND_GROUNDED_DUR    : number = 1
 
 -- VFX STUB â€” animator: horizontal wind shear, dust kick at push origin
@@ -262,8 +262,7 @@ Gale.Moves[1] = {
                     Position = dest,
                     Size = Vector3.new(WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS, WINDSTRIKE_HIT_RADIUS),
                     Damage = 0,
-                    LifeTime = 0.5,
-                    CanHitTwice = false,
+                    LifeTime = 0.15,
                     OnHit = function(hitTarget: any)
                         local tChar
                         local tPlayer
@@ -409,8 +408,7 @@ Gale.Moves[2] = {
                 Position = origin,
                 Radius = CROSSWIND_HIT_RADIUS,
                 Damage = 0,
-                LifeTime = 0.5,
-                CanHitTwice = false,
+                LifeTime = 0.15,
                 OnHit = function(hitTarget: any)
                     local tChar
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
@@ -759,8 +757,7 @@ Gale.Moves[5] = {
                 Length = SHEAR_RANGE,
                 Angle = 85, -- Wide arc
                 Damage = 0,
-                LifeTime = 0.5,
-                CanHitTwice = false,
+                LifeTime = 0.15,
                 OnHit = function(hitTarget: any)
                     local tChar
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then

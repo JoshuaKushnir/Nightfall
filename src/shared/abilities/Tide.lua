@@ -64,7 +64,7 @@ local Players   = game:GetService("Players")
 -- â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
 local CURRENT_RANGE         : number = 15   -- studs forward
-local CURRENT_RADIUS        : number = 5    -- hit sphere at tip
+local CURRENT_RADIUS        : number = 4    -- hit sphere at tip
 local CURRENT_KNOCKBACK     : number = 8    -- studs of pushback
 local CURRENT_POSTURE_DMG   : number = 25
 local CURRENT_HP_DMG        : number = 15   -- HP damage on hit (placeholder)
@@ -156,7 +156,7 @@ local function _VFX_Swell_Release(_pos: Vector3, _radius: number) end
 --  Zone itself deals no damage.
 
 local FLOOD_MARK_RANGE      : number = 12
-local FLOOD_MARK_RADIUS     : number = 8
+local FLOOD_MARK_RADIUS     : number = 6
 local FLOOD_MARK_DURATION   : number = 8
 
 -- VFX STUB â€” animator: water pool materialising on ground at target location, shimmering for duration
@@ -269,8 +269,7 @@ Tide.Moves[1] = {
                 Radius = CURRENT_RADIUS,
                 Size = Vector3.new(0, CURRENT_RANGE, 0), -- Y is used for height
                 Damage = CURRENT_POSTURE_DMG,
-                LifeTime = 0.5,
-                CanHitTwice = false,
+                LifeTime = 0.15,
                 OnHit = function(target: any)
                     local tPlayer = typeof(target) == "Instance" and target:IsA("Player") and target or nil
                     if tPlayer then
@@ -376,7 +375,6 @@ Tide.Moves[2] = {
             Length = UNDERTOW_BASE_RANGE,
             Damage = 0,
             LifeTime = 0.2,
-            CanHitTwice = false,
             OnHit = function(target: any)
                 if pulled then return end
                 
@@ -527,7 +525,6 @@ Tide.Moves[3] = {
                 Position = myPos,
                 Damage = 0,
                 LifeTime = 0.2,
-                CanHitTwice = false,
                 OnHit = function(target: any)
                     local tChar = nil
                     if typeof(target) == "Instance" and target:IsA("Player") then
@@ -644,7 +641,6 @@ Tide.Moves[4] = {
             Position = targetPos,
             Damage = 0,
             LifeTime = 0.2,
-            CanHitTwice = false,
             OnHit = function(target: any)
                 local tChar = nil
                 if typeof(target) == "Instance" and target:IsA("Player") then

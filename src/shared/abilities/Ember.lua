@@ -82,7 +82,7 @@ local BURNING_DURATION       : number = 4    -- seconds of Burning at max stacks
 
 local IGNITE_DASH_DIST      : number = 8
 local IGNITE_POSTURE_PER_HEAT: number = 15
-local IGNITE_HIT_RADIUS     : number = 5
+local IGNITE_HIT_RADIUS     : number = 4
 local IGNITE_HP_DMG         : number = 5   -- HP per stack on contact (placeholder)
 
 -- VFX STUB â€” animator: ember-trail dash + ground-ring burst at landing
@@ -172,7 +172,7 @@ end
 --  0.15s cast. 5-stud sphere burst. 20 posture to all targets. Consumes all
 --  Heat stacks: +8 HP per stack. Overheat (2s): mana regen paused, melee +20%.
 
-local FLASHFIRE_RADIUS       : number = 5
+local FLASHFIRE_RADIUS       : number = 4
 local FLASHFIRE_POSTURE_DMG  : number = 20
 local FLASHFIRE_HP_PER_STACK : number = 8
 local FLASHFIRE_OVERHEAT_DUR : number = 2
@@ -217,7 +217,7 @@ local function _VFX_Surge_Exit(_caster: Player) end
 --  0.3s cast. 6-stud radius ember field around caster for 6s. Targets inside:
 --  4 HP/s drain + 1 Heat stack per 2s. Field does not follow caster.
 
-local CINDER_FIELD_RADIUS   : number = 6
+local CINDER_FIELD_RADIUS   : number = 5
 local CINDER_FIELD_DURATION : number = 6
 local CINDER_FIELD_HP_PER_S : number = 4
 local CINDER_FIELD_STACK_INTERVAL: number = 2  -- seconds between stack applications
@@ -332,8 +332,7 @@ Ember.Moves[1] = {
                     Position = destination,
                     Size = Vector3.new(IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS, IGNITE_HIT_RADIUS),
                     Damage = 0,
-                    LifeTime = 0.5,
-                    CanHitTwice = false,
+                    LifeTime = 0.15,
                     OnHit = function(hitTarget: any)
                         local tPlayer: Player? = nil
                         local dummyId: string? = nil
@@ -455,8 +454,7 @@ Ember.Moves[2] = {
                 Position = origin,
                 Size = Vector3.new(radius, radius, radius),
                 Damage = 0,
-                LifeTime = 0.5,
-                CanHitTwice = false,
+                LifeTime = 0.15,
                 OnHit = function(hitTarget: any)
                     local tChar
                     if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then
@@ -797,7 +795,6 @@ Ember.Moves[5] = {
                     Size = Vector3.new(CINDER_FIELD_RADIUS, 10, CINDER_FIELD_RADIUS),
                     Damage = 0,
                     LifeTime = 0.1,  -- just a single tick
-                    CanHitTwice = false,
                     OnHit = function(hitTarget: any)
                         local tChar
                         if typeof(hitTarget) == "Instance" and hitTarget:IsA("Player") then

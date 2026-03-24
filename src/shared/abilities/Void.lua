@@ -85,7 +85,7 @@ local function _VFX_BlinkBoostExpire(_caster: Player) end
 --  0.15s cast. 8-stud pulse from caster. On hit: Silence 3s (random ability locked,
 --  cannot be cast). 10 Posture damage. If target is mid-cast: cancel + trigger full CD.
 
-local SILENCE_RANGE         : number = 8
+local SILENCE_RANGE         : number = 6
 local SILENCE_DURATION      : number = 3
 local SILENCE_POSTURE_DMG   : number = 10
 
@@ -641,7 +641,6 @@ Void.Moves[4] = {
                 Radius = VOIDPULSE_RADIUS,
                 Damage = 0,
                 LifeTime = travelTime + 0.1,
-                CanHitTwice = false,
                 OnHit = function(hitTarget: any)
                     local tChar
                     local tPlayer

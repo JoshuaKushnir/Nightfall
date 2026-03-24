@@ -71,7 +71,7 @@ local ASHEN_STEP_DASH_DISTANCE  : number = 12   -- studs forward
 local ASHEN_STEP_CAST_TIME      : number = 0.15 -- seconds before dash lands
 local ASHEN_STEP_POSTURE_DAMAGE : number = 15   -- on-arrival posture
 local ASHEN_STEP_HP_DAMAGE      : number = 15   -- HP damage placeholder
-local ASHEN_STEP_POSTURE_RADIUS : number = 5    -- studs around landing
+local ASHEN_STEP_POSTURE_RADIUS : number = 4    -- studs around landing
 local ASHEN_STEP_AFTERIMAGE_LIFE: number = 4    -- seconds afterimage persists
 local ASHEN_STEP_BLIND_DURATION : number = 0.3  -- seconds of BlindFlash
 
@@ -144,7 +144,6 @@ local function _ashenStep_applyArrivalPosture(caster: Player, landingPos: Vector
             Radius = ASHEN_STEP_POSTURE_RADIUS,
             Damage = ASHEN_STEP_POSTURE_DAMAGE,
             LifeTime = 0.2,
-            CanHitTwice = false,
             OnHit = function(target: any)
                 if typeof(target) == "Instance" and target:IsA("Player") then
                     -- HP + posture on hit
@@ -187,7 +186,7 @@ local function _VFX_CinderBurst(_caster: Player, _origin: Vector3) end
 --  On expiry/cancel: small Slow (4 studs, 1s) to nearby targets.
 
 local FADE_DURATION        : number = 1.5
-local FADE_EXIT_SLOW_RADIUS: number = 4
+local FADE_EXIT_SLOW_RADIUS: number = 3
 local FADE_EXIT_SLOW_DUR   : number = 1
 
 -- VFX STUB Ã¢â‚¬â€ animator: semi-transparent ash-veil overlay on caster model for duration
@@ -221,7 +220,7 @@ local function _VFX_Trace_Mark(_targetPos: Vector3) end
 
 local GREY_VEIL_DURATION       : number = 5
 local GREY_VEIL_POSTURE_BONUS  : number = 0.25  -- +25%
-local GREY_VEIL_EXIT_RADIUS    : number = 5
+local GREY_VEIL_EXIT_RADIUS    : number = 4
 local GREY_VEIL_DAMPENED_DUR   : number = 2
 
 -- VFX STUB Ã¢â‚¬â€ animator: subtle dark-grey overlay / reduced particle visibility during veil
@@ -421,8 +420,7 @@ Ash.Moves[2] = {
                 Length = CINDER_BURST_RANGE,
                 Angle = 15, -- 30 degree arc means 15 degrees from center
                 Damage = CINDER_BURST_POSTURE_DAMAGE,
-                LifeTime = 0.5,
-                CanHitTwice = false,
+                LifeTime = 0.15,
                 OnHit = function(target: any)
                     local targetModel = nil
                     if typeof(target) == "Instance" and target:IsA("Player") then
@@ -554,7 +552,6 @@ Ash.Moves[3] = {
                     Position = myPos,
                     Damage = 0,
                     LifeTime = 0.2,
-                    CanHitTwice = false,
                     OnHit = function(target: any)
                         local tChar = nil
                         if typeof(target) == "Instance" and target:IsA("Player") then
@@ -801,7 +798,6 @@ Ash.Moves[5] = {
                 Position = myPos,
                 Damage = 0,
                 LifeTime = 0.2,
-                CanHitTwice = false,
                 OnHit = function(target: any)
                     local tChar = nil
                     if typeof(target) == "Instance" and target:IsA("Player") then
