@@ -84,6 +84,10 @@ type PostureState = {
 	LastPressureTime : number,   -- tick() when last pressured
 	Suppressed : boolean,
 	SuppressEnd : number,
+	BaseRegen : number,
+	BlockMultiplier : number,
+	StaggerDuration : number,
+	NextNetworkSync : number,
 }
 
 local _states : {[number]: PostureState} = {}
@@ -140,6 +144,10 @@ local function _initStateForPlayer(player: Player)
 		LastPressureTime = 0,
 		Suppressed = false,
 		SuppressEnd = 0,
+		BaseRegen = (cfg and cfg.postureRecovery) or TUNING.defaultPostureRecovery,
+		BlockMultiplier = (cfg and cfg.postureBlockMultiplier) or 1.0,
+		StaggerDuration = (cfg and cfg.staggerDuration) or 0.7,
+		NextNetworkSync = 0,
 	}
 	_states[uid] = st
 
@@ -162,6 +170,9 @@ function PostureService.InitCharacter(player: Player)
 		local cfg = _getDiscCfgForPlayer(player)
 		local maxVal = (cfg and cfg.postureMax) or existing.Max
 		existing.Max = maxVal
+		existing.BaseRegen = (cfg and cfg.postureRecovery) or TUNING.defaultPostureRecovery
+		existing.BlockMultiplier = (cfg and cfg.postureBlockMultiplier) or 1.0
+		existing.StaggerDuration = (cfg and cfg.staggerDuration) or 0.7
 		if existing.Current > existing.Max + TUNING.overcapLimit then
 			existing.Current = existing.Max + TUNING.overcapLimit
 		end
@@ -204,9 +215,7 @@ function PostureService.DrainPosture(player: Player, amount: number, opts: {[str
 	local isBlocking = opts.IsBlocking
 	-- Apply discipline block multiplier when blocking and modifier not bypassed
 	if isBlocking and not opts.BypassBlockMultiplier then
-		local cfg = _getDiscCfgForPlayer(player)
-		local mult = (cfg and cfg.postureBlockMultiplier) or 1.0
-		amount = amount * mult
+		amount = amount * state.BlockMultiplier
 	end
 
 	-- Mark pressure time and increase stress proportionally
@@ -310,9 +319,7 @@ function PostureService.BreakPosture(player: Player, reason: string?, opts: {[st
 	state.Suppressed = true
 
 	-- Determine duration (use discipline staggerDuration for base; block-break stronger)
-	local cfg = _getDiscCfgForPlayer(player)
-	local baseStagger = (cfg and cfg.staggerDuration) or 0.7
-	local duration = baseStagger
+	local duration = state.StaggerDuration
 	if reason == "BlockBreaker" then
 		-- stronger variant
 		duration = math.clamp((TUNING.blockBreakMinStun + TUNING.blockBreakMaxStun)/2, TUNING.blockBreakMinStun, TUNING.blockBreakMaxStun)
@@ -404,12 +411,12 @@ function PostureService.Update(dt: number)
 		end
 
 		-- Skip regen if paused (recent pressure)
+		local needsSync = false
 		if tick() < state.RegenPausedUntil then
 			-- still cannot regen; continue stress decay logic below
 		else
-			-- Compute regen using discipline base and stress multiplier
-			local cfg = _getDiscCfgForPlayer(player)
-			local baseRegen = (cfg and cfg.postureRecovery) or TUNING.defaultPostureRecovery
+			-- Compute regen using cached base and stress multiplier
+			local baseRegen = state.BaseRegen
 
 			-- Interpret "stress" such that more stress => faster regen.
 			-- We apply a multiplier: regen = baseRegen * (1 + stress)
@@ -420,9 +427,7 @@ function PostureService.Update(dt: number)
 			local cap = state.Max + state.Overcap
 			if state.Current < cap then
 				state.Current = math.min(cap, state.Current + regenAmount)
-				_applyCharAttributes(player, state)
-				_firePostureChanged(player, state)
-				_sendCombatDataToPlayer(player, state)
+				needsSync = true
 			end
 
 			-- If we've regened back above Max, gradually burn down Overcap
@@ -430,8 +435,7 @@ function PostureService.Update(dt: number)
 				-- slowly decay overcap as it's temporary; use a small fraction of regen
 				local overcapDecay = math.max(1, baseRegen * dt * 0.5)
 				state.Overcap = math.max(0, state.Overcap - overcapDecay)
-				_applyCharAttributes(player, state)
-				_firePostureChanged(player, state)
+				needsSync = true
 			end
 		end
 
@@ -439,7 +443,14 @@ function PostureService.Update(dt: number)
 		-- If no pressure for some time, decay stress towards 0
 		if tick() - state.LastPressureTime > 0.15 then
 			state.Stress = math.max(0, state.Stress - TUNING.stressDecayPerSec * dt)
+			needsSync = true
+		end
+
+		if needsSync and tick() >= state.NextNetworkSync then
+			state.NextNetworkSync = tick() + 0.2 -- batch network updates to 5 times per second
 			_applyCharAttributes(player, state)
+			_firePostureChanged(player, state)
+			_sendCombatDataToPlayer(player, state)
 		end
 	end
 end
