@@ -205,6 +205,167 @@
 - Performance profiling on lower-end devices with profiler
 - Fine-tuning cloud pulsing speed based on visual feedback from playtest
 
+## Session NF-087: Performance Optimization Epic Planning & Documentation
+
+**Date:** 2026-03-23
+**Issues:** Performance Epic (26 sub-issues across 5 phases)
+
+### What Was Built
+
+- **OPTIMIZATION-EPIC.md** (comprehensive epic documentation)
+  - Documented all 26 sub-issues across 5 phases (Foundation, Combat, Rendering, Network, UI)
+  - Defined success metrics: 30%+ server frame time reduction, <0.5ms per-hit, 40%+ network bandwidth reduction
+  - Created dependency graph showing blocking relationships between issues
+  - Established rollout strategy: Phase 1 (Weeks 1-2), Phase 2+3 (Weeks 3-4), Phase 4+5 (Weeks 5-6)
+  - Documented testing strategy for per-issue, per-phase, and integration testing
+  - Target duration: 8-12 weeks with clear acceptance criteria per issue
+
+- **OPTIMIZATION-EPIC-GITHUB-ISSUES.md** (ready-to-use issue templates)
+  - Created GitHub CLI commands for all 26 issues (#189-#214)
+  - Each issue includes: Overview, Acceptance Criteria, Dependencies, Files Affected, Implementation Tasks, Notes
+  - Organized by phase with proper labels (phase-X, priority, type)
+  - Includes instructions for linking blocking relationships via GitHub web UI
+
+- **PHASE1-IMPLEMENTATION-GUIDE.md** (detailed implementation walkthrough)
+  - Deep-dive implementation guide for Phase 1 foundation work (Issues #189-#194)
+  - Documented current problems, target patterns, and step-by-step implementation for each issue
+  - Included code examples showing before/after patterns for require refactoring, attribute caching, TickManager
+  - Added profiling guidance, testing strategy, troubleshooting section
+  - Explains why Phase 1 is critical: blocks Phase 2 (Combat) and Phase 4 (Network) work
+
+### Epic Structure
+
+**Phase 1: Server & Code Optimizations (Foundation)**
+- #189: Service require refactoring (move requires to module scope)
+- #190: Attribute caching in tight loops (cache weapon damage, posture, stamina)
+- #191: Centralized tick loops (single TickManager for all Heartbeat connections)
+- #192: Movement state machine caching (cache transition validation results)
+- #193: Debug systems gating (runtime flags for hitbox visualization, verbose logging)
+- #194: Module initialization audit (move expensive work from require-time to Init())
+
+**Phase 2: Hitbox, Combat & Movement (Depends on Phase 1)**
+- #195: Hitbox lifetime & size tuning (reduce 0.5s to 0.15-0.3s, shrink dimensions)
+- #196: Batch hitbox checks for PvE (group spatial queries by owner)
+- #197: Movement state machine optimization (skip validation when input unchanged)
+- #198: Posture & stamina caching (refresh only on stat changes)
+- #199: CombatService per-hit optimization (target <0.5ms from ~2-3ms)
+
+**Phase 3: VFX, Models & Map (Independent)**
+- #200: Minimal cheap VFX implementations (replace stubs with color tweens, simple particles)
+- #201: Particle emitter reuse pool (object pooling to reduce GC pressure)
+- #202: Distance-based ambient culling (cull effects beyond render distance)
+- #203: LOD & polygon optimization (apply RenderFidelity.Automatic to high-poly models)
+- #204: Invisible parts cleanup (remove deprecated Transparency=1 parts)
+- #205: Rendering profiling report (document all Phase 3 improvements)
+
+**Phase 4: Network & Replication (Depends on Phase 1)**
+- #206: Event-level snapshot architecture (consolidate attribute changes into single snapshot packet)
+- #207: Data quantization for compression (quantize position to 0.1 stud, health/posture to integers)
+- #208: Rate-limited logging & debug events (max 1/sec for debug events)
+- #209: Ability activation consolidation (single AbilityAction event instead of separate cast/cancel/cooldown)
+- #210: Client-side prediction for simple actions (predict block/movement, rollback on server reject)
+
+**Phase 5: Client UI & Animation (Parallel with Phase 4)**
+- #211: UI binding optimization (change detection, batch updates to 20 Hz)
+- #212: UI instance recycling (pool damage numbers, notifications)
+- #213: Animation preloading & asset validation (validate PreloadAll success, retry logic)
+- #214: HUD update queue & batching (flush updates once per frame instead of multiple times)
+
+### Key Technical Insights from Codebase Analysis
+
+**Service Initialization Pattern:**
+- Bootstrap uses Loader.LoadModules() to dynamically load services alphabetically
+- Two-phase initialization: Init(dependencies) → Start()
+- Explicit start order defined for dependency management in runtime/init.lua
+
+**Combat System Hot Paths:**
+- HitboxService tests all active hitboxes every Heartbeat (60 FPS)
+- CombatService processes damage attributes every frame for all players + dummies + hollowed
+- GetAttribute calls happen 100+ times per frame (expensive C++ boundary crossing)
+- Hit rate limiting: 50ms minimum between hits per player
+
+**Network Event Patterns:**
+- NetworkProvider: centralized RemoteEvent registry with rate limiting
+- NetworkService: spawns handlers as tasks for non-blocking execution
+- StateSyncService throttles syncs to 0.5s minimum between updates
+- Per-event rate limits prevent spam (configurable)
+
+**Existing Performance Patterns:**
+- AnimationLoader: flat DB cache built at require-time for fast lookups
+- HitboxService: native Roblox spatial queries (GetPartBoundsInRadius, Blockcast)
+- RateLimits tracked per player per event (two-level dict)
+- State history limited to last 5 entries
+
+### Integration Points
+
+- Epic documentation provides roadmap for 8-12 weeks of optimization work
+- GitHub issue templates ready for team to create issues immediately
+- Phase 1 implementation guide enables developers to start foundation work
+- Dependency graph ensures correct work ordering (Phase 1 must complete before Phase 2 & 4)
+
+### Spec Gaps Encountered
+
+None - this is planning/documentation work. Implementation will be tracked via 26 individual GitHub issues.
+
+### Tech Debt Created
+
+None - this establishes framework to reduce tech debt via systematic optimization.
+
+### Rollout Strategy
+
+**Immediate Actions:**
+1. Review OPTIMIZATION-EPIC.md with team for approval
+2. Create GitHub issues using templates in OPTIMIZATION-EPIC-GITHUB-ISSUES.md
+3. Link issues with blocking relationships via GitHub web UI
+4. Assign Phase 1 issues to developers
+5. Begin Phase 1 work using PHASE1-IMPLEMENTATION-GUIDE.md
+
+**Week 1-2: Phase 1 (Foundation)**
+- Issues #189-#194 can be worked in parallel (no inter-dependencies)
+- Establishes foundation for all subsequent work
+- Critical path: blocks Phase 2 & 4
+
+**Week 3-4: Phase 2 & 3 (Combat + Rendering)**
+- Phase 2 starts after Phase 1 completes
+- Phase 3 can start immediately (independent)
+- Can be worked by different teams in parallel
+
+**Week 5-6: Phase 4 & 5 (Network + UI)**
+- Phase 4 starts after Phase 1 completes
+- Phase 5 has some dependencies on Phase 4 (#206)
+- Final integration testing
+
+### Performance Baseline (to be captured)
+
+Before any optimization work begins, capture baseline metrics:
+- Server frame time during 100-player simulation
+- Per-hit execution time (instrument CombatService.ValidateHit)
+- Network bandwidth usage (Studio Network Profiler)
+- Client FPS on target devices (Graphics Quality 1-3)
+- GC pause frequency and duration
+- Memory peak usage
+
+These baselines will validate success metrics at epic completion.
+
+### Next Session Should Start On
+
+**Option 1: Begin Phase 1 Implementation**
+- Start with Issue #189 (Service Require Refactoring) - highest impact, enables other work
+- Use PHASE1-IMPLEMENTATION-GUIDE.md for implementation patterns
+- Profile before/after to document improvements
+
+**Option 2: Create GitHub Issues**
+- Use templates in OPTIMIZATION-EPIC-GITHUB-ISSUES.md to create all 26 issues
+- Link blocking relationships via GitHub web UI
+- Assign Phase 1 issues to team members
+
+**Option 3: Capture Performance Baseline**
+- Run comprehensive profiling to capture baseline metrics
+- Document in docs/PERFORMANCE_BASELINE.md
+- Provides comparison point for all optimization work
+
+Recommend Option 2 (create issues) first, then Option 3 (baseline), then Option 1 (begin implementation). 4e11d25 (docs: Update session log with NF-087 optimization epic planning)
+
 ## Session NF-086: HollowedService State Machine & Timing Fixes (5 Critical Gates)
 
 ### What Was Built
