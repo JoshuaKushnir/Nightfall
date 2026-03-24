@@ -84,8 +84,12 @@ function GrassGrid:_buildBladeMesh(): BasePart?
 
 		local numBlades = config.BladesPerClump or 1
 		local baseCurve = config.CurveStrength or 0
-		local rootColor = config.RootColor or Color3.fromRGB(80, 140, 60)
-		local tipColor = config.TipColor or Color3.fromRGB(180, 220, 80)
+
+		-- Use grayscale based on config values so Part.Color can accurately tint both grass and flowers
+		local _, _, rV = (config.RootColor or Color3.fromRGB(80, 140, 60)):ToHSV()
+		local _, _, tV = (config.TipColor or Color3.fromRGB(180, 220, 80)):ToHSV()
+		local rootColor = Color3.fromHSV(0, 0, rV)
+		local tipColor = Color3.fromHSV(0, 0, tV)
 
 		for b = 1, numBlades do
 			local bladeYaw = (b - 1) * (math.pi * 2 / numBlades)
@@ -153,7 +157,7 @@ function GrassGrid:_buildBladeMesh(): BasePart?
 	mp.CastShadow = false
 	pcall(function() mp.DoubleSided = true end)
 	mp.Material = Enum.Material.SmoothPlastic
-	mp.Color = Color3.fromRGB(80, 140, 60)
+	mp.Color = Color3.fromRGB(255, 255, 255)
 	return mp
 end
 
@@ -167,7 +171,7 @@ function GrassGrid:_buildSimpleBlade(): BasePart
 	p.TopSurface = Enum.SurfaceType.Smooth
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Material = Enum.Material.Grass
-	p.Color = Color3.fromHSV(0.3, 0.6, 0.5)
+	p.Color = Color3.fromRGB(255, 255, 255)
 	return p
 end
 
@@ -221,8 +225,20 @@ function GrassGrid:_createCell(cx: number, cz: number): Cell
 		local hue = rng:NextNumber(config.GrassHueMin, config.GrassHueMax)
 		local sat = rng:NextNumber(config.GrassSatMin, config.GrassSatMax)
 		local val = rng:NextNumber(config.GrassValMin, config.GrassValMax)
+		local baseColor = Color3.fromHSV(hue, sat, val)
+		local isFlower = false
 
-		part.Color = Color3.fromHSV(hue, sat, val)
+		if config.FlowerProbability and rng:NextNumber() < config.FlowerProbability then
+			if config.FlowerColors and #config.FlowerColors > 0 then
+				baseColor = config.FlowerColors[rng:NextInteger(1, #config.FlowerColors)]
+			else
+				baseColor = Color3.fromRGB(255, 255, 255)
+			end
+			isFlower = true
+		end
+
+		part.Color = baseColor
+		part.Material = isFlower and Enum.Material.Neon or Enum.Material.SmoothPlastic
 		part.Size = Vector3.new(config.BladeWidth, config.BladeHeight * hScale, config.BladeDepth)
 
 		local rootY = y - 0.2

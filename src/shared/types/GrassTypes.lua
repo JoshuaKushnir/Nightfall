@@ -35,6 +35,8 @@ export type GrassConfig = {
     GrassSatMax: number,
     GrassValMin: number,
     GrassValMax: number,
+    FlowerProbability: number?,
+    FlowerColors: {Color3}?,
 	SurfaceFilter: {BasePart}?, -- Optional list of surfaces to place grass on
 }
 

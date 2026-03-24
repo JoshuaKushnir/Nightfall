@@ -18,15 +18,17 @@ local HeavenEnvironmentController = {}
 -- Constants
 local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	YOffset = 9999,
-	BladeHeight = 2.1,
-	BladeWidth = 0.35,
-	BladeDepth = 0.20,
+	BladeHeight = 2.0,
+	BladeWidth = 0.55,
+	BladeDepth = 0.25,
 	BladeSegments = 3,
-	BladesPerClump = 3,
-	CurveStrength = 0.15,
+	BladesPerClump = 4,
+	CurveStrength = 0.22,
+	RootColor = Color3.fromRGB(45, 110, 35),
+	TipColor = Color3.fromRGB(150, 220, 50),
 
 	CellSize = 24,
-	BladesPerCell = 300,      -- optimized with clumps
+	BladesPerCell = 450,
 	DrawDistance = 300,
 	AnimationDist = 120,
     FadeStart = 140,
@@ -44,6 +46,13 @@ local HEAVEN_GRASS_CONFIG: GrassTypes.GrassConfig = {
 	GrassSatMax = 0.85,
 	GrassValMin = 0.40,
 	GrassValMax = 0.70,
+	FlowerProbability = 0.06,
+	FlowerColors = {
+		Color3.fromRGB(240, 245, 255), -- White
+		Color3.fromRGB(110, 160, 255), -- Blue
+		Color3.fromRGB(255, 120, 150), -- Pink
+		Color3.fromRGB(255, 220, 100), -- Yellow
+	},
 	SurfaceFilter = nil,
 }
 
