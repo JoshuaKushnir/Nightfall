@@ -1,3 +1,16 @@
+## Session NF-104: HeavenEnvironmentController Loading Fix (Issue #222)
+
+### What Was Built
+- **Fixed Controller Loading**: Moved `HeavenEnvironmentController.lua` from `controllers/environment/` subfolder to `controllers/` root folder where the loader can find it.
+- **Fixed Require Path**: Updated GrassGrid require path from `script.Parent.Parent.Parent.modules` to `script.Parent.Parent.modules` to account for new file location.
+- **Cleanup**: Removed `HeavenEnvironmentController.lua.disabled` file that was blocking the module and deleted the now-empty environment folder.
+
+### Root Cause Analysis
+The client bootstrap loader uses `Loader.LoadModules(controllersFolder, false)` with `deep=false`, which only loads ModuleScripts directly in the controllers folder, not in subfolders. The controller was incorrectly nested in `controllers/environment/` and had a disabled version in the root that prevented both from loading.
+
+### Technical Debt / Pending Tasks
+- None. Controller now loads and initializes properly during client startup.
+
 ## Session NF-101: Event-Level Snapshot Architecture (Issue #206)
 
 ### What Was Built
