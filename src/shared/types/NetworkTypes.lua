@@ -24,6 +24,7 @@ export type NetworkEvent =
 	| "ProfileData"
 	| "ProfileUpdate"
 	| "CombatData"
+	| "StateSnapshot"
 
 	-- Combat
 	| "DamageDealt"
@@ -126,6 +127,18 @@ export type NetworkEvent =
 	| "DebugInfo"
 
 -- Packet Definitions
+
+export type StateSnapshotPacket = {
+	Timestamp: number,
+	State: string?,
+	Health: number?,
+	MaxHealth: number?,
+	Mana: number?,
+	MaxMana: number?,
+	Posture: number?,
+	MaxPosture: number?,
+	Level: number?,
+}
 
 export type StateChangedPacket = {
 	NewState: string,
