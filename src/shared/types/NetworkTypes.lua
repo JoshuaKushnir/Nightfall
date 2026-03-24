@@ -1069,7 +1069,7 @@ local EVENT_METADATA: {[NetworkEvent]: EventMetadata} = {
 	},
 	DebugInfo = {
 		Direction = "Bidirectional",
-		RateLimitPerSecond = nil,
+		RateLimitPerSecond = 5,
 		RequiresValidation = false,
 		Description = "Debug information exchange",
 	},
