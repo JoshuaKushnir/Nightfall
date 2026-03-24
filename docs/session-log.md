@@ -3928,3 +3928,11 @@ Issue #180: Five Hollowed enemy types with distinct movesets � Flesh out the 5
 ### Technical Debt / Pending Tasks
 - Integrate these quantization functions into existing `RemoteEvent` payloads that transmit large amounts of positional data (like `StateSnapshotPacket` or movement updates).
 
+
+## Session NF-103: Rate-Limited Logging (Issue #208)
+
+### What Was Built
+- **Rate Limiting**: Added rate limit for `DebugInfo` RemoteEvent in `src/shared/types/NetworkTypes.lua` to prevent network spam and potential DoS vectors.
+
+### Technical Debt / Pending Tasks
+- Ensure no other unrestricted diagnostic events exist or get introduced without explicit justification.
