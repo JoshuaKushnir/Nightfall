@@ -1,3 +1,39 @@
+
+-- Service caching to avoid per-hit require overhead (Optimization #189)
+local _services = {}
+local function GetService(name)
+	if _services[name] ~= nil then return _services[name] end
+	local RunService = game:GetService("RunService")
+	
+	if name == "NetworkProvider" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+	elseif name == "HitboxService" then
+		_services[name] = require(game:GetService("ReplicatedStorage").Shared.modules.combat.HitboxService)
+	elseif name == "PostureService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.PostureService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "CombatService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.combat.CombatService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	elseif name == "DummyService" then
+		if RunService:IsServer() then
+			local success, result = pcall(function() return require(game:GetService("ServerScriptService").Server.services.entities.DummyService) end)
+			_services[name] = success and result or false
+		else
+			_services[name] = false
+		end
+	end
+	
+	return _services[name]
+end
 --!strict
 --[[
 	FrostShield.lua  — Active ability
@@ -43,7 +79,7 @@ function FrostShield.OnActivate(player: Player, _weapon: any)
 end
 
 function FrostShield.ClientActivate(targetPosition: Vector3?)
-    local NetworkProvider = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
+    local NetworkProvider = GetService("NetworkProvider")
     local remote = NetworkProvider:GetRemoteEvent("AbilityCastRequest")
     if remote then
         remote:FireServer({AbilityId = FrostShield.Id, TargetPosition = targetPosition})
