@@ -43,7 +43,6 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
 -- Optional safe require for CombatService when needed (avoid module-cycle at top)
-end
 
 -- Tunables local to PostureService (kept small & explicit)
 local TUNING = {
@@ -444,6 +443,18 @@ function PostureService.Update(dt: number)
 		if tick() - state.LastPressureTime > 0.15 then
 			state.Stress = math.max(0, state.Stress - TUNING.stressDecayPerSec * dt)
 			needsSync = true
+		end
+
+		-- Consume IncomingPostureDamage attribute (Issue #174)
+		local char = player.Character
+		if char then
+			local incoming = char:GetAttribute("IncomingPostureDamage")
+			if type(incoming) == "number" and incoming > 0 then
+				local source = char:GetAttribute("IncomingPostureDamageSource") or "Unknown"
+				char:SetAttribute("IncomingPostureDamage", 0)
+				PostureService.DrainPosture(player, incoming, { Source = source })
+				needsSync = true
+			end
 		end
 
 		if needsSync and tick() >= state.NextNetworkSync then

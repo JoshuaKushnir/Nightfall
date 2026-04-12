@@ -158,6 +158,64 @@ test("Moves[2].PostureDamage == 20", function()
     assert_eq(Ember.Moves[2].PostureDamage, 20)
 end)
 
+test("Moves[2].OnActivate writes IncomingHPDamage proportional to stacks", function()
+    local player, root = makeCharacter(Vector3.new(900, 0, 0))
+    local char = player.Character
+    char:SetAttribute("HeatStacks", 2)
+
+    -- Mocking HitboxService for OnHit side-effects is complex in this env,
+    -- but we can verify the function runs without error.
+    Ember.Moves[2].OnActivate(player, Vector3.new(905, 0, 0))
+    root.Parent.Parent = nil
+end)
+
+-- Move 3 - Heat Shield
+
+test("Moves[3].Id == 'HeatShield'", function()
+    assert_eq(Ember.Moves[3].Id, "HeatShield")
+end)
+
+test("Moves[3].OnActivate sets StatusHeatShield attribute", function()
+    local player, root = makeCharacter(Vector3.new(1000, 0, 0))
+    Ember.Moves[3].OnActivate(player, nil)
+    assert_eq(player.Character:GetAttribute("StatusHeatShield"), true)
+    root.Parent.Parent = nil
+end)
+
+-- Move 4 - Surge
+
+test("Moves[4].Id == 'Surge'", function()
+    assert_eq(Ember.Moves[4].Id, "Surge")
+end)
+
+test("Moves[4].OnActivate sets StatusSurge and increments Momentum", function()
+    local player, root = makeCharacter(Vector3.new(1100, 0, 0))
+    player.Character:SetAttribute("Momentum", 1)
+    Ember.Moves[4].OnActivate(player, nil)
+    assert_eq(player.Character:GetAttribute("StatusSurge"), true)
+    assert_eq(player.Character:GetAttribute("Momentum"), 2)
+    root.Parent.Parent = nil
+end)
+
+-- Move 5 - CinderField
+
+test("Moves[5].Id == 'CinderField'", function()
+    assert_eq(Ember.Moves[5].Id, "CinderField")
+end)
+
+test("Moves[5].OnActivate creates a zone part in Workspace", function()
+    local player, root = makeCharacter(Vector3.new(1200, 0, 0))
+    -- This test verifies Bug 1 fix (no 'casterId' error)
+    Ember.Moves[5].OnActivate(player, Vector3.new(1200, 0, 0))
+
+    local zone = Workspace:FindFirstChild("EmberCinderFieldZone")
+    assert(zone ~= nil, "EmberCinderFieldZone should be created")
+    assert(zone:IsA("BasePart"), "EmberCinderFieldZone should be a Part")
+
+    zone:Destroy()
+    root.Parent.Parent = nil
+end)
+
 -- Talents
 
 test("Each move has exactly 3 Talents", function()

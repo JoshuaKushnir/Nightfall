@@ -20,6 +20,7 @@ local RunService = game:GetService("RunService")
 -- DataService is a sibling module under Server.services; load via relative path
 local DataService: any = nil
 local StateService = require(ReplicatedStorage.Shared.modules.StateService)
+local PlayerData = require(ReplicatedStorage.Shared.types.PlayerData)
 local CombatService: any = nil
 local HitboxService = require(ReplicatedStorage.Shared.modules.HitboxService)
 local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider)
@@ -420,45 +421,76 @@ end
     CanCastAbility(player, abilityId) -> (boolean, string?)
     Validate aspect, depth, state, mana, and cooldown.
 ]]
-function AspectService.CanCastAbility(player: Player, abilityId: string)
-    local profile = DataService:GetProfile(player)
-    if not profile or not profile.AspectData then
-        return false, "NoAspect"
-    end
+function AspectService.CanCastAbility(player: Player, abilityId: string): (boolean, string?)
+	local profile = DataService:GetProfile(player) :: PlayerData.PlayerData?
+	if not profile then
+		return false, "NoProfile"
+	end
 
-    local ability = _getAbility(abilityId)
-    if not ability then
-        return false, "UnknownAbility"
-    end
+	-- Dead/Stunned/Ragdolled check via StateService
+	local currentState = profile.State
+	if currentState == "Dead" or currentState == "Stunned" or currentState == "Ragdolled" then
+		return false, "InvalidState"
+	end
 
-    if ability.AspectId and ability.AspectId ~= "None" then
-        if profile.AspectData.AspectId ~= ability.AspectId then
-            return false, "WrongAspect"
-        end
-    end
+	-- Aspect matching logic
+	if not profile.AspectData then
+		return false, "NoAspect"
+	end
 
-    if ability.Branch and ability.MinDepth then
-        local branchState = profile.AspectData.Branches and profile.AspectData.Branches[ability.Branch]
-        if not branchState or branchState.Depth < ability.MinDepth then
-            return false, "DepthTooLow"
-        end
-    end
+	local ability = _getAbility(abilityId)
+	if not ability then
+		return false, "UnknownAbility"
+	end
 
-    if not StateService:IsActionAllowed(player, "CastAbility") then
-        return false, "BadState"
-    end
+	-- For Expression abilities, verify the player is actually using that Aspect
+	if ability.Type == "Expression" and profile.AspectData.AspectId ~= ability.AspectId then
+		return false, "WrongAspect"
+	end
 
-    if profile.Mana.Current < ability.ManaCost then
-        return false, "InsufficientMana"
-    end
+	if ability.AspectId and ability.AspectId ~= "None" then
+		if profile.AspectData.AspectId ~= ability.AspectId then
+			return false, "WrongAspect"
+		end
+	end
 
-    profile.ActiveCooldowns = profile.ActiveCooldowns or {}
-    local now = tick()
-    if profile.ActiveCooldowns[abilityId] and profile.ActiveCooldowns[abilityId] > now then
-        return false, "OnCooldown"
-    end
+	if ability.Branch and ability.MinDepth then
+		local branchState = profile.AspectData.Branches and profile.AspectData.Branches[ability.Branch]
+		if not branchState or branchState.Depth < ability.MinDepth then
+			return false, "DepthTooLow"
+		end
+	end
 
-    return true
+	-- State validation: Move must be allowed in current state
+	if ability.RequiredState and #ability.RequiredState > 0 then
+		local allowed = false
+		for _, s in ability.RequiredState do
+			if s == currentState then
+				allowed = true
+				break
+			end
+		end
+		if not allowed then
+			return false, "BadState"
+		end
+	end
+
+	-- Standard Action check
+	if not StateService:IsActionAllowed(player, "CastAbility") then
+		return false, "ActionBlocked"
+	end
+
+	if profile.Mana.Current < (ability.ManaCost or 0) then
+		return false, "InsufficientMana"
+	end
+
+	profile.ActiveCooldowns = profile.ActiveCooldowns or {}
+	local now = tick()
+	if profile.ActiveCooldowns[abilityId] and profile.ActiveCooldowns[abilityId] > now then
+		return false, "OnCooldown"
+	end
+
+	return true, nil
 end
 
 
@@ -466,134 +498,81 @@ end
     ExecuteAbility(player, abilityId, targetPosition) -> boolean
     Validates and executes ability; handles mana, state, cooldown, and damage.
 ]]
-function AspectService.ExecuteAbility(player: Player, abilityId: string, targetPosition: Vector3?)
-    local ok, reason = AspectService.CanCastAbility(player, abilityId)
-    if not ok then
-        return false, reason
-    end
+function AspectService.ExecuteAbility(player: Player, abilityId: string, targetPosition: Vector3?): (boolean, string?)
+	local ok, reason = AspectService.CanCastAbility(player, abilityId)
+	if not ok then
+		return false, reason
+	end
 
-    local profile = DataService:GetProfile(player)
-    local ability = _getAbility(abilityId)
-    if not ability then
-        return false, "UnknownAbility"
-    end
+	local profile = DataService:GetProfile(player) :: PlayerData.PlayerData?
+	local ability = _getAbility(abilityId)
+	if not profile or not ability then
+		return false, "InternalError"
+	end
 
-    -- ── Weapon scaling (#171): abilities with ScaleWithWeapon augment damage from the equipped weapon ──
-    local scaledDamage: number = ability.BaseDamage or 0
-    do
-        local WeaponSvc = _requireWeaponService()
-        local equippedWpnId = WeaponSvc and WeaponSvc.GetEquipped(player) or nil
-        local weaponCfg = equippedWpnId and WeaponRegistry.Get(equippedWpnId) or nil
-        if (ability :: any).ScaleWithWeapon and weaponCfg then
-            local scale: number = (ability :: any).WeaponScale or 0.5
-            scaledDamage = scaledDamage + ((weaponCfg :: any).BaseDamage or 0) * scale
-        end
-    end
+	-- ── Weapon scaling (#171) ──
+	local scaledDamage: number = ability.BaseDamage or 0
+	do
+		local WeaponSvc = _requireWeaponService()
+		local equippedWpnId = WeaponSvc and WeaponSvc.GetEquipped(player) or nil
+		local weaponCfg = equippedWpnId and WeaponRegistry.Get(equippedWpnId) or nil
+		if (ability :: any).ScaleWithWeapon and weaponCfg then
+			local scale: number = (ability :: any).WeaponScale or 0.5
+			scaledDamage = scaledDamage + ((weaponCfg :: any).BaseDamage or 0) * scale
+		end
+	end
 
-    profile.Mana.Current -= ability.ManaCost
+	-- Deduct mana and set cooldown
+	profile.Mana.Current -= (ability.ManaCost or 0)
 
-    local cdExpiry = tick() + ability.Cooldown
-    profile.ActiveCooldowns[abilityId] = cdExpiry
+	local cooldown = ability.Cooldown or 5
+	local cdExpiry = tick() + cooldown
+	profile.ActiveCooldowns[abilityId] = cdExpiry
 
-    local char = player.Character
-    if char then
-        char:SetAttribute("CD_" .. abilityId, cdExpiry)
-    end
+	local char = player.Character
+	if char then
+		char:SetAttribute("CD_" .. abilityId, cdExpiry)
+	end
 
-    StateService:SetState(player, "Casting")
-    if ability.OnActivate then
-        task.spawn(ability.OnActivate, player, targetPosition)
-    end
-    ability.VFX_Function(player, targetPosition)
+	-- Set state to Casting
+	StateService:SetPlayerState(player, "Casting")
 
-    -- ── Issue 1 / 2: server-side hitbox → CombatService damage pipeline ──────
-    if not ability.OnActivate and ability.BaseDamage and ability.BaseDamage > 0 then
-        if targetPosition then
-            local hitRadius = ability.Range or ABILITY_HIT_RADIUS
-            local isAoE = ability.IsAoE == true
+	-- Execute logic
+	local castTime = ability.CastTime or 0
+	task.spawn(function()
+		local success, err = pcall(function()
+			if ability.OnActivate then
+				ability.OnActivate(player, targetPosition)
+			end
+			if ability.VFX_Function then
+				ability.VFX_Function(player, targetPosition)
+			end
+		end)
 
-            if isAoE then
-                -- AoE path: collect all targets then batch-validate (Issue 2)
-                -- Build a temporary hitbox to identify targets in the sphere.
-                local aoeHitbox = HitboxService.CreateHitbox({
-                    Owner    = player,
-                    Shape    = "Sphere",
-                    Position = targetPosition,
-                    Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
-                    Damage   = scaledDamage,
-                    LifeTime = ABILITY_HITBOX_LIFETIME,
-                })
-                -- Collect targets via OnHit before expiry
-                local aoeHits: {{TargetName: string, Damage: number, HitType: string?}} = {}
-                local origOnHit = aoeHitbox.Config.OnHit
-                aoeHitbox.Config.OnHit = function(target: any, _hd: any)
-                    local targetName: string? = nil
-                    if typeof(target) == "Instance" and target:IsA("Player") then
-                        targetName = (target :: Player).Name
-                    elseif type(target) == "string" then
-                        targetName = target
-                    end
-                    if targetName then
-                        table.insert(aoeHits, {
-                            TargetName = targetName,
-                            Damage     = scaledDamage,
-                            HitType    = "Ability",
-                        })
-                    end
-                    if origOnHit then origOnHit(target, _hd) end
-                end
-                HitboxService.TestHitbox(aoeHitbox)
-                -- Validate all hits server-side, rate-limit bypassed (server-initiated)
-                if #aoeHits > 0 then
-                    task.spawn(function()
-                        CombatService.ValidateAoEHit(player, aoeHits)
-                    end)
-                end
-            else
-                -- Single-target path: Sphere hitbox, hit first valid target (Issue 1)
-                local hitHappened = false
-                local singleHitbox = HitboxService.CreateHitbox({
-                    Owner    = player,
-                    Shape    = "Sphere",
-                    Position = targetPosition,
-                    Size     = Vector3.new(hitRadius, hitRadius, hitRadius),
-                    Damage   = scaledDamage,
-                    LifeTime = ABILITY_HITBOX_LIFETIME,
-                    OnHit    = function(target: any, _hd: any)
-                        if hitHappened then return end  -- first-hit gate
-                        hitHappened = true
-                        local targetName: string? = nil
-                        if typeof(target) == "Instance" and target:IsA("Player") then
-                            targetName = (target :: Player).Name
-                        elseif type(target) == "string" then
-                            targetName = target
-                        end
-                        if not targetName then return end
-                        CombatService.ValidateHit(player, {
-                            TargetName             = targetName,
-                            Damage                 = scaledDamage,
-                            HitType                = "Ability",
-                            BypassWeaponValidation = true,
-                            BypassRateLimit        = true,
-                        })
-                    end,
-                })
-                HitboxService.TestHitbox(singleHitbox)
-            end
-        else
-            warn(`[AspectService] {player.Name} cast {abilityId} with no targetPosition — hitbox skipped`)
-        end
-    end
-    -- ─────────────────────────────────────────────────────────────────────────
+		if not success then
+			warn(`[AspectService] Error executing ability {abilityId} for {player.Name}: {err}`)
+		end
 
-    -- return to idle after cast time
-    task.delay(ability.CastTime or 0, function()
-        if Utils.IsValidPlayer(player) then
-            StateService:SetState(player, "Idle")
-        end
-    end)
+		-- End state after CastTime
+		if castTime > 0 then
+			task.wait(castTime)
+		end
 
-    return true
+		-- Only return to Idle if we are still in Casting state (not stunned/dead)
+		local currentProfile = DataService:GetProfile(player) :: PlayerData.PlayerData?
+		if currentProfile and currentProfile.State == "Casting" then
+			StateService:SetPlayerState(player, "Idle")
+		end
+	end)
+
+	-- Broadcast for animation/VFX sync
+	NetworkService:BroadcastToNearby(char and char.PrimaryPart and char.PrimaryPart.Position or Vector3.zero, 150, "AbilityCastResultBroadcast", {
+		Caster = player,
+		AbilityId = abilityId,
+		TargetPosition = targetPosition
+	})
+
+	return true, nil
 end
 
 -- cooldown sync
@@ -639,93 +618,87 @@ local function _onInvestRequest(player, aspectId, branch, amount)
     NetworkService:SendToClient(player, "AspectInvestResult", {Success = success, Reason = reason})
 end
 
+local _lastCastTime: {[Player]: number} = {}
+
 -- Issue 3: packet validation + authoritative cooldown timestamp ─────────────
 local function _onCastRequest(player: Player, packet: any)
-    -- nil / type guards
-    if type(packet) ~= "table" then
-        warn(`[AspectService] {player.Name} sent non-table AbilityCastRequest`)
-        NetworkService:SendToClient(player, "AbilityCastResult", {
-            Success = false, Reason = "InvalidPacket"
-        })
-        return
-    end
-    if packet.AbilityId == nil or packet.AbilityId == "" then
-        _requireAbilitySystem().HandleWeaponAbility(player)
-        return
-    elseif type(packet.AbilityId) ~= "string" then
-        warn(`[AspectService] {player.Name} sent invalid AbilityId`)
-        NetworkService:SendToClient(player, "AbilityCastResult", {
-            Success = false, Reason = "InvalidAbilityId"
-        })
-        return
-    end
-    -- TargetPosition: optional but must be a Vector3 if provided
-    local targetPosition: Vector3? = nil
-    if packet.TargetPosition ~= nil then
-        if typeof(packet.TargetPosition) ~= "Vector3" then
-            warn(`[AspectService] {player.Name} sent non-Vector3 TargetPosition`)
-            NetworkService:SendToClient(player, "AbilityCastResult", {
-                Success = false, Reason = "InvalidTargetPosition", AbilityId = packet.AbilityId
-            })
-            return
-        end
-        -- Range sanity check: reject casts beyond MAX_CAST_RANGE studs
-        local char = player.Character
-        if char then
-            local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
-            if root then
-                local dist = (root.Position - packet.TargetPosition).Magnitude
-                if dist > MAX_CAST_RANGE then
-                    warn(`[AspectService] {player.Name} exceeded cast range ({dist} studs)`)
-                    NetworkService:SendToClient(player, "AbilityCastResult", {
-                        Success = false, Reason = "OutOfRange", AbilityId = packet.AbilityId
-                    })
-                    return
-                end
-            end
-        end
-        targetPosition = packet.TargetPosition
-    end
+	-- Rate limit: 0.1s
+	local now = tick()
+	if _lastCastTime[player] and now - _lastCastTime[player] < 0.1 then
+		return
+	end
+	_lastCastTime[player] = now
 
-    -- Route: general weapon/inventory abilities → AbilitySystem (no AspectData required)
-    --        Expression (Depth-1) abilities     → AbilitySystem.HandleExpressionAbility (with targetPos)
-    --        Aspect-specific abilities          → AspectService.ExecuteAbility
-    local generalAbility = AbilityRegistry.Get(packet.AbilityId)
-    if generalAbility then
-        if generalAbility.Type == "Expression" then
-            -- Expression abilities need the targetPosition for spatial effects (dash direction, etc.)
-            _requireAbilitySystem().HandleExpressionAbility(player, packet.AbilityId, targetPosition)
-        else
-            _requireAbilitySystem().HandleUseAbilityById(player, packet.AbilityId)
-        end
-        NetworkService:SendToClient(player, "AbilityCastResult", {
-            Success        = true,
-            Reason         = nil,
-            AbilityId      = packet.AbilityId,
-            TargetPosition = targetPosition,
-            CooldownExpiry = nil,
-        })
-        return
-    end
+	-- nil / type guards
+	if type(packet) ~= "table" then
+		warn(`[AspectService] {player.Name} sent non-table AbilityCastRequest`)
+		NetworkService:SendToClient(player, "AbilityCastResult", {
+			Success = false, Reason = "InvalidPacket"
+		})
+		return
+	end
+	if packet.AbilityId == nil or packet.AbilityId == "" then
+		_requireAbilitySystem().HandleWeaponAbility(player)
+		return
+	elseif type(packet.AbilityId) ~= "string" then
+		warn(`[AspectService] {player.Name} sent invalid AbilityId`)
+		NetworkService:SendToClient(player, "AbilityCastResult", {
+			Success = false, Reason = "InvalidAbilityId"
+		})
+		return
+	end
 
-    local success, reason = AspectService.ExecuteAbility(player, packet.AbilityId, targetPosition)
+	-- TargetPosition: optional but must be a Vector3 if provided
+	local targetPosition: Vector3? = nil
+	if packet.TargetPosition ~= nil then
+		if typeof(packet.TargetPosition) ~= "Vector3" then
+			warn(`[AspectService] {player.Name} sent non-Vector3 TargetPosition`)
+			NetworkService:SendToClient(player, "AbilityCastResult", {
+				Success = false, Reason = "InvalidTargetPosition", AbilityId = packet.AbilityId
+			})
+			return
+		end
+		-- Range sanity check: reject casts beyond MAX_CAST_RANGE studs
+		local char = player.Character
+		if char then
+			local root = char:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root then
+				local dist = (root.Position - packet.TargetPosition).Magnitude
+				if dist > MAX_CAST_RANGE then
+					warn(`[AspectService] {player.Name} exceeded cast range ({dist} studs)`)
+					NetworkService:SendToClient(player, "AbilityCastResult", {
+						Success = false, Reason = "OutOfRange", AbilityId = packet.AbilityId
+					})
+					return
+				end
+			end
+		end
+		targetPosition = packet.TargetPosition
+	end
 
-    -- Return authoritative server-side cooldown expiry so client doesn't recalculate
-    local cooldownExpiry: number? = nil
-    if success then
-        local profile = DataService:GetProfile(player)
-        if profile and profile.ActiveCooldowns then
-            cooldownExpiry = profile.ActiveCooldowns[packet.AbilityId]
-        end
-    end
+	-- Execute
+	local success, reason = AspectService.ExecuteAbility(player, packet.AbilityId, targetPosition)
 
-    NetworkService:SendToClient(player, "AbilityCastResult", {
-        Success        = success,
-        Reason         = reason,
-        AbilityId      = packet.AbilityId,
-        TargetPosition = targetPosition,
-        CooldownExpiry = cooldownExpiry,  -- authoritative server tick() expiry timestamp
-    })
+	-- Return authoritative server-side cooldown expiry so client doesn't recalculate
+	local cooldownExpiry: number? = nil
+	local cooldownDuration: number = 0
+	if success then
+		local profile = DataService:GetProfile(player) :: PlayerData.PlayerData?
+		if profile and profile.ActiveCooldowns then
+			cooldownExpiry = profile.ActiveCooldowns[packet.AbilityId]
+			local ability = _getAbility(packet.AbilityId)
+			cooldownDuration = ability and ability.Cooldown or 0
+		end
+	end
+
+	NetworkService:SendToClient(player, "AbilityCastResult", {
+		Success          = success,
+		Reason           = reason,
+		AbilityId        = packet.AbilityId,
+		TargetPosition   = targetPosition,
+		CooldownExpiry   = cooldownExpiry,
+		CooldownDuration = cooldownDuration,
+	})
 end
 -- ────────────────────────────────────────────────────────────────────────────
 
