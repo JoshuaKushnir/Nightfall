@@ -486,25 +486,27 @@ Each ring teaches the player to comprehend something increasingly profound:
 
 ## 🗺️ CURRENT PROJECT STATE (update this header each planning session)
 
-**Last updated:** March 13, 2026 — Session NF-071 (Ring Progression Redesign)
+**Last updated:** April 12, 2026 — Issue board refactor
 
 | Phase | Status | Notes |
 |---|---|---|
 | Phase 0: Genesis | ✅ Complete | Repo, types, Rojo |
 | Phase 1: Core Framework | ✅ Complete | DataService, NetworkService, StateService, Bootstrap |
-| Phase 2: Combat & Movement | ✅ Complete | Hitbox, Combat, Defense, Movement |
+| Phase 2: Combat & Movement | ✅ Complete | Hitbox, Combat, Defense, Movement, Posture |
 | Phase 3: Aspect System | ✅ Complete | Types, Registry, Service, Controller, cooldowns, mana regen |
-| Phase 3: Inventory | ✅ Complete | InventoryService + InventoryController (Deepwoken layout, NF-070) |
-| Phase 3: Depth-1 Abilities | 🔄 In Progress | All OnActivate stubs — Ember first (#174) |
-| **Ring 1: Progression Loop** | 🔄 In Progress | Hollowed enemies (#180), Witnessing (#181), Ember Points + Duskwalker (#182) — **Epic: #179** |
-| Phase 4: World & Narrative | ⏳ Not Started | Dialogue (#177), enemy AI improvements, zone design |
-| Phase 5: Polish & Launch | ⏳ Not Started | Anti-cheat audit, performance, final checklist |
+| Phase 3: Inventory | ✅ Complete | InventoryService + InventoryController |
+| Phase 3: Depth-1 Abilities | 🔄 In Progress | Ember first (#174) — template for all five Aspects |
+| Ring 1: Hollowed + Witnessing | 🔄 In Progress | #180, #181, #182 — blocked on #174 |
+| Ring 1: HUD + Zone Triggers | 🔄 In Progress | #176 — ZoneService dead code, resonance HUD missing |
+| Phase 4: World & Narrative | ⏳ Queued | Dialogue (#177), death flow (#226), character creation (#227) |
+| Performance: Phase 1 Foundation | ⏳ Queued | #189–194 — start immediately in parallel, no game logic dependency |
+| Phase 5: Polish & Launch | ⏳ Not Started | Anti-cheat audit, full perf pass, final checklist |
 
-**Next unblocked work (prioritized):**
-1. **[#179 Epic](https://github.com/JoshuaKushnir/Nightfall/issues/179)** — Ring 1 Verdant Shelf progression loop (foundational for entire game)
-2. [#180](https://github.com/JoshuaKushnir/Nightfall/issues/180) — Five Hollowed enemy types with distinct movesets
-3. [#181](https://github.com/JoshuaKushnir/Nightfall/issues/181) — Witnessing system + Codex entries (observation rewards knowledge)
-4. [#182](https://github.com/JoshuaKushnir/Nightfall/issues/182) — Ember Points + Duskwalker gate (player agency + readiness test)
+**Next unblocked work (start here):**
+1. #174 — Depth-1 Ember abilities — THE blocker. Unblocks everything.
+2. #189–194 — Performance Phase 1 — run in parallel. Zero dependencies on game content.
+3. #176 — ZoneService + resonance HUD — no combat dependency. Can start now.
+4. #227 — Character creation UI — server-side already done. Client work only.
 
 ---
 
