@@ -1,3 +1,27 @@
+## Session NF-107: Implement Depth-1 Ember Ability Pipeline (Issue #174)
+**Date:** 2026-04-12  
+**Issues:** #174
+
+### What Was Built
+- **Ember.lua**: Fixed a critical bug where `casterId` was undefined in the `CinderField` move.
+- **AspectService**: Implemented the `AbilityCastRequest` server-side routing and validation logic. Added `CanCastAbility` for state/mana/cooldown/aspect checks and `ExecuteAbility` for authoritative execution and state management (Casting → Idle).
+- **PostureService**: Added a consumer for the `IncomingPostureDamage` attribute, allowing abilities to damage target posture via the standard attribute-bridge pattern.
+- **Unit Tests**: Expanded `EmberExpression.test.lua` to cover all Depth-1 moves and verify the `casterId` fix.
+- **PR**: Opened #229 to merge changes into the main branch.
+
+### Integration Points
+- `AspectService` now fully utilizes `AbilityRegistry` and `StateService` for authoritative ability execution.
+- `CombatService` and `PostureService` are now correctly bridged to the attribute-based damage pipeline for all Aspect abilities.
+
+### Spec Gaps Encountered
+- None (used existing placeholders for mana and cooldowns).
+
+### Tech Debt Created
+- `ExecuteAbility` currently uses `task.spawn` for `OnActivate`. Long-term, we may want a more robust "AbilityInstance" object if abilities become more complex than single-function activations.
+
+### Next Session Should Start On
+- #189–194 Performance Phase 1 Foundation or #176 ZoneService triggers.
+
 ## Session NF-106: Refactor Modular Enemy System (Behavior Tree & Data-Driven Movesets) (Issue #223)
 
 ### What Was Built
