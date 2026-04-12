@@ -446,6 +446,18 @@ function PostureService.Update(dt: number)
 			needsSync = true
 		end
 
+		-- Consume IncomingPostureDamage attribute (Issue #174)
+		local char = player.Character
+		if char then
+			local incoming = char:GetAttribute("IncomingPostureDamage")
+			if type(incoming) == "number" and incoming > 0 then
+				local source = char:GetAttribute("IncomingPostureDamageSource") or "Unknown"
+				char:SetAttribute("IncomingPostureDamage", 0)
+				PostureService.DrainPosture(player, incoming, { Source = source })
+				needsSync = true
+			end
+		end
+
 		if needsSync and tick() >= state.NextNetworkSync then
 			state.NextNetworkSync = tick() + 0.2 -- batch network updates to 5 times per second
 			_applyCharAttributes(player, state)
