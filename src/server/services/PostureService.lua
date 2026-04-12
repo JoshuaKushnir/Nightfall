@@ -43,7 +43,6 @@ local NetworkProvider = require(ReplicatedStorage.Shared.network.NetworkProvider
 local DisciplineConfig = require(ReplicatedStorage.Shared.modules.DisciplineConfig)
 
 -- Optional safe require for CombatService when needed (avoid module-cycle at top)
-end
 
 -- Tunables local to PostureService (kept small & explicit)
 local TUNING = {
