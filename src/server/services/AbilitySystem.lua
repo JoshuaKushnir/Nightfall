@@ -270,8 +270,6 @@ function AbilitySystem.HandleUseAbilityById(player: Player, abilityId: string)
 		local ok, err = pcall(ability.OnActivate, player, nil)  -- no weapon context
 		if not ok then
 			warn(("[AbilitySystem] '%s' OnActivate error: %s"):format(abilityId, tostring(err)))
-		else
-			print(("[AbilitySystem] ✓ %s activated %s"):format(player.Name, abilityId))
 		end
 	end
 end
@@ -312,8 +310,34 @@ function AbilitySystem.HandleExpressionAbility(
 		return
 	end
 
-	-- ManaCost deduction is handled upstream by AspectService; here we only own cooldowns
+	-- Validate mana and deduct it here (AspectService routes Expression abilities
+	-- directly to this function, bypassing ExecuteAbility, so mana must be handled here)
+	local DataService = require(game:GetService("ServerScriptService").Server.services.DataService)
+	local StateService = require(game:GetService("ServerScriptService").Server.services.StateService)
+
+	local profile = DataService:GetProfile(player)
+	if not profile then
+		warn(("[AbilitySystem] HandleExpressionAbility: no profile for %s"):format(player.Name))
+		return
+	end
+
+	local manaCost: number = ability.ManaCost or 0
+	if profile.Mana.Current < manaCost then
+		print(("[AbilitySystem] %s: insufficient mana for '%s' (%d/%d)"):format(
+			player.Name, abilityId, profile.Mana.Current, manaCost))
+		return
+	end
+
+	-- Reject if state disallows casting
+	if not StateService:IsActionAllowed(player, "CastAbility") then
+		print(("[AbilitySystem] %s: state blocks cast of '%s'"):format(player.Name, abilityId))
+		return
+	end
+
+	-- All checks passed — commit
+	profile.Mana.Current -= manaCost
 	_StartActiveCooldown(player, abilityId, ability.Cooldown or 6)
+	StateService:SetState(player, "Casting")
 
 	if ability.OnActivate then
 		local ok, err = pcall(ability.OnActivate, player, targetPos)
@@ -324,6 +348,13 @@ function AbilitySystem.HandleExpressionAbility(
 			print(("[AbilitySystem] ✓ %s cast Expression ability %s"):format(player.Name, abilityId))
 		end
 	end
+
+	-- Return to Idle after cast time (OnActivate handles its own async work via task.delay)
+	task.delay(ability.CastTime or 0.2, function()
+		if player and player.Parent then
+			StateService:SetState(player, "Idle")
+		end
+	end)
 end
 
 function AbilitySystem:Start()
