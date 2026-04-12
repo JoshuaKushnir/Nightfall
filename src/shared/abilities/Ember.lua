@@ -4,7 +4,7 @@ local _services = {}
 local function GetService(name)
 	if _services[name] ~= nil then return _services[name] end
 	local RunService = game:GetService("RunService")
-	
+
 	if name == "NetworkProvider" then
 		_services[name] = require(game:GetService("ReplicatedStorage").Shared.network.NetworkProvider)
 	elseif name == "HitboxService" then
@@ -43,7 +43,7 @@ local function GetService(name)
 			_services[name] = false
 		end
 	end
-	
+
 	return _services[name]
 end
 --!strict
@@ -150,7 +150,7 @@ local function _applyHeatStack(
                     TM.DeregisterEffect(effectId)
                     return
                 end
-                
+
                 if tPlayer then
                     if ok2 and CS then CS.ApplyBreakDamage(tPlayer, BURNING_HP_PER_SEC) end
                 elseif dummyId then
@@ -830,7 +830,7 @@ Ember.Moves[5] = {
 
         local TM = GetService("TickManager")
         if TM then
-            local effectId = "CinderField_" .. tostring(tick()) .. "_" .. tostring(casterId)
+            local effectId = "CinderField_" .. tostring(tick()) .. "_" .. tostring(caster.UserId)
             local start = tick()
             TM.RegisterEffect(effectId, 0.1, function()
                 if tick() - start >= CINDER_FIELD_DURATION or _tick(0.1) then
