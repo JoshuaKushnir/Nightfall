@@ -1,3 +1,0 @@
-{
-  "query": "mutation { createIssueLink(input: {subjectId: \"I_kwDORPJisM7qja7C\", objectId: \"I_kwDORPJisM7qip-B\", linkType: BLOCKED_BY}) { issueLinkEdge { node { linkType } } } }"
-}

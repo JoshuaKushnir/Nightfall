@@ -178,16 +178,14 @@ function HUDPrimitives.StatBar(
 	applyCorner(barBg, UITheme.Corners.Small)
 	barBg.Parent = root
 
-	-- Bar fill (clipped)
+	-- Bar fill (clipped to barBg bounds via ClipsDescendants)
+	barBg.ClipsDescendants = true
 	local fill = Instance.new("Frame")
 	fill.Name = "Fill"
 	fill.Size = UDim2.new(value, 0, 1, 0)
 	fill.BackgroundColor3 = UITheme.Palette.HealthGreen
 	fill.BorderSizePixel = 0
 	applyCorner(fill, UITheme.Corners.Small)
-	
-	-- Clip fill to parent bounds
-	local clipFrame = Instance.new("frame")
 	fill.Parent = barBg
 
 	-- Value label (overlaid on bar)
@@ -324,12 +322,12 @@ function HUDPrimitives.Toast(
 	padding.PaddingRight = UITheme.Spacing.PaddingSmall
 	padding.Parent = container
 
-	-- Fade in
-	local fadeIn = TweenService:Create(
+	-- Fade in immediately (non-blocking)
+	TweenService:Create(
 		container,
 		TweenInfo.new(UITheme.Motion.DurationQuick, UITheme.Motion.EasingQuick, UITheme.Motion.EasingInOut),
 		{ BackgroundTransparency = 0 }
-	)
+	):Play()
 
 	-- Dismiss function
 	local function dismiss()
@@ -344,9 +342,8 @@ function HUDPrimitives.Toast(
 		fadeOut:Play()
 	end
 
-	-- Auto-dismiss after duration
-	task.wait(displayDuration)
-	dismiss()
+	-- Auto-dismiss after duration (non-blocking — spawned so constructor returns immediately)
+	task.delay(displayDuration, dismiss)
 
 	return {
 		Root = screenGui,

@@ -3989,6 +3989,38 @@ Issue #180: Five Hollowed enemy types with distinct movesets � Flesh out the 5
 - Integrate these quantization functions into existing `RemoteEvent` payloads that transmit large amounts of positional data (like `StateSnapshotPacket` or movement updates).
 
 
+## Session NF-104: HUD Cleanup & Root Hygiene
+
+### Issues Addressed
+- TODO Steps 2–4 confirmed complete (no code changes needed — implementations already present)
+- HUDPrimitives.lua bug fixes (no GitHub issue; trivially small, clearly correct)
+- Root directory hygiene
+
+### What Was Done
+
+**HUDPrimitives.lua — StatBar clipFrame bug:**
+`clipFrame` was a `Frame` created with `Instance.new("frame")` but never assigned a Parent, so it silently leaked an invisible instance. Removed it and set `barBg.ClipsDescendants = true` instead — the correct Roblox pattern for clipping child frames.
+
+**HUDPrimitives.lua — Toast task.wait() bug:**
+`task.wait(displayDuration)` was called synchronously inside the `Toast()` constructor, blocking the calling thread for the full duration (default 3s) before returning the Toast object. Replaced with `task.delay(displayDuration, dismiss)` so the constructor returns immediately and the auto-dismiss fires asynchronously. Also removed the unused `fadeIn` local variable — the tween now chains directly with `:Play()`.
+
+**TODO.md Steps 2–4 marked complete:**
+Code review confirmed PlayerHUDController.lua already has the posture bar integrated (stacked below health via UIListLayout), HideHUD()/ShowHUD() methods exist and toggle clusterGui.Enabled, and InventoryController.ToggleOpen() already calls self._hud:HideHUD()/ShowHUD(). All three steps were already implemented; TODO was stale.
+
+**Root directory cleanup:**
+- Created `tools/` directory (was missing)
+- Moved scripts to `tools/`: fix_movement_controller.py, fix_requires.py, replace.ps1, session_tracker.sh, generate_dashboard.sh, update_log.py, issue_manager.sh, clean_abilities.ps1
+- Created `tools/_scratch/` for disposable artifacts
+- Moved to `tools/_scratch/`: diff.txt, tmplog.txt, update-log.patch, createlink.json, mutations.json, pr_body_movement.md, query.graphql, query.json, schema.json, temp.graphql, PlayerHUDController.lua.bak
+- Moved `implementation_plan.md` → `docs/implementation_plan.md`
+- Updated `.gitignore`: added tools/_scratch/, *.rbxlx, *.rbxl, Packages/, sourcemap.json, __pycache__, OS noise
+
+### Technical Debt Created
+- None
+
+### Next Session Should Start On
+TODO Step 5 — Studio verification playtest. Confirm posture bar renders correctly above mana/luminance, HUD hides when inventory opens, and Toast no longer blocks. Then Step 6: GitHub CLI triage, complete and close issue #183.
+
 ## Session NF-103: Rate-Limited Logging (Issue #208)
 
 ### What Was Built

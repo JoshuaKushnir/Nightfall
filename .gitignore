@@ -1,1 +1,22 @@
 .blackboxcli/
+
+# Rojo build output
+*.rbxlx
+*.rbxl
+
+# Wally packages (restored via `wally install`)
+Packages/
+
+# Rojo generated files
+sourcemap.json
+
+# Agent scratch files — safe to delete at any time
+tools/_scratch/
+
+# Python bytecache
+__pycache__/
+*.pyc
+
+# OS noise
+.DS_Store
+Thumbs.db

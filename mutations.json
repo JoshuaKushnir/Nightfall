@@ -1,3 +1,0 @@
-{
-  "query": "{ __type(name: \"Mutation\") { name fields { name } } }"
-}
